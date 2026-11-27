@@ -42,14 +42,33 @@ const PHASE_COPY: Record<ArticleActionPhase, string> = {
   recording: STEP_COPY.sending,
 }
 
-const PENDING_COPY: Record<PendingAction, string> = {
-  register: 'Enabling tips. Waiting for Stellar testnet to confirm.',
-  content_update:
-    'Updating the anchor. Waiting for Stellar testnet to confirm.',
-  author_propose:
-    'Recording the old wallet’s approval. Waiting for Stellar testnet to confirm.',
-  author_accept: 'Finishing the move. Waiting for Stellar testnet to confirm.',
+const PENDING_ACTION: Record<PendingAction, string> = {
+  register: 'Enabling tips.',
+  content_update: 'Updating the anchor.',
+  author_propose: 'Recording the old wallet’s approval.',
+  author_accept: 'Finishing the move.',
 }
+
+/**
+ * The pending view by stage (#527). `approval`: prepared, and this page is
+ * asking the wallet. `resuming`: prepared, but this page is not running it
+ * (after a reload), so it may or may not have been sent. `confirming`: the
+ * signed transaction was sent.
+ */
+const PENDING_STAGE = {
+  approval: {
+    status: 'Nothing is sent until you approve it in your wallet.',
+    note: 'Keep this page open until it is sent.',
+  },
+  resuming: {
+    status: 'Checking whether the request went through.',
+    note: 'This can take up to 5 minutes. If it did not go through, you can try again then.',
+  },
+  confirming: {
+    status: 'Waiting for Stellar testnet to confirm.',
+    note: 'This usually takes a few seconds. You can leave this page; it finishes without you.',
+  },
+} as const
 
 const RETRY_LABEL: Record<ArticleAction, string> = {
   register: 'Try again',
@@ -332,17 +351,29 @@ export function ArticleTipsPanel({
         </form>
       )
       break
-    case 'pending':
+    case 'pending': {
+      const stage =
+        view.stage === 'submitted'
+          ? 'confirming'
+          : actions.running
+            ? 'approval'
+            : 'resuming'
       body = (
         <>
-          <p className="tips-progress" role="status">
-            <span className="tips-spinner" aria-hidden="true" />
-            {PENDING_COPY[view.action]}
+          {/* One element for every stage, so a stage change updates its text
+              in place and is announced once. */}
+          <p
+            className="tips-progress"
+            role="status"
+            aria-atomic="true"
+            data-stage={stage}
+          >
+            {stage === 'approval' ? null : (
+              <span className="tips-spinner" aria-hidden="true" />
+            )}
+            {`${PENDING_ACTION[view.action]} ${PENDING_STAGE[stage].status}`}
           </p>
-          <p className="tips-muted">
-            This usually takes a few seconds. You can leave this page; it
-            finishes without you.
-          </p>
+          <p className="tips-muted">{PENDING_STAGE[stage].note}</p>
           {view.txHash && (
             <a
               className="tips-link"
@@ -358,6 +389,7 @@ export function ArticleTipsPanel({
         </>
       )
       break
+    }
     case 'review':
       body = (
         <>
