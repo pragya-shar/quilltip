@@ -39,8 +39,29 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
   })
 }
 
+/** True when something already answers on the port. */
+async function portAnswers(port: number): Promise<boolean> {
+  try {
+    await fetch(`http://127.0.0.1:${port}/`)
+    return true
+  } catch {
+    return false
+  }
+}
+
 async function main(): Promise<number> {
   const selected = selectFixtures(process.argv.slice(2))
+  // A server already on a suite's port would answer in place of ours, so the
+  // suite would test that server's code. Refuse instead.
+  const taken: number[] = []
+  for (const fixture of selected) {
+    if (await portAnswers(fixture.port)) taken.push(fixture.port)
+  }
+  if (taken.length > 0) {
+    throw new Error(
+      `Port ${taken.join(', ')} is already in use. Stop that server first.`
+    )
+  }
   const servers = selected.map((fixture) =>
     spawn(process.execPath, [fixture.server], { stdio: 'inherit' })
   )
