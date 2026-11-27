@@ -51,7 +51,13 @@ export function ResetPasswordForm() {
     prefilled.current = true
     const fragment = new URLSearchParams(window.location.hash.slice(1))
     const code = (fragment.get('code') ?? '').replace(/\D/g, '').slice(0, 8)
-    setValues((v) => ({ ...v, email: recallResetEmail(), code }))
+    // Keep values typed before the page scripts ran (useEarlySubmit may
+    // report them before or after this effect).
+    setValues((v) => ({
+      ...v,
+      email: v.email || recallResetEmail(),
+      code: v.code || code,
+    }))
     if (window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname)
     }
@@ -151,9 +157,11 @@ export function ResetPasswordForm() {
 
   return (
     // A submit before the page scripts run is held, then sent through
-    // onSubmit (useEarlySubmit).
+    // onSubmit (useEarlySubmit). method="post": every form with a password
+    // field posts if it is ever submitted natively (e2e/server-forms.spec.ts).
     <form
       {...earlySubmit}
+      method="post"
       noValidate
       onSubmit={onSubmit}
       aria-busy={submitting}

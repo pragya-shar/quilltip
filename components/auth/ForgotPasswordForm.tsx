@@ -34,7 +34,8 @@ export function ForgotPasswordForm() {
   const earlySubmit = useEarlySubmit('forgot-password')
 
   useEffect(() => {
-    setEmail(recallResetEmail())
+    // Keep an address typed before the page scripts ran (useEarlySubmit).
+    setEmail((typed) => typed || recallResetEmail())
   }, [])
   // Move focus to the confirmation once it has rendered.
   useEffect(() => {
