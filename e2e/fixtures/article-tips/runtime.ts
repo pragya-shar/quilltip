@@ -151,6 +151,20 @@ function initial() {
         registration: row('SUBMITTED'),
         submission: submission('register', 'SUBMITTED'),
       }
+    case 'pending-prepared':
+      // A reload while the request was prepared: no hash is recorded.
+      return {
+        ...base,
+        registration: row('PREPARED'),
+        submission: submission('register', 'PREPARED'),
+      }
+    case 'pending-update-prepared':
+      return {
+        ...base,
+        registration: row('REGISTERED'),
+        submission: submission('content_update', 'PREPARED'),
+        contentOutdated: true,
+      }
     case 'review':
       return {
         ...base,
@@ -269,6 +283,13 @@ export function useMutation(ref: unknown) {
         })
       }
       const current = registration!
+      // Like the server, the new submission is open (PREPARED) from here
+      // until the signed transaction is recorded or the attempt fails.
+      update({
+        ...current,
+        registration: current.registration ?? row('PREPARED'),
+        submission: submission(kind, 'PREPARED'),
+      })
       const signer =
         kind === 'author_propose'
           ? current.registration!.authorAddress
@@ -351,6 +372,15 @@ export function useMutation(ref: unknown) {
       window.__tipsFixture.failed.push(
         args as { submissionId: string; reason: string; detail?: string }
       )
+      const current = registration!
+      const last = window.__tipsFixture.prepared.at(-1)!
+      const kind = preparedKind[last.name]!
+      update({
+        ...current,
+        registration:
+          kind === 'register' ? row('FAILED') : current.registration,
+        submission: submission(kind, 'FAILED'),
+      })
       return { status: 'FAILED' }
     }
     return null
@@ -383,6 +413,9 @@ export function v2Runtime() {
     server: {
       getAccount: async (id: string) => new Account(id, '1'),
       simulateTransaction: async () => {
+        // Holds the prepared stage on screen for the stage tests.
+        const delay = Number(params.get('simulateDelay') ?? 0)
+        if (delay) await new Promise((resolve) => setTimeout(resolve, delay))
         const code =
           server === 'already-registered'
             ? 2

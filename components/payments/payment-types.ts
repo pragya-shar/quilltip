@@ -17,6 +17,7 @@ export type {
 } from '@/lib/payments/ui-state'
 export type { PaymentFailure } from '@/lib/payments/failures'
 
+import type { CopyBlock } from '@/lib/copy/payment-states'
 import type {
   PaymentPhase,
   TipsUnavailableReason,
@@ -54,7 +55,12 @@ export type PaymentNoticeProps = {
    */
   announce?: boolean
 } & (
-  | { kind: 'paused'; audience?: 'reader' | 'writer' }
+  | {
+      kind: 'paused'
+      audience?: 'reader' | 'writer'
+      /** Replaces the payments copy for another paused contract (the NFT). */
+      copy?: CopyBlock
+    }
   | {
       kind: 'insufficient-balance'
       source: 'wallet'

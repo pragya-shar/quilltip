@@ -315,7 +315,7 @@ A visually hidden heading, "Payment progress", sits at the top.
 | Sending                        | Sending…                                                                                                                                                                      |
 | Checking                       | Waiting for confirmation. You can close this. The result shows in {place}. Default place: Waiting for confirmation. You can close this. The result shows in your tip history. |
 | Checking, `slow`               | **Still checking.** Stellar testnet is slow right now. If the payment went through, it shows here, and it cannot be charged twice.                                            |
-| Resuming                       | Checking whether this payment went through. This can take up to 5 minutes. (one line, no step list)                                                                           |
+| Resuming                       | Checking whether this payment went through. This can take several minutes. If it did not go through, you can try again when the check ends. (one line, no step list)          |
 | Tab tip, sending               | Sending your tip… (one line, no step list: a tab tip has no wallet prompt)                                                                                                    |
 
 While signing, the view adds the line below and, when the flow passes `onCancel`, a "Cancel" button. Cancel
@@ -339,7 +339,7 @@ Set `resultPlace` to where the result shows later, for example "your tab".
 | Failed                                | Not completed (or the client's failure title)       | QuillTip recorded no payment for this request. (or the client's failure detail)                                                                                          | Try again           | danger  | assertive |
 | Declined                              | Request declined in your wallet                     | Nothing was signed or sent.                                                                                                                                              | Try again           | warning | assertive |
 | Expired                               | This request timed out                              | Stellar testnet did not include it in time, so nothing was paid. Try again to start a new request.                                                                       | Try again           | warning | assertive |
-| Tab tip accepted                      | Tip sent from your tab                              | It settles on Stellar testnet within about 6 hours. Your tab balance already counts it.                                                                                  | none                | info    | polite    |
+| Tab tip accepted                      | Tip sent from your tab                              | It usually settles on Stellar testnet within about 6 hours. Your tab balance already counts it.                                                                          | none                | info    | polite    |
 | Tab tip shortfall                     | Waiting for the tab balance                         | This tip is recorded, but the tab ran short. It settles after the next top-up.                                                                                           | none                | warning | polite    |
 | Tab tip unpaid, reader                | Not paid                                            | This tip was not settled before its quick-tip key ran out, so it was not paid. The amount is back in your tab balance.                                                   | none                | danger  | polite    |
 | Tab tip unpaid, writer                | Not paid                                            | This tip was not settled in time, so it will not be paid.                                                                                                                | none                | danger  | polite    |
@@ -684,12 +684,24 @@ apply on every surface, not only inside the tip dialog.
   words. Colour never carries meaning alone.
 - Inside the tip dialog, which is always light, the kit pins the light status
   colours so dark mode does not lower contrast.
+- The dashboard surface and its dialogs are also always light.
+  `app/shared-ui.css` and `app/globals.css` list `.account-surface` and
+  `.account-dialog` with the light `--ui-*` tokens and the aliases built on
+  them, so the kit and everything else on the dashboard look the same in
+  both appearances. A kit action that is a link keeps its button colours
+  there (`.pay-action` is left out of the dashboard link colour). A new
+  always-light surface takes the `ui-light` class.
 - `e2e/payment-states.spec.ts` checks every state at 375, 768 and 1440 px
   with axe (WCAG 2.2 AA tags), no horizontal overflow, the testnet label on
   every amount and link, keyboard order, focus while running and after a
   result, empty live regions on load, live-region text, reduced motion on the
   dialog and on a page surface, long amounts and errors, reflow at 640 px
   (200 % zoom of 1280) and 320 px, text-spacing overrides, and dark mode.
+  On the dashboard surface, every state must render with the same colours in
+  dark appearance as in light, and pass the contrast scan in both; a contrast
+  axe cannot decide also fails. `e2e/tab-ui.spec.ts` and
+  `e2e/wallet-verification.spec.ts` check the tab and wallet pages the same
+  way (`e2e/helpers/lightSurface.ts`).
 
 ## Using the kit in a flow
 
@@ -719,4 +731,4 @@ apply on every surface, not only inside the tip dialog.
 
 The fixture page shows each state by id:
 `http://127.0.0.1:4180/?state=result-failed`. Add `&theme=dark` for the dark
-palette.
+palette and `&surface=dashboard` to show the state on the dashboard surface.

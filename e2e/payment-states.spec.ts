@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { STATES } from './fixtures/payments/states'
 import { SETTLE_MS } from '../components/payments/useAnnouncement'
+import { contrastScan, surfaceColours } from './helpers/lightSurface'
 
 /**
  * The shared payment kit (components/payments) in every state, against the
@@ -137,7 +138,7 @@ test.describe('retry rule', () => {
       'resuming'
     )
     await expect(page.locator('.pay-inline-status')).toHaveText(
-      'Checking whether this payment went through. This can take up to 5 minutes.'
+      'Checking whether this payment went through. This can take several minutes. If it did not go through, you can try again when the check ends.'
     )
     await expect(page.locator('.pay-steps')).toHaveCount(0)
   })
@@ -786,6 +787,62 @@ test.describe('zoom and reflow', () => {
         '* { line-height: 1.5 !important; letter-spacing: 0.12em !important; word-spacing: 0.16em !important; } p { margin-bottom: 2em !important; }',
     })
     expect(await horizontalOverflow(page)).toBeLessThanOrEqual(0)
+  })
+})
+
+/**
+ * The dashboard surface stays light in both appearances (#539). With
+ * `html.dark`, a kit component on it must render exactly as in light
+ * appearance and pass the contrast scan.
+ */
+const DASHBOARD = '[data-surface="dashboard"]'
+
+test.describe('dashboard surface', () => {
+  for (const state of STATES) {
+    test(`${state.id} looks the same on the dashboard in dark appearance`, async ({
+      page,
+    }) => {
+      await open(page, state.id, '&surface=dashboard')
+      await expect(page.locator('body[data-settled]')).toBeAttached()
+      const light = await surfaceColours(page, DASHBOARD)
+      expect(await contrastScan(page, DASHBOARD)).toEqual([])
+      await open(page, state.id, '&surface=dashboard&theme=dark')
+      await expect(page.locator('html.dark body[data-settled]')).toBeAttached()
+      expect(await contrastScan(page, DASHBOARD)).toEqual([])
+      expect(await surfaceColours(page, DASHBOARD)).toEqual(light)
+    })
+  }
+
+  test('screenshots of the dashboard states', async ({ page }) => {
+    test.skip(!SHOTS, 'Set PAYMENT_SCREENSHOTS to save them.')
+    test.setTimeout(120_000)
+    const shown = [
+      'gate-unverified-link',
+      'gate-wrong-network',
+      'progress-checking',
+      'result-failed',
+      'confirmed-tab-open',
+      'notice-withdrawal-ready-link',
+      'notice-key-none-link',
+      'key-rows',
+      'label-status',
+    ]
+    expect(shown.filter((id) => !STATES.some((s) => s.id === id))).toEqual([])
+    for (const theme of ['light', 'dark'])
+      for (const width of WIDTHS) {
+        await page.setViewportSize({ width, height: 900 })
+        for (const state of STATES.filter((s) => shown.includes(s.id))) {
+          await open(page, state.id, `&surface=dashboard&theme=${theme}`)
+          await page.screenshot({
+            path: path.join(
+              SHOTS!,
+              `dashboard-${theme}-${state.id}-${width}.png`
+            ),
+            fullPage: true,
+            animations: 'disabled',
+          })
+        }
+      }
   })
 })
 

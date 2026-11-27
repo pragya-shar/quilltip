@@ -12,7 +12,15 @@ import type { CurrentUserDoc } from '../../../types/convex'
 import '../../../components/account/account.css'
 import { AUTHOR, fixtureUser } from './runtime'
 
-const view = new URLSearchParams(location.search).get('view')
+const params = new URLSearchParams(location.search)
+const view = params.get('view')
+// `theme=dark` sets the site's dark appearance; the dashboard sections stay light.
+if (params.get('theme') === 'dark')
+  document.documentElement.classList.add('dark')
+
+// The dashboard puts its content on the paper folio over the rose surface.
+const FOLIO_FRAME = { minHeight: 'auto', padding: 8 }
+const FOLIO = { minHeight: 'auto', margin: 0, padding: 16 }
 
 function Fixture() {
   return (
@@ -25,14 +33,22 @@ function Fixture() {
         <section
           aria-label="Receiving wallet"
           className="account-surface mb-8"
-          style={{ padding: 16 }}
+          style={FOLIO_FRAME}
         >
-          <ReceivingWalletVerification />
+          <div className="account-folio" style={FOLIO}>
+            <ReceivingWalletVerification />
+          </div>
         </section>
       )}
       {view === 'dashboard' && (
-        <section aria-label="Dashboard wallet" className="account-surface mb-8">
-          <WalletAccountContent user={fixtureUser() as CurrentUserDoc} />
+        <section
+          aria-label="Dashboard wallet"
+          className="account-surface mb-8"
+          style={FOLIO_FRAME}
+        >
+          <div className="account-folio" style={FOLIO}>
+            <WalletAccountContent user={fixtureUser() as CurrentUserDoc} />
+          </div>
         </section>
       )}
       {view === 'install' && (

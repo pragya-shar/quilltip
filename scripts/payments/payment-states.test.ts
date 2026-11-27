@@ -42,6 +42,8 @@ import {
   VIEW_TRANSACTION,
 } from '../../lib/copy/payment-states'
 import { TIPS_UNAVAILABLE_COPY } from '../../lib/copy/tips-unavailable'
+import * as kitCopyModule from '../../lib/copy/payment-states'
+import * as tabCopyModule from '../../lib/copy/tab'
 import {
   coreTipSplit,
   estimateLedgerTime,
@@ -1003,6 +1005,38 @@ describe('copy', () => {
         message: 'Stellar testnet refused the transaction. Nothing was sent.',
       }).detail
     ).toBe('Stellar testnet refused the transaction. Nothing was sent.')
+  })
+
+  test('no copy promises a fixed wait that a slow network can break', () => {
+    // A prepared request expires only after the indexer passes its maxTime,
+    // the recheck runs every 2 minutes, and the settler can fall behind, so a
+    // wait stated in seconds, minutes or hours must say "usually" (#537).
+    // Deadlines the code enforces ("expires after 15 minutes") are not waits.
+    const strings: string[] = []
+    const add = (value: unknown, depth = 0): void => {
+      if (typeof value === 'string') strings.push(value)
+      else if (typeof value === 'function' && depth < 3) {
+        try {
+          add(value('{a}', '{b}', '{c}'), depth + 1)
+        } catch {
+          // A template that needs real arguments has no fixed wait in it.
+        }
+      } else if (value && typeof value === 'object')
+        for (const inner of Object.values(value)) add(inner, depth)
+    }
+    add(kitCopyModule)
+    add(tabCopyModule)
+    expect(strings.length).toBeGreaterThan(100)
+    const wait =
+      /\b(up to|within|in)\s+(about\s+)?\d+\s*(seconds?|minutes?|hours?)\b/i
+    const promises = strings
+      .flatMap((text) => text.split(/(?<=\.)\s+/))
+      .filter((sentence) => wait.test(sentence))
+    expect(promises.length).toBeGreaterThan(0)
+    expect(
+      promises.filter((sentence) => !/\busually\b/i.test(sentence))
+    ).toEqual([])
+    expect(RESUMING_COPY).not.toMatch(/\d+\s*minutes?/)
   })
 
   test('the testnet label text is fixed', () => {

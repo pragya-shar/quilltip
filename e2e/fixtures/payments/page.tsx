@@ -3,7 +3,9 @@
  * `?state=live-progress`, `?state=live-gate` and `?state=live-notice` are
  * driven by the spec through `window.__payments`; no parameter lists every
  * state. `&theme=dark` renders the dark palette; `&surface=page` renders the
- * live progress on a page surface instead of the tip dialog.
+ * live progress on a page surface instead of the tip dialog;
+ * `&surface=dashboard` renders any state on the dashboard surface, which
+ * stays light in dark appearance.
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
@@ -16,6 +18,7 @@ import type {
   ProgressSource,
   WalletGateState,
 } from '../../../components/payments/payment-types'
+import '../../../components/account/account.css'
 import '../../../components/tipping/tipping.css'
 import './fixture.css'
 import { HASH, STATES, record, sourceForPhase, type Surface } from './states'
@@ -42,6 +45,21 @@ function Frame({
   surface: Surface
   children: ReactNode
 }) {
+  if (params.get('surface') === 'dashboard') {
+    // The markup of AccountSurface, without the app chrome.
+    return (
+      <div className="account-surface pay-fixture-account">
+        <section
+          className="account-folio"
+          aria-label="Fixture"
+          data-surface="dashboard"
+        >
+          <h2>Your tab</h2>
+          {children}
+        </section>
+      </div>
+    )
+  }
   if (surface === 'dialog') {
     // The tip dialog's surface and tokens, without the modal behaviour.
     return (

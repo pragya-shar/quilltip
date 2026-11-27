@@ -10,7 +10,10 @@ import {
   XCircle,
   Clock,
 } from 'lucide-react'
-import type { ArweaveStatus as ArweaveStatusType } from '@/lib/arweave/types'
+import {
+  isArweaveStatus,
+  type ArweaveStatus as ArweaveStatusType,
+} from '@/lib/arweave/types'
 import { cn } from '@/lib/utils'
 
 interface ArweaveStatusProps {
@@ -55,10 +58,9 @@ export function ArweaveStatus({
   const [expanded, setExpanded] = useState(false)
   const detailsId = useId()
 
-  if (!status) return null
-
-  const config =
-    statusConfig[status as ArweaveStatusType] || statusConfig.pending
+  // An unknown status claims nothing, least of all an upload in progress.
+  if (!isArweaveStatus(status)) return null
+  const config = statusConfig[status]
 
   return (
     <div className={cn('reader-storage', config.className)}>
