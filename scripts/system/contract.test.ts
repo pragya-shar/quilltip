@@ -10,7 +10,7 @@ const README = readFileSync(
 )
 
 const REQUIRED = [
-  '## The structure (D20)',
+  '## The structure',
   '### Interfaces the shell gives a surface',
   '### A saved setting',
   "### The tip control's props",
@@ -19,7 +19,7 @@ const REQUIRED = [
   '## What a surface may import',
   "## Shared lists: add your own file, never edit another's",
   '## Adding a surface',
-  '## Public reading works with no script (D19)',
+  '## Public reading works with no script',
   '## Landmarks on a public page',
   '## Sheets, dialogs and focus',
   '## Money',

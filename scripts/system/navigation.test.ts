@@ -3,7 +3,7 @@ import { PLACES, POCKET, isActive, type Place } from '@/shell/navigation'
 import { APP_ROUTE_SEGMENTS } from '@/lib/routing/publicContentPath'
 import { handleFormatError } from '@/lib/profile/handleRules'
 
-describe('the places (D20)', () => {
+describe('the places', () => {
   it('are Today, Shelf and Write, in that order, at their URLs', () => {
     expect(PLACES.map((p) => [p.label, p.href])).toEqual([
       ['Today', '/'],

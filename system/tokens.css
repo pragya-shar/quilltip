@@ -3,9 +3,9 @@
  * Components read these names and never a raw value; a design change
  * replaces values here and touches no component.
  *
- * Values: the design hand-over (M3, decision D23), adopted whole. Names
- * marked NEW came with it. The cents tokens and the forced-colors block are
- * the foundation's. Contrast of every text and control pair is checked in
+ * Values: the design hand-over, adopted whole. Names
+ * marked NEW came with it. The cents tokens, the hold's countdown color and
+ * the forced-colors block are the foundation's. Contrast of every text and control pair is checked in
  * both themes by e2e/system-gallery.spec.ts.
  *
  * Color is OKLCH and inside sRGB (checked by tools/contrast.mjs; 0 failures).
@@ -107,6 +107,9 @@
   --qt-money-pending: 1.625rem; /* NEW 26 On its way, beside the available figure */
   --qt-money-cents-size: 0.5em; /* cents relative to the figure */
   --qt-money-cents-raise: 0.62em; /* cents baseline above the figure's */
+  /* The hold's countdown band, on the action fill: marker where it shows
+   * (light), the action ink where marker is too close to the fill (dark). */
+  --qt-countdown: var(--qt-marker);
   --qt-track-display: -0.02em;
   --qt-track-money: -0.035em;
   --qt-weight-ui: 500;
@@ -227,6 +230,7 @@
     --qt-press: oklch(0.95 0.008 85 / 0.1);
     --qt-action-bg: oklch(0.95 0.008 85);
     --qt-action-ink: oklch(0.165 0.012 262);
+    --qt-countdown: var(--qt-action-ink);
     --qt-action-icon: oklch(0.165 0.012 262);
     --qt-action-hover: oklch(0.88 0.008 85);
     --qt-toast-bg: oklch(0.3 0.014 262);
@@ -258,6 +262,7 @@
   --qt-press: oklch(0.95 0.008 85 / 0.1);
   --qt-action-bg: oklch(0.95 0.008 85);
   --qt-action-ink: oklch(0.165 0.012 262);
+  --qt-countdown: var(--qt-action-ink);
   --qt-action-icon: oklch(0.165 0.012 262);
   --qt-action-hover: oklch(0.88 0.008 85);
   --qt-toast-bg: oklch(0.3 0.014 262);
@@ -268,9 +273,10 @@
 
 /* Forced colors: map every role to a system color. Components keep a
  * transparent border where a fill alone draws a shape, so the shape stays
- * visible here. */
+ * visible here. The selector outranks both theme scopes above, so a stored
+ * dark theme keeps the mapping. */
 @media (forced-colors: active) {
-  :root {
+  :root:is([data-theme], :not([data-theme])) {
     --qt-paper: Canvas;
     --qt-surface: Canvas;
     --qt-sunk: Canvas;
@@ -287,6 +293,7 @@
     --qt-on-marker: HighlightText;
     --qt-action-bg: ButtonFace;
     --qt-action-ink: ButtonText;
+    --qt-countdown: ButtonText;
     --qt-action-icon: ButtonText;
     --qt-action-hover: ButtonFace;
     --qt-sent-bg: Highlight;

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 
-// The application shell (D20) around the gallery, the sample reading page
+// The application shell around the gallery, the sample reading page
 // and the shell's own pages (e2e/fixtures/system): the bar or the rail with
 // Today, Shelf, Write and the balance; the Pocket over the page; pushed
 // screens; the bar stepping aside for the keyboard.
@@ -197,6 +197,25 @@ for (const width of [360, 390]) {
     ).toBe(false)
   })
 }
+
+test('when the balance code fails to load, the overlay says so and the page stays', async ({
+  page,
+}) => {
+  await page.goto('/shelf?pocket=fail')
+  await press(nav(page).getByRole('link', { name: /^Balance/ }))
+  const pocket = wide()
+    ? page.getByRole('complementary', { name: 'Balance' })
+    : page.getByRole('dialog', { name: 'Balance' })
+  await expect(pocket.getByText('This did not load')).toBeVisible()
+  await expect(
+    page.getByRole('heading', { level: 1, name: 'Shelf' })
+  ).toBeAttached()
+  await page.evaluate(() => {
+    ;(window as unknown as { __pocketLoads: boolean }).__pocketLoads = true
+  })
+  await press(pocket.getByRole('button', { name: 'Try again' }))
+  await expect(pocket.getByText('Ready to tip')).toBeVisible()
+})
 
 test('the Pocket page, for links and for no script', async ({ page }) => {
   await page.goto('/pocket')

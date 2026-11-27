@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Public reading with JavaScript off (D19), against a production build.
+// Public reading with JavaScript off, against a production build.
 // Run by scripts/app-checks/run.ts (the foundation's entry).
 const phone = { width: 390, height: 844 }
 

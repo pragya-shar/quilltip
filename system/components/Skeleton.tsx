@@ -13,7 +13,7 @@ type SkeletonProps = {
 /**
  * Space held for content that is on its way, at its final size so nothing
  * moves when it arrives. Decorative: the region around it sets aria-busy and
- * a label. Never used above public reading content (D19); reading arrives in
+ * a label. Never used above public reading content; reading arrives in
  * the first response.
  */
 export function Skeleton({

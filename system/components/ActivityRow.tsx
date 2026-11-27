@@ -13,6 +13,12 @@ type ActivityRowBase = {
   lead: ReactNode
   /** Who: "Tomás Reyes", "A reader", "AI reader", "Added money". */
   name: string
+  /** The whole row's name for its link or button, when `name` alone does
+   * not say enough: "A reader, plus 98 cents, open receipt". Start with the
+   * visible name, so a voice command that says it still works. Without it,
+   * the link or button is named by `name`. A row with neither `href` nor
+   * `onPress` has no control to name. */
+  label?: string
   /** What: the passage or the article title, quoted in the serif. */
   about?: string
   amount: MoneyValue
@@ -62,6 +68,7 @@ const STATUS_TEXT: Record<ActivityStatus, string> = {
 export function ActivityRow({
   lead,
   name,
+  label,
   about,
   amount,
   direction,
@@ -80,11 +87,16 @@ export function ActivityRow({
   const words = statusText ?? STATUS_TEXT[status]
   const title =
     href !== undefined ? (
-      <Link className="qt-activity__link" href={href}>
+      <Link className="qt-activity__link" href={href} aria-label={label}>
         {name}
       </Link>
     ) : onPress ? (
-      <button type="button" className="qt-activity__link" onClick={onPress}>
+      <button
+        type="button"
+        className="qt-activity__link"
+        aria-label={label}
+        onClick={onPress}
+      >
         {name}
       </button>
     ) : (

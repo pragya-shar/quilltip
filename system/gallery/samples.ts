@@ -2,7 +2,7 @@ import type { MoneyValue } from '../money/figure'
 
 /**
  * Sample data for the gallery and its tests. Display strings are written as
- * the money layer writes them (design N2): exact "$18.40", fractions of a
+ * the money layer writes them: exact "$18.40", fractions of a
  * cent "$0.0975", converted "≈ $17.28", whole-dollar labels "$1".
  */
 export const money = {
