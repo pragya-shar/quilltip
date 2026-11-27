@@ -1749,10 +1749,12 @@ export async function applyPairSettlement(
   await recomputePairEarnings(ctx, voucher._id, args.now)
   // The settler's record of a payment can arrive after an absolute balance
   // from a later ledger: that balance already includes the debit.
-  await releaseIncludedReserves(ctx, voucher.tabAccountId, {
-    now: args.now,
-    voucherId: voucher._id,
-  })
+  if (gapAfter > ZERO && paidLedger !== undefined) {
+    await releaseIncludedReserves(ctx, voucher.tabAccountId, {
+      now: args.now,
+      voucherId: voucher._id,
+    })
+  }
 }
 
 type ClosedState = 'UNPAID' | 'VOID_RESET' | 'REJECTED'
