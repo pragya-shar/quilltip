@@ -439,6 +439,7 @@ test('readers see why tips are off', async ({ page }) => {
       'payout_outdated',
       'Tips are paused while the writer updates their wallet.',
     ],
+    ['paused', 'Tips are paused for a short time while payments are updated.'],
   ]) {
     await page.goto(`/?reader=${reason}`)
     await expect(page.getByRole('status')).toHaveText(text!)
