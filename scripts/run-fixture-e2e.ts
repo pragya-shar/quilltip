@@ -5,74 +5,14 @@
  * Convex collaborators.
  *
  *   bun run test:e2e:fixtures
+ *   bun run test:e2e:fixtures --suite payments
+ *   bun run test:e2e:fixtures --suite nft,recovery,avatar
+ *
+ * `--suite` runs only the named suites and starts only their servers. CI runs
+ * the suites as parallel shards (`.github/workflows/ci.yml`).
  */
 import { spawn, type ChildProcess } from 'child_process'
-
-const FIXTURES = [
-  {
-    server: 'e2e/fixtures/nft/server.mjs',
-    port: 4174,
-    spec: 'e2e/nft-presentation.spec.ts',
-    env: { NFT_FIXTURES: '1' },
-  },
-  {
-    server: 'e2e/fixtures/recovery/server.mjs',
-    port: 4175,
-    spec: 'e2e/recovery-presentation.spec.ts',
-    env: { RECOVERY_FIXTURES: '1' },
-  },
-  {
-    server: 'e2e/fixtures/avatar/server.mjs',
-    port: 4176,
-    spec: 'e2e/profile-avatar-focus.spec.ts',
-    env: {
-      AVATAR_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4176',
-    },
-  },
-  {
-    server: 'e2e/fixtures/payments/server.mjs',
-    port: 4180,
-    spec: 'e2e/payment-states.spec.ts',
-    env: {
-      PAYMENT_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4180',
-    },
-  },
-  {
-    server: 'e2e/fixtures/wallet/server.mjs',
-    port: 4177,
-    spec: 'e2e/wallet-(states|verification|coverage|connect).spec.ts',
-    env: {
-      WALLET_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4177',
-    },
-  },
-  {
-    server: 'e2e/fixtures/article-tips/server.mjs',
-    port: 4178,
-    spec: 'e2e/article-tips.spec.ts',
-    env: {
-      ARTICLE_TIPS_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4178',
-    },
-  },
-  {
-    // Chromium, Firefox and WebKit (its own config); key storage and
-    // WebCrypto Ed25519 differ between engines.
-    server: 'e2e/fixtures/tab/server.mjs',
-    port: 4181,
-    spec: 'e2e/tab-session-keys.spec.ts',
-    config: 'e2e/fixtures/tab/playwright.config.ts',
-    env: {},
-  },
-] as const satisfies readonly {
-  server: string
-  port: number
-  spec: string
-  config?: string
-  env: Record<string, string>
-}[]
+import { selectFixtures } from './fixture-suites'
 
 const READY_TIMEOUT_MS = 120_000
 
@@ -100,17 +40,18 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
 }
 
 async function main(): Promise<number> {
-  const servers = FIXTURES.map((fixture) =>
+  const selected = selectFixtures(process.argv.slice(2))
+  const servers = selected.map((fixture) =>
     spawn(process.execPath, [fixture.server], { stdio: 'inherit' })
   )
   try {
     await Promise.all(
-      FIXTURES.map((fixture, index) =>
+      selected.map((fixture, index) =>
         waitForPort(fixture.port, servers[index]!)
       )
     )
     let failed = 0
-    for (const fixture of FIXTURES) {
+    for (const fixture of selected) {
       const args =
         'config' in fixture
           ? ['x', 'playwright', 'test', '--config', fixture.config]
