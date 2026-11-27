@@ -36,7 +36,7 @@ export function StaleReservesReview() {
               {` · balance ledger ${row.balanceLedger ?? 'unknown'}`}
             </p>
             <div className="ops-review-scroll">
-              <table className="ops-review-table">
+              <table className="ops-review-table ops-reserves-table">
                 <caption className="sr-only">
                   Pairs with settled amounts not yet indexed for{' '}
                   {row.readerAddress}
