@@ -1223,6 +1223,21 @@ test.describe('dialog focus', () => {
     }
   })
 
+  test('"Send tip" reads the chosen amount before it is pressed', async ({
+    page,
+  }) => {
+    await open(page)
+    const dialog = await openArticleTip(page)
+    // At open, the title and its description name the writer; the amount
+    // is chosen in the form, and the send button reads it.
+    await expect(dialog).toHaveAccessibleDescription(/For Ada Lovelace/)
+    await connect(dialog)
+    const send = dialog.getByRole('button', { name: 'Send tip' })
+    await expect(send).toHaveAccessibleDescription(/Tip amount\s*About 4 XLM/)
+    await dialog.getByRole('button', { name: '$2' }).click()
+    await expect(send).toHaveAccessibleDescription(/Tip amount\s*About 8 XLM/)
+  })
+
   test('the passage dialog returns focus to the passage button', async ({
     page,
   }) => {
