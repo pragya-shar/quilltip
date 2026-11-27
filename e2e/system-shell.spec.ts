@@ -86,9 +86,13 @@ test('the phone bar steps aside while the keyboard is up', async ({
   await expect(bar).toBeHidden()
 })
 
-test('the skip link moves focus to the content', async ({ page }) => {
+test('the skip link moves focus to the content', async ({
+  page,
+  browserName,
+}) => {
   await page.goto('/')
-  await page.keyboard.press('Tab')
+  // WebKit, like Safari, includes links in the Tab order only with Option.
+  await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab')
   await page.keyboard.press('Enter')
   await expect(page.locator('#content')).toBeFocused()
 })
