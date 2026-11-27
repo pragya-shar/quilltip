@@ -12,6 +12,9 @@ import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 ).IS_REACT_ACT_ENVIRONMENT = true
 
 const reporterMounts = vi.fn()
+// Reporter imports started by the next/dynamic stand-in, so a test can wait
+// for them to finish instead of counting timer ticks.
+const reporterLoads: Promise<unknown>[] = []
 
 vi.mock('../../components/analytics/analytics.css', () => ({}))
 vi.mock('next/navigation', () => ({ usePathname: () => '/articles' }))
@@ -24,7 +27,8 @@ vi.mock('next/dynamic', () => ({
     function Dynamic() {
       const [Loaded, setLoaded] = useState<React.ComponentType | null>(null)
       useEffect(() => {
-        void load().then((component) => setLoaded(() => component))
+        const loading = load().then((component) => setLoaded(() => component))
+        reporterLoads.push(loading)
       }, [])
       return Loaded ? createElement(Loaded) : null
     },
@@ -56,6 +60,15 @@ async function flush() {
     })
 }
 
+/** Lets every started reporter import finish and render. */
+async function settle() {
+  await flush()
+  await act(async () => {
+    await Promise.all(reporterLoads)
+  })
+  await flush()
+}
+
 async function renderConsent() {
   vi.stubEnv('NEXT_PUBLIC_ANALYTICS_ENABLED', 'true')
   vi.resetModules()
@@ -78,6 +91,7 @@ function button(name: string): HTMLButtonElement {
 
 beforeEach(() => {
   sent.length = 0
+  reporterLoads.length = 0
   reporterMounts.mockClear()
   window.localStorage.clear()
   window.history.replaceState(null, '', '/articles?email=someone@example.com')
@@ -100,6 +114,7 @@ afterEach(async () => {
 
 test('before a choice, nothing is measured or sent', async () => {
   await renderConsent()
+  await settle()
   expect(container.textContent).toContain('Allow')
   expect(reporterMounts).not.toHaveBeenCalled()
   expect(sent).toEqual([])
@@ -108,7 +123,7 @@ test('before a choice, nothing is measured or sent', async () => {
 test('after "No thanks", nothing is measured or sent', async () => {
   await renderConsent()
   await act(async () => button('No thanks').click())
-  await flush()
+  await settle()
   expect(reporterMounts).not.toHaveBeenCalled()
   expect(sent).toEqual([])
 })
@@ -116,7 +131,12 @@ test('after "No thanks", nothing is measured or sent', async () => {
 test('after "Allow", web_vital carries the fixed properties only', async () => {
   await renderConsent()
   await act(async () => button('Allow').click())
-  await flush()
+  // The reporter loads on demand; wait for it rather than a fixed number of
+  // ticks, which a busy machine can outrun.
+  await vi.waitFor(() => expect(reporterMounts).toHaveBeenCalledTimes(1), {
+    timeout: 5000,
+  })
+  await settle()
   expect(reporterMounts).toHaveBeenCalledTimes(1)
   const vital = sent.find((event) => event.event === 'web_vital')
   expect(vital?.path).toBe('/articles')
