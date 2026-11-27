@@ -23,6 +23,7 @@ import { STATUS_LABEL } from '../../../lib/copy/payment-states'
 import {
   failureFromContract,
   failureFromWalletError,
+  gateFromWalletError,
   refusalFromTabError,
   viewFromTxOutcome,
 } from '../../../lib/payments/failures'
@@ -237,6 +238,12 @@ export const STATES: FixtureState[] = [
   gate('gate-signed-out', { kind: 'signed-out' }),
   gate('gate-no-wallet', { kind: 'no-wallet' }),
   gate('gate-disconnected', { kind: 'disconnected' }),
+  // The wallet ended the connection while signing (for example a
+  // WalletConnect session closed), mapped from the wallet error.
+  gate(
+    'gate-disconnected-ended',
+    gateFromWalletError({ kind: 'disconnected' }) ?? { kind: 'ready' }
+  ),
   gate('gate-locked', { kind: 'locked' }),
   gate('gate-wrong-network', {
     kind: 'wrong-network',
@@ -326,6 +333,10 @@ export const STATES: FixtureState[] = [
     failure: failureFromWalletError({ kind: 'timeout' }),
     summary: TIP,
   }),
+  progress('result-failed-popup', 'direct-tip', recordSource('FAILED'), {
+    failure: failureFromWalletError({ kind: 'popup-blocked' }),
+    summary: TIP,
+  }),
   progress('result-failed-long', 'direct-tip', recordSource('FAILED'), {
     failure: LONG_ERROR,
     summary: TIP,
@@ -413,6 +424,23 @@ export const STATES: FixtureState[] = [
     },
     {
       failure: BUSY.show.kind === 'failed' ? BUSY.show.failure : null,
+      summary: { amount: '100000000' },
+    }
+  ),
+  // A failure passed with an expired tab operation does not replace the
+  // tab operation copy: only `failed` takes the flow's failure.
+  progress(
+    'result-tab-op-expired-with-failure',
+    'tab-top-up',
+    {
+      tabOperation: { flow: 'tab-top-up', before: '200000000' },
+      tab: OPEN_TAB,
+      sent: true,
+      poll: 'TIMEOUT',
+    },
+    {
+      failure: BUSY.show.kind === 'failed' ? BUSY.show.failure : null,
+      txHash: HASH,
       summary: { amount: '100000000' },
     }
   ),

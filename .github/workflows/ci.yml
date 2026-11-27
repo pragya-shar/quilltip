@@ -332,7 +332,9 @@ jobs:
   e2e-fixtures:
     name: Playwright (fixtures)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The suites run one after another on one worker: about 15 minutes with
+    # the tips v2 suite (#448), so allow room as suites grow.
+    timeout-minutes: 25
     permissions:
       contents: read
     needs: quality
