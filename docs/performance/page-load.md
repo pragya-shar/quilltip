@@ -652,6 +652,17 @@ The loader now runs in `<head>` before the first paint (next-patch.md). That
 did not move LCP: the earlier build with a late, async loader measured
 1811 / 1212 / 1657 / 1805 ms simulated.
 
+**Immutable assets (Vercel).** Vercel serves chunks from
+`/_next/static/immutable/chunks/`; the patch handles both paths. A local
+build with `experimental.supportsImmutableAssets` writes 10 inert tags and no
+early chunk script on each of the four routes, and passes the browser suite in
+three engines. Simulated mobile LCP on that build, off → on, measured with the
+two modes interleaved on a heavily loaded machine (load average 19 to 84 on
+18 cores), so exploratory: `/` 2860 → 1810, `/login` 2280 → 1211,
+`/articles` 2707 → 1656, the article page 2855 → 1830 (one pair). The applied
+runs on that machine (for example `/` 3385 → 2278) are not comparable with the
+table above.
+
 ### Cost: later hydration and more waiting
 
 The scripts start when the page has painted instead of alongside the
@@ -892,14 +903,14 @@ after the build. It runs `next experimental-analyze --output`, then for `/`,
 
    | Route                | Budget | Measured |
    | -------------------- | -----: | -------: |
-   | `/`                  | 216 KB | 214.0 KB |
-   | `/login`             | 206 KB | 204.4 KB |
-   | `/articles`          | 220 KB | 218.3 KB |
-   | `/[username]/[slug]` | 224 KB | 222.0 KB |
+   | `/`                  | 214 KB | 211.8 KB |
+   | `/login`             | 204 KB | 202.3 KB |
+   | `/articles`          | 218 KB | 216.1 KB |
+   | `/[username]/[slug]` | 222 KB | 219.9 KB |
 
    The sizes include the chunk loader of the Next.js patch
-   (`public/hydrate-after-paint.js`, 2.3 KB gzip) twice: every route loads
-   it in `<head>` and again, under another URL, as the bootstrap script.
+   (`public/hydrate-after-paint.js`, 2.4 KB gzip), which every route loads
+   once: its `<head>` tag and its bootstrap tag share one URL.
 
    Each budget is the measured size plus about 2 KB (CI measures about
    0.2 KB more than a local build), so removing a lazy boundary (the mobile

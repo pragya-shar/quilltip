@@ -18,16 +18,23 @@ On the four routes, the patched runtime does this instead:
    `public/hydrate-after-paint.js`, and writes that loader in `<head>`
    without `async`. The loader runs before the body is parsed, so before the
    first paint: a press made the moment the page appears is already held
-   (below). It is 2.3 KB gzip and waits for the stylesheets before it,
-   which the first paint waits for anyway.
-2. It writes every other chunk script inert, as
+   (below). It is 2.3 KB gzip and waits for the stylesheets before it, which
+   the first paint waits for anyway.
+2. The loader's URL carries its version, `?v=` followed by the first 12 hex
+   digits of the file's SHA-256 (`HYDRATE_AFTER_PAINT_LOADER_VERSION` in
+   `instrumentation.ts`; a unit test fails when they differ). It is served
+   with `Cache-Control: public, max-age=31536000, immutable`
+   (`next.config.ts`, and `vercel.json`, whose no-store rule excludes it), so
+   a repeat view does not fetch it before painting.
+3. It writes every other chunk script inert, as
    `<script type="text/plain" data-hydrate-after-paint="…">`, with the same
-   nonce.
-3. Next.js also requires a bootstrap script. That is the same loader under
-   another URL (`&b=1`), async, at the end of the shell; when it runs, the
-   loader has already run and it returns at once. It must be another URL:
-   with the same one, React merges the two and writes only the late async
-   tag.
+   nonce. Both chunk paths count: `/_next/static/chunks/` and, with
+   immutable assets (Vercel), `/_next/static/immutable/chunks/`.
+4. Next.js also requires a bootstrap script. That is the same URL with a
+   `#b` fragment, async, at the end of the shell. React keeps the two tags
+   apart (with the same `src` it merges them and writes only the late async
+   tag), while the browser downloads the URL once; when the copy runs, the
+   loader has already run and it returns at once.
 
 The loader adds all of them as real async scripts, in the same order, at
 the earliest of these events:
@@ -87,25 +94,36 @@ starts (Node.js runtime only), and the runtime checks it on every page.
 
 ## Checks
 
-| Check                                                       | Where                                                   |
-| ----------------------------------------------------------- | ------------------------------------------------------- |
-| The edits match the runtime exactly once, per route, SRI    | `scripts/next/next-patch.test.ts` (`test:unit`)         |
-| The installed Next.js is 16.4.6 and takes the patch         | `scripts/next/next-patch.test.ts`                       |
-| The development runtimes are unpatched                      | `scripts/next/next-patch.test.ts`                       |
-| Both production runtimes are patched; loader bytes counted  | `perf:first-load` (`scripts/perf/first-load-budget.ts`) |
-| Server HTML: one blocking loader in `<head>`, one late copy | `perf:budget` (`scripts/perf/chunk-loading.ts`)         |
-| Server HTML: no chunk script before the paint               | `perf:budget`                                           |
-| `/support` keeps Next.js's script loading                   | `perf:budget`                                           |
-| Without the registration, a patched runtime keeps Next.js   | `scripts/next/next-patch.test.ts`, `perf:stale-runtime` |
-| The patch leaves a hardlinked (cached) runtime unchanged    | `scripts/next/next-patch.test.ts`                       |
-| A press the moment the page appears is held (slow loader)   | `e2e/hydrate-after-paint.spec.ts`                       |
-| Hydration, menus, forms, navigation in three browsers       | `e2e/hydrate-after-paint.spec.ts`                       |
+| Check                                                       | Where                                                      |
+| ----------------------------------------------------------- | ---------------------------------------------------------- |
+| The edits match the runtime exactly once, per route, SRI    | `scripts/next/next-patch.test.ts` (`test:unit`)            |
+| The installed Next.js is 16.4.6 and takes the patch         | `scripts/next/next-patch.test.ts`                          |
+| The development runtimes are unpatched                      | `scripts/next/next-patch.test.ts`                          |
+| Both production runtimes are patched; loader bytes counted  | `perf:first-load` (`scripts/perf/first-load-budget.ts`)    |
+| Server HTML: one blocking loader in `<head>`, one late copy | `perf:budget` (`scripts/perf/chunk-loading.ts`)            |
+| Both chunk paths, with and without immutable assets         | `scripts/next/next-patch.test.ts`, `chunk-loading.test.ts` |
+| The loader version matches the file; Vercel caches it       | `scripts/next/next-patch.test.ts`                          |
+| One loader download per view, none on a repeat view         | `e2e/hydrate-after-paint.spec.ts`                          |
+| Server HTML: no chunk script before the paint               | `perf:budget`                                              |
+| `/support` keeps Next.js's script loading                   | `perf:budget`                                              |
+| Without the registration, a patched runtime keeps Next.js   | `scripts/next/next-patch.test.ts`, `perf:stale-runtime`    |
+| The patch leaves a hardlinked (cached) runtime unchanged    | `scripts/next/next-patch.test.ts`                          |
+| A press the moment the page appears is held (slow loader)   | `e2e/hydrate-after-paint.spec.ts`                          |
+| Hydration, menus, forms, navigation in three browsers       | `e2e/hydrate-after-paint.spec.ts`                          |
 
 Run the browser suite against a production build:
 
 ```bash
 PLAYWRIGHT_ALL_BROWSERS=1 bunx playwright test e2e/hydrate-after-paint.spec.ts
 ```
+
+## Changing the loader
+
+Set `HYDRATE_AFTER_PAINT_LOADER_VERSION` in `instrumentation.ts` to the first
+12 hex digits of the new file's SHA-256 (`shasum -a 256
+public/hydrate-after-paint.js`). The loader's URL changes with it, so
+browsers that cached the old file fetch the new one; the unit test fails until
+the two match. The runtimes need no reinstall.
 
 ## Upgrading Next.js
 
@@ -134,7 +152,9 @@ carried forward or removed.
 1. Delete `patches/next@16.4.6.ts`, `public/hydrate-after-paint.js`,
    `instrumentation.ts`, `scripts/next/` and
    `e2e/hydrate-after-paint.spec.ts`, and the `perf:stale-runtime` script
-   and its CI step.
+   and its CI step. Remove the `/hydrate-after-paint.js` header rules from
+   `next.config.ts` and `vercel.json` (and the exclusion in the no-store
+   rule).
 2. Remove `bun patches/next@16.4.6.ts &&` from `build` and `build:check` in
    `package.json` and from `buildCommand` in `vercel.json`.
 3. Remove the patch checks from `scripts/perf/first-load-budget.ts` and
