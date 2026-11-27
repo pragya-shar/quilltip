@@ -223,8 +223,10 @@ stays for an hour means a `TabSettled` the indexer has not applied.
 
 ### Correction
 
-1. Make sure the indexer is `OK` and caught up, and that `/ops/chain` shows
-   no `pending` or `error` events. If a range was missed, backfill it first
+1. Make sure the indexer is `OK` and caught up, and that no Tab event for
+   this reader is `pending` or `error` (the `chainEvents` rows with this
+   reader as the second topic). Other `pending` events, such as role grants
+   that no handler records, do not block it. If a range was missed, backfill it first
    ([Indexer behind retention](#indexer-behind-retention)): the backfilled
    event releases the reserve the normal way.
 2. Dry run for the reader. It writes nothing:
@@ -257,7 +259,8 @@ It refuses, and writes nothing, when it cannot prove the release:
 | `CHANGED`          | The account changed between the snapshot and the write (a tip or an event). Run it again.                                                                                                                   |
 | `INDEXER_BEHIND`   | The indexer has not applied the ledger the chain was read at. Wait, or fix the indexer.                                                                                                                     |
 | `EVENTS_UNHANDLED` | A Tab event for this reader at or before that ledger is `pending` or `error`. Dispatch it first (`chain/indexer:redispatch`).                                                                               |
-| `STALE_READ`       | The stored balance comes from after the ledger read. Run it again.                                                                                                                                          |
+| `STALE_READ`       | The stored balance, or a settlement debit applied to it, comes from after the ledger read. Run it again.                                                                                                    |
+| `MISSING_READ`     | A pair in the snapshot has no row or no chain read (the pair list changed). Run it again.                                                                                                                   |
 | `MISMATCH_PAID`    | The contract shows less paid than stored. Do not correct by hand: review the pair's settlements.                                                                                                            |
 | `BALANCE_MISMATCH` | The difference between the stored and on-chain balance is not explained by the unindexed payments (for example, a lost deposit or withdrawal event). Backfill the missing range instead, then run it again. |
 

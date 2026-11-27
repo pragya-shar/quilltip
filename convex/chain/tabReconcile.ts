@@ -344,14 +344,19 @@ export const reconcile = internalMutation({
       }
     }
     const synthetic = endOfLedgerEventId(L)
+    // The contract's balance at L replaces the stored one, so nothing the
+    // stored balance holds may come from after L: neither its absolute
+    // balance nor a `TabSettled` debit applied on top of it (a read from a
+    // node that lags the indexer).
     if (
       (account.balanceLedger !== undefined && account.balanceLedger > L) ||
       (account.balanceEventId !== undefined &&
-        account.balanceEventId > synthetic)
+        account.balanceEventId > synthetic) ||
+      account.settledSinceBalance.some((s) => s.eventId > synthetic)
     ) {
       return refuse(
         'STALE_READ',
-        `The stored balance is from after ledger ${L}; read the chain again.`
+        `The stored balance or a debit on it is from after ledger ${L}; read the chain again.`
       )
     }
 

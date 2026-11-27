@@ -1683,11 +1683,17 @@ export async function applyPairSettlement(
   // amount only grows, so the ledger at which it reached `newPaid` bounds
   // every payment in [0, newPaid]. Without a source ledger the gap's age is
   // unknown and only a reconciliation releases it.
+  // A ledger of 0 or below is not a real ledger (an RPC answer without
+  // one): treat it as unknown rather than as older than every balance.
+  const sourceLedger =
+    args.sourceLedger !== undefined && args.sourceLedger > 0
+      ? args.sourceLedger
+      : undefined
   const paidLedger =
     gapAfter === ZERO
       ? undefined
       : newPaid > oldPaid
-        ? args.sourceLedger
+        ? sourceLedger
         : voucher.paidLedger
   if (newPaid > oldPaid || rangesChanged || paidLedger !== voucher.paidLedger) {
     await ctx.db.patch(voucher._id, {
