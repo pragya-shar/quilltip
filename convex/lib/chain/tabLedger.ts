@@ -1235,6 +1235,23 @@ export function receiptNet(
   return netOf(after) - netOf(after - big(r.amount))
 }
 
+/**
+ * The writer's share of a settled tab tip in US cents: its recorded cents
+ * scaled by net over gross. `setReceiptStatus` credits exactly this, and the
+ * writer's earnings summary counts it the same way.
+ */
+export function tabShareCents(
+  amountCents: number,
+  net: bigint,
+  gross: bigint
+): number {
+  return gross > ZERO
+    ? roundCents(
+        amountCents * (Number((net * BigInt(1_000_000)) / gross) / 1_000_000)
+      )
+    : 0
+}
+
 async function setReceiptStatus(
   ctx: MutationCtx,
   receipt: Doc<'tabReceipts'>,
@@ -1250,13 +1267,7 @@ async function setReceiptStatus(
     // Display figures only; base-unit earnings come from the pair formulas.
     const net = receiptNet(receipt)
     const gross = big(receipt.amount)
-    const cents =
-      gross > ZERO
-        ? roundCents(
-            row.amountCents *
-              (Number((net * BigInt(1_000_000)) / gross) / 1_000_000)
-          )
-        : 0
+    const cents = tabShareCents(row.amountCents, net, gross)
     await creditAuthorEarnings(ctx, {
       authorId: receipt.authorId,
       articleId: receipt.articleId,
