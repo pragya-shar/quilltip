@@ -1964,6 +1964,115 @@ describe('writer earnings summary with tab tips (#552)', () => {
     expect(await earningsRow(t, s.authorId)).toEqual(before)
   })
 
+  /** A v1 tip verified through the real path, as a pending row first. */
+  async function verifiedV1(t: T, s: Seeded) {
+    const tipId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return ctx.db.insert('tips', {
+        articleId: s.articleId,
+        tipperId: s.readerId,
+        authorId: s.authorId,
+        articleTitle: 'Words',
+        articleSlug: 'words',
+        amountUsd: 0.1,
+        amountCents: 10,
+        expectedAmountStroops: '1000000',
+        stellarTxId: crypto.randomUUID(),
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+    await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
+      tipId,
+    })
+    return tipId
+  }
+
+  it('a v1 tip marked fraudulent leaves all three figures, live and during a rebuild', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Live: rebuilt totals, then reconciliation marks the tip fraudulent.
+    const first = await verifiedV1(t, s)
+    const second = await verifiedV1(t, s)
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(2))
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId: first,
+      reason: 'test',
+    })
+    expect(await summary(t, s)).toMatchObject(lifetime(1))
+    // During a rebuild that has read the tip.
+    await v1RowsBulk(t, s.authorId, s.articleId, 250)
+    await forgetTotals(t, s.authorId)
+    const id = (await earningsRow(t, s.authorId))!._id
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    ).toBe('more')
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId: second,
+      reason: 'test',
+    })
+    await rebuildAll(t)
+    // 250 bulk v1 tips; both verified tips are out.
+    expect(await summary(t, s)).toMatchObject(lifetime(250))
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(250))
+  }, 60_000)
+
+  it('a credit to the last row a rebuild step read counts once', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await walletRowsBulk(t, s, 199)
+    // The 200th row: the last one the first page reads.
+    await tip(t, s, { cents: 10 })
+    await walletRowsBulk(t, s, 5)
+    await forgetTotals(t, s.authorId)
+    const id = (await earningsRow(t, s.authorId))!._id
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    ).toBe('more')
+    const tabRow = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('tips').collect()).find((r) => r.channel === 'tab')!
+    )
+    expect(
+      (await earningsRow(t, s.authorId))!.lifetimeRebuild!.lastCreationTime
+    ).toBe(tabRow._creationTime)
+    await settleAll(t, BigInt(1_000_000))
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(205))
+  }, 60_000)
+
+  it('a pair of an old address paid before the rebuild lists the address counts once', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await walletRowsBulk(t, s, 250)
+    // To the old address, after the first page.
+    await tip(t, s, { cents: 10 })
+    const NEW_WRITER = seedAddress(43)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(s.authorId, { stellarAddress: NEW_WRITER })
+      await ctx.db.patch(s.chainArticleId, { authorAddress: NEW_WRITER })
+    })
+    await forgetTotals(t, s.authorId)
+    const id = (await earningsRow(t, s.authorId))!._id
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    ).toBe('more')
+    expect(
+      (await earningsRow(t, s.authorId))!.lifetimeRebuild!.writers
+    ).toEqual([NEW_WRITER])
+    // The old pair is paid: held apart until the tab row lists the address.
+    await settleAll(t, BigInt(1_000_000))
+    expect(
+      Object.keys(
+        (await earningsRow(t, s.authorId))!.lifetimeRebuild!.unlistedPairNet
+      )
+    ).toEqual([WRITER])
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(251))
+  }, 60_000)
+
   it('the rebuild writes only authorEarnings, and running it again changes nothing', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
@@ -1996,6 +2105,11 @@ describe('writer earnings summary with tab tips (#552)', () => {
     const once = await rows()
     expect(await summary(t, s)).toMatchObject(lifetime(5))
     expect(await rebuildRun(t)).toEqual({ rebuilt: 0, inProgress: 0 })
+    // A step on a rebuilt row does nothing.
+    const id = (await earningsRow(t, s.authorId))!._id
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    ).toBe('done')
     expect(await rows()).toEqual(once)
     expect(await others()).toEqual(before)
   }, 60_000)

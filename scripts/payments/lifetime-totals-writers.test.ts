@@ -77,10 +77,13 @@ describe('lifetime totals writers (#552)', () => {
     ])
   })
 
-  test('v1 verification is the only live writer of the v1 totals', () => {
+  test('v1 verification and the fraud reversal are the only live writers of the v1 totals', () => {
     expect(callers('creditV1TipTotals')).toEqual([
       'convex/articleTipVerify.ts:confirmVerifiedArticleTip',
       'convex/stellarVerify.ts:confirmVerifiedHighlightTip',
+    ])
+    expect(callers('reverseV1TipTotals')).toEqual([
+      'convex/tips.ts:markArticleTipFraudulent',
     ])
   })
 

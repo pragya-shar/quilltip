@@ -27,8 +27,9 @@
  *
  * `tipRowTotals` is the one rule for a tip row: live credits, the rebuild and
  * the summary query apply it. Live writers, one per group: `creditV1TipTotals`
- * (v1 verification), `creditUser` in `v2Earnings.ts` (wallet) and
- * `creditTabTipTotals` (tab settlement). The rebuild replaces the totals with
+ * (v1 verification) and `reverseV1TipTotals` (a v1 tip marked fraudulent),
+ * `creditUser` in `v2Earnings.ts` (wallet) and `creditTabTipTotals` (tab
+ * settlement). The rebuild replaces the totals with
  * the same rule applied to the history.
  */
 import type { Infer } from 'convex/values'
@@ -199,8 +200,47 @@ export async function creditV1TipTotals(
 }
 
 /**
- * Adds one row's totals, after the row is updated and after
- * `creditAuthorEarnings`, in the mutation that credits the tip.
+ * Takes a verified v1 tip back out of the v1 totals when reconciliation marks
+ * it fraudulent (`markArticleTipFraudulent`), in the same mutation. Pass the
+ * row as it was before the change. Writes nothing for any other row.
+ */
+export async function reverseV1TipTotals(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  table: TipTable,
+  rowBefore: TipRow
+): Promise<void> {
+  const delta = tipRowTotals(rowBefore)
+  if (delta?.v1TipCount !== 1) return
+  await creditRowTotals(ctx, userId, table, rowBefore, negateTotals(delta))
+}
+
+function negateTotals(d: Partial<LifetimeTotals>): Partial<LifetimeTotals> {
+  const units = (record: BaseUnits | undefined) =>
+    record
+      ? Object.fromEntries(
+          Object.entries(record).map(([token, n]) => [
+            token,
+            (-BigInt(n)).toString(),
+          ])
+        )
+      : undefined
+  return {
+    v1TipCount: d.v1TipCount && -d.v1TipCount,
+    v1EarnedCents: d.v1EarnedCents && -d.v1EarnedCents,
+    v1ShareStroops: d.v1ShareStroops && (-BigInt(d.v1ShareStroops)).toString(),
+    v1UnpricedTipCount: d.v1UnpricedTipCount && -d.v1UnpricedTipCount,
+    tabTipCount: d.tabTipCount && -d.tabTipCount,
+    tabEarnedCents: d.tabEarnedCents && -d.tabEarnedCents,
+    tabSettledBaseUnits: units(d.tabSettledBaseUnits),
+    walletEarnedBaseUnits: units(d.walletEarnedBaseUnits),
+  }
+}
+
+/**
+ * Adds one row's totals (or takes them out), after the row is updated and
+ * after `creditAuthorEarnings`, in the mutation that credits the tip. A
+ * rebuild in progress gets the same change when it has read the row.
  */
 async function creditRowTotals(
   ctx: MutationCtx,

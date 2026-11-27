@@ -39,6 +39,7 @@ import {
   emptyLifetimeTotals,
   lifetimeFigures,
   readLifetimeTotals,
+  reverseV1TipTotals,
   tipRowTotals,
   totalsFromHistory,
   type LifetimeTotals,
@@ -714,6 +715,8 @@ export const markArticleTipFraudulent = internalMutation({
       processedAt: now,
       updatedAt: now,
     })
+    // The lifetime totals (#552) lose the tip as they gained it.
+    await reverseV1TipTotals(ctx, tip.authorId, 'tips', tip)
 
     // Reverse article counters
     const article = await ctx.db.get(tip.articleId)
