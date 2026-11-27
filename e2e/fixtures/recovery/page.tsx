@@ -1,7 +1,7 @@
 import { Suspense, lazy } from 'react'
 import { createRoot } from 'react-dom/client'
-import RouteError from '../../../app/error'
-import Loading from '../../../app/loading'
+import RouteError from '../../../app/(legacy)/error'
+import Loading from '../../../app/(legacy)/loading'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { ArticleDisplaySectionFallback } from '@/components/error/ArticleDisplaySectionFallback'
 import { ArticleSidebarSectionFallback } from '@/components/error/ArticleSidebarSectionFallback'
@@ -16,7 +16,7 @@ function UnstableSection({ name }: { name: string }) {
   return <p>{name} recovered</p>
 }
 
-// A genuine Suspense delay exercises app/loading.tsx for ten seconds.
+// A genuine Suspense delay exercises app/(legacy)/loading.tsx for ten seconds.
 const DelayedContent = lazy(
   () =>
     new Promise<{ default: () => React.ReactNode }>((resolve) => {
