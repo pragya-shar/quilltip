@@ -481,9 +481,10 @@ function deps(
     server: overrides.server ?? fakeServer({}),
     request: [{ articleId: 'a1', articleKey: ARTICLE_KEY }],
     requestId: 'req-1',
+    // Every prepare call is recorded, the default's and an override's.
     prepare: async (requestId) => {
       calls.prepared.push(requestId)
-      return response
+      return overrides.prepare ? overrides.prepare(requestId) : response
     },
     connect: async () => TIPPER,
     sign: async (envelope) => {
@@ -505,7 +506,7 @@ function deps(
     now: () => NOW_MS,
     sleep: async () => undefined,
   }
-  return { deps: { ...base, ...overrides }, calls }
+  return { deps: { ...base, ...overrides, prepare: base.prepare }, calls }
 }
 
 describe('tip runner', () => {
@@ -556,6 +557,8 @@ describe('tip runner', () => {
     })
     const result = await runTip(d)
     expect(result).toEqual({ kind: 'prepare_failed', error })
+    // A refusal is final: prepare is not called a second time.
+    expect(calls.prepared).toEqual(['req-1'])
     expect(calls.failed).toEqual([])
   })
 
