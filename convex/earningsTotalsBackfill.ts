@@ -530,6 +530,10 @@ export const walletFigures = internalQuery({
  * `settledTabRowsWithoutApplied` counts tab tip rows marked `SETTLED` without
  * `earningsAppliedAt`; the rebuild counts tab tips from their receipts and
  * pairs, so such rows are not dropped, but the count shows whether any exist.
+ * `complete` is about this report, not the rebuild: true when the scan read
+ * every row (at most 10,000 earnings rows and 10,000 `SETTLED` rows per tip
+ * table), so the counts are whole. The rebuild is finished only when
+ * `rebuilt` equals `total`.
  */
 export const progress = internalQuery({
   args: {},
@@ -559,6 +563,7 @@ export const progress = internalQuery({
     /** Tab tip rows marked `SETTLED` without `earningsAppliedAt`. */
     settledTabRowsWithoutApplied: v.number(),
     lastRunAt: v.union(v.number(), v.null()),
+    /** The scan read every row, so the counts are whole; not "rebuild done". */
     complete: v.boolean(),
   }),
   handler: async (ctx) => {
