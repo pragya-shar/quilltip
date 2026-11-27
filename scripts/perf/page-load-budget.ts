@@ -5,6 +5,7 @@
 //   bun run perf:budget
 //
 // The gate uses quantities that do not depend on how fast the machine is:
+// - the size of the server HTML,
 // - the bytes of the scripts and stylesheets the server HTML references,
 // - the fonts the rendered page requests,
 // - the number of render-blocking stylesheets,
@@ -16,11 +17,12 @@
 // docs/performance/page-load.md.
 
 import { chromium, type Browser, type Page } from '@playwright/test'
-import { spawn, type ChildProcess } from 'child_process'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
+import { gzipSync } from 'zlib'
 import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
+import { startProductionApp } from './production-app'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
 const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
@@ -28,11 +30,44 @@ const BASE_URL = process.env.PERF_BASE_URL ?? `http://127.0.0.1:${APP_PORT}`
 const RUNS = Number(process.env.PERF_RUNS ?? 3)
 const OUTPUT = process.env.PERF_OUTPUT ?? 'perf-budget-results.json'
 
+/**
+ * Per-route budgets, set a little above the measured size (in the comment) so
+ * that one more font face, a larger stylesheet or a list that sends more data
+ * fails. Raise a budget in the change that needs it, as in
+ * scripts/perf/first-load.ts.
+ * - `htmlKb`: the server HTML as sent, before compression. Repeated data
+ *   compresses well, so the uncompressed size is the stricter gate for data
+ *   the page embeds (on `/articles`, each card's opening instead of every
+ *   article's full document: lib/articles/listArticleForClient.ts).
+ * - `cssKb`: compressed stylesheets the server HTML references.
+ * - `fontKb`: compressed fonts the page requests, the larger of mobile and
+ *   desktop. The smallest face is 12 KB.
+ */
 const ROUTES = [
-  { name: 'landing', path: '/' },
-  { name: 'login', path: '/login' },
-  { name: 'articles', path: '/articles' },
-  { name: 'article', path: FIXTURE_ARTICLE_PATH },
+  {
+    name: 'landing',
+    path: '/',
+    // Measured: HTML 38 KB, stylesheets 39 KB, fonts 169 KB (ten faces).
+    budget: { htmlKb: 42, cssKb: 41, fontKb: 172 },
+  },
+  {
+    name: 'login',
+    path: '/login',
+    // Measured: HTML 30 KB, stylesheets 29 KB, fonts 39 KB.
+    budget: { htmlKb: 34, cssKb: 31, fontKb: 42 },
+  },
+  {
+    name: 'articles',
+    path: '/articles',
+    // Measured: HTML 44 KB, stylesheets 29 KB, fonts 79 KB.
+    budget: { htmlKb: 48, cssKb: 31, fontKb: 82 },
+  },
+  {
+    name: 'article',
+    path: FIXTURE_ARTICLE_PATH,
+    // Measured: HTML 40 KB, stylesheets 26 KB, fonts 98 KB.
+    budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
+  },
 ] as const
 
 type DeviceName = 'mobile' | 'desktop'
@@ -69,20 +104,17 @@ const DEVICES: Record<
 }
 
 /**
- * Gated budgets. Byte budgets are compressed sizes as served by `next start`.
- * `scriptKb` and `cssKb` count only files the server HTML references, so a
- * chunk loaded later (after hydration, on idle) never counts, however fast or
- * slow the runner is. `fontKb` counts every font the page requests within the
- * settle window, which depends on layout, not on timing.
+ * Budgets for every route. Byte budgets are compressed sizes as served by
+ * `next start`. `scriptKb` and the per-route `cssKb` count only files the
+ * server HTML references, so a chunk loaded later (after hydration, on idle)
+ * never counts, however fast or slow the runner is. The per-route `fontKb`
+ * counts every font the page requests within the settle window, which depends
+ * on layout, not on timing.
  */
 const BUDGETS = {
   // Heaviest route: 216 KB (article). Per-route first-load budgets and the
   // module rules are in scripts/perf/first-load.ts.
   scriptKb: 230,
-  // Heaviest route: 38 KB (landing).
-  cssKb: 45,
-  // Heaviest route: 169 KB (landing, ten faces, after the WOFF2 rewrite).
-  fontKb: 190,
   // Heaviest route: 3 (landing).
   renderBlockingStylesheets: 4,
   cls: 0.1,
@@ -98,6 +130,9 @@ type HtmlRefs = {
   scripts: Set<string>
   stylesheets: Set<string>
   html: string
+  /** The server HTML's size before and after gzip, in KB. */
+  htmlKb: number
+  htmlGzipKb: number
   /** The server HTML's visible text: tags removed, entities decoded. */
   text: string
 }
@@ -170,28 +205,14 @@ async function htmlRefs(routePath: string): Promise<HtmlRefs> {
     if (href && /\srel="stylesheet"/.test(tag))
       stylesheets.add(new URL(href, BASE_URL).pathname)
   }
-  return { scripts, stylesheets, html, text: htmlText(html) }
-}
-
-async function startApp(): Promise<ChildProcess | undefined> {
-  if (process.env.PERF_BASE_URL) return undefined
-  const app = spawn('bunx', ['next', 'start', '-p', String(APP_PORT)], {
-    stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, NODE_ENV: 'production' },
-  })
-  app.stderr?.on('data', (chunk) => process.stderr.write(chunk))
-  const deadline = Date.now() + 60_000
-  while (Date.now() < deadline) {
-    try {
-      const response = await fetch(`${BASE_URL}/login`)
-      if (response.ok) return app
-    } catch {
-      /* Not listening yet. */
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500))
+  return {
+    scripts,
+    stylesheets,
+    html,
+    htmlKb: Math.round(Buffer.byteLength(html) / 1024),
+    htmlGzipKb: Math.round(gzipSync(html).length / 1024),
+    text: htmlText(html),
   }
-  app.kill()
-  throw new Error(`The app did not start on ${BASE_URL}`)
 }
 
 async function throttle(page: Page, device: DeviceName) {
@@ -309,7 +330,7 @@ function warn(message: string) {
 
 async function main() {
   const backend = startFixtureBackend(CONVEX_PORT)
-  const app = await startApp()
+  const app = await startProductionApp(APP_PORT, BASE_URL)
   const browser = await chromium.launch()
   const failures: string[] = []
   const report: Record<string, unknown>[] = []
@@ -321,6 +342,13 @@ async function main() {
         failures.push(
           `${route.name}: ${renderBlocking} render-blocking stylesheets > ${BUDGETS.renderBlockingStylesheets}`
         )
+      if (refs.htmlKb > route.budget.htmlKb)
+        failures.push(
+          `${route.name}: ${refs.htmlKb} KB of server HTML > ${route.budget.htmlKb}`
+        )
+      console.log(
+        `${route.name.padEnd(20)} server HTML ${refs.htmlKb} KB (${refs.htmlGzipKb} KB gzip)`
+      )
       for (const device of ['mobile', 'desktop'] as const) {
         // One unmeasured load warms the server's route and data caches.
         await measure(browser, route, device, refs)
@@ -340,6 +368,8 @@ async function main() {
           fontKb: median(runs.map((run) => run.fontKb)),
           lateScriptKb: median(runs.map((run) => run.lateScriptKb)),
           renderBlocking,
+          htmlKb: refs.htmlKb,
+          htmlGzipKb: refs.htmlGzipKb,
           lcpElement: runs[0]?.lcpElement ?? '',
           lcpElements: runs.map((run) => run.lcpElement),
           lcpInServerHtml: mostRuns(runs, (run) => run.lcpInServerHtml),
@@ -354,13 +384,13 @@ async function main() {
           failures.push(
             `${label}: ${summary.scriptKb} KB of scripts in the server HTML > ${BUDGETS.scriptKb}`
           )
-        if (summary.cssKb > BUDGETS.cssKb)
+        if (summary.cssKb > route.budget.cssKb)
           failures.push(
-            `${label}: ${summary.cssKb} KB of stylesheets > ${BUDGETS.cssKb}`
+            `${label}: ${summary.cssKb} KB of stylesheets > ${route.budget.cssKb}`
           )
-        if (summary.fontKb > BUDGETS.fontKb)
+        if (summary.fontKb > route.budget.fontKb)
           failures.push(
-            `${label}: ${summary.fontKb} KB of fonts > ${BUDGETS.fontKb}`
+            `${label}: ${summary.fontKb} KB of fonts > ${route.budget.fontKb}`
           )
         if (summary.cls > BUDGETS.cls)
           failures.push(`${label}: CLS ${summary.cls} > ${BUDGETS.cls}`)
@@ -397,7 +427,18 @@ async function main() {
   await mkdir(path.dirname(path.resolve(OUTPUT)), { recursive: true })
   await writeFile(
     OUTPUT,
-    JSON.stringify({ runs: RUNS, budgets: BUDGETS, report }, null, 2)
+    JSON.stringify(
+      {
+        runs: RUNS,
+        budgets: {
+          ...BUDGETS,
+          routes: Object.fromEntries(ROUTES.map((r) => [r.path, r.budget])),
+        },
+        report,
+      },
+      null,
+      2
+    )
   )
   if (failures.length > 0) {
     console.error(`\nPage-load budget failed:\n- ${failures.join('\n- ')}`)

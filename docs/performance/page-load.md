@@ -501,6 +501,17 @@ from those; they were not measured separately.
    them, one face per weight). Text that paints before its web font now keeps
    its line breaks when the font swaps in; CLS fell on `/` (0.002 to 0.001)
    and `/articles` (0.005 to 0.000). LCP changed within noise.
+   - Faces at weight 600 and above use Arial Bold as their source, with
+     values computed against Arial Bold. With `local('Arial')` at 600, WebKit
+     draws Arial Bold and Chromium draws regular Arial made bold, so values
+     computed against regular Arial made Syne headings wider in WebKit: an
+     article title took 3 lines with the fallback and 2 with Syne, and the
+     text below it moved up by about 38 px per heading at the swap.
+   - Liberation Sans and Liberation Serif are listed after Arial and Times New
+     Roman. They have the same advance widths, so the same values hold on
+     systems that have only them, such as Linux and the CI runner.
+   - `bun run perf:font-fallbacks` checks this. See
+     [Font fallback check](#font-fallback-check).
 2. **`/articles` sends card data, not article bodies.** The first list in
    the HTML carried every listed article's full document and search text
    (the long article's text 40 times). The server now sends each card its
@@ -619,14 +630,30 @@ secrets:
    | Gate                                         | Budget | Heaviest route |
    | -------------------------------------------- | -----: | -------------: |
    | Scripts referenced by the server HTML        | 230 KB |         216 KB |
-   | Stylesheets referenced by the server HTML    |  45 KB |          38 KB |
-   | Fonts the page requests                      | 190 KB |         169 KB |
    | Render-blocking stylesheets                  |      4 |              3 |
    | CLS (median of 3)                            |    0.1 |          0.016 |
    | LCP element in the server HTML (2 of 3 runs) |    yes |            yes |
    | LCP image URL in the server HTML (2 of 3)    |    yes |            yes |
 
-   Bytes are compressed sizes as served by `next start`. Which element the
+   Each route also has its own budgets for the server HTML, its stylesheets
+   and its fonts, set a little above the measured size, so one more font
+   face (the smallest is 12 KB), a larger stylesheet or a list that embeds
+   more data fails. Raise a budget in the change that needs it.
+
+   | Route       | Server HTML (uncompressed) | Stylesheets | Fonts (larger of mobile and desktop) |
+   | ----------- | -------------------------: | ----------: | -----------------------------------: |
+   | `/`         |                 42 (38) KB |  41 (39) KB |                         172 (169) KB |
+   | `/login`    |                 34 (30) KB |  31 (29) KB |                           42 (39) KB |
+   | `/articles` |                 48 (44) KB |  31 (29) KB |                           82 (79) KB |
+   | Article     |                 44 (40) KB |  28 (26) KB |                          101 (98) KB |
+
+   Budget, then the measured size in brackets. The HTML budget is
+   uncompressed because repeated data compresses well: on `/articles`,
+   sending every article's full document and search text again (without
+   `listArticleForClient`) takes the fixture page's HTML from 44 to 68 KB (8 to 10 KB gzip), and the check fails.
+   The fixture articles carry search text, as real rows do.
+
+   Other bytes are compressed sizes as served by `next start`. Which element the
    browser reports as the largest paint can depend on timing: on a slow run
    the landing page's client-side opening animation can be reported. So the
    LCP element checks pass when two of the three runs pass, like the medians,
@@ -666,6 +693,41 @@ no longer renders.
 The fixture has no cover images and the stand-in never sends live data, so
 the timings are lower than the real-data runs above. Use the check for
 regressions, not as the measured result.
+
+### Font fallback check
+
+`bun run perf:font-fallbacks` (`scripts/perf/font-fallback-check.ts`) uses the
+same build and fixture backend as `perf:budget`. For each route, in Chromium
+and WebKit, at 375 and 1440 px, it loads the page twice: once with every font
+request blocked, so text stays in the fallback faces, and once with the web
+fonts loaded. It compares the layout boxes of the text blocks (headings,
+paragraphs, list items) and fails when:
+
+1. a text block names a fallback family (`... Fallback`) that has no font face
+   for its weight;
+2. a heading (`h1` to `h3`) anywhere on the page changes its height, that is
+   its number of lines;
+3. on the first 1.5 screens, the 90th percentile of the text blocks' vertical
+   movement is over 4 px.
+
+Positions are layout positions (`offsetTop`), so transforms and animations do
+not count. Further down a page, a long paragraph can still take one line more
+or less in its fallback face (one paragraph of the fixture article at 375 px,
+1370 px from the top); that moves nothing in view and is not gated.
+
+Results on the fixture build: no heading changes lines and the movement in
+view is 0 px on every route, width and engine (Firefox, run locally: at most
+2 px). Deliberate breaks fail:
+
+- Bold faces with the earlier values and `local('Arial')`: WebKit fails on
+  `/articles`, where three card headings change lines (90 px with the
+  fallback, 60 px with Syne). Chromium passes, as before the fix.
+- No fallback faces (the `@import` removed): every route fails in both
+  engines on the missing faces, and every route but `/login` also on 6 to
+  52 px of movement in view.
+
+The CI job installs WebKit for it. Arial is not on the runner, so there the
+check measures the Liberation faces, which have Arial's widths.
 
 ## First-load JavaScript
 
