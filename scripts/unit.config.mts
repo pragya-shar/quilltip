@@ -16,6 +16,8 @@ export default defineConfig({
       // The other scripts/chain suites run in the edge runtime (test:chain).
       'scripts/chain/canonical-article.test.ts',
       'scripts/pr-hygiene/*.test.ts',
+      // The CI fixture shards against the fixture suite list.
+      'scripts/ci/*.test.ts',
       'scripts/contracts/*.test.ts',
       'scripts/perf/*.test.ts',
       'scripts/next/*.test.ts',

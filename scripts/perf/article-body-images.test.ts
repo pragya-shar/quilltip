@@ -61,6 +61,39 @@ describe('article body images', () => {
     ).toEqual({ first: null, second: 'lazy' })
   })
 
+  it('keeps the first image eager after a heading and a short paragraph', () => {
+    const opening =
+      'The harbour was still dark when the first boat came in. Nobody on the ' +
+      'quay spoke; the gulls did that for them, circling the nets and the ' +
+      'lamps. By the time the light reached the water, the crates were ' +
+      'stacked, the ropes coiled, and the market had begun to fill with ' +
+      'voices that carried over the cold.'
+    expect(opening.length).toBeGreaterThan(250)
+    expect(
+      loading([
+        heading('The harbour before dawn'),
+        paragraph(opening),
+        image('first'),
+      ])
+    ).toEqual({ first: null })
+  })
+
+  it('keeps the first image eager up to the text limit and lazy past it', () => {
+    // Text before the first image: the heading and a paragraph that brings it
+    // to exactly FIRST_SCREEN_TEXT_CHARS, then one character more.
+    const title = 'The harbour before dawn'
+    const opening = (chars: number) => [
+      heading(title),
+      paragraph('a'.repeat(chars - title.length)),
+    ]
+    expect(loading([...opening(FIRST_SCREEN_TEXT_CHARS), image('at')])).toEqual(
+      { at: null }
+    )
+    expect(
+      loading([...opening(FIRST_SCREEN_TEXT_CHARS + 1), image('past')])
+    ).toEqual({ past: 'lazy' })
+  })
+
   it('makes the first image lazy when a screen of text comes before it', () => {
     const long = 'A sentence that fills part of a line on a phone. '.repeat(11)
     expect(long.length).toBeGreaterThan(FIRST_SCREEN_TEXT_CHARS)
