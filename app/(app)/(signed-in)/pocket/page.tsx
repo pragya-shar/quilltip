@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import { Heading } from '@/system/components/Heading'
-import { PocketContent } from '@/shell/pocket/PocketContent'
+import { PocketContent } from '@/components/pocket/PocketContent'
 import { PushedScreen } from '@/shell/PushedScreen'
 
 export const metadata: Metadata = {

@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test'
 
-// Today on its fixture server (port 4188): server-rendered, then hydrated,
+// Today on its fixture server (port 4230): server-rendered, then hydrated,
 // in the real application shell. Serve it first:
 //   bun e2e/fixtures/today/server.mjs
 // Phone (390, touch) in Chromium and WebKit; width checks at 360, 375 and
@@ -17,7 +17,7 @@ export default defineConfig({
   workers: 2,
   reporter: 'list',
   timeout: 60_000,
-  use: { baseURL: 'http://127.0.0.1:4188', trace: 'on-first-retry' },
+  use: { baseURL: 'http://127.0.0.1:4230', trace: 'on-first-retry' },
   projects: [
     {
       name: 'chromium-390',

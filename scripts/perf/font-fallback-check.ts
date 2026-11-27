@@ -35,6 +35,7 @@ import {
 import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
+import { SURFACE_FONT_FALLBACK } from './routes'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
 const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
@@ -50,13 +51,11 @@ const ENGINE_NAMES = (process.env.PERF_FONT_ENGINES ?? 'chromium webkit')
 // for example `/support /terms`, to look at other pages: their faces and
 // widths are checked, their movement is only reported.
 const ROUTES: { name: string; path: string; gateMovement: boolean }[] = [
-  { name: 'today', path: '/', gateMovement: true },
   { name: 'login', path: '/login', gateMovement: true },
   { name: 'article', path: FIXTURE_ARTICLE_PATH, gateMovement: true },
   { name: 'guide', path: '/guide', gateMovement: true },
-  // The application shell's reading page: Source Serif 4 and its
-  // next/font fallback.
-  { name: 'shell reading', path: '/system/reading', gateMovement: true },
+  // The rebuilt routes, one file per package (scripts/perf/routes).
+  ...SURFACE_FONT_FALLBACK,
   ...(process.env.PERF_FONT_ROUTES ?? '')
     .split(/[\s,]+/)
     .filter(Boolean)

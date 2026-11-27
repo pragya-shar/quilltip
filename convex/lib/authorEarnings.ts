@@ -5,6 +5,7 @@ import type { MutationCtx } from '../_generated/server'
 // keeps the rest of the tip.
 const PLATFORM_FEE_BPS = BigInt(250)
 const BPS_DENOMINATOR = BigInt(10_000)
+const STROOPS_PER_XLM = BigInt(10_000_000)
 export const TOP_ARTICLE_LIMIT = 10
 
 export function getMonthKey(timestamp: number): string {
@@ -38,6 +39,71 @@ export function writerShareCents(
     (amountCents * Number(BPS_DENOMINATOR - PLATFORM_FEE_BPS)) /
       Number(BPS_DENOMINATOR)
   )
+}
+
+/**
+ * The XLM writer share of a v1 tip in stroops, from the stroop amount the tip
+ * expected (or its recorded XLM amount): the tip less the 2.5% platform fee.
+ */
+export function writerShareStroops(tip: {
+  expectedAmountStroops?: string
+  stellarAmountXlm?: string
+}): bigint | null {
+  let stroops: bigint | null = null
+  if (
+    tip.expectedAmountStroops &&
+    /^[1-9]\d*$/.test(tip.expectedAmountStroops)
+  ) {
+    stroops = BigInt(tip.expectedAmountStroops)
+  } else if (
+    tip.stellarAmountXlm &&
+    /^\d+(\.\d{1,7})?$/.test(tip.stellarAmountXlm)
+  ) {
+    const [whole, fraction = ''] = tip.stellarAmountXlm.split('.')
+    stroops =
+      BigInt(whole ?? '0') * STROOPS_PER_XLM + BigInt(fraction.padEnd(7, '0'))
+  }
+  if (!stroops || stroops <= BigInt(0)) return null
+  return stroops - (stroops * PLATFORM_FEE_BPS) / BPS_DENOMINATOR
+}
+
+/**
+ * The writer's share of a settled tab tip in US cents: its recorded cents
+ * scaled by net over gross. Tab settlement (`setReceiptStatus`) credits
+ * exactly this, and the lifetime totals count it the same way.
+ */
+export function tabShareCents(
+  amountCents: number,
+  net: bigint,
+  gross: bigint
+): number {
+  return gross > BigInt(0)
+    ? roundCents(
+        amountCents * (Number((net * BigInt(1_000_000)) / gross) / 1_000_000)
+      )
+    : 0
+}
+
+/**
+ * Fields for a new `authorEarnings` row: its lifetime totals (#552) start
+ * complete, since every later credit adds to them, unless the user has v1 tip
+ * rows from before the row existed. Those rows wait for the rebuild
+ * (`earningsTotalsBackfill.ts`).
+ */
+export async function newRowTotalsFields(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  now: number
+): Promise<{ lifetimeTotalsAt?: number }> {
+  for (const table of ['tips', 'highlightTips'] as const) {
+    const v1 = await ctx.db
+      .query(table)
+      .withIndex('by_author', (q) => q.eq('authorId', userId))
+      .filter((q) => q.neq(q.field('contractVersion'), 'v2'))
+      .first()
+    if (v1) return {}
+  }
+  return { lifetimeTotalsAt: now }
 }
 
 /** Adds one confirmed tip's writer share to the author's earnings record. */
@@ -76,6 +142,7 @@ export async function creditAuthorEarnings(
       topArticles: [
         { articleId, title: articleTitle, earnings: shareUsd, tipCount: 1 },
       ],
+      ...(await newRowTotalsFields(ctx, authorId, now)),
       createdAt: now,
       updatedAt: now,
     })

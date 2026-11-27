@@ -1,5 +1,5 @@
 /* global Bun */
-// Run explicitly with Bun. Today fixture server (port 4188); it never ships
+// Run explicitly with Bun. Today fixture server (port 4230); it never ships
 // as an app route. Today's real components in the real application shell,
 // rendered to HTML on the server and hydrated in the browser (as Next.js
 // does), with next/link and next/navigation replaced by plain stand-ins and
@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { mkdtemp, readFile } from 'node:fs/promises'
 
-const PORT = Number(process.env.TODAY_FIXTURE_PORT ?? 4188)
+const PORT = Number(process.env.TODAY_FIXTURE_PORT ?? 4230)
 const here = import.meta.dirname
 const root = path.resolve(here, '../../..')
 const plugins = [

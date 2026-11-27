@@ -1,11 +1,11 @@
 import type { Redirect } from './types'
 
 /**
- * Old public routes that Today replaced. /articles (the reading room) goes to
- * Today, or to search when it carried a query; /demo/write (the writer
- * introduction) goes to the editor.
+ * The today package's redirects (rebuild plan 5.3). Owned by that package.
+ * The reading room (`/articles`) goes to Today, or to search when it carried
+ * a query; the writer introduction (`/demo/write`) goes to the editor.
  */
-export const TODAY_REDIRECTS: readonly Redirect[] = [
+export const redirects: readonly Redirect[] = [
   {
     from: '/articles',
     to: (url) => {
@@ -13,5 +13,5 @@ export const TODAY_REDIRECTS: readonly Redirect[] = [
       return q ? `/search?q=${encodeURIComponent(q)}` : '/'
     },
   },
-  { from: '/demo/write', to: () => '/write' },
+  { from: '/demo/write', to: '/write' },
 ]

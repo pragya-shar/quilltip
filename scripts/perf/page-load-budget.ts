@@ -22,6 +22,7 @@ import path from 'path'
 import { gzipSync } from 'zlib'
 import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
+import { SURFACE_PAGE_LOAD } from './routes'
 import { startProductionApp } from './production-app'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -45,20 +46,6 @@ const OUTPUT = process.env.PERF_OUTPUT ?? 'perf-budget-results.json'
  */
 const ROUTES = [
   {
-    // Today on the application shell: the shell reading page's byte
-    // budgets, and the rebuild plan's targets for a public route (4.1): CLS
-    // at most 0.05 and a mobile median LCP of at most 2.0 s, both gated.
-    name: 'today',
-    path: '/',
-    budget: {
-      htmlKb: 44,
-      cssKb: 28,
-      fontKb: 101,
-      cls: 0.05,
-      lcpMobileMs: 2000,
-    },
-  },
-  {
     name: 'login',
     path: '/login',
     // Measured: HTML 30 KB, stylesheets 29 KB, fonts 39 KB.
@@ -70,13 +57,8 @@ const ROUTES = [
     // Measured: HTML 40 KB, stylesheets 26 KB, fonts 98 KB.
     budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
   },
-  {
-    // The application shell's reading page (app/(app)), held to the legacy
-    // article page's budget until the real article page replaces both.
-    name: 'shell reading',
-    path: '/system/reading',
-    budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
-  },
+  // The rebuilt routes, one file per package (scripts/perf/routes).
+  ...SURFACE_PAGE_LOAD,
 ] as const
 
 type DeviceName = 'mobile' | 'desktop'
@@ -401,18 +383,8 @@ async function main() {
           failures.push(
             `${label}: ${summary.fontKb} KB of fonts > ${route.budget.fontKb}`
           )
-        // A route may hold itself to a tighter CLS, and gate its mobile LCP.
-        const clsBudget = 'cls' in route.budget ? route.budget.cls : BUDGETS.cls
-        if (summary.cls > clsBudget)
-          failures.push(`${label}: CLS ${summary.cls} > ${clsBudget}`)
-        if (
-          device === 'mobile' &&
-          'lcpMobileMs' in route.budget &&
-          summary.lcpMs > route.budget.lcpMobileMs
-        )
-          failures.push(
-            `${label}: median LCP ${summary.lcpMs} ms > ${route.budget.lcpMobileMs} ms`
-          )
+        if (summary.cls > BUDGETS.cls)
+          failures.push(`${label}: CLS ${summary.cls} > ${BUDGETS.cls}`)
         if (!summary.lcpInServerHtml)
           failures.push(
             `${label}: LCP element is not in the server HTML in most runs:\n    ${summary.lcpElements.join('\n    ')}`

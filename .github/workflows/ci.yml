@@ -275,11 +275,6 @@ jobs:
       - name: Read the shell's public routes with no script
         run: bun scripts/system/no-script-check.ts
 
-      # Today on the same build: no script, first response, redirects, CSP
-      # and widths (e2e/today-app.spec.ts).
-      - name: Today on the production build
-        run: bun scripts/today/app-check.ts
-
   audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
@@ -464,10 +459,10 @@ jobs:
           - shard: system
             suites: system
             browsers: chromium webkit
-          # Today: server-rendered and hydrated, the rows without layout
-          # shift, widths, in Chromium and WebKit.
-          - shard: today
-            suites: today
+          # Every rebuilt surface's suite (e2e/suites/, one file per package),
+          # in Chromium and WebKit. A package adds its file, never a shard.
+          - shard: surfaces
+            suites: '@surfaces'
             browsers: chromium webkit
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0

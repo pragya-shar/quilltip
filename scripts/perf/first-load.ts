@@ -8,16 +8,14 @@
 //   `next experimental-analyze --output`: which source modules each chunk
 //   holds. Used to refuse modules that must load only on demand.
 import { gzipSync } from 'zlib'
+import { SURFACE_FIRST_LOAD } from './routes'
 
 /** The routes whose first load is budgeted, as Next.js names them. */
 export const FIRST_LOAD_ROUTES = [
-  // Today on the application shell (app/(app)/(public)/page.tsx).
-  '/',
   '/login',
   '/[username]/[slug]',
-  // The application shell (app/(app)) on a public reading page: its own
-  // providers, navigation and design system, with no legacy code.
-  '/system/reading',
+  // The rebuilt routes, one file per package (scripts/perf/routes).
+  ...SURFACE_FIRST_LOAD.map((entry) => entry.route),
 ] as const
 export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
 
@@ -28,13 +26,11 @@ export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
  * docs/performance/page-load.md.
  */
 export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
-  // Today: the target for public routes of the application shell (rebuild
-  // plan 4.1).
-  '/': 150,
   '/login': 202, // measured 199.4
   '/[username]/[slug]': 219, // measured 216.9
-  // Target for public routes of the application shell (rebuild plan 4.1).
-  '/system/reading': 150,
+  ...Object.fromEntries(
+    SURFACE_FIRST_LOAD.map((entry) => [entry.route, entry.budgetKb])
+  ),
 }
 
 /**
@@ -69,6 +65,12 @@ export const FORBIDDEN_FIRST_LOAD_MODULES: {
   {
     label: 'editor (Tiptap, ProseMirror)',
     pattern: pkg('(?:@tiptap/[^/]+|prosemirror-[^/]+)'),
+  },
+  {
+    // The balance's content loads when its sheet or panel opens
+    // (shell/pocket/loadPocket.ts), never with a page.
+    label: 'the balance sheet (components/pocket)',
+    pattern: /\[project\]\/components\/pocket\//,
   },
   {
     label: 'v2 payment code (lib/stellar/v2: bindings, wallet kit)',

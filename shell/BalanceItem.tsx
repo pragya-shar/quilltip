@@ -5,6 +5,7 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { BalanceIcon } from '@/system/icons'
 import { useBalanceReading } from './balance'
 import { POCKET } from './navigation'
+import { preloadPocket } from './pocket/loadPocket'
 import { openSignIn } from './signIn'
 import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
@@ -42,6 +43,8 @@ export function BalanceItem({ className }: { className: string }) {
       aria-label={label}
       aria-haspopup={signedOut ? undefined : 'dialog'}
       aria-expanded={signedOut ? undefined : open}
+      onPointerEnter={signedOut ? undefined : preloadPocket}
+      onFocus={signedOut ? undefined : preloadPocket}
       onClick={(event) => {
         if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
           return

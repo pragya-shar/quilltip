@@ -8,7 +8,7 @@ import {
   publicContentPath,
   writerPathUsername,
 } from '../../lib/routing/publicContentPath'
-import { REDIRECTED_SEGMENTS } from '../../lib/routing/redirects'
+import { REDIRECTS } from '../../lib/routing/redirects'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const appPages = Object.keys(import.meta.glob('../../app/**/page.tsx'))
@@ -30,7 +30,7 @@ test('every top-level app route and redirect is excluded from the writer check',
           !!segment && segment !== 'page.tsx' && !segment.startsWith('[')
       )
   )
-  for (const segment of REDIRECTED_SEGMENTS) topLevel.add(segment)
+  for (const redirect of REDIRECTS) topLevel.add(redirect.from.split('/')[1]!)
   expect([...topLevel].sort()).toEqual([...APP_ROUTE_SEGMENTS].sort())
 })
 

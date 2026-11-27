@@ -156,8 +156,19 @@
   }
   .qt-activity__link {
     overflow: hidden;
+    color: inherit;
+    font: inherit;
+    text-align: start;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-activity:has(button.qt-activity__link:hover) {
+      background: var(--qt-hover);
+    }
+  }
+  .qt-activity:has(.qt-activity__link:active) {
+    background: var(--qt-press);
   }
   /* The whole row opens the receipt; the action stays above it. */
   .qt-activity__link::after {

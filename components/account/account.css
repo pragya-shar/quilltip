@@ -213,6 +213,16 @@
     sans-serif;
   letter-spacing: 0;
 }
+.account-stat-bound {
+  display: block;
+  margin-bottom: 2px;
+  color: var(--account-muted);
+  font:
+    400 14px/1.45 'Account Syne',
+    'Syne 600 Fallback',
+    sans-serif;
+  letter-spacing: 0;
+}
 .account-stat-placeholder {
   height: 55px;
   max-width: 120px;
@@ -453,6 +463,16 @@
   font-size: 13px;
   gap: 4px;
   overflow-wrap: anywhere;
+}
+.account-connection-summary > .account-key-mismatch {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--account-wine);
+  overflow-wrap: anywhere;
+}
+.account-key-short {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 .account-connection-actions {
   flex-shrink: 0;

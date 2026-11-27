@@ -1,34 +1,43 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { describe, expect, it } from 'vitest'
+import { afterAll, describe, expect, it } from 'vitest'
+import { deletedPaths, parseDeletedPaths } from './deleted-paths'
 
 const root = path.resolve(__dirname, '../..')
-const listFile = path.join(__dirname, 'deleted-paths.txt')
-
-/** The listed paths, without comments and blank lines. */
-export function deletedPaths(text: string): string[] {
-  return text
-    .split('\n')
-    .map((line) => line.trim())
-    .filter((line) => line && !line.startsWith('#'))
-}
 
 describe('deleted paths stay deleted', () => {
-  const listed = deletedPaths(readFileSync(listFile, 'utf8'))
+  const listed = deletedPaths()
 
-  it('lists only paths inside the repository', () => {
-    for (const entry of listed) {
-      expect(path.isAbsolute(entry), entry).toBe(false)
+  it('lists only paths inside the repository, each once', () => {
+    for (const { path: entry, listedIn } of listed) {
+      expect(path.isAbsolute(entry), `${listedIn}: ${entry}`).toBe(false)
       expect(path.normalize(entry).startsWith('..'), entry).toBe(false)
     }
+    const paths = listed.map((entry) => entry.path)
+    expect(new Set(paths).size).toBe(paths.length)
   })
 
   it('finds none of them in the tree', () => {
-    const back = listed.filter((entry) => existsSync(path.join(root, entry)))
+    const back = listed.filter((entry) =>
+      existsSync(path.join(root, entry.path))
+    )
     expect(back, 'deleted by the rebuild, back after a merge').toEqual([])
   })
+})
 
-  it('reads comments and blank lines as nothing', () => {
-    expect(deletedPaths('# note\n\n app/x.tsx \n')).toEqual(['app/x.tsx'])
+describe('the loader', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'deleted-'))
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
+
+  it('reads every package file and skips comments and blank lines', () => {
+    writeFileSync(path.join(dir, 'read.txt'), '# note\n\n app/x.tsx \n')
+    writeFileSync(path.join(dir, 'pocket.txt'), 'components/tab\n')
+    writeFileSync(path.join(dir, 'notes.md'), 'not read\n')
+    expect(deletedPaths(dir)).toEqual([
+      { path: 'components/tab', listedIn: 'pocket.txt' },
+      { path: 'app/x.tsx', listedIn: 'read.txt' },
+    ])
+    expect(parseDeletedPaths('# a\nb\n')).toEqual(['b'])
   })
 })
