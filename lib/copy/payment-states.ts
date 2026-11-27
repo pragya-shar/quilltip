@@ -223,7 +223,7 @@ export const CANCEL_LABEL = 'Cancel'
 
 /** `PREPARED` after a reload, or an unknown status. */
 export const RESUMING_COPY =
-  'Checking whether this payment went through. This can take up to 5 minutes.'
+  'Checking whether this payment went through. This can take several minutes. If it did not go through, you can try again when the check ends.'
 
 /** A tab tip has no wallet step; this is its only running state. */
 export const TAB_TIP_SENDING = 'Sending your tip…'
@@ -270,7 +270,7 @@ export const RESULT_COPY: Record<
   accepted: {
     title: 'Tip sent from your tab',
     detail:
-      'It settles on Stellar testnet within about 6 hours. Your tab balance already counts it.',
+      'It usually settles on Stellar testnet within about 6 hours. Your tab balance already counts it.',
   },
   shortfall: {
     title: 'Waiting for the tab balance',

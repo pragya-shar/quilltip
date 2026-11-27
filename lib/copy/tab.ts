@@ -120,7 +120,7 @@ export const TAB_HISTORY = {
   highlight: 'Highlight',
   to: (name: string) => `To ${name}`,
   readMore: 'Read more',
-  accepted: 'Settles within about 6 hours',
+  accepted: 'Usually settles within about 6 hours',
 } as const
 
 export const TAB_CLOSE = {
@@ -159,7 +159,7 @@ export const TAB_SETTLEMENT = {
 export const TAB_TIP = {
   heading: 'Tip from your tab',
   noPrompt:
-    'No wallet prompt. It settles on Stellar testnet within about 6 hours.',
+    'No wallet prompt. It usually settles on Stellar testnet within about 6 hours.',
   /** After the amount: "12.5 XLM free in your tab". */
   freeSuffix: 'free in your tab',
   amountLabel: 'Tip amount',
