@@ -151,6 +151,12 @@ async function creditUser(
       credit.token,
       credit.share
     ),
+    // The wallet part of earnedBaseUnits, a lifetime total (#552).
+    walletEarnedBaseUnits: addBaseUnits(
+      earnings.walletEarnedBaseUnits,
+      credit.token,
+      credit.share
+    ),
     v2TipCount: (earnings.v2TipCount ?? 0) + 1,
     v2EarnedCents: roundCents((earnings.v2EarnedCents ?? 0) + cents),
   })
