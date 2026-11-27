@@ -256,8 +256,8 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
    focus is on the body or on a box around the control, treat it as lost
    and move it. The change is read once, by focus: no live region repeats
    it. `TipControl` does all of this; a surface's own money sheets must too.
-6. **A press while a sheet closes reaches nothing.** For 400 ms after any
-   sheet or dialog starts to close, the shell swallows pointer presses
+6. **A press while a sheet closes reaches nothing.** For 400 ms after a
+   press closes a sheet or dialog, the shell swallows pointer presses
    (`@/system/pressGuard`); key presses always pass. Drop a guard of your
    own; `pressesHeld()` says whether one is in force.
 7. **A new path closes the sheets.** When the path changes, every open

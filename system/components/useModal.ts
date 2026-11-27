@@ -1,7 +1,11 @@
 'use client'
 
 import { useEffect, useRef, type RefObject } from 'react'
-import { focusDestination, watchInputModality } from '../inputModality'
+import {
+  focusDestination,
+  inputModality,
+  watchInputModality,
+} from '../inputModality'
 import { modalStack } from '../modalStack'
 import { holdPresses } from '../pressGuard'
 
@@ -36,7 +40,7 @@ export function focusables(root: HTMLElement): HTMLElement[] {
  * - Focus returns to the element that opened it, or to the page content if
  *   that element is gone.
  * - The page behind does not scroll (iOS Safari included).
- * - For a moment after it starts to close, pointer presses are swallowed
+ * - For a moment after a press closes it, pointer presses are swallowed
  *   (system/pressGuard.ts), so a second tap never reaches the sliding
  *   panel or the page under it.
  */
@@ -110,10 +114,11 @@ export function useModal(
       if (openCount === 0) delete root.dataset.scrollLocked
       dialog.dataset.closing = ''
       modalStack.remove(dialog)
-      // A real close, not an effect re-run (React StrictMode opens it again
-      // in the same task).
+      // Closed by a press (not a key), and a real close, not an effect
+      // re-run (React StrictMode opens it again in the same task).
+      const byPointer = inputModality() === 'pointer'
       queueMicrotask(() => {
-        if (dialog.dataset.closing !== undefined) holdPresses()
+        if (byPointer && dialog.dataset.closing !== undefined) holdPresses()
       })
       const finish = () => {
         // Opened again before the exit finished: keep it open.
