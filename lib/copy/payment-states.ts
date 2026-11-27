@@ -6,6 +6,7 @@
  * copy speaks about money only from server-verified chain data.
  */
 import { TIPS_UNAVAILABLE_COPY } from './tips-unavailable'
+import type { WalletErrorKind } from '@/lib/stellar/v2/wallet-errors'
 import type {
   PaymentFlow,
   PaymentPhase,
@@ -41,7 +42,7 @@ export type GateCopy = CopyBlock & { action: string | null }
 /** Titles, details and actions per gate state. */
 export function gateCopy(
   kind: Exclude<WalletGateKind, 'ready'>,
-  options: { walletNetwork?: string; address?: string } = {}
+  options: { walletNetwork?: string; address?: string; ended?: boolean } = {}
 ): GateCopy {
   switch (kind) {
     case 'checking':
@@ -64,6 +65,14 @@ export function gateCopy(
         action: 'Set up wallet',
       }
     case 'disconnected':
+      if (options.ended) {
+        return {
+          title: 'Your wallet disconnected',
+          detail:
+            'Your wallet ended the connection. Connect again to continue. Nothing was sent.',
+          action: 'Connect again',
+        }
+      }
       return {
         title: 'Connect your wallet',
         detail: 'Connecting shares your address. It does not send a payment.',
@@ -336,7 +345,11 @@ export const FAILURE_COPY = {
   },
 } as const
 
-/** Wallet failures while signing. Titles are fixed; wallet text is never shown. */
+/**
+ * Wallet failures while signing. Titles are fixed; wallet text is never
+ * shown. Every wallet error kind except `cancelled` has an entry, so a new
+ * kind does not compile until it has copy.
+ */
 export const WALLET_FAILURE_COPY = {
   rejected: RESULT_COPY.declined,
   timeout: {
@@ -352,6 +365,16 @@ export const WALLET_FAILURE_COPY = {
     title: 'Your wallet signed with another account',
     detail:
       'Switch back to the connected account in your wallet, or reconnect. Nothing was sent.',
+  },
+  'popup-blocked': {
+    title: 'Your browser blocked the wallet window',
+    detail:
+      'Allow pop-ups for this site in your browser, then try again. Nothing was sent.',
+  },
+  disconnected: {
+    title: 'Your wallet disconnected',
+    detail:
+      'Your wallet ended the connection. Connect again, then try again. Nothing was sent.',
   },
   'no-wallet': {
     title: 'No Stellar wallet found',
@@ -369,7 +392,7 @@ export const WALLET_FAILURE_COPY = {
     title: 'Your wallet reported a problem',
     detail: 'Try again, or reconnect your wallet. Nothing was sent.',
   },
-} as const
+} as const satisfies Record<Exclude<WalletErrorKind, 'cancelled'>, CopyBlock>
 
 /** Convex tab refusals with no notice of their own. The server accepted nothing. */
 export const TAB_REFUSAL_COPY = {
