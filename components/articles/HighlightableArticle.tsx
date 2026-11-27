@@ -1,7 +1,6 @@
 'use client'
 
 import '@/components/highlights/highlights.css'
-import type { TipXlmPreset } from '@/lib/constants'
 
 import { focusLibraryHighlight } from '@/lib/library/focusHighlight'
 
@@ -53,10 +52,6 @@ import {
   readPendingHighlightSelection,
   writePendingHighlightSelection,
 } from '@/lib/highlight/pendingHighlightSelection'
-import {
-  matchesHighlightPendingIntent,
-  readPendingTipIntent,
-} from '@/lib/tip/pendingTipIntent'
 
 interface HighlightData {
   _id: Id<'highlights'>
@@ -128,11 +123,6 @@ export function HighlightableArticle({
   const editorRef = useRef<HTMLDivElement>(null)
   const isApplyingHighlightsRef = useRef(false)
   const selectionRestoredEditorRef = useRef<Editor | null>(null)
-  const [resumeHighlightTip, setResumeHighlightTip] = useState<{
-    amountCents?: number
-    amountXlm?: TipXlmPreset
-    customAmount?: string
-  } | null>(null)
   const pendingSelectionNeedsClearRef = useRef(false)
   // During a drag, onSelectionUpdate fires on every move; if we mount the
   // popover at 3 chars, HighlightPopover's FocusScope trap steals focus from
@@ -462,15 +452,6 @@ export function HighlightableArticle({
       setPopoverPosition(anchor)
       setSignInSelection(null)
       setSignInPromptPosition(null)
-
-      const tipIntent = readPendingTipIntent()
-      if (matchesHighlightPendingIntent(tipIntent, articleId)) {
-        setResumeHighlightTip({
-          amountCents: tipIntent.amountCents,
-          amountXlm: tipIntent.amountXlm,
-          customAmount: tipIntent.customAmount,
-        })
-      }
 
       return true
     }
@@ -811,12 +792,6 @@ export function HighlightableArticle({
               )}
               startContainerPath={`text.${selectedText.from}`}
               endContainerPath={`text.${selectedText.to}`}
-              selectionStartPosition={selectedText.from}
-              selectionEndPosition={selectedText.to}
-              resumeHighlightTip={resumeHighlightTip}
-              onHighlightTipResumeOpened={() => {
-                setResumeHighlightTip(null)
-              }}
             />
           )}
       </AnimatePresence>

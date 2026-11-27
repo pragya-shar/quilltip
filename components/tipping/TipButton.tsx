@@ -1,40 +1,39 @@
 'use client'
 
-import { lazy, Suspense } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
+import { lazy, Suspense, useEffect } from 'react'
 import { TipButtonSkeleton } from '@/components/articles/TipButtonSkeleton'
-import type { TipButtonProps } from './TipButtonV1'
+import type { Id } from '@/convex/_generated/dataModel'
+import { clearLegacyTipStorage } from '@/lib/tip/legacyTipStorage'
 
-// Payments v1 until cutover (#451). Each flow loads with import(), so the
-// article page's first load holds neither.
-const TipButtonV1 = lazy(() =>
-  import('./TipButtonV1').then((mod) => ({ default: mod.TipButtonV1 }))
-)
+// The flow loads with import(), so the article page's first load holds none
+// of it.
 const ArticleTipV2 = lazy(() =>
   import('./v2/ArticleTipV2').then((mod) => ({ default: mod.ArticleTipV2 }))
 )
 
+export interface TipButtonProps {
+  articleTitle: string
+  articleId: Id<'articles'>
+  articleSlug: string
+  authorName: string
+  className?: string
+}
+
 /**
- * The article tip button. Renders the v2 flow when the deployment has
- * payments v2 on (`getChainConfig().v2Enabled`), the v1 flow otherwise.
+ * The article tip button (payments v2). `ArticleTipActionsInner` renders it
+ * only for an article that takes tips; every other state shows a note.
  */
-export function TipButton(props: TipButtonProps & { articleSlug?: string }) {
-  const config = useQuery(api.chain.config.getChainConfig, {})
-  if (config === undefined) return <TipButtonSkeleton />
+export function TipButton(props: TipButtonProps) {
+  useEffect(() => clearLegacyTipStorage(), [])
   return (
     <Suspense fallback={<TipButtonSkeleton />}>
-      {config.v2Enabled ? (
-        <ArticleTipV2
-          articleId={props.articleId}
-          articleTitle={props.articleTitle}
-          articleSlug={props.articleSlug ?? ''}
-          authorName={props.authorName}
-          className={props.className}
-        />
-      ) : (
-        <TipButtonV1 {...props} />
-      )}
+      <ArticleTipV2
+        articleId={props.articleId}
+        articleTitle={props.articleTitle}
+        articleSlug={props.articleSlug}
+        authorName={props.authorName}
+        className={props.className}
+      />
     </Suspense>
   )
 }
