@@ -30,6 +30,7 @@ import {
   TESTNET_LABEL,
   TESTNET_LABEL_DETAIL,
   WALLET_FAILURE_COPY,
+  WRONG_ACCOUNT_AFTER_SIGNING,
   basketConfirmed,
   gateCopy,
   quoteCopy,
@@ -627,6 +628,28 @@ describe('wallet failures', () => {
       'Your wallet reported a problem'
     )
   })
+
+  test('wrong account: before signing, after signing with the linked address, and without it (#582)', () => {
+    const LINKED = 'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
+    const OTHER = 'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI'
+    expect(
+      failureFromWalletError({
+        kind: 'wrong-account',
+        expectedAddress: LINKED,
+        walletAddress: OTHER,
+      })?.title
+    ).toBe('Switch your wallet to GCS5…DUAR')
+    expect(
+      failureFromWalletError({ kind: 'wrong-account', expectedAddress: LINKED })
+    ).toEqual({
+      title: 'Your wallet signed with another account',
+      detail:
+        'Switch your wallet to GCS5…DUAR, the address linked to your Quilltip account, or reconnect. Nothing was sent.',
+    })
+    expect(failureFromWalletError({ kind: 'wrong-account' })?.detail).toBe(
+      'Switch back to the connected account in your wallet, or reconnect. Nothing was sent.'
+    )
+  })
 })
 
 describe('contract failures, decoded with the raising contract', () => {
@@ -1119,6 +1142,11 @@ describe('copy', () => {
       SESSION_KEY_COPY.expires('{date}'),
       SESSION_KEY_COPY.used('{used}', '{limit}'),
       quoteCopy('{usd}'),
+      WRONG_ACCOUNT_AFTER_SIGNING('{linked}').detail,
+      gateCopy('other-account', { linked: '{linked}', address: '{wallet}' })
+        .title,
+      gateCopy('other-account', { linked: '{linked}', address: '{wallet}' })
+        .detail,
     ]
     for (const t of templates) strings.add(t)
     const missing = [...strings].filter((value) => !doc.includes(value))

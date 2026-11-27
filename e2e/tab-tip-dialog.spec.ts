@@ -488,6 +488,7 @@ test.describe('keyboard and screen readers', () => {
 
   test('a tab tip runs from the keyboard, and the result takes focus', async ({
     page,
+    browserName,
   }) => {
     await open(page, 'tip-accepted')
     const dialog = await openDialog(page, 'article')
@@ -495,9 +496,14 @@ test.describe('keyboard and screen readers', () => {
       name: 'Send $0.10 from your tab',
     })
     await expect(send).toBeVisible()
+    // The dialog opens on Close, its last control; its focus trap wraps Tab
+    // (not Option+Tab) to the first control. Safari's Tab then skips buttons
+    // and links with default settings; Option+Tab reaches them.
+    await page.keyboard.press('Tab')
+    const next = browserName === 'webkit' ? 'Alt+Tab' : 'Tab'
     for (let i = 0; i < 20; i++) {
       if (await send.evaluate((el) => el === document.activeElement)) break
-      await page.keyboard.press('Tab')
+      await page.keyboard.press(next)
     }
     await expect(send).toBeFocused()
     await page.keyboard.press('Enter')
@@ -511,6 +517,22 @@ test.describe('keyboard and screen readers', () => {
     // Done closes the dialog.
     await tabSection(dialog).getByRole('button', { name: 'Done' }).click()
     await expect(dialog).toBeHidden()
+  })
+
+  test('a tab tip started with a click moves focus to its result', async ({
+    page,
+  }) => {
+    await open(page, 'tip-accepted')
+    const dialog = await openDialog(page, 'article')
+    await tabSection(dialog)
+      .getByRole('button', { name: 'Send $0.10 from your tab' })
+      .click()
+    // Safari does not focus a button on click, so focus starts on the dialog.
+    await expect(
+      tabSection(dialog).locator('.pay-panel-title', {
+        hasText: 'Tip sent from your tab',
+      })
+    ).toBeFocused()
   })
 
   test('the dialog cannot close while a tab tip is sending', async ({

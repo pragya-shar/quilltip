@@ -14,8 +14,7 @@ import { api } from '@/convex/_generated/api'
 import type { Id } from '@/convex/_generated/dataModel'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useWallet } from '@/components/providers/WalletProvider'
-import { walletNetworkLabel } from '@/lib/payments/failures'
-import type { WalletGateState } from '@/lib/payments/ui-state'
+import { tabWalletGate } from '@/lib/tab-ui/wallet-gate'
 import { v2Config } from '@/lib/stellar/v2/config'
 import {
   createSessionKeyStore,
@@ -71,30 +70,13 @@ function useLiveWalletAccess(): WalletAccess {
       user.stellarAddressVerifiedNetwork === passphrase
         ? user.stellarAddress
         : null
-    let gate: WalletGateState
-    if (isLoading) gate = { kind: 'checking' }
-    else if (!isAuthenticated || !user) gate = { kind: 'signed-out' }
-    else if (walletState.isLoading) gate = { kind: 'checking' }
-    else if (walletState.errorKind === 'locked') gate = { kind: 'locked' }
-    else if (!walletState.isConnected && !walletState.isInstalled)
-      gate = { kind: 'no-wallet' }
-    else if (!walletState.isConnected) gate = { kind: 'disconnected' }
-    else if (
-      walletState.networkReported &&
-      walletState.networkPassphrase !== passphrase
-    )
-      gate = {
-        kind: 'wrong-network',
-        walletNetwork: walletNetworkLabel(
-          walletState.networkPassphrase ?? undefined
-        ),
-      }
-    else if (!verified || walletState.publicKey !== verified)
-      gate = {
-        kind: 'unverified',
-        ...(walletState.publicKey ? { address: walletState.publicKey } : {}),
-      }
-    else gate = { kind: 'ready' }
+    const gate = tabWalletGate({
+      authLoading: isLoading,
+      signedIn: isAuthenticated && Boolean(user),
+      verified,
+      passphrase,
+      wallet: walletState,
+    })
     return {
       gate,
       address: verified,

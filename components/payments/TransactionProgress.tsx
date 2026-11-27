@@ -207,9 +207,18 @@ function runningSentence(
   return STEP_COPY[phase]
 }
 
+/**
+ * True when nothing more specific than the progress holds focus: the page,
+ * the progress itself, or a container around it. Safari does not focus a
+ * button on click, so after "Send tip" focus stays on the dialog around it.
+ */
 function focusLost(root: HTMLElement | null): boolean {
   const active = document.activeElement
-  return !active || active === document.body || !!root?.contains(active)
+  return (
+    !active ||
+    active === document.body ||
+    (!!root && (root.contains(active) || active.contains(root)))
+  )
 }
 
 /**
