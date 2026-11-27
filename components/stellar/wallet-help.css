@@ -227,3 +227,174 @@
     animation: none;
   }
 }
+/* Wallet groups: in this browser, no install needed, not installed. */
+.wallet-install-dialog {
+  overscroll-behavior: contain;
+}
+.wallet-group {
+  display: grid;
+  gap: 6px;
+}
+.wallet-group-heading {
+  font-size: 13px;
+  font-weight: 600;
+  color: #5e535a;
+  margin: 0;
+}
+.wallet-picker-option > span.wallet-row-body {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.wallet-row-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.wallet-icon {
+  flex-shrink: 0;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  object-fit: contain;
+  background: #fffaf2;
+  box-shadow: 0 0 0 1px rgba(57, 12, 24, 0.12);
+}
+.wallet-icon-fallback {
+  display: grid;
+  place-items: center;
+  font:
+    400 17px/1 'Wallet Alegreya',
+    Georgia,
+    serif;
+  color: #790333;
+}
+/* "Connect" and "Waiting" take the same room, so the row does not shift. */
+button.wallet-picker-option > .wallet-install-destination {
+  min-width: 5.5em;
+  justify-content: flex-end;
+}
+.wallet-picker-unavailable {
+  cursor: default;
+}
+.wallet-picker-unavailable .wallet-icon {
+  filter: grayscale(1);
+  opacity: 0.6;
+}
+.wallet-picker-unavailable .wallet-install-destination {
+  color: #5e535a;
+}
+@media (max-width: 480px) {
+  .wallet-install-destination {
+    font-size: 12px;
+  }
+  .wallet-picker-option {
+    align-items: flex-start;
+  }
+  .wallet-picker-option > .wallet-install-destination {
+    padding-top: 8px;
+  }
+}
+/* WalletConnect pairing step. */
+.wallet-pair {
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+.wallet-pair h3 {
+  font:
+    400 24px/1.2 'Wallet Alegreya',
+    Georgia,
+    serif;
+  margin: 0;
+  outline: none;
+}
+.wallet-pair-back,
+.wallet-pair-copy {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 4px;
+  background: none;
+  border: 0;
+  color: #790333;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.wallet-pair-back {
+  margin-left: -4px;
+}
+.wallet-pair-code {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  justify-self: stretch;
+  padding: 16px;
+  border: 1px solid #cdb9b4;
+  border-radius: 3px;
+  background: #fffaf2;
+  text-align: center;
+  font-size: 14px;
+}
+.wallet-pair-code p {
+  margin: 0;
+}
+.wallet-qr {
+  display: block;
+  width: min(240px, 100%);
+  aspect-ratio: 1;
+  height: auto;
+}
+.wallet-qr-placeholder {
+  background: #f3e9db;
+}
+.wallet-pair-open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  gap: 10px;
+  min-height: 48px;
+  padding: 10px 16px;
+  border-radius: 2px;
+  background: #790333;
+  color: #faf5ec;
+  font-weight: 600;
+  touch-action: manipulation;
+}
+.wallet-pair-more {
+  justify-self: stretch;
+}
+.wallet-pair-more summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.wallet-pair-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+}
+.wallet-pair-copied {
+  font-size: 13px;
+  color: #5e535a;
+}
+.wallet-pair :is(button, a, summary):focus-visible {
+  outline: 2px solid #790333;
+  outline-offset: 2px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .wallet-pair-back:hover,
+  .wallet-pair-copy:hover {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+}

@@ -187,6 +187,10 @@ Until then: the client step, `checking` once sent, `failed` when RPC reports
 retry. The state check runs first, so a late indexer update still turns the
 view confirmed.
 
+A failed tab operation shows the tab operation copy below only when the flow
+passes no `failure`. When the flow knows why it failed (send refused, Stellar
+testnet busy), pass that `failure`; its copy replaces the polling copy.
+
 ### Wallet errors (`gateFromWalletError`, `failureFromWalletError`)
 
 | Wallet error kind                                   | Goes to                                                                                      |
@@ -468,6 +472,7 @@ Tips unavailable is a one-line note in place of the tip button, rendered by
 | `unregistered`    | Tips aren’t on for this article yet.                                                                         | none            |
 | `pending`         | Tips for this article turn on in a moment.                                                                   | none            |
 | `payout_outdated` | Tips are paused while the writer updates their wallet.                                                       | none            |
+| `paused`          | Tips are paused for a short time while payments are updated.                                                 | none            |
 | `splits`          | Quick tips don’t work for this article because it shares tips with co-authors. Tip from your wallet instead. | Tip from wallet |
 | `paused`          | Tips are paused for a short time while payments are updated.                                                 | none            |
 
