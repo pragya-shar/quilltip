@@ -138,6 +138,58 @@ test.describe('signed-in account navigation on a development backend', () => {
     await expect(accountButton(page)).toBeVisible()
   })
 
+  test('a saved profile announces itself in the notifications region', async ({
+    page,
+  }) => {
+    await page.goto('/settings/profile')
+    const name = page.getByLabel('Display name', { exact: true })
+    await expect(name).toBeVisible()
+    // Save the current name unchanged, so the account is left as it was.
+    await page
+      .getByRole('button', { name: 'Save profile', exact: true })
+      .click()
+    const region = page.getByRole('region', { name: /Notifications/ })
+    await expect(
+      region.getByText('Profile saved', { exact: true })
+    ).toBeVisible()
+    await expect(region).toHaveAttribute('aria-live', 'polite')
+  })
+
+  // The account menu's dropdown loads on demand. Until it arrives a
+  // placeholder trigger shows; a key press on it must open the menu as the
+  // real trigger would once the code is there.
+  for (const key of ['Enter', ' ', 'ArrowDown'] as const) {
+    test(`account menu opens from ${key === ' ' ? 'Space' : key} pressed before its code loads`, async ({
+      page,
+    }) => {
+      // Hold back every script the server HTML did not reference.
+      const html = await (await page.request.get('/support')).text()
+      const firstLoad = new Set(
+        [...html.matchAll(/src="([^"]+\.js)"/g)].map(
+          (match) => new URL(match[1]!, 'http://x').pathname
+        )
+      )
+      await page.route('**/_next/static/chunks/*.js', async (route) => {
+        if (!firstLoad.has(new URL(route.request().url()).pathname))
+          await new Promise((resolve) => setTimeout(resolve, 2500))
+        await route.continue()
+      })
+      await page.goto('/support')
+      const trigger = accountButton(page)
+      await trigger.focus()
+      await expect(trigger).toBeFocused()
+      await page.keyboard.press(key)
+      const menu = page.getByRole('menu')
+      await expect(menu).toBeVisible({ timeout: 10_000 })
+      await expect(
+        menu.getByRole('menuitem', { name: 'View profile', exact: true })
+      ).toBeFocused()
+      await page.keyboard.press('Escape')
+      await expect(menu).toBeHidden()
+      await expect(accountButton(page)).toBeFocused()
+    })
+  }
+
   for (const colorScheme of ['light', 'dark'] as const) {
     test(`desktop keyboard, destinations and sign-out (${colorScheme})`, async ({
       page,

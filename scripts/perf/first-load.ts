@@ -20,14 +20,15 @@ export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
 
 /**
  * Gzip budget for each route's first-load JavaScript, in KB (1024 bytes).
- * Each is the measured size after the #405/#428 changes plus about 5 to 6
- * percent for ordinary growth; see docs/performance/page-load.md.
+ * Each is the measured size plus about 2 KB, so removing a lazy boundary or a
+ * few KB of growth fails; raise a budget in the change that needs it. See
+ * docs/performance/page-load.md.
  */
 export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
-  '/': 210, // measured 199.0
-  '/login': 200, // measured 189.5
-  '/articles': 215, // measured 203.2
-  '/[username]/[slug]': 218, // measured 206.6
+  '/': 211, // measured 208.9
+  '/login': 202, // measured 199.4
+  '/articles': 216, // measured 214.0
+  '/[username]/[slug]': 219, // measured 216.9
 }
 
 /**
@@ -93,7 +94,11 @@ export function gzipBytes(contents: Uint8Array): number {
 type AnalyzeHeader = {
   schema_version: number
   sources: { parent_source_index?: number | null; path: string }[]
-  chunk_parts: { source_index: number; output_file_index: number }[]
+  chunk_parts: {
+    source_index: number
+    output_file_index: number
+    compressed_size?: number
+  }[]
   output_files: { filename: string }[]
   chunk_groups: { kind: string; output_file_indices: number[] }[]
 }
@@ -105,6 +110,8 @@ type AnalyzeHeader = {
  */
 export function firstLoadModules(analyzeData: Uint8Array): {
   modules: Set<string>
+  /** Compressed bytes per module, as the analyzer reports them. */
+  sizes: Map<string, number>
   jsFiles: number
 } {
   const view = Buffer.from(analyzeData)
@@ -139,11 +146,31 @@ export function firstLoadModules(analyzeData: Uint8Array): {
     return full
   }
   const modules = new Set<string>()
+  const sizes = new Map<string, number>()
   for (const part of header.chunk_parts) {
-    if (files.has(part.output_file_index))
-      modules.add(sourcePath(part.source_index))
+    if (!files.has(part.output_file_index)) continue
+    const modulePath = sourcePath(part.source_index)
+    modules.add(modulePath)
+    sizes.set(
+      modulePath,
+      (sizes.get(modulePath) ?? 0) + (part.compressed_size ?? 0)
+    )
   }
-  return { modules, jsFiles: files.size }
+  return { modules, sizes, jsFiles: files.size }
+}
+
+/** The largest modules, as "KB  path" lines, to name the cause of a size failure. */
+export function largestModules(
+  sizes: Map<string, number>,
+  count = 10
+): string[] {
+  return [...sizes]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, count)
+    .map(
+      ([modulePath, bytes]) =>
+        `${(bytes / 1024).toFixed(1).padStart(6)} KB  ${modulePath.replace('[project]/', '')}`
+    )
 }
 
 /** Forbidden modules found, as "label: module path" lines. */
