@@ -50,6 +50,7 @@ import {
   applyPairSettlement,
   pairOutstanding,
   pairUnindexed,
+  pruneBalanceDebits,
   readerSpendable,
   recordReserveRelease,
   releasePairReserve,
@@ -484,6 +485,7 @@ export const reconcile = internalMutation({
       ),
       updatedAt: now,
     })
+    await pruneBalanceDebits(ctx, account._id, synthetic)
     const done = (await ctx.db.get(account._id))!
     await recordReserveRelease(ctx, {
       account,

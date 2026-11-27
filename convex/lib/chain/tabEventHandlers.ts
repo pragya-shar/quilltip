@@ -29,10 +29,12 @@ import { readChainEnv } from './env'
 import { isHexOfLength } from './ids'
 import type { ChainEventHandler, IndexedEvent } from './indexerStore'
 import {
-  MAX_SETTLED_SINCE_BALANCE,
   adjustBaseUnitEarnings,
   applyPairPayment,
   applyPairSettlement,
+  debitsAfter,
+  pruneBalanceDebits,
+  recordBalanceDebit,
   insertTabAccount,
   refreshSettleQueue,
   releaseIncludedReserves,
@@ -119,27 +121,34 @@ async function accountFor(
   })
 }
 
-/** Patch for an absolute balance, or null when a newer one is applied. */
-function absoluteBalance(
+/**
+ * Patch for an absolute balance, or null when a newer one is applied. The
+ * balance is the event's, less every debit applied after the event
+ * (`debitsAfter`): those happened on chain later.
+ */
+async function absoluteBalance(
+  ctx: MutationCtx,
   account: Doc<'tabAccounts'>,
   event: IndexedEvent,
   balance: bigint
-): Partial<Doc<'tabAccounts'>> | null {
+): Promise<Partial<Doc<'tabAccounts'>> | null> {
   const eventId = event.doc.eventId
   if (account.balanceEventId && account.balanceEventId >= eventId) return null
-  const later = account.settledSinceBalance.filter((s) => s.eventId > eventId)
-  const debits = later.reduce((sum, s) => sum + BigInt(s.gross), ZERO)
+  const debits = await debitsAfter(ctx, account, eventId)
   return {
     balanceEventId: eventId,
     balanceLedger: event.doc.ledger,
-    settledSinceBalance: later,
+    settledSinceBalance: account.settledSinceBalance.filter(
+      (s) => s.eventId > eventId
+    ),
     confirmedBalance: (balance - debits).toString(),
   }
 }
 
 /**
- * Applies an absolute balance event's patches, then releases the reserve of
- * settlements that balance already includes (`releaseIncludedReserves`).
+ * Applies an absolute balance event's patches, deletes the debit rows it
+ * covers, then releases the reserve of settlements that balance already
+ * includes (`releaseIncludedReserves`).
  */
 async function applyAbsolute(
   ctx: MutationCtx,
@@ -148,9 +157,10 @@ async function applyAbsolute(
   balance: bigint,
   status: Partial<Doc<'tabAccounts'>>
 ): Promise<void> {
-  const absolute = absoluteBalance(account, event, balance)
+  const absolute = await absoluteBalance(ctx, account, event, balance)
   await patchAccount(ctx, account, event.now, absolute, status)
   if (absolute) {
+    await pruneBalanceDebits(ctx, account._id, event.doc.eventId)
     await releaseIncludedReserves(ctx, account._id, {
       now: event.now,
       eventId: event.doc.eventId,
@@ -158,23 +168,28 @@ async function applyAbsolute(
   }
 }
 
-/** Patch for a `TabSettled` debit, or null when it is already counted. */
-function balanceDebit(
+/**
+ * Patch for a `TabSettled` debit, or null when it is already counted
+ * (`recordBalanceDebit`: older than the applied balance, or applied once).
+ */
+async function balanceDebit(
+  ctx: MutationCtx,
   account: Doc<'tabAccounts'>,
-  eventId: string,
+  event: IndexedEvent,
   gross: bigint
-): Partial<Doc<'tabAccounts'>> | null {
-  if (account.balanceEventId && eventId < account.balanceEventId) return null
-  if (account.settledSinceBalance.some((s) => s.eventId === eventId))
+): Promise<Partial<Doc<'tabAccounts'>> | null> {
+  if (
+    !(await recordBalanceDebit(
+      ctx,
+      account,
+      event.doc.eventId,
+      gross,
+      event.now
+    ))
+  ) {
     return null
-  const list = [
-    ...account.settledSinceBalance,
-    { eventId, gross: gross.toString() },
-  ]
-    .sort((a, b) => (a.eventId < b.eventId ? -1 : 1))
-    .slice(-MAX_SETTLED_SINCE_BALANCE)
+  }
   return {
-    settledSinceBalance: list,
     confirmedBalance: (BigInt(account.confirmedBalance) - gross).toString(),
   }
 }
@@ -372,7 +387,7 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
     ctx,
     account,
     event.now,
-    balanceDebit(account, event.doc.eventId, gross)
+    await balanceDebit(ctx, account, event, gross)
   )
 
   const voucher = await tabVoucher(ctx, account._id, keyId, writer)

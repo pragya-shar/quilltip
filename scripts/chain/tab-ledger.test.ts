@@ -3334,42 +3334,39 @@ describe('spendable balance across settler records and indexed events', () => {
     expect(await list()).toEqual([])
   })
 
-  it.fails(
-    'known issue (#576): more than 256 debits after an absolute balance, then a re-dispatch of the oldest, debits it twice',
-    async () => {
-      const t = convexTest(schema, modules)
-      await seed(t)
-      const gross = BigInt(1000)
-      const events = Array.from({ length: 257 }, (_, i) =>
-        ev.tabSettled(
-          {
-            writer: OTHER_WRITER,
-            cumulative: gross * BigInt(i + 1),
-            paidAfter: gross * BigInt(i + 1),
-            gross,
-          },
-          { ledger: LEDGER + 1 + i }
-        )
+  it('more than 256 debits after an absolute balance, then a re-dispatch of the oldest, debits it once (#576)', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t)
+    const gross = BigInt(1000)
+    const events = Array.from({ length: 257 }, (_, i) =>
+      ev.tabSettled(
+        {
+          writer: OTHER_WRITER,
+          cumulative: gross * BigInt(i + 1),
+          paidAfter: gross * BigInt(i + 1),
+          gross,
+        },
+        { ledger: LEDGER + 1 + i }
       )
-      for (let i = 0; i < events.length; i += 50) {
-        await ingest(t, ...events.slice(i, i + 50))
-      }
-      const expected = (BigInt(10) * XLM - gross * BigInt(257)).toString()
-      expect((await account(t)).confirmedBalance).toBe(expected)
-      // The oldest debit is no longer in `settledSinceBalance` (256 kept).
-      await t.run(async (ctx) => {
-        const first = (
-          await ctx.db
-            .query('chainEvents')
-            .withIndex('by_event_id', (q) => q.eq('eventId', events[0]!.id))
-            .collect()
-        )[0]!
-        await ctx.db.patch(first._id, { handled: 'pending' })
-      })
-      await t.mutation(internal.chain.indexer.redispatch, {})
-      expect((await account(t)).confirmedBalance).toBe(expected)
+    )
+    for (let i = 0; i < events.length; i += 50) {
+      await ingest(t, ...events.slice(i, i + 50))
     }
-  )
+    const expected = (BigInt(10) * XLM - gross * BigInt(257)).toString()
+    expect((await account(t)).confirmedBalance).toBe(expected)
+    // Before #576 the oldest debit was cut from a 256-entry list.
+    await t.run(async (ctx) => {
+      const first = (
+        await ctx.db
+          .query('chainEvents')
+          .withIndex('by_event_id', (q) => q.eq('eventId', events[0]!.id))
+          .collect()
+      )[0]!
+      await ctx.db.patch(first._id, { handled: 'pending' })
+    })
+    await t.mutation(internal.chain.indexer.redispatch, {})
+    expect((await account(t)).confirmedBalance).toBe(expected)
+  })
 
   it('review: property over settler, settle_own, shuffled and lost events, and reconciliations', async () => {
     const SEEDS = 40

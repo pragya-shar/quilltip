@@ -222,7 +222,11 @@ export const tabTables = {
      * before this field; such rows release no reserve by ledger order.
      */
     balanceLedger: v.optional(v.number()),
-    /** `TabSettled` debits applied after `balanceEventId`, for reordering. */
+    /**
+     * Rows written before `tabBalanceDebits`: `TabSettled` debits applied
+     * after `balanceEventId`. Read, never extended; the next absolute
+     * balance drops the entries it covers.
+     */
     settledSinceBalance: v.array(
       v.object({ eventId: v.string(), gross: v.string() })
     ),
@@ -416,6 +420,21 @@ export const tabTables = {
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_status', ['status']),
+
+  /**
+   * `TabSettled` debits applied to a reader's `confirmedBalance` and not yet
+   * covered by an absolute balance: one row per event, so a re-dispatch or
+   * replay of the event finds its row and debits nothing, however many
+   * settlements came after it. An absolute balance that applies subtracts
+   * the rows after its event and deletes the rows before it.
+   */
+  tabBalanceDebits: defineTable({
+    tabAccountId: v.id('tabAccounts'),
+    /** RPC id of the `TabSettled` event. */
+    eventId: v.string(),
+    gross: v.string(),
+    createdAt: v.number(),
+  }).index('by_account_event', ['tabAccountId', 'eventId']),
 
   /**
    * Settlement reserves released without their `TabSettled` event: by a

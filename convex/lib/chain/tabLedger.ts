@@ -56,8 +56,8 @@ export const TAB_PREPARE_TTL_MS = 300_000
 export const TAB_PRICE_MAX_AGE_MS = 30 * 60 * 1000
 export const DEFAULT_TAB_DAILY_LIMIT = BigInt(200_000_000)
 export const DEFAULT_TAB_TIP_MAX = BigInt(50_000_000)
-/** Out-of-order bookkeeping kept per account (see `applyBalanceDebit`). */
-export const MAX_SETTLED_SINCE_BALANCE = 256
+/** Covered debit rows deleted per absolute balance (`pruneBalanceDebits`). */
+export const DEBIT_PRUNE_BATCH = 500
 
 const ZERO = BigInt(0)
 const STROOPS_PER_XLM = 10_000_000
@@ -1465,6 +1465,87 @@ export function readerSpendable(
   >
 ): bigint {
   return big(account.confirmedBalance) - reservedOf(account)
+}
+
+/**
+ * Records a `TabSettled` debit of `confirmedBalance`, or returns false when
+ * it is already counted: the event is older than the applied absolute
+ * balance (which includes it), or its row exists (a replay or a
+ * re-dispatch). Rows written before `tabBalanceDebits` live in
+ * `settledSinceBalance` and are checked too.
+ */
+export async function recordBalanceDebit(
+  ctx: MutationCtx,
+  account: Pick<
+    Doc<'tabAccounts'>,
+    '_id' | 'balanceEventId' | 'settledSinceBalance'
+  >,
+  eventId: string,
+  gross: bigint,
+  now: number
+): Promise<boolean> {
+  if (account.balanceEventId && eventId < account.balanceEventId) return false
+  if (account.settledSinceBalance.some((s) => s.eventId === eventId)) {
+    return false
+  }
+  const existing = await ctx.db
+    .query('tabBalanceDebits')
+    .withIndex('by_account_event', (q) =>
+      q.eq('tabAccountId', account._id).eq('eventId', eventId)
+    )
+    .first()
+  if (existing) return false
+  await ctx.db.insert('tabBalanceDebits', {
+    tabAccountId: account._id,
+    eventId,
+    gross: gross.toString(),
+    createdAt: now,
+  })
+  return true
+}
+
+/**
+ * The debits applied after `eventId` that an absolute balance from that
+ * event does not include: rows after it, and legacy `settledSinceBalance`
+ * entries after it.
+ */
+export async function debitsAfter(
+  ctx: MutationCtx,
+  account: Pick<Doc<'tabAccounts'>, '_id' | 'settledSinceBalance'>,
+  eventId: string
+): Promise<bigint> {
+  let sum = account.settledSinceBalance
+    .filter((s) => s.eventId > eventId)
+    .reduce((total, s) => total + big(s.gross), ZERO)
+  for await (const row of ctx.db
+    .query('tabBalanceDebits')
+    .withIndex('by_account_event', (q) =>
+      q.eq('tabAccountId', account._id).gt('eventId', eventId)
+    )) {
+    sum += big(row.gross)
+  }
+  return sum
+}
+
+/**
+ * Deletes debit rows older than the applied absolute balance: it includes
+ * them, and a re-dispatch of their events is skipped by id. At most
+ * `DEBIT_PRUNE_BATCH` per call; rows left over are never read again and go
+ * with a later balance.
+ */
+export async function pruneBalanceDebits(
+  ctx: MutationCtx,
+  tabAccountId: Id<'tabAccounts'>,
+  beforeEventId: string
+): Promise<number> {
+  const rows = await ctx.db
+    .query('tabBalanceDebits')
+    .withIndex('by_account_event', (q) =>
+      q.eq('tabAccountId', tabAccountId).lt('eventId', beforeEventId)
+    )
+    .take(DEBIT_PRUNE_BATCH)
+  for (const row of rows) await ctx.db.delete(row._id)
+  return rows.length
 }
 
 /**
