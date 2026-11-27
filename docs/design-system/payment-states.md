@@ -398,18 +398,19 @@ Wallet failures while signing, with fixed titles. Every wallet error kind
 except `cancelled` has a row; a unit test fails to compile when a new kind
 has none.
 
-| Kind            | Title                                   | Detail                                                                                                              |
-| --------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `rejected`      | Request declined in your wallet         | Nothing was signed or sent.                                                                                         |
-| `timeout`       | Your wallet did not respond             | Your wallet may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent. |
-| `unsupported`   | This wallet cannot be used here         | Choose another wallet in the wallet list. Nothing was sent.                                                         |
-| `wrong-account` | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent.                                |
-| `popup-blocked` | Your browser blocked the wallet window  | Allow pop-ups for this site in your browser, then try again. Nothing was sent.                                      |
-| `disconnected`  | Your wallet disconnected                | Your wallet ended the connection. Connect again, then try again. Nothing was sent.                                  |
-| `no-wallet`     | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                                                         |
-| `locked`        | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                                                           |
-| `wrong-network` | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                                                             |
-| `failed`        | Your wallet reported a problem          | Try again, or reconnect your wallet. Nothing was sent.                                                              |
+| Kind                                                | Title                                   | Detail                                                                                                              |
+| --------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `rejected`                                          | Request declined in your wallet         | Nothing was signed or sent.                                                                                         |
+| `timeout`                                           | Your wallet did not respond             | Your wallet may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent. |
+| `unsupported`                                       | This wallet cannot be used here         | Choose another wallet in the wallet list. Nothing was sent.                                                         |
+| `wrong-account`                                     | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent.                                |
+| `wrong-account`, the caller named the linked signer | Your wallet signed with another account | Switch your wallet to {linked}, the address linked to your Quilltip account, or reconnect. Nothing was sent.        |
+| `popup-blocked`                                     | Your browser blocked the wallet window  | Allow pop-ups for this site in your browser, then try again. Nothing was sent.                                      |
+| `disconnected`                                      | Your wallet disconnected                | Your wallet ended the connection. Connect again, then try again. Nothing was sent.                                  |
+| `no-wallet`                                         | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                                                         |
+| `locked`                                            | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                                                           |
+| `wrong-network`                                     | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                                                             |
+| `failed`                                            | Your wallet reported a problem          | Try again, or reconnect your wallet. Nothing was sent.                                                              |
 
 Send and contract failures: "Not sent" with "Nothing was sent.", or for
 `not_sent`, "Stellar testnet is busy" with "Stellar testnet did not accept it.

@@ -391,6 +391,15 @@ export const WRONG_ACCOUNT_BEFORE_SIGNING = (
   detail: `This is signed by ${linked}, the address linked to your Quilltip account. Your wallet is on ${wallet}. Switch accounts in your wallet, then try again. Nothing was signed.`,
 })
 
+/**
+ * The wallet signed with another account than the linked address, found
+ * after it answered; nothing was sent (address shortened).
+ */
+export const WRONG_ACCOUNT_AFTER_SIGNING = (linked: string): CopyBlock => ({
+  title: 'Your wallet signed with another account',
+  detail: `Switch your wallet to ${linked}, the address linked to your Quilltip account, or reconnect. Nothing was sent.`,
+})
+
 export const WALLET_FAILURE_COPY = {
   rejected: RESULT_COPY.declined,
   timeout: {
