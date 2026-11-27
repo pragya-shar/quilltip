@@ -288,7 +288,9 @@ bunx convex run chain/tabClaims:seedClaimRecords '{"apply":true}'
 
 Repeat with `"cursor"` set to the returned `continueCursor` while
 `isDone` is false. Until it has run, a re-dispatch of an older `Claimed`
-event would count it again.
+event would count it again. A deployment that indexed no `Claimed` event
+before this change has nothing to record: production at the v2 cutover is
+one, because `main` has no v2 indexer.
 
 **Check and correct**, for example after a restore:
 
