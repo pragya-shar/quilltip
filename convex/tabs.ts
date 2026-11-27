@@ -341,6 +341,11 @@ export const getMyTab = query({
       acceptedToday: account.acceptedToday,
       acceptedDay: account.acceptedDay,
       withdrawUnlockLedger: account.withdrawUnlockLedger ?? null,
+      // False while the account exists only because an open was prepared:
+      // no Tab event for it has been indexed yet.
+      onChain:
+        account.balanceEventId !== undefined ||
+        account.statusEventId !== undefined,
       keys: keys.map((k) => ({
         keyId: k.keyId,
         publicKey: k.publicKey ?? null,

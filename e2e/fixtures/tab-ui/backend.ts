@@ -196,6 +196,7 @@ export function openTab(
     acceptedToday: '0',
     acceptedDay: '2026-11-27',
     withdrawUnlockLedger: null,
+    onChain: true,
     keys,
     pairs: [],
   }
@@ -311,6 +312,12 @@ export function prepareOperation(
   if (!state.address) throw new FixtureError('TAB_READER_UNVERIFIED')
   if ((method === 'deposit' || method === 'withdraw_start') && !state.tab)
     throw new FixtureError('TAB_NO_ACCOUNT')
+  if (method === 'open_session' && !state.tab) {
+    // Like tabs.prepareOpen: the account exists from the prepare, with no
+    // Tab event indexed until the "indexer" applies the open.
+    openTab(state, ZERO)
+    state.tab!.onChain = false
+  }
   if (method === 'withdraw') {
     if (state.tab?.status !== 'CLOSING')
       throw new FixtureError('TAB_NO_WITHDRAWAL')

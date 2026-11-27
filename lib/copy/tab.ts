@@ -28,6 +28,10 @@ export const TAB_EMPTY = {
   title: 'You don’t have a tab yet',
   detail:
     'A tab is a prepaid balance for tips. You approve one deposit in your wallet, and this device can then tip without asking again. You can close it and take back what is left at any time.',
+  /** The open was sent; its first events are on their way. */
+  openingTitle: 'Opening your tab',
+  openingDetail:
+    'Stellar testnet is confirming your deposit and this device’s key. This page updates by itself when it is done. There is nothing else to do.',
   closedTitle: 'Your tab is closed',
   closedDetail:
     'Your balance went back to your wallet. Open a tab again to tip without a wallet prompt.',

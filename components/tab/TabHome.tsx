@@ -162,15 +162,28 @@ export function TabHome() {
 
   if (!tab || status.kind === 'none' || status.kind === 'closed') {
     const closed = status.kind === 'closed'
+    // The open was sent and its first events are not indexed yet: a waiting
+    // state that asks for nothing, not an open tab with zero balances.
+    const opening = !closed && op.confirming === 'tab-open'
     return (
       <div className="tab-page">
         {conditions}
         <section className="tab-section" aria-labelledby="tab-empty-title">
           <header>
             <h2 id="tab-empty-title" className="tab-section-title">
-              {closed ? TAB_EMPTY.closedTitle : TAB_EMPTY.title}
+              {closed
+                ? TAB_EMPTY.closedTitle
+                : opening
+                  ? TAB_EMPTY.openingTitle
+                  : TAB_EMPTY.title}
             </h2>
-            <p>{closed ? TAB_EMPTY.closedDetail : TAB_EMPTY.detail}</p>
+            <p>
+              {closed
+                ? TAB_EMPTY.closedDetail
+                : opening
+                  ? TAB_EMPTY.openingDetail
+                  : TAB_EMPTY.detail}
+            </p>
           </header>
           {progress}
           {!running && !paused && !quickTipsOff

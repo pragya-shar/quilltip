@@ -47,7 +47,9 @@ export function tabStatusView(input: {
   if (!chainConfig.v2Enabled || !chainConfig.tabContractId) {
     return { kind: 'unavailable' }
   }
-  if (tab === null) return { kind: 'none' }
+  // An open that is prepared, sent or confirming has no tab on chain yet:
+  // nothing to show as open until its first event is indexed.
+  if (tab === null || !tab.onChain) return { kind: 'none' }
   if (tab.status === 'OPEN') return { kind: 'open' }
   if (tab.status === 'CLOSED') return { kind: 'closed' }
   const unlockLedger = tab.withdrawUnlockLedger
