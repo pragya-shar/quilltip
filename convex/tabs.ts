@@ -32,6 +32,7 @@ import {
   tabAccountForReader,
   tabError,
   tabKey,
+  tabTipLimitsView,
   voidEpochPairs,
 } from './lib/chain/tabLedger'
 import { verifiedStellarAddress } from './lib/walletVerification'
@@ -341,6 +342,13 @@ export const getMyTab = query({
       acceptedToday: account.acceptedToday,
       acceptedDay: account.acceptedDay,
       withdrawUnlockLedger: account.withdrawUnlockLedger ?? null,
+      // What the next quick tip is checked against, at prepare's price.
+      tipLimits: await tabTipLimitsView(ctx, {
+        network: me.chain.network,
+        chainEpoch: me.chain.chainEpoch,
+        account,
+        now: Date.now(),
+      }),
       keys: keys.map((k) => ({
         keyId: k.keyId,
         publicKey: k.publicKey ?? null,

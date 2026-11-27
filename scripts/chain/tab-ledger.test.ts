@@ -944,6 +944,85 @@ describe('concurrency', () => {
   })
 })
 
+describe('tip limits in getMyTab (#546)', () => {
+  it('gives the limits prepare checks, at the price prepare uses', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await ingest(t, ev.deposited(READER, BigInt(100) * XLM, BigInt(100) * XLM))
+    await ingest(t, ev.keyRegistered(READER, 0, VALID_UNTIL, BigInt(50) * XLM))
+    const reader = as(t, s.readerId)
+    expect((await reader.query(api.tabs.getMyTab, {}))!.tipLimits).toEqual({
+      tipMax: '50000000',
+      dailyLimit: '200000000',
+      dailyLeft: '200000000',
+      minTip: '100000',
+      priceUsd: 1,
+      // $1 per XLM: 500 cents is 5 XLM, the default maximum.
+      tipMaxCents: 500,
+    })
+    // Prepare agrees at the boundary.
+    expect(await errorCode(prepare(t, s, { cents: 501 }))).toBe(
+      'TAB_ABOVE_TIP_MAX'
+    )
+    await tip(t, s, { cents: 500 })
+    expect(
+      (await reader.query(api.tabs.getMyTab, {}))!.tipLimits
+    ).toMatchObject({ dailyLeft: '150000000' })
+    // The next UTC day starts a new daily limit.
+    vi.setSystemTime(T0 + 24 * 3600 * 1000)
+    await t.run(async (ctx) => {
+      const p = await ctx.db.query('xlmPriceCache').first()
+      await ctx.db.patch(p!._id, { fetchedAt: Date.now() })
+    })
+    expect(
+      (await reader.query(api.tabs.getMyTab, {}))!.tipLimits
+    ).toMatchObject({ dailyLeft: '200000000', priceUsd: 1 })
+  })
+
+  it('gives no price and no maximum in cents when the price is too old', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await ingest(t, ev.deposited(READER, BigInt(10) * XLM, BigInt(10) * XLM))
+    vi.setSystemTime(T0 + 31 * 60 * 1000)
+    const tab = await as(t, s.readerId).query(api.tabs.getMyTab, {})
+    expect(tab!.tipLimits).toMatchObject({ priceUsd: null, tipMaxCents: null })
+    expect(await errorCode(prepare(t, s, { cents: 10 }))).toBe(
+      'TAB_PRICE_UNAVAILABLE'
+    )
+  })
+
+  it('follows TAB_TIP_MAX and a price that does not divide evenly', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    process.env.TAB_TIP_MAX = '25000000'
+    try {
+      await ingest(
+        t,
+        ev.deposited(READER, BigInt(100) * XLM, BigInt(100) * XLM)
+      )
+      await ingest(
+        t,
+        ev.keyRegistered(READER, 0, VALID_UNTIL, BigInt(50) * XLM)
+      )
+      await t.run(async (ctx) => {
+        const p = await ctx.db.query('xlmPriceCache').first()
+        await ctx.db.patch(p!._id, { priceUsd: 0.1337 })
+      })
+      const limits = (await as(t, s.readerId).query(api.tabs.getMyTab, {}))!
+        .tipLimits!
+      expect(limits.tipMax).toBe('25000000')
+      // 33 cents is 2.4682124 XLM; 34 cents would be 2.5430067 XLM.
+      expect(limits.tipMaxCents).toBe(33)
+      await tip(t, s, { cents: 33 })
+      expect(await errorCode(prepare(t, s, { cents: 34 }))).toBe(
+        'TAB_ABOVE_TIP_MAX'
+      )
+    } finally {
+      delete process.env.TAB_TIP_MAX
+    }
+  })
+})
+
 describe('event handlers', () => {
   it('mirrors deposits, keys and withdrawal events', async () => {
     const t = convexTest(schema, modules)

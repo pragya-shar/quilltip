@@ -51,6 +51,7 @@ function openTab(balance = '200000000', keys: MyTab['keys'] = []): MyTab {
     acceptedToday: '0',
     acceptedDay: '2026-11-27',
     withdrawUnlockLedger: null,
+    tipLimits: null,
     keys,
     pairs: [],
   }

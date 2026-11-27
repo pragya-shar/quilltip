@@ -488,6 +488,99 @@ export function centsToStroops(amountCents: number, priceUsd: number): bigint {
   return BigInt(Math.floor((amountCents * STROOPS_PER_XLM) / (priceUsd * 100)))
 }
 
+/** The largest US cent amount `centsToStroops` accepts at this price. */
+const MAX_TIP_CENTS = 1_000_000
+
+/**
+ * The largest whole-cent tip whose base units at `priceUsd` stay within
+ * `maxBaseUnits` (the same rounding as `centsToStroops`), or 0 when even one
+ * cent is above it. The tip dialog offers no amount above this.
+ */
+export function maxCentsWithin(maxBaseUnits: bigint, priceUsd: number): number {
+  if (!(priceUsd > 0) || !Number.isFinite(priceUsd)) return 0
+  const fits = (c: number) =>
+    BigInt(Math.floor((c * STROOPS_PER_XLM) / (priceUsd * 100))) <= maxBaseUnits
+  if (!fits(1)) return 0
+  if (fits(MAX_TIP_CENTS)) return MAX_TIP_CENTS
+  // `centsToStroops` never decreases as cents grow: search the boundary.
+  let low = 1
+  let high = MAX_TIP_CENTS
+  while (high - low > 1) {
+    const mid = Math.floor((low + high) / 2)
+    if (fits(mid)) low = mid
+    else high = mid
+  }
+  return low
+}
+
+/**
+ * The tab tip limits a reader's next quick tip is checked against, priced
+ * at the cached XLM price prepare would use (null when it is too old). The
+ * client explains an amount above them before it prepares anything.
+ */
+export type TabTipLimitsView = {
+  /** Base units; `TAB_TIP_MAX`. */
+  tipMax: string
+  /** Base units; `TAB_DAILY_LIMIT`. */
+  dailyLimit: string
+  /** Base units still allowed today (UTC), after tips accepted today. */
+  dailyLeft: string
+  /** Base units; the chain minimum, or null before the config is loaded. */
+  minTip: string | null
+  /** The price prepare converts cents with; null when none is fresh. */
+  priceUsd: number | null
+  /** The largest whole-cent tip within `tipMax` at `priceUsd`. */
+  tipMaxCents: number | null
+}
+
+export async function tabTipLimitsView(
+  ctx: QueryCtx,
+  args: {
+    network: ChainEnv['network']
+    chainEpoch: string
+    account: Pick<Doc<'tabAccounts'>, 'acceptedDay' | 'acceptedToday'>
+    now: number
+    env?: EnvLike
+  }
+): Promise<TabTipLimitsView | null> {
+  let limits: TabLimits
+  try {
+    limits = tabLimits(args.env)
+  } catch {
+    return null
+  }
+  const config = await ctx.db
+    .query('chainConfig')
+    .withIndex('by_network', (q) => q.eq('network', args.network))
+    .first()
+  const minTip =
+    config && config.chainEpoch === args.chainEpoch && config.minTip
+      ? config.minTip
+      : null
+  const price = await ctx.db.query('xlmPriceCache').first()
+  const priceUsd =
+    price &&
+    args.now - price.fetchedAt <= TAB_PRICE_MAX_AGE_MS &&
+    price.priceUsd > 0 &&
+    Number.isFinite(price.priceUsd)
+      ? price.priceUsd
+      : null
+  const acceptedToday =
+    args.account.acceptedDay === utcDay(args.now)
+      ? big(args.account.acceptedToday)
+      : ZERO
+  const left = limits.dailyLimit - acceptedToday
+  return {
+    tipMax: limits.tipMax.toString(),
+    dailyLimit: limits.dailyLimit.toString(),
+    dailyLeft: (left > ZERO ? left : ZERO).toString(),
+    minTip,
+    priceUsd,
+    tipMaxCents:
+      priceUsd === null ? null : maxCentsWithin(limits.tipMax, priceUsd),
+  }
+}
+
 type TipRow = Doc<'tips'> | Doc<'highlightTips'>
 
 function expectedReceipt(row: TipRow): StoredReceipt {
