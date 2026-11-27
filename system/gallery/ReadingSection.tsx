@@ -3,6 +3,7 @@ import { EmptyState } from '../components/EmptyState'
 import { Heading } from '../components/Heading'
 import { PassageMark } from '../components/PassageMark'
 import { Prose } from '../components/Prose'
+import { ReadingUnavailable } from '../components/ReadingUnavailable'
 import { Skeleton } from '../components/Skeleton'
 import { Text } from '../components/Text'
 import { BalanceIcon } from '../icons'
@@ -62,6 +63,13 @@ export function ReadingSection() {
             </PassageMark>
           </Prose>
         </div>
+      </Specimen>
+      <Specimen name="Could not reach (D21)">
+        <ReadingUnavailable
+          what="This article"
+          retryHref="/system/reading"
+          headingLevel={2}
+        />
       </Specimen>
       <Specimen name="Skeleton">
         <div

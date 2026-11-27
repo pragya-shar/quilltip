@@ -18,7 +18,7 @@ import { routes as write } from './write'
 import { routes as writer } from './writer'
 import { routes as you } from './you'
 
-export type { PerfRoutes } from './types'
+export type { PageLoadBudget, PageLoadRoute, PerfRoutes } from './types'
 
 export const PERF_ROUTE_PACKAGES = {
   foundation,
