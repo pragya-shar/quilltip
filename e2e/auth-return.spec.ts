@@ -294,9 +294,13 @@ test('signing out from the dashboard lands on login and stays', async ({
 })
 
 /*
- * A returning reader whose stored token has expired (the backend checks
- * `exp`), with a refresh token still stored. The runner passes this run's
- * throwaway signing key, so the expired copy is signed like a real token.
+ * A returning reader whose stored token has expired, with the refresh token
+ * still stored. The runner passes this run's throwaway signing key, so the
+ * copy is signed like a real token; only its expiry differs.
+ *
+ * These tests guard the refresh path of a returning reader. They do not
+ * guard the #575 wait: on this path `useConvexAuth()` reports loading until
+ * the refreshed token is confirmed, so they pass without that wait.
  */
 const JWT_PRIVATE_KEY = process.env.AUTH_E2E_JWT_PRIVATE_KEY ?? ''
 const jwtStorageKey = () =>
@@ -316,13 +320,20 @@ const claimsOf = (jwt: string) =>
     exp: number
   }
 
-/** The same claims, signed with the backend's key, expired an hour ago. */
-function expiredCopy(jwt: string): string {
+/**
+ * The same claims, signed with the backend's key, expiring `expiresIn`
+ * seconds from now (negative: already expired).
+ */
+function resigned(jwt: string, expiresIn: number): string {
   const now = Math.floor(Date.now() / 1000)
   const encode = (value: object) =>
     Buffer.from(JSON.stringify(value)).toString('base64url')
   const head = encode({ alg: 'RS256' })
-  const body = encode({ ...claimsOf(jwt), iat: now - 7200, exp: now - 3600 })
+  const body = encode({
+    ...claimsOf(jwt),
+    iat: now - 7200,
+    exp: now + expiresIn,
+  })
   const signature = createSign('RSA-SHA256')
     .update(`${head}.${body}`)
     .sign(pem(JWT_PRIVATE_KEY))
@@ -342,35 +353,64 @@ const loadsOf = (page: Page) =>
 const storedToken = (page: Page) =>
   page.evaluate((key) => localStorage.getItem(key), jwtStorageKey())
 
+/** Convex Auth's refresh: `auth:signIn` over HTTP with the refresh token. */
+const isRefresh = (url: string, body: string | null) =>
+  url.includes('/api/action') && (body ?? '').includes('refreshToken')
+
+/** Counts refresh requests across every tab of the context. */
+function countRefreshes(context: BrowserContext): () => number {
+  let count = 0
+  context.on('request', (request) => {
+    if (isRefresh(request.url(), request.postData())) count++
+  })
+  return () => count
+}
+
+/** The backend's `AuthError` messages to this tab, by error text. */
+function authErrors(page: Page): string[] {
+  const errors: string[] = []
+  page.on('websocket', (ws) => {
+    ws.on('framereceived', ({ payload }) => {
+      if (typeof payload !== 'string' || !payload.includes('"AuthError"'))
+        return
+      const message = JSON.parse(payload) as { type?: string; error?: string }
+      if (message.type === 'AuthError') errors.push(message.error ?? '')
+    })
+  })
+  return errors
+}
+
 /**
- * Signs in, then leaves an expired copy of the token in storage with the
+ * Signs in, then leaves a re-signed copy of the token in storage with the
  * refresh token, as a reader returning hours later has, and closes the tab.
+ * It waits for the refresh that follows sign-in, so that refresh cannot
+ * overwrite the copy.
  */
 async function returningReader(
   context: BrowserContext,
-  { keepRefreshToken = true } = {}
+  expiresIn = -3600
 ): Promise<string> {
   const page = await context.newPage()
+  const firstRefresh = page.waitForResponse((response) =>
+    isRefresh(response.url(), response.request().postData())
+  )
   await page.goto(loginUrl('/dashboard/stats'))
   await signIn(page)
   await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+  await firstRefresh
   const token = await storedToken(page)
   expect(token).not.toBeNull()
-  const expired = expiredCopy(token!)
-  await page.evaluate(
-    ({ key, value, keepRefreshToken }) => {
-      localStorage.setItem(key, value)
-      if (keepRefreshToken) return
-      for (const name of Object.keys(localStorage)) {
-        if (name.startsWith('__convexAuthRefreshToken_'))
-          localStorage.removeItem(name)
-      }
-    },
-    { key: jwtStorageKey(), value: expired, keepRefreshToken }
-  )
+  const copy = resigned(token!, expiresIn)
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+    key: jwtStorageKey(),
+    value: copy,
+  })
   await page.close()
-  return expired
+  return copy
 }
+
+/** The backend's answer to an expired token. */
+const EXPIRED_TOKEN_ERROR = 'Could not verify OIDC token claim'
 
 /** Ends on the dashboard in one load, with a new, unexpired token. */
 async function expectRefreshedInOneLoad(page: Page, expired: string) {
@@ -391,36 +431,47 @@ test.describe('a returning reader with an expired token', () => {
     'Needs the run signing key: bun run test:e2e:auth'
   )
 
-  test('is refreshed on a protected route in one load', async ({ context }) => {
+  test('is refused by the backend, then refreshed in one load', async ({
+    context,
+  }) => {
     await countLoads(context)
     const expired = await returningReader(context)
     const page = await context.newPage()
+    const errors = authErrors(page)
     await page.goto('/dashboard/stats')
     await expectRefreshedInOneLoad(page, expired)
+    expect(errors.some((error) => error.includes(EXPIRED_TOKEN_ERROR))).toBe(
+      true
+    )
   })
 
-  // Control: the backend does reject the expired copy. Without a refresh
-  // token nothing can replace it, so the reader is signed out promptly.
-  test('without a refresh token reaches login promptly', async ({
-    context,
-  }) => {
+  // Control: the same copy with an expiry ahead is accepted, so only the
+  // expiry made the backend refuse the copy above.
+  test('the same copy unexpired is accepted', async ({ context }) => {
     await countLoads(context)
-    await returningReader(context, { keepRefreshToken: false })
+    await returningReader(context, 3600)
     const page = await context.newPage()
+    const errors = authErrors(page)
     await page.goto('/dashboard/stats')
-    await expect(page).toHaveURL(loginUrl('/dashboard/stats'), {
-      timeout: PROMPT_MS,
+    await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({
+      timeout: TOKEN_CONFIRMATION_TIMEOUT_MS,
     })
+    expect(await loadsOf(page)).toBe(1)
+    expect(errors).toEqual([])
   })
 
-  test('in two tabs at once, both refresh in one load and stay signed in', async ({
+  test('in two tabs at once, one refresh serves both and both stay signed in', async ({
     context,
   }) => {
     await countLoads(context)
     const expired = await returningReader(context)
+    const refreshes = countRefreshes(context)
     const tabs = [await context.newPage(), await context.newPage()]
     await Promise.all(tabs.map((tab) => tab.goto('/dashboard/stats')))
     for (const tab of tabs) await expectRefreshedInOneLoad(tab, expired)
+    // The client serialises the refresh with a browser lock; the other tab
+    // takes the new token from storage.
+    expect(refreshes()).toBe(1)
     // The session survives: a reload is still signed in.
     await tabs[0]!.reload()
     await expect(PROTECTED[0]!.signedIn(tabs[0]!)).toBeVisible({
