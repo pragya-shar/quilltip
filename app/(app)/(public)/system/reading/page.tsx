@@ -35,14 +35,14 @@ export default function SampleReadingPage() {
             <span aria-hidden="true">·</span>
             <span>6 min</span>
           </p>
-          <Prose>
+          <Prose leadIn>
             <p>
               My grandmother kept a ledger in the drawer under the bread. It was
               not a budget. There were no columns for rent or groceries, and the
               totals never added up to anything.
             </p>
             <p>
-              <PassageMark heat={2} total="$4 · 9" totalLabel="$4 from 9 tips">
+              <PassageMark state="others" count={9}>
                 Two pesos to the boy who carried her bags.
               </PassageMark>{' '}
               For thirty years she wrote one line each time she gave something
@@ -50,11 +50,7 @@ export default function SampleReadingPage() {
               <em>for the medicine</em>. One to a singer on the 14 bus.
             </p>
             <p>
-              <PassageMark
-                heat={3}
-                total="$14 · 23"
-                totalLabel="$14 from 23 tips"
-              >
+              <PassageMark state="others-top" count={23}>
                 She wrote down every coin she ever gave away. Not to remember
                 the money, but to remember the people.
               </PassageMark>

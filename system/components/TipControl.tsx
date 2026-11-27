@@ -5,10 +5,33 @@ import { cx } from '../cx'
 import { focusDestination, watchInputModality } from '../inputModality'
 import { AmountIcon, CloseIcon, DoneIcon, TipIcon } from '../icons'
 import type { MoneyValue } from '../money/figure'
-import { tipButtonParts, tipNote, type TipControlPhase } from '../money/tip'
+import {
+  HOLD_CANCELLED,
+  tipButtonParts,
+  tipNote,
+  type TipControlPhase,
+} from '../money/tip'
 import { AmountTray } from './AmountTray'
 import { Icon } from './Icon'
 import { Spinner } from './Spinner'
+
+/**
+ * The hold before sending (N1 phase 6), as the money layer's controller
+ * describes it. The control draws it; it keeps no timer of its own.
+ */
+export type TipHold = {
+  /** The balance now and after this tip: "$18.40 → $17.40". */
+  projected?: string
+  /** Ends the hold with nothing sent (Cancel, Escape). */
+  onCancel: () => void
+  /** Adds $1 and restarts the hold. */
+  onAddOne: () => void
+  /** Why +$1 cannot add now (balance, daily limit, per-tip limit); it is
+   * then disabled and says why. */
+  addOneBlocked?: string | null
+  /** Changes each time the hold restarts, so the countdown starts again. */
+  restartKey?: number | string
+}
 
 export type TipControlProps = {
   /** `useTip(...).state` from hooks/payments. */
@@ -22,12 +45,16 @@ export type TipControlProps = {
   onTip: () => void
   /** Opens the add-money sheet when the balance is short. */
   onAddMoney?: () => void
-  /** The writer, for what a screen reader hears. */
+  /** After a failure: leaves it, back to idle ("Not now"). */
+  onNotNow?: () => void
+  /** The writer: "Tip Tomás $1", and what a screen reader hears. */
   recipient: string
-  /** passage: a line is targeted and the button says "Tip this line". */
+  /** passage: a line is chosen and the button says "Tip this line". */
   target?: 'article' | 'passage'
-  /** Clears a targeted line; shown only while a line is targeted. */
+  /** Clears a chosen line; shown only while a line is chosen. */
   onClearTarget?: () => void
+  /** The hold, while the money layer holds the tip before sending. */
+  hold?: TipHold | null
   /** Why this reader cannot tip here now, in a few words. Hides the amount. */
   unavailable?: string | null
   /** Offers an "Other" amount field in the tray. */
@@ -46,15 +73,16 @@ function focusLost(root: HTMLElement | null): boolean {
 }
 
 /**
- * The main action: a labelled button that states the amount ("Tip $1"),
- * with a visible amount button beside it that works by tap and by keyboard.
- * A press sends; choosing an amount never sends. While the server decides,
- * the button becomes a status ("Sending $1") and focus moves to it; when it
- * accepts, the status reads "Sent $1" and keeps focus; when it refuses, focus
- * moves to the reason. Focus never depends on the pressed button keeping it
- * (Safari does not focus a button on click), and each change is read once,
- * by focus, with no second live announcement. No swipe, no long press, no
- * Undo.
+ * The main action (design N1): a labelled button that states the amount
+ * ("Tip Tomás $1", "Tip this line $1"), with a visible amount button that
+ * works by tap and by keyboard; choosing an amount never sends. While a tip
+ * is held or sending, the button becomes a status and focus moves to it;
+ * "Sent" keeps focus; a refusal moves focus to its reason. Focus never
+ * depends on the pressed button keeping it (Safari does not focus a button
+ * on click), and each change is read once, by focus. The one live
+ * announcement is "Cancelled. Nothing was sent.", which has no element to
+ * focus. No swipe, no long press, no Undo; the hold's timing belongs to the
+ * money layer.
  */
 export function TipControl({
   state,
@@ -63,9 +91,11 @@ export function TipControl({
   onAmountChange,
   onTip,
   onAddMoney,
+  onNotNow,
   recipient,
   target = 'article',
   onClearTarget,
+  hold,
   unavailable,
   allowOther = true,
   className,
@@ -73,59 +103,71 @@ export function TipControl({
   const trayId = useId()
   const noteId = useId()
   const [trayOpen, setTrayOpen] = useState(false)
-  const [offlineNote, setOfflineNote] = useState(false)
+  const [cancelled, setCancelled] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const amountButton = useRef<HTMLButtonElement>(null)
   const tipButton = useRef<HTMLButtonElement>(null)
   const status = useRef<HTMLDivElement>(null)
   const note = useRef<HTMLParagraphElement>(null)
   const previous = useRef(state.phase)
+  const holding = Boolean(hold) && state.phase === 'other'
   const busy =
     state.phase === 'sending' ||
     state.phase === 'sent' ||
     (state.phase === 'other' && state.busy)
   const stuck = state.phase === 'needs-funds' && !onAddMoney
+  const inert = state.phase === 'offline' || Boolean(unavailable) || stuck
   const parts = unavailable
     ? { words: unavailable, amount: null }
-    : tipButtonParts(state, amount, target)
-  const noteText =
-    state.phase === 'offline'
-      ? offlineNote
-        ? tipNote(state)
-        : null
-      : tipNote(state)
+    : tipButtonParts(state, amount, target, recipient)
+  const noteText = tipNote(state)
 
-  // Focus follows the tip: to the status when it starts, to the result when
-  // it ends, back to the button when the result clears and focus was lost.
+  useEffect(() => watchInputModality(), [])
+
+  // Focus follows the tip: to the status while it is held or sending, kept
+  // on "Sent", to the reason on a refusal, back to the button when the
+  // status leaves and focus went with it.
   useEffect(() => {
     const before = previous.current
     previous.current = state.phase
     if (before === state.phase) return
     if (busy) {
+      setCancelled(false)
       focusDestination(status.current)
     } else if (state.phase === 'failed') {
       focusDestination(note.current)
     } else if (state.phase === 'idle' && focusLost(root.current)) {
       tipButton.current?.focus({ preventScroll: true })
     }
-    if (state.phase !== 'offline') setOfflineNote(false)
     // `busy` follows the phase; listing the phase is enough.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase])
   useEffect(() => {
-    if (offlineNote) focusDestination(note.current)
-  }, [offlineNote])
-  useEffect(() => watchInputModality(), [])
-  useEffect(() => {
     if (busy) setTrayOpen(false)
   }, [busy])
 
-  const press = () => {
-    if (busy || unavailable || stuck) return
-    if (state.phase === 'offline') {
-      setOfflineNote(true)
-      return
+  // Escape ends a hold while focus is in the control (the hold puts it on
+  // the status); elsewhere Escape belongs to whatever has focus.
+  const holdRef = useRef(hold)
+  useEffect(() => {
+    holdRef.current = hold
+  })
+  useEffect(() => {
+    if (!holding) return
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      if (!root.current?.contains(document.activeElement)) return
+      event.preventDefault()
+      setCancelled(true)
+      holdRef.current?.onCancel()
     }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [holding])
+
+  const press = () => {
+    if (busy || inert) return
+    setCancelled(false)
     if (state.phase === 'needs-funds') {
       onAddMoney?.()
       return
@@ -144,6 +186,13 @@ export function TipControl({
 
   const face = (
     <>
+      {holding ? (
+        <span
+          key={hold?.restartKey ?? 0}
+          className="qt-tip__countdown"
+          aria-hidden="true"
+        />
+      ) : null}
       <span className="qt-tip__nib" aria-hidden="true">
         {state.phase === 'sending' ? (
           <Spinner />
@@ -168,7 +217,9 @@ export function TipControl({
       className={cx('qt-tip', className)}
       role="group"
       aria-label={`Tip ${recipient}`}
-      data-phase={unavailable ? 'unavailable' : state.phase}
+      data-phase={
+        unavailable ? 'unavailable' : holding ? 'holding' : state.phase
+      }
       data-target={target}
       onBlur={(event) => {
         // Focus left the control and its tray: the tray closes.
@@ -193,6 +244,19 @@ export function TipControl({
         />
       ) : null}
       <div className="qt-tip__bar">
+        {holding ? (
+          <button
+            type="button"
+            className="qt-tip__round"
+            data-variant="plain"
+            onClick={() => {
+              setCancelled(true)
+              hold?.onCancel()
+            }}
+          >
+            Cancel
+          </button>
+        ) : null}
         {target === 'passage' && onClearTarget && !busy ? (
           <button
             type="button"
@@ -204,7 +268,7 @@ export function TipControl({
             <Icon icon={CloseIcon} size={24} />
           </button>
         ) : null}
-        {!unavailable ? (
+        {!unavailable && !busy ? (
           <button
             ref={amountButton}
             type="button"
@@ -213,7 +277,6 @@ export function TipControl({
             aria-label="Change amount"
             aria-expanded={trayOpen}
             aria-controls={trayOpen ? trayId : undefined}
-            disabled={busy}
             onClick={() => setTrayOpen((open) => !open)}
             onKeyDown={(event) => {
               if (event.key === 'Escape' && trayOpen) {
@@ -226,10 +289,22 @@ export function TipControl({
           </button>
         ) : null}
         {busy ? (
-          <div ref={status} className="qt-tip__button" tabIndex={-1}>
+          <div
+            ref={status}
+            className="qt-tip__button"
+            data-status=""
+            tabIndex={-1}
+          >
             {face}
-            {state.phase === 'sent' ? (
+            {holding ? (
+              <span className="qt-visually-hidden">
+                {` to ${recipient}. Cancel stops it.`}
+              </span>
+            ) : state.phase === 'sent' ? (
               <span className="qt-visually-hidden"> to {recipient}</span>
+            ) : null}
+            {holding && hold?.projected ? (
+              <span className="qt-tip__projected">{hold.projected}</span>
             ) : null}
           </div>
         ) : (
@@ -237,14 +312,45 @@ export function TipControl({
             ref={tipButton}
             type="button"
             className="qt-tip__button"
-            aria-disabled={Boolean(unavailable) || stuck || undefined}
+            aria-disabled={inert || undefined}
             aria-describedby={noteText ? noteId : undefined}
             onClick={press}
           >
             {face}
           </button>
         )}
+        {holding ? (
+          <button
+            type="button"
+            className="qt-tip__round"
+            data-variant="plain"
+            aria-label={
+              hold?.addOneBlocked
+                ? `Add $1. Not now: ${hold.addOneBlocked}`
+                : 'Add $1'
+            }
+            aria-disabled={hold?.addOneBlocked ? true : undefined}
+            onClick={() => {
+              if (!hold?.addOneBlocked) hold?.onAddOne()
+            }}
+          >
+            +$1
+          </button>
+        ) : null}
+        {state.phase === 'failed' && onNotNow ? (
+          <button
+            type="button"
+            className="qt-tip__round"
+            data-variant="plain"
+            onClick={onNotNow}
+          >
+            Not now
+          </button>
+        ) : null}
       </div>
+      <span className="qt-visually-hidden" role="status">
+        {cancelled && !busy ? HOLD_CANCELLED : ''}
+      </span>
     </div>
   )
 }

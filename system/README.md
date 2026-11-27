@@ -68,16 +68,49 @@ track, so the state never rests on colour.
 
 Wire `TipControl` to `useTip(target, meta)` from `hooks/payments`:
 
-| Prop                      | From                                                                                                                          |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `state`                   | `controller.state` (phases: idle, sending, sent, failed, offline, needs-funds)                                                |
-| `amount`, `amounts`       | `controller.amount`, `controller.amounts`                                                                                     |
-| `onAmountChange`          | `controller.setAmount`                                                                                                        |
-| `onTip`                   | `controller.tip`                                                                                                              |
-| `onAddMoney`              | opens the add-money sheet                                                                                                     |
-| `recipient`               | the writer's name                                                                                                             |
-| `target`, `onClearTarget` | `'passage'` while a line is chosen, and how to clear it                                                                       |
-| `unavailable`             | a few words when `controller.unavailable` is set (for example "Tipping paused"); hide the control on the writer's own article |
+| Prop                      | From                                                                                                                                                                                                                                                                                                                                                                                                                                           |
+| ------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `state`                   | `controller.state`: `idle`, `sending`, `sent`, `failed`, `offline`, `needs-funds`, and `other` for a phase the money layer adds (the hold: `{ phase: 'other', words: 'Sending', amount, busy: true }`)                                                                                                                                                                                                                                         |
+| `amount`, `amounts`       | `controller.amount`, `controller.amounts`                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `onAmountChange`          | `controller.setAmount`                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `onTip`                   | `controller.tip`                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `onAddMoney`              | opens the add-money sheet (`sheetStack.open('add-money', props)`)                                                                                                                                                                                                                                                                                                                                                                              |
+| `onNotNow`                | after a failure: back to idle ("Not now")                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `recipient`               | the writer's full name; the button says "Tip {first name} $1"                                                                                                                                                                                                                                                                                                                                                                                  |
+| `target`, `onClearTarget` | `'passage'` while a line is chosen ("Tip this line $1"), and how to clear it                                                                                                                                                                                                                                                                                                                                                                   |
+| `hold`                    | while the controller holds the tip (N1 phase 6): `{ projected: '$18.40 → $17.40', onCancel, onAddOne, addOneBlocked?: reason, restartKey }`. The control draws Cancel, the status with a countdown over `--qt-dur-hold` (3000 ms, not shortened by reduced motion), and "+$1" (disabled with its reason); Escape cancels while focus is in the control. It keeps no timer: the controller owns the hold, its timing, the caps and the sending. |
+| `unavailable`             | a few words when `controller.unavailable` is set (for example "Tipping paused"); hide the control on the writer's own article and page                                                                                                                                                                                                                                                                                                         |
+
+The words follow N1: "Tip Tomás $1", "Tip this line $1", "Sending $1",
+"Sent $1", "Try again: tip $1" with "Not now" and the reason "That tip did
+not go through. You were not charged.", "Offline. You can tip when you
+reconnect.", "Add money to tip $1". Focus goes to the status when a tip is
+held or sending, stays on "Sent", and moves to the reason on a failure; the
+one live announcement is "Cancelled. Nothing was sent." Until the controller
+has the hold, the tip sends at once and the hold shows only in the gallery
+and the tests.
+
+### Passage marks and reading
+
+`PassageMark` takes a `state` (design N5), each with a cue that does not
+rest on colour:
+
+| `state`                     | Look                                                         | Cue beyond colour                                              |
+| --------------------------- | ------------------------------------------------------------ | -------------------------------------------------------------- |
+| `others-top` (with `count`) | soft fill                                                    | the tip count after the line, in marker-ink                    |
+| `others`                    | faint fill                                                   | none; the tip bar's row says "N tips on this line" when chosen |
+| `mine`                      | full marker                                                  | a check after the line                                         |
+| `kept`                      | marker-ink underline                                         | the underline                                                  |
+| `chosen`                    | ink underline                                                | the underline and an ink tick in the margin                    |
+| `holding` (with `holdKey`)  | a band filling the bottom of each line in turn over the hold | the band's growth and the "Sending $1" status                  |
+| `place`                     | a marker-ink tick in the margin that fades                   | the tick                                                       |
+| `share-line`                | dashed marker-ink underline                                  | the dash                                                       |
+
+Fills and underlines render with no script; the margin ticks and the band
+need it and never move the text. `Prose leadIn` sets the first line in
+small caps; figures run edge to edge on a phone (`figure` with
+`figcaption`); a footnote reference is `a.qt-fn-ref` linking to the full
+path with `#fn-N`, and the notes a `.qt-footnotes` list.
 
 ## Where things live
 
@@ -214,14 +247,20 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
 - Before the server answers, pass `value={null} status="loading"`: the
   figure holds its space. When payments are down, `status="unavailable"`.
   A placeholder zero is never drawn.
-- Exact amounts read "$4.20". Converted amounts read "≈ $17.28". A real
-  amount under a cent reads "<$0.01". The money layer writes these; the
-  figure lays them out.
+- Amounts are exact (N2): two decimals, and up to six when the amount has
+  fractions of a cent ("$1.95", "$0.0975", "$2.925"). An amount below the
+  sixth decimal reads "$0.00" with the exact token amount one tap away.
+  "<$0.01" is never used. "≈" appears only on a figure converted at today's
+  price (held in a token, a wallet's holdings, the token picker), never on
+  a tip, a row or a receipt. The money layer writes these; the figure lays
+  them out and refuses anything else (it then says "Unavailable").
 - Dollars only. Token names appear only in the token picker.
 - The tip is `TipControl`, wired to `useTip(...)`: pass `state`, `amount`,
   `amounts`, `setAmount` and `tip`. It says "Sent" only after the server
   accepted. No swipe, no long press, no Undo (D3, D6, D7, D11).
-- Lime (marker) means money moved and nothing else. Danger means failure
+- Full lime (marker) means money that is yours (your tip, accepted; Sent);
+  other readers' tips are soft or faint; a chosen line is an ink underline,
+  never a fill. Danger means failure
   only, never a negative amount. Money in uses `tone="in"`.
 - "Testnet. Practice money only." appears once per screen that shows money
   or where money enters: `TestnetNote`.

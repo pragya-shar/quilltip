@@ -2,14 +2,15 @@ import type { MoneyValue } from '../money/figure'
 
 /**
  * Sample data for the gallery and its tests. Display strings are written as
- * the money layer writes them (lib/payments/money.ts): exact "$18.40",
- * converted "≈ $17.28", under a cent "<$0.01", whole-dollar labels "$1".
+ * the money layer writes them (design N2): exact "$18.40", fractions of a
+ * cent "$0.0975", converted "≈ $17.28", whole-dollar labels "$1".
  */
 export const money = {
   balance: { cents: 1840, display: '$18.40' },
   large: { cents: 123456789, display: '$1,234,567.89' },
   approx: { cents: 1728, display: '≈ $17.28' },
-  belowCent: { cents: 0.4, display: '<$0.01' },
+  fractional: { cents: 28040.75, display: '$280.4075' },
+  share: { cents: 9.75, display: '$0.0975' },
   zero: { cents: 0, display: '$0.00' },
   earnings: { cents: 31275, display: '$312.75' },
   one: { cents: 100, display: '$1' },
