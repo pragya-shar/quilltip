@@ -604,30 +604,39 @@ export default defineSchema({
     // The v2 part of tipCount and totalEarnedCents.
     v2TipCount: v.optional(v.number()),
     v2EarnedCents: v.optional(v.number()),
-    // Balance (tab) tips: running figures kept by `syncReceiptMoney` and
-    // `syncCollectedCents` (convex/lib/chain/balanceFigures.ts). Cents are the
-    // writer's share on the same 1/10,000-cent grid as totalEarnedCents;
-    // settled cents are also part of totalEarnedCents. Unset means zero.
-    balancePendingCents: v.optional(v.number()),
-    balancePendingCount: v.optional(v.number()),
-    balanceSettledCents: v.optional(v.number()),
-    balanceSettledCount: v.optional(v.number()),
-    balanceOnHoldCents: v.optional(v.number()),
-    balanceOnHoldCount: v.optional(v.number()),
-    balanceNotPaidCents: v.optional(v.number()),
-    balanceNotPaidCount: v.optional(v.number()),
-    /** Settled cents moved to collected by indexed `Claimed` amounts. */
-    balanceCollectedCents: v.optional(v.number()),
-    // Base units per token for the collected-cents rule.
-    balanceSettledBaseUnits: v.optional(v.record(v.string(), v.string())),
-    /** Collected base units matched against settled ones. */
-    balanceMatchedBaseUnits: v.optional(v.record(v.string(), v.string())),
+    // Lifetime totals of tab tips settled on chain, as in the lifetime
+    // totals change (#552, `lifetimeTotalsFields`): written by
+    // `creditTipRowTotals` when `setReceiptStatus` settles a tip row.
+    // `walletEarnedBaseUnits` is the wallet part of `earnedBaseUnits`.
+    tabTipCount: v.optional(v.number()),
+    tabEarnedCents: v.optional(v.number()),
+    tabSettledBaseUnits: v.optional(v.record(v.string(), v.string())),
+    walletEarnedBaseUnits: v.optional(v.record(v.string(), v.string())),
+    // Tab tips not settled, and collects, as running figures kept by
+    // `syncReceiptMoney` and `syncCollectedCents`
+    // (convex/lib/chain/balanceFigures.ts). Cents are the writer's share on
+    // the 1/10,000-cent grid of `tabEarnedCents`. Unset means zero.
+    // `tabPendingCents` is accepted and not yet settled; unlike the v1
+    // `pendingBalanceCents` (always 0 today) and the pair-level
+    // `pendingBaseUnits` (which also holds tips on hold for shortfall).
+    tabPendingCents: v.optional(v.number()),
+    tabPendingCount: v.optional(v.number()),
+    tabOnHoldCents: v.optional(v.number()),
+    tabOnHoldCount: v.optional(v.number()),
+    tabNotPaidCents: v.optional(v.number()),
+    tabNotPaidCount: v.optional(v.number()),
+    /**
+     * Settled tab cents moved to collected by indexed `Claimed` amounts;
+     * not the v1 `withdrawnCents`. Available cents = `tabEarnedCents` minus
+     * this, not the v1 `availableBalanceCents` (earned minus withdrawn).
+     */
+    tabCollectedCents: v.optional(v.number()),
+    /** Collected base units matched against settled ones, per token. */
+    tabMatchedBaseUnits: v.optional(v.record(v.string(), v.string())),
     /** Collected base units seen before the settlement that funded them. */
-    balanceAheadBaseUnits: v.optional(v.record(v.string(), v.string())),
+    tabAheadBaseUnits: v.optional(v.record(v.string(), v.string())),
     /** The `collectedBaseUnits` value already applied to cents. */
-    balanceCollectedAppliedBaseUnits: v.optional(
-      v.record(v.string(), v.string())
-    ),
+    tabCollectedAppliedBaseUnits: v.optional(v.record(v.string(), v.string())),
 
     // Top articles (denormalized)
     topArticles: v.optional(

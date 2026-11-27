@@ -40,6 +40,23 @@ export function writerShareCents(
   )
 }
 
+/**
+ * The writer's share of a tab tip's cents: the tip's cents times the net
+ * share of its base units, on the 1/10,000-cent grid of `roundCents`. The
+ * same rule as `tabShareCents` in the lifetime totals change (#552).
+ */
+export function tabShareCents(
+  amountCents: number,
+  net: bigint,
+  gross: bigint
+): number {
+  return gross > BigInt(0)
+    ? roundCents(
+        amountCents * (Number((net * BigInt(1_000_000)) / gross) / 1_000_000)
+      )
+    : 0
+}
+
 /** Adds one confirmed tip's writer share to the author's earnings record. */
 export async function creditAuthorEarnings(
   ctx: MutationCtx,

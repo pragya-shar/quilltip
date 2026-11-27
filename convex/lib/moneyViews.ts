@@ -28,7 +28,7 @@
  *   lifetime total of tips that did not fail; adding on hold and not paid
  *   gives every accepted tip. Net follows the contract's cumulative fee rule
  *   (`receiptNet`), and a tip's dollars are its tip-time cents times its net
- *   share (`shareCentsOf`, the rule `authorEarnings.totalEarnedCents` uses).
+ *   share (`tabShareCents`, the rule `authorEarnings.totalEarnedCents` and the lifetime totals use).
  * - **M4, a failure never pays.** A receipt reaches `SETTLED` only through a
  *   `TabSettled` payment that covers it. A skip, `UNPAID` or `REJECTED`
  *   moves money out of pending into on hold or not paid; it never adds to
@@ -44,7 +44,7 @@ import { readChainEnv } from './chain/env'
 import type { TabReceiptStatus } from './chain/schema'
 import { settleAfterAcceptMs } from './chain/settleSchedule'
 import { dueRuleFromEnv } from './chain/settler'
-import { shareCentsOf } from './chain/balanceFigures'
+import { tabShareCents } from './authorEarnings'
 import { centsToStroops, receiptNet } from './chain/tabLedger'
 import { verifiedStellarAddress } from './walletVerification'
 
@@ -89,7 +89,7 @@ export function receiptShareCents(
   receipt: Pick<Doc<'tabReceipts'>, 'amount' | 'cumulativeAfter'>,
   amountCents: number
 ): number {
-  return shareCentsOf(BigInt(receipt.amount), receiptNet(receipt), amountCents)
+  return tabShareCents(amountCents, receiptNet(receipt), BigInt(receipt.amount))
 }
 
 /** US cents a base-unit amount is worth at `priceUsd` per XLM, floored. */

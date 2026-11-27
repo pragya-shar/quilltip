@@ -2,12 +2,14 @@
  * The signed-in writer's earnings (payments v3, slice 1). Three disjoint
  * figures whose sum is the lifetime total of tips that did not fail:
  *
- * - `pending`: balance tips accepted by the server, not yet paid on chain.
- * - `available`: paid on chain and collectable now (claimable in the Tab):
- *   settled minus collected.
- * - `collected`: already in the writer's wallet: collected balance tips,
- *   plus tips paid straight to the wallet (`totalEarnedCents` beyond the
- *   settled balance tips), so the scope is the one `authorEarnings` keeps.
+ * - `pending`: tab tips accepted by the server, not yet paid on chain
+ *   (`tabPendingCents`).
+ * - `available`: paid on chain and collectable now. Token amount: the
+ *   lifetime totals' "ready to collect", `earnedBaseUnits -
+ *   walletEarnedBaseUnits - collectedBaseUnits` (#552). Cents: settled tab
+ *   cents minus collected ones (`tabEarnedCents - tabCollectedCents`).
+ * - `collected`: already in the writer's wallet: collected tab tips plus
+ *   tips paid straight to the wallet (`v2EarnedCents`).
  *
  * A tip whose payout failed is in none of the three: it is on hold (the
  * reader's balance ran short; it is paid if the reader adds funds) or not
@@ -15,8 +17,8 @@
  *
  * Every figure is a running total kept by the ledger in the mutation that
  * changes a receipt or indexes a collect (`lib/chain/balanceFigures.ts`),
- * never a scan, so it is exact at any history length. Invariants:
- * `lib/moneyViews.ts`.
+ * never a scan, so it is exact at any history length. Cents carry
+ * 1/10,000 of a cent; the screens floor them to whole cents.
  */
 import { query } from './_generated/server'
 import { roundCents } from './lib/authorEarnings'
@@ -24,6 +26,25 @@ import { caller, settlementExpectation } from './lib/moneyViews'
 
 const ZERO = BigInt(0)
 const big = (value: string | undefined) => (value ? BigInt(value) : ZERO)
+
+/** "Ready to collect" in base units, as the lifetime totals define it. */
+export function readyToCollectBaseUnits(
+  row:
+    | {
+        earnedBaseUnits?: Record<string, string>
+        walletEarnedBaseUnits?: Record<string, string>
+        collectedBaseUnits?: Record<string, string>
+      }
+    | null
+    | undefined,
+  token: string
+): bigint {
+  const left =
+    big(row?.earnedBaseUnits?.[token]) -
+    big(row?.walletEarnedBaseUnits?.[token]) -
+    big(row?.collectedBaseUnits?.[token])
+  return left > ZERO ? left : ZERO
+}
 
 export const mine = query({
   args: {},
@@ -35,47 +56,38 @@ export const mine = query({
       .withIndex('by_user', (q) => q.eq('userId', me.userId))
       .first()
     const token = me.chain.tokenContractId ?? ''
-    const settled = row?.balanceSettledCents ?? 0
-    const balanceCollected = row?.balanceCollectedCents ?? 0
-    const pendingCents = row?.balancePendingCents ?? 0
-    const availableCents = Math.max(0, roundCents(settled - balanceCollected))
-    // Tips paid straight to the wallet: earned, but never a balance tip.
-    const directCents = Math.max(
-      0,
-      roundCents((row?.totalEarnedCents ?? 0) - settled)
-    )
-    const collectedCents = roundCents(balanceCollected + directCents)
-    const earned = big(row?.earnedBaseUnits?.[token])
-    const collectedBase = big(row?.collectedBaseUnits?.[token])
-    const claimable = earned - collectedBase
+    const settled = row?.tabEarnedCents ?? 0
+    const tabCollected = row?.tabCollectedCents ?? 0
+    const pendingCents = row?.tabPendingCents ?? 0
+    const availableCents = Math.max(0, roundCents(settled - tabCollected))
+    const walletCents = row?.v2EarnedCents ?? 0
+    const collectedCents = roundCents(tabCollected + walletCents)
     return {
       writerAddress: me.address,
       pendingCents,
       availableCents,
       collectedCents,
       totalCents: roundCents(pendingCents + availableCents + collectedCents),
-      onHoldCents: row?.balanceOnHoldCents ?? 0,
-      notPaidCents: row?.balanceNotPaidCents ?? 0,
-      pendingCount: row?.balancePendingCount ?? 0,
-      settledCount: row?.balanceSettledCount ?? 0,
-      onHoldCount: row?.balanceOnHoldCount ?? 0,
-      notPaidCount: row?.balanceNotPaidCount ?? 0,
-      /** Settled tips, balance and direct (`authorEarnings.tipCount`). */
-      tipCount: row?.tipCount ?? 0,
+      onHoldCents: row?.tabOnHoldCents ?? 0,
+      notPaidCents: row?.tabNotPaidCents ?? 0,
+      pendingCount: row?.tabPendingCount ?? 0,
+      settledCount: row?.tabTipCount ?? 0,
+      onHoldCount: row?.tabOnHoldCount ?? 0,
+      notPaidCount: row?.tabNotPaidCount ?? 0,
       baseUnits: {
         token: 'XLM' as const,
         /** Pairs' pending net; includes tips on hold for shortfall. */
-        pending: row?.pendingBaseUnits?.[token] ?? '0',
-        /** Collectable now: settled on chain minus collected. */
-        available: (claimable > ZERO ? claimable : ZERO).toString(),
-        collected: collectedBase.toString(),
+        pendingAndOnHold: row?.pendingBaseUnits?.[token] ?? '0',
+        /** Ready to collect now. */
+        available: readyToCollectBaseUnits(row, token).toString(),
+        collected: big(row?.collectedBaseUnits?.[token]).toString(),
       },
       /** The running figures behind the three, for reconciliation. */
       figures: {
-        balanceSettledCents: settled,
-        balanceCollectedCents: balanceCollected,
-        directCents,
-        totalEarnedCents: row?.totalEarnedCents ?? 0,
+        tabEarnedCents: settled,
+        tabCollectedCents: tabCollected,
+        walletCents,
+        tabSettledBaseUnits: row?.tabSettledBaseUnits?.[token] ?? '0',
       },
       settlement: settlementExpectation(),
     }

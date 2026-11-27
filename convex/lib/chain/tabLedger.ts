@@ -18,12 +18,12 @@ import { ConvexError } from 'convex/values'
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../../_generated/server'
-import { creditAuthorEarnings } from '../authorEarnings'
+import { creditAuthorEarnings, tabShareCents } from '../authorEarnings'
 import {
   isStellarAddressVerified,
   verifiedStellarAddress,
 } from '../walletVerification'
-import { shareCentsOf, syncReceiptMoney } from './balanceFigures'
+import { creditTipRowTotals, syncReceiptMoney } from './balanceFigures'
 import { requireChainV2Enabled, type ChainEnv } from './env'
 import { BPS_DENOMINATOR, FEE_BPS } from './fees'
 import { highlightIdHex, isHexOfLength, newClientRefHex } from './ids'
@@ -1284,7 +1284,7 @@ async function setReceiptStatus(
     // Display figures only; base-unit earnings come from the pair formulas.
     const net = receiptNet(receipt)
     const gross = big(receipt.amount)
-    const cents = shareCentsOf(gross, net, row.amountCents)
+    const cents = tabShareCents(row.amountCents, net, gross)
     await creditAuthorEarnings(ctx, {
       authorId: receipt.authorId,
       articleId: receipt.articleId,
@@ -1300,6 +1300,16 @@ async function setReceiptStatus(
       earningsAppliedAt: now,
       updatedAt: now,
     })
+    // The settled row, by the lifetime totals' rule (#552).
+    const settled = (await ctx.db.get(row._id)) as TipRow | null
+    if (settled) {
+      await creditTipRowTotals(
+        ctx,
+        receipt.authorId,
+        ctx.db.normalizeId('tips', settled._id) ? 'tips' : 'highlightTips',
+        settled
+      )
+    }
     return
   }
   await patchTipRow(ctx, row._id, { status, updatedAt: now })

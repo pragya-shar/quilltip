@@ -12,12 +12,13 @@ import { convexTest } from 'convex-test'
 import { describe, expect, it, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
+import type { Id } from '../../convex/_generated/dataModel'
 import {
   SETTLE_GRACE_LEDGERS,
   netOf,
   receiptNet,
 } from '../../convex/lib/chain/tabLedger'
-import { shareCentsOf } from '../../convex/lib/chain/balanceFigures'
+import { tabShareCents } from '../../convex/lib/authorEarnings'
 import {
   centsFromBaseUnits,
   receiptShareCents,
@@ -150,16 +151,16 @@ async function checkInvariants(t: T, s: Seeded) {
       .reduce((sum, r) => sum + receiptShareCents(r, cents.get(r._id)!), 0)
   const e = v.earnings
   expectCents(e.pendingCents, share(['ACCEPTED']))
-  expectCents(e.figures.balanceSettledCents, share(['SETTLED']))
+  expectCents(e.figures.tabEarnedCents, share(['SETTLED']))
   expectCents(
-    e.availableCents + e.figures.balanceCollectedCents,
+    e.availableCents + e.figures.tabCollectedCents,
     share(['SETTLED'])
   )
   expectCents(e.onHoldCents, share(['SHORTFALL']))
   expectCents(e.notPaidCents, share(['UNPAID', 'REJECTED', 'VOID_RESET']))
   expectCents(
     e.pendingCents + e.availableCents + e.collectedCents,
-    share(['ACCEPTED', 'SETTLED']) + e.figures.directCents
+    share(['ACCEPTED', 'SETTLED']) + e.figures.walletCents
   )
   expectCents(
     e.totalCents,
@@ -168,7 +169,7 @@ async function checkInvariants(t: T, s: Seeded) {
   expect(e.pendingCount).toBe(
     writerRows.filter((r) => r.status === 'ACCEPTED').length
   )
-  expect(e.tipCount).toBe(
+  expect(e.settledCount).toBe(
     writerRows.filter((r) => r.status === 'SETTLED').length
   )
   // Base units: available is what the chain paid minus what was collected.
@@ -182,7 +183,7 @@ async function checkInvariants(t: T, s: Seeded) {
       ? earned - BigInt(e.baseUnits.collected)
       : BigInt(0)
   )
-  expect(BigInt(e.baseUnits.pending)).toBe(
+  expect(BigInt(e.baseUnits.pendingAndOnHold)).toBe(
     writerPairs.reduce((sum, p) => sum + BigInt(p.pendingNet), BigInt(0))
   )
   return { available: e.availableCents, views: v }
@@ -219,7 +220,7 @@ describe('exactly once per tip', () => {
       // The tipper is never named to the writer.
       counterparty: { name: 'A reader', username: null },
     })
-    expect(v.earnings).toMatchObject({ pendingCount: 1, tipCount: 0 })
+    expect(v.earnings).toMatchObject({ pendingCount: 1, settledCount: 0 })
   })
 
   it('accepts a tip once when the page reloads during the send', async () => {
@@ -301,7 +302,7 @@ describe('money states across settlement', () => {
       pendingCents: 0,
       availableCents: 97.5,
       collectedCents: 0,
-      tipCount: 1,
+      settledCount: 1,
     })
     expect(settled.views.earnings.baseUnits.available).toBe(
       netOf(gross).toString()
@@ -334,7 +335,7 @@ describe('money states across settlement', () => {
       availableCents: 0,
       onHoldCents: 97.5,
       onHoldCount: 1,
-      tipCount: 0,
+      settledCount: 0,
     })
     expect(held.views.writerActivity.page[0]).toMatchObject({
       state: 'not-paid',
@@ -363,7 +364,7 @@ describe('money states across settlement', () => {
     expect(paid.views.earnings).toMatchObject({
       onHoldCents: 0,
       availableCents: 97.5,
-      tipCount: 1,
+      settledCount: 1,
     })
   })
 
@@ -482,7 +483,7 @@ describe('money states across settlement', () => {
     await t.mutation(internal.tabs.sweepUnpaid, {})
     await step(true)
     const final = await views(t, s)
-    expect(final.earnings).toMatchObject({ tipCount: 2, notPaidCount: 0 })
+    expect(final.earnings).toMatchObject({ settledCount: 2, notPaidCount: 0 })
     expect(final.readerActivity.page).toHaveLength(3)
   })
 })
@@ -503,6 +504,31 @@ describe('totals at any history length and across collects (D10)', () => {
     return t.run(async (ctx) => {
       const account = (await ctx.db.query('tabAccounts').first())!
       const anchor = (await ctx.db.query('tabReceipts').first())!
+      const anchorRow = (await ctx.db.get(anchor.tipRowId as Id<'tips'>))!
+      // Each tip has its own row, as acceptance makes it.
+      const tipRow = async (
+        requestId: string,
+        cents: number,
+        amount: bigint
+      ) => {
+        const {
+          _id: _ignoredId,
+          _creationTime: _ignoredTime,
+          earningsAppliedAt: _ignoredApplied,
+          netBaseUnits: _ignoredNet,
+          feeBaseUnits: _ignoredFee,
+          ...rest
+        } = anchorRow
+        return ctx.db.insert('tips', {
+          ...rest,
+          requestId,
+          clientRef: requestId.slice(0, 32),
+          amountCents: cents,
+          amountUsd: cents / 100,
+          grossBaseUnits: amount.toString(),
+          status: 'ACCEPTED',
+        })
+      }
       const now = Date.now()
       let outstanding = BigInt(account.outstanding)
       let expectedCents = 0
@@ -522,7 +548,7 @@ describe('totals at any history length and across collects (D10)', () => {
             amount: amount.toString(),
             cumulativeAfter: cumulative.toString(),
           }
-          expectedShare += shareCentsOf(amount, receiptNet(r), cents)
+          expectedShare += tabShareCents(cents, receiptNet(r), amount)
           await ctx.db.insert('tabReceipts', {
             network: 'TESTNET',
             chainEpoch: EPOCH,
@@ -537,7 +563,7 @@ describe('totals at any history length and across collects (D10)', () => {
             clientRef: leaf.slice(0, 32),
             contentHash: anchor.contentHash,
             leafHash: leaf,
-            tipRowId: anchor.tipRowId,
+            tipRowId: await tipRow(leaf, cents, amount),
             status: 'ACCEPTED',
             receiptsRoot: leaf,
             voucherSignature: anchor.voucherSignature,
@@ -605,7 +631,7 @@ describe('totals at any history length and across collects (D10)', () => {
     expect(twice.earnings).toEqual(once.earnings)
     expect(twice.session.pendingCents).toBe(once.session.pendingCents)
 
-    const anchorShare = shareCentsOf(BigInt(100_000), BigInt(97_500), 1)
+    const anchorShare = tabShareCents(1, BigInt(97_500), BigInt(100_000))
     expect(once.session.pendingCents).toBe(h.reservedCents)
     expect(once.earnings.pendingCount).toBe((h.keys - 1) * h.perPair + 1)
     expectCents(once.earnings.pendingCents, h.share + anchorShare)
@@ -636,8 +662,6 @@ describe('totals at any history length and across collects (D10)', () => {
       after.earnings.pendingCents + after.earnings.availableCents,
       h.share + anchorShare
     )
-    // (`tipCount` counts per tip row; these rows share one, so read the
-    // receipts' own count.)
     expect(after.earnings.settledCount).toBe(10 * h.perPair)
 
     // The writer's list pages through every tip, once each.
@@ -690,6 +714,33 @@ describe('totals at any history length and across collects (D10)', () => {
     await ingest(t, claim)
     const reopened = await as(t, s.authorId).query(api.earnings.mine, {})
     expect(reopened).toEqual(after)
+  })
+
+  it('gives available in base units by the lifetime totals formula', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const net = await settleTwo(t, s)
+    await ingest(t, ev.claimed(WRITER, net / BigInt(3)))
+    const e = (await as(t, s.authorId).query(api.earnings.mine, {}))!
+    const row = await t.run(async (ctx) =>
+      ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', s.authorId))
+        .first()
+    )
+    const units = (r?: Record<string, string>) => BigInt(r?.[TOKEN] ?? '0')
+    expect(BigInt(e.baseUnits.available)).toBe(
+      units(row?.earnedBaseUnits) -
+        units(row?.walletEarnedBaseUnits) -
+        units(row?.collectedBaseUnits)
+    )
+    expect(BigInt(e.baseUnits.available)).toBe(net - net / BigInt(3))
+    // The settled totals are the lifetime totals' fields.
+    expect(row).toMatchObject({
+      tabTipCount: 2,
+      tabEarnedCents: 390,
+      tabSettledBaseUnits: { [TOKEN]: net.toString() },
+    })
   })
 
   it('values a partial collect at the average cost of what is available', async () => {

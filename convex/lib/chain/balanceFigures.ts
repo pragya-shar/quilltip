@@ -1,15 +1,17 @@
 /**
- * Running money figures for balance (tab) tips, so every total the screens
+ * Running money figures for tab (balance) tips, so every total the screens
  * show is exact at any history length (no capped scan of receipts):
  *
  * - Reader: `tabAccounts.reservedCents`, the tip-time cents of the receipts
  *   that still reserve the balance (`ACCEPTED`, `SHORTFALL`). The base-unit
  *   twin is `tabAccounts.outstanding`.
- * - Writer (`authorEarnings`, the same row and scope as `totalEarnedCents`):
- *   `balancePendingCents` (`ACCEPTED`), `balanceSettledCents` (`SETTLED`;
- *   also credited to `totalEarnedCents` by `setReceiptStatus`),
- *   `balanceOnHoldCents` (`SHORTFALL`), `balanceNotPaidCents` (`UNPAID`,
- *   `REJECTED`, `VOID_RESET`), each with a count, and `balanceCollectedCents`.
+ * - Writer (`authorEarnings`): the settled tips are the lifetime totals'
+ *   `tabTipCount`, `tabEarnedCents` and `tabSettledBaseUnits`, written by
+ *   `creditTipRowTotals` (below; the lifetime totals change, #552, brings its
+ *   own). This file adds what that change does not keep: `tabPendingCents`
+ *   (`ACCEPTED`), `tabOnHoldCents` (`SHORTFALL`), `tabNotPaidCents`
+ *   (`UNPAID`, `REJECTED`, `VOID_RESET`), each with a count, and
+ *   `tabCollectedCents`.
  *
  * `syncReceiptMoney` is the only writer of the receipt buckets. It moves a
  * receipt's money from `moneyAppliedStatus` to its current `status` and
@@ -19,38 +21,66 @@
  *
  * Collected cents. A collect is in base units (the indexed `Claimed`
  * amount); tips carry cents at their own price. Rule: average cost. A
- * collect of `x` base units moves `availableCents * x / availableBase` cents
- * from available to collected (all of available when `x` covers it), where
- * `available = settled - collected`. Collected cents are only ever moved
- * from settled cents, so `available + collected = settled` holds exactly
- * after any sequence of collects, with no drift. A collect seen before the
- * settlement that funded it (out-of-order indexing) is held as "ahead" and
- * matched against the next settled receipts as they arrive.
+ * collect of `b` base units when `A` base units and `C` cents are available
+ * moves `round(C * b / A)` cents (on the 1/10,000-cent grid) to collected,
+ * and all of `C` when `b` empties `A`, where available is settled
+ * (`tabEarnedCents`, `tabSettledBaseUnits`) minus collected. Collected cents
+ * are only ever moved from settled cents, so `available + collected =
+ * settled` holds exactly after any sequence of collects, with no drift. A
+ * collect seen before the settlement that funded it (out-of-order indexing)
+ * is held as "ahead" and matched against the next settled receipts.
  * `syncCollectedCents` applies the difference between the indexed
  * `collectedBaseUnits` and the part already applied, so a replayed event
  * changes nothing.
  *
  * Cents are on the 1/10,000-cent grid of `roundCents`, like
- * `totalEarnedCents`. One token per row in the slice: cents are not split by
- * token.
+ * `totalEarnedCents`; screens floor them to whole cents. One token per row in
+ * the slice: cents are not split by token.
  */
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx } from '../../_generated/server'
-import { roundCents } from '../authorEarnings'
+import { roundCents, tabShareCents } from '../authorEarnings'
 import type { TabReceiptStatus } from './schema'
 
 const ZERO = BigInt(0)
 
-/** The writer's share of a receipt's tip-time cents, under the fee rule. */
-export function shareCentsOf(
-  gross: bigint,
-  net: bigint,
-  amountCents: number
-): number {
-  if (gross <= ZERO) return 0
-  return roundCents(
-    amountCents * (Number((net * BigInt(1_000_000)) / gross) / 1_000_000)
-  )
+type TipRow = Doc<'tips'> | Doc<'highlightTips'>
+export type TipTable = 'tips' | 'highlightTips'
+
+/**
+ * Adds a settled tab tip to its author's lifetime totals. Same name, call
+ * site and tab rule as the lifetime totals change (#552,
+ * `convex/lib/lifetimeEarnings.ts`), which also credits verified v1 tips
+ * there and keeps a rebuild in step; when it merges, its function replaces
+ * this one. Call it after the row is settled and after `creditAuthorEarnings`.
+ */
+export async function creditTipRowTotals(
+  ctx: MutationCtx,
+  userId: Id<'users'>,
+  _table: TipTable,
+  row: TipRow
+): Promise<void> {
+  if (row.channel !== 'tab' || row.earningsAppliedAt === undefined) return
+  const earnings = await ctx.db
+    .query('authorEarnings')
+    .withIndex('by_user', (q) => q.eq('userId', userId))
+    .first()
+  if (!earnings) return
+  const net = BigInt(row.netBaseUnits ?? '0')
+  const token = row.tokenContractId ?? ''
+  await ctx.db.patch(earnings._id, {
+    tabTipCount: (earnings.tabTipCount ?? 0) + 1,
+    tabEarnedCents: roundCents(
+      (earnings.tabEarnedCents ?? 0) +
+        tabShareCents(row.amountCents, net, BigInt(row.grossBaseUnits ?? '0'))
+    ),
+    tabSettledBaseUnits: {
+      ...earnings.tabSettledBaseUnits,
+      [token]: (
+        BigInt(earnings.tabSettledBaseUnits?.[token] ?? '0') + net
+      ).toString(),
+    },
+  })
 }
 
 type Bucket = 'pending' | 'settled' | 'onHold' | 'notPaid'
@@ -70,17 +100,16 @@ export function bucketOf(status: TabReceiptStatus): Bucket {
   }
 }
 
+/** Settled figures belong to `creditTipRowTotals`; these are the others. */
 const CENTS_FIELD = {
-  pending: 'balancePendingCents',
-  settled: 'balanceSettledCents',
-  onHold: 'balanceOnHoldCents',
-  notPaid: 'balanceNotPaidCents',
+  pending: 'tabPendingCents',
+  onHold: 'tabOnHoldCents',
+  notPaid: 'tabNotPaidCents',
 } as const
 const COUNT_FIELD = {
-  pending: 'balancePendingCount',
-  settled: 'balanceSettledCount',
-  onHold: 'balanceOnHoldCount',
-  notPaid: 'balanceNotPaidCount',
+  pending: 'tabPendingCount',
+  onHold: 'tabOnHoldCount',
+  notPaid: 'tabNotPaidCount',
 } as const
 
 /** True while the receipt's value is reserved against the reader's balance. */
@@ -141,7 +170,11 @@ export async function syncReceiptMoney(
   const to = receipt.status
   if (from === to) return
   const { now } = args
-  const share = shareCentsOf(BigInt(receipt.amount), args.net, args.amountCents)
+  const share = tabShareCents(
+    args.amountCents,
+    args.net,
+    BigInt(receipt.amount)
+  )
 
   // Reader: reserved cents.
   const reservedDelta =
@@ -164,6 +197,7 @@ export async function syncReceiptMoney(
   const row = await earningsRow(ctx, receipt.authorId, now)
   const patch: Partial<Doc<'authorEarnings'>> = { updatedAt: now }
   const add = (bucket: Bucket, sign: 1 | -1) => {
+    if (bucket === 'settled') return
     const cents = CENTS_FIELD[bucket]
     const count = COUNT_FIELD[bucket]
     const current = (patch[cents] ?? row[cents] ?? 0) as number
@@ -175,30 +209,23 @@ export async function syncReceiptMoney(
   add(bucketOf(to), 1)
 
   if (to === 'SETTLED') {
-    const token = args.token
-    patch.balanceSettledBaseUnits = setBig(
-      row.balanceSettledBaseUnits,
-      token,
-      getBig(row.balanceSettledBaseUnits, token) + args.net
-    )
     // Match a collect that arrived before this settlement.
-    const ahead = getBig(row.balanceAheadBaseUnits, token)
+    const token = args.token
+    const ahead = getBig(row.tabAheadBaseUnits, token)
     if (ahead > ZERO && args.net > ZERO) {
       const covered = ahead < args.net ? ahead : args.net
       const moved =
         covered === args.net
           ? share
           : roundCents((share * Number(covered)) / Number(args.net))
-      patch.balanceCollectedCents = roundCents(
-        (row.balanceCollectedCents ?? 0) + moved
-      )
-      patch.balanceMatchedBaseUnits = setBig(
-        row.balanceMatchedBaseUnits,
+      patch.tabCollectedCents = roundCents((row.tabCollectedCents ?? 0) + moved)
+      patch.tabMatchedBaseUnits = setBig(
+        row.tabMatchedBaseUnits,
         token,
-        getBig(row.balanceMatchedBaseUnits, token) + covered
+        getBig(row.tabMatchedBaseUnits, token) + covered
       )
-      patch.balanceAheadBaseUnits = setBig(
-        row.balanceAheadBaseUnits,
+      patch.tabAheadBaseUnits = setBig(
+        row.tabAheadBaseUnits,
         token,
         ahead - covered
       )
@@ -210,8 +237,8 @@ export async function syncReceiptMoney(
 
 /**
  * Applies newly indexed collected base units (`collectedBaseUnits[token]`
- * beyond `balanceCollectedAppliedBaseUnits[token]`) to collected cents by
- * the average-cost rule above. Idempotent.
+ * beyond `tabCollectedAppliedBaseUnits[token]`) to collected cents by the
+ * average-cost rule above. Idempotent.
  */
 export async function syncCollectedCents(
   ctx: MutationCtx,
@@ -225,14 +252,14 @@ export async function syncCollectedCents(
     .first()
   if (!row) return
   const target = getBig(row.collectedBaseUnits, token)
-  const applied = getBig(row.balanceCollectedAppliedBaseUnits, token)
+  const applied = getBig(row.tabCollectedAppliedBaseUnits, token)
   const x = target - applied
   if (x <= ZERO) return
-  const settledCents = row.balanceSettledCents ?? 0
-  const collectedCents = row.balanceCollectedCents ?? 0
+  const settledCents = row.tabEarnedCents ?? 0
+  const collectedCents = row.tabCollectedCents ?? 0
   const availableCents = roundCents(settledCents - collectedCents)
-  const matched = getBig(row.balanceMatchedBaseUnits, token)
-  const availableBase = getBig(row.balanceSettledBaseUnits, token) - matched
+  const matched = getBig(row.tabMatchedBaseUnits, token)
+  const availableBase = getBig(row.tabSettledBaseUnits, token) - matched
   let moved = 0
   let matchedAdd = ZERO
   let aheadAdd = ZERO
@@ -247,19 +274,19 @@ export async function syncCollectedCents(
     matchedAdd = x
   }
   await ctx.db.patch(row._id, {
-    balanceCollectedCents: roundCents(collectedCents + moved),
-    balanceMatchedBaseUnits: setBig(
-      row.balanceMatchedBaseUnits,
+    tabCollectedCents: roundCents(collectedCents + moved),
+    tabMatchedBaseUnits: setBig(
+      row.tabMatchedBaseUnits,
       token,
       matched + matchedAdd
     ),
-    balanceAheadBaseUnits: setBig(
-      row.balanceAheadBaseUnits,
+    tabAheadBaseUnits: setBig(
+      row.tabAheadBaseUnits,
       token,
-      getBig(row.balanceAheadBaseUnits, token) + aheadAdd
+      getBig(row.tabAheadBaseUnits, token) + aheadAdd
     ),
-    balanceCollectedAppliedBaseUnits: setBig(
-      row.balanceCollectedAppliedBaseUnits,
+    tabCollectedAppliedBaseUnits: setBig(
+      row.tabCollectedAppliedBaseUnits,
       token,
       target
     ),
