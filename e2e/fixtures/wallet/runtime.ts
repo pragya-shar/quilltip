@@ -1,5 +1,5 @@
 // Browser-only collaborators for the wallet fixture. They stand in for Convex,
-// auth and the Stellar RPC client so the real wallet runtime, Wallets Kit and
+// auth and Stellar RPC so the real wallet runtime, Wallets Kit and v2 article
 // tip dialog can run against an emulated wallet. Nothing is sent to a network.
 import {
   lazy,
@@ -13,8 +13,9 @@ import {
   Account,
   Keypair,
   Networks,
-  Operation,
+  SorobanDataBuilder,
   TransactionBuilder,
+  xdr,
   type Transaction,
 } from '@stellar/stellar-sdk'
 import {
@@ -25,7 +26,10 @@ import {
   type WalletChallengeFields,
 } from '../../../convex/lib/walletChallenge'
 
-/** Records what reached the backend stand-ins, for assertions. */
+/**
+ * Records what reached the backend stand-ins, for assertions. `signedXdr` is
+ * the tip envelope the wallet signed, as it reached the RPC send.
+ */
 type FixtureLog = {
   prepared: number
   signedXdr: string | null
@@ -99,29 +103,156 @@ const challenges = new Map<string, WalletChallengeFields>()
 
 const READER = 'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI'
 export const AUTHOR = 'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
+// Testnet v2 contract IDs (Core and the native token); nothing calls them.
+const CORE = 'CAFCGOIM6SKVBWCPFQODN22MY5HUJEJMW5AOMNGAOVZ4QBLJJ5RLOOMS'
+const TOKEN = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
+/** The fixture article: registered on Core, one recipient. */
+export const ARTICLE = {
+  id: 'qa-article',
+  slug: 'the-words-we-keep',
+  key: 'cc65c9f34cfcab79e7db908c83af037d6e3a5498cff7b507a4c59561b8090aef',
+}
+/** XLM in US dollars: $1 is 10 XLM. */
+const PRICE = 0.1
 
-// `api.x.y` resolves to the string "x.y".
-export const api: unknown = new Proxy(
-  {},
-  {
-    get: (_, mod: string) =>
-      new Proxy({}, { get: (_, fn: string) => `${mod}.${fn}` }),
-  }
-)
+/** `api.a.b.c` is a reference whose string form is "a.b.c". */
+function reference(path: string): unknown {
+  return new Proxy(
+    {},
+    {
+      get: (_, key) =>
+        key === Symbol.toPrimitive || key === 'toString'
+          ? () => path
+          : reference(path ? `${path}.${String(key)}` : String(key)),
+    }
+  )
+}
+export const api: unknown = reference('')
 
 const hold = () => new Promise<never>(() => {})
 
 export function useConvex() {
+  return { query: async () => null, mutation: async () => null }
+}
+
+// --- v2 tip stand-ins ---------------------------------------------------------
+
+/** One prepared v2 tip at a time; the RPC send holds, so none is submitted. */
+let submission: { id: string; status: string; maxTime: number } | null = null
+const fee = (gross: string) =>
+  ((BigInt(gross) * BigInt(250)) / BigInt(10_000)).toString()
+const grossFor = (cents: number) =>
+  BigInt(Math.floor((cents * 10_000_000) / (PRICE * 100))).toString()
+
+function tipEligibility() {
   return {
-    query: async (name: string) => {
-      if (name === 'tips.canTip') return { allowed: true, waitSec: 0 }
-      if (name === 'xlmPrice.getCachedXlmPrice') return { price: 0.1 }
-      return null
+    eligible: true,
+    reason: null,
+    message: null,
+    articleKey: ARTICLE.key,
+    authorAddress: AUTHOR,
+    recipientCount: 1,
+    transferCount: 2,
+    maxBatchItems: 10,
+    maxBatchTransfers: 24,
+    minTipBaseUnits: '1000000',
+    minTipCents: 3,
+    price: { priceUsd: PRICE, source: 'Fixture', fetchedAt: Date.now() },
+    tipperAddress: fixtureKey.publicKey(),
+  }
+}
+
+function prepareDirectTip(args: { articleId: string; amountCents: number }) {
+  window.__walletFixture.prepared += 1
+  const gross = grossFor(args.amountCents)
+  const net = (BigInt(gross) - BigInt(fee(gross))).toString()
+  const id = `sub-${window.__walletFixture.prepared}`
+  const maxTime = Math.floor(Date.now() / 1000) + 300
+  submission = { id, status: 'PREPARED', maxTime }
+  linkListeners.forEach((listener) => listener())
+  return {
+    submissionId: id,
+    method: 'tip',
+    status: 'PREPARED',
+    existing: false,
+    network: 'TESTNET',
+    networkPassphrase: Networks.TESTNET,
+    chainEpoch: 'fixture',
+    contractId: CORE,
+    tokenContractId: TOKEN,
+    tipperAddress: fixtureKey.publicKey(),
+    maxTime,
+    items: [
+      {
+        table: 'tips',
+        tipId: `${id}-tip-0`,
+        articleId: args.articleId,
+        tipInput: {
+          article_id: ARTICLE.key,
+          amount: gross,
+          highlight_id: null,
+          client_ref: 'ab'.repeat(16),
+        },
+        legacyHighlightId: null,
+        authorAddress: AUTHOR,
+        quote: {
+          amountCents: args.amountCents,
+          priceUsd: PRICE,
+          priceSource: 'Fixture',
+          priceFetchedAt: Date.now(),
+          grossBaseUnits: gross,
+          grossXlm: '0',
+          feeBaseUnits: fee(gross),
+          netBaseUnits: net,
+          feeBps: 250,
+        },
+      },
+    ],
+    totals: {
+      amountCents: args.amountCents,
+      grossBaseUnits: gross,
+      grossXlm: '0',
+      feeBaseUnits: fee(gross),
+      netBaseUnits: net,
     },
   }
 }
 
-export function useMutation(name: string) {
+function tipStatus(id: string) {
+  if (!submission || submission.id !== id) return null
+  const failed = submission.status === 'FAILED'
+  return {
+    submissionId: id,
+    method: 'tip',
+    status: submission.status,
+    uiState: failed ? 'failed' : 'checking',
+    canRetry: failed,
+    needsReview: false,
+    mismatchReason: null,
+    txHash: null,
+    ledger: null,
+    maxTime: submission.maxTime,
+    contractId: CORE,
+    items: [],
+    chainTotals: null,
+  }
+}
+
+export function useMutation(ref: unknown) {
+  const name = String(ref)
+  if (name === 'tipsV2.prepareDirectTip') {
+    return async (args: { articleId: string; amountCents: number }) =>
+      prepareDirectTip(args)
+  }
+  if (name === 'tipsV2.recordSendFailed') {
+    return async (args: { submissionId: string }) => {
+      if (submission?.id === args.submissionId) {
+        submission = { ...submission, status: 'FAILED' }
+        linkListeners.forEach((listener) => listener())
+      }
+      return { submissionId: args.submissionId, status: 'FAILED' }
+    }
+  }
   if (name === 'walletLink.createWalletChallenge') {
     return async (args: { address: string; origin: string }) => {
       if (params.get('server') === 'rate-limited') {
@@ -183,23 +314,7 @@ export function useMutation(name: string) {
       params.get('server') === 'remove-fails'
     )
       throw new Error('Couldn’t remove the address. Please try again.')
-    if (name === 'tips.prepareArticleTip') {
-      window.__walletFixture.prepared += 1
-      return {
-        stellarNetwork: 'TESTNET',
-        articleSymbol: 'qa_article',
-        authorAddress: AUTHOR,
-        amountStroops: '10000000',
-        amountCents: 10,
-        contractId: 'C' + 'A'.repeat(55),
-        intentId: 'qa-intent',
-        timeBounds: {
-          minTime: 0,
-          maxTime: Math.floor(Date.now() / 1000) + 300,
-        },
-      }
-    }
-    // Registration and verification stay pending: nothing is submitted.
+    // Anything else stays pending: nothing is recorded.
     return hold()
   }
 }
@@ -207,7 +322,8 @@ export function useMutation(name: string) {
 /**
  * `?tips=1`: tip history for the signed-in reader, one record per receipt
  * state (#539): a confirmed tip sent with a note, a failed tip received with
- * an amount to review, and a pending passage tip. Testnet records only.
+ * an amount to review, and a pending passage tip, all recorded by the earlier
+ * (v1) contracts; and a confirmed v2 tip. Testnet records only.
  */
 const TIP_AT = Date.UTC(2026, 10, 20, 12)
 const source = (slug: string, title: string) => ({
@@ -234,6 +350,21 @@ const TIPS: Record<string, unknown[]> = {
       stellarTxId: 'a'.repeat(64),
       stellarNetwork: 'TESTNET',
       stellarAmountXlm: '10.0000000',
+      contractVersion: 'v1',
+    },
+    {
+      _id: 'tip-sent-v2',
+      tipperId: 'qa-reader',
+      authorId: 'qa-writer',
+      authorName: 'Ada Lovelace',
+      status: 'CONFIRMED',
+      createdAt: TIP_AT + 86_400_000,
+      amountCents: 200,
+      articleTitle: 'Reading in the margins',
+      sourceArticle: source('reading-margins', 'Reading in the margins'),
+      stellarTxId: 'c'.repeat(64),
+      stellarNetwork: 'TESTNET',
+      contractVersion: 'v2',
     },
   ],
   'tips.getUserReceivedTips': [
@@ -251,6 +382,7 @@ const TIPS: Record<string, unknown[]> = {
       failureReason: 'The transaction was not found on Stellar testnet.',
       stellarTxId: 'b'.repeat(64),
       stellarNetwork: 'TESTNET',
+      contractVersion: 'v1',
     },
   ],
   'highlightTips.getByTipper': [
@@ -267,14 +399,34 @@ const TIPS: Record<string, unknown[]> = {
       highlightText: 'A margin is where a reader answers back.',
       highlightId: 'highlight-1',
       stellarNetwork: 'TESTNET',
+      contractVersion: 'v1',
     },
   ],
   'highlightTips.getByAuthor': [],
 }
 
-export function useQuery(name: string) {
+export function useQuery(ref: unknown, args?: unknown) {
+  const name = String(ref)
   const current = useSyncExternalStore(subscribeLink, () => link)
+  // Re-read the tip record when it changes.
+  useSyncExternalStore(subscribeLink, () => submission)
+  if (args === 'skip') return undefined
   if (name === 'walletLink.getMyWalletLink') return current
+  if (name === 'chain.config.getChainConfig') {
+    return {
+      network: 'TESTNET',
+      chainEpoch: 'fixture',
+      v2Enabled: true,
+      coreContractId: CORE,
+      tokenContractId: TOKEN,
+      minTip: '1000000',
+      paused: { core: false },
+    }
+  }
+  if (name === 'tipsV2.getTipEligibility') return tipEligibility()
+  if (name === 'tipsV2.getTipStatus') {
+    return tipStatus((args as { submissionId: string }).submissionId)
+  }
   return params.get('tips') === '1' ? TIPS[name] : undefined
 }
 
@@ -311,24 +463,46 @@ export function useConvexAuth() {
   return { isAuthenticated, isLoading: false }
 }
 
-export const stellarClient = {
-  async buildTipTransaction(source: string) {
-    const tx = new TransactionBuilder(new Account(source, '1'), {
-      fee: '100',
-      networkPassphrase: Networks.TESTNET,
-    })
-      .addOperation(Operation.manageData({ name: 'qa-fixture', value: 'tip' }))
-      .setTimeout(300)
-      .build()
-    return { xdr: tx.toXDR() }
-  },
-  async deriveTipTransactionHash(signedXdr: string) {
-    window.__walletFixture.signedXdr = signedXdr
-    return 'f'.repeat(64)
-  },
-  submitTipTransaction: hold,
-  getXLMPrice: async () => 0.1,
-  getXLMPriceData: async () => ({ price: 0.1, change24h: 0 }),
+/**
+ * lib/stellar/v2/chain-runtime stand-in: simulation succeeds, and the send
+ * records the signed envelope, then holds. Nothing is submitted.
+ */
+export function v2Runtime() {
+  return {
+    config: {
+      network: 'TESTNET',
+      passphrase: Networks.TESTNET,
+      rpcUrl: 'http://127.0.0.1:4177/rpc',
+      allowHttp: true,
+      coreContractId: CORE,
+      tabContractId: null,
+      nftContractId: null,
+      tokenContractId: TOKEN,
+    },
+    latestLedger: async () => 1_234_567,
+    server: {
+      getAccount: async (id: string) => new Account(id, '1'),
+      getAccountEntry: async () => ({
+        balance: BigInt(300_000_000),
+        numSubEntries: 0,
+        ext: { type: 'v0' },
+      }),
+      simulateTransaction: async () => ({
+        id: '1',
+        latestLedger: 1,
+        events: [],
+        _parsed: true,
+        transactionData: new SorobanDataBuilder(),
+        minResourceFee: '100',
+        result: { auth: [], retval: xdr.ScVal.scvVoid() },
+      }),
+      sendTransaction: async (tx: Transaction) => {
+        window.__walletFixture.signedXdr = tx.toXDR()
+        return hold()
+      },
+      getTransaction: async () => ({ status: 'NOT_FOUND' }),
+    },
+  }
 }
 
 export { READER }

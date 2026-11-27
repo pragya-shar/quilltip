@@ -46,7 +46,7 @@ const build = (walletConnect) =>
           build.onResolve(
             {
               filter:
-                /^(convex\/react|next\/dynamic|@\/(convex\/_generated\/api|components\/providers\/AuthContext|lib\/stellar\/client))$/,
+                /^(convex\/react|next\/dynamic|@\/(convex\/_generated\/api|components\/providers\/AuthContext|lib\/stellar\/v2\/chain-runtime))$/,
             },
             () => ({ path: runtime })
           )
