@@ -13,8 +13,9 @@
 // - the page answers 200 (an existing article must not answer 404 because
 //   the backend was slow), with `noindex` and `no-store`;
 // - with JavaScript off, in Chromium and WebKit, at 375 px, the page shows a
-//   heading that it could not be loaded, a "Try again" link and the header's
-//   home link (the header's other links sit in its menu at this width).
+//   heading that it could not be loaded, a "Try again" link and the way home
+//   (READING.wayHome: today the header's wordmark link; the header's other
+//   links sit in its menu at this width).
 // Then, with the backend answering again, each page shows its content: a
 // timed-out read was not cached.
 
@@ -25,7 +26,7 @@ import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
 import { fixtureArticlePath } from './convex-fixture'
 import { fixtureBackendBehaviour, startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
-import { READING } from './no-script-reading'
+import { READING, wayHomeOn } from './no-script-reading'
 
 /** Rendering and CI noise on top of the read limits. */
 const MARGIN_MS = 1000
@@ -87,8 +88,8 @@ async function readableWithoutScripts(page: Page) {
     missing.push(`no heading "… ${FALLBACK_TEXT}."`)
   if (!(await visible(page.getByRole('link', { name: RETRY_LINK }))))
     missing.push(`no "${RETRY_LINK}" link`)
-  if (!(await visible(page.getByRole('banner').locator('a[href="/"]'))))
-    missing.push('no home link in the header')
+  if (!(await visible(wayHomeOn(page, READING.wayHome))))
+    missing.push(`no way home (${READING.wayHome.name})`)
   return missing
 }
 

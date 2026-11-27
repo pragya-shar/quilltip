@@ -29,6 +29,16 @@ import {
 import { startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
 
+type Role = Parameters<Page['getByRole']>[0]
+/** A locator by role and accessible name, inside an optional landmark. */
+export type WayHome = { within?: Role; role: Role; name: string }
+
+/** The way-home locator of READING on a page. */
+export function wayHomeOn(page: Page, wayHome: WayHome) {
+  const scope = wayHome.within ? page.getByRole(wayHome.within) : page
+  return scope.getByRole(wayHome.role, { name: wayHome.name, exact: true })
+}
+
 /** The public reading routes and what a reader must see on them. */
 export const READING = {
   home: '/',
@@ -53,6 +63,16 @@ export const READING = {
   ],
   /** Sign-in pages: each shows a form field without scripts. */
   authPages: ['/reset-password', '/login', '/register'],
+  /**
+   * How a reader finds the way home on a public page at 375 px without
+   * scripts: a role and accessible name, inside an optional landmark. v2:
+   * the header's wordmark link.
+   */
+  wayHome: {
+    within: 'banner',
+    role: 'link',
+    name: 'Quilltip home',
+  } as WayHome,
   /**
    * A signed-in section and where it sends a signed-out reader. The redirect
    * runs in the browser, so this one load has scripts on.
