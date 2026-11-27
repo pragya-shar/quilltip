@@ -444,7 +444,7 @@ test.describe('picker', () => {
       'Waiting'
     )
     await expect(dialog.getByRole('status').last()).toHaveText(
-      'Approve the request in Hana. If no window opened, check your browser toolbar.'
+      'Approve the request in Hana. If it asks for your password, unlock it first. If no window opened, check your browser toolbar.'
     )
     await expect(
       dialog.getByRole('button', { name: /^Varial/ })

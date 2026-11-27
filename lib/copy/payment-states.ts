@@ -382,7 +382,7 @@ export const WALLET_FAILURE_COPY = {
   timeout: {
     title: 'Your wallet did not respond',
     detail:
-      'Check for an open wallet window, close it, then try again. Nothing was sent.',
+      'Your wallet may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent.',
   },
   unsupported: {
     title: 'This wallet cannot be used here',

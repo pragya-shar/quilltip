@@ -66,7 +66,9 @@ function pendingMessage(option: WalletOption) {
   }
   return option.access === 'web'
     ? `Approve the request in the ${option.name} window. If no window opened, allow pop-ups for this site and try again.`
-    : `Approve the request in ${option.name}. If no window opened, check your browser toolbar.`
+    : // A locked extension shows a password prompt and reports nothing to
+      // the page until it is unlocked (#547).
+      `Approve the request in ${option.name}. If it asks for your password, unlock it first. If no window opened, check your browser toolbar.`
 }
 
 /**

@@ -294,7 +294,7 @@ export function walletErrorMessage(error: WalletError): WalletMessage | null {
         title: 'Your wallet did not respond',
         detail: entry?.opensWindow
           ? `Look for the ${name} window behind this one, close it, then try again. Nothing was sent.`
-          : 'Check for an open wallet window, close it, then try again. Nothing was sent.',
+          : `${name} may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent.`,
       }
     case 'popup-blocked':
       return {
