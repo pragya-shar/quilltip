@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react'
 import { Icon } from '@/system/components/Icon'
 import { focusDestination } from '@/system/inputModality'
 import { CloseIcon } from '@/system/icons'
-import { PocketContent } from '@/components/pocket/PocketContent'
+import { PocketBody } from './PocketBody'
 
 /**
  * The Pocket on a desktop: a panel on the right, beside the page, not over
@@ -64,7 +64,7 @@ export function PocketPanel({
       >
         Balance
       </h2>
-      <PocketContent />
+      <PocketBody />
       <button
         type="button"
         className="qt-modal__close"

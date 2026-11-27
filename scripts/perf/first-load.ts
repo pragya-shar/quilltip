@@ -71,6 +71,12 @@ export const FORBIDDEN_FIRST_LOAD_MODULES: {
     pattern: pkg('(?:@tiptap/[^/]+|prosemirror-[^/]+)'),
   },
   {
+    // The balance's content loads when its sheet or panel opens
+    // (shell/pocket/loadPocket.ts), never with a page.
+    label: 'the balance sheet (components/pocket)',
+    pattern: /\[project\]\/components\/pocket\//,
+  },
+  {
     label: 'v2 payment code (lib/stellar/v2: bindings, wallet kit)',
     pattern: /\[project\]\/lib\/stellar\/v2\//,
   },
