@@ -11,41 +11,74 @@ import {
 } from '@/components/ui/dialog'
 import { ArrowUpRight } from 'lucide-react'
 import {
-  OFFERED_WALLETS,
+  BROWSER_WALLETS,
+  WALLETCONNECT_APPS,
   WALLET_CATALOG,
-  type WalletCatalogEntry,
+  WALLET_IDS,
 } from '@/lib/stellar/wallet-catalog'
 import { WalletIcon } from './WalletIcon'
 
-type InstallLink = { entry: WalletCatalogEntry; href: string; note: string }
+type InstallLink = {
+  key: string
+  name: string
+  icon?: string
+  href: string
+  note: string
+}
 
-const EXTENSIONS: InstallLink[] = OFFERED_WALLETS.filter(
+/** WalletConnect is on in this build (the ID's format is checked at build). */
+const WALLETCONNECT_ON = Boolean(
+  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID?.trim()
+)
+
+const EXTENSIONS: InstallLink[] = BROWSER_WALLETS.filter(
   (entry) => entry.kind === 'extension' || entry.kind === 'extension-or-web'
 ).map((entry) => ({
-  entry,
+  key: `extension-${entry.id}`,
+  name: entry.name,
+  icon: entry.icon,
   href: entry.url,
   note: entry.formerly
     ? `Formerly ${entry.formerly}. Browser extension`
     : 'Browser extension',
 }))
 
-const WEB_WALLETS: InstallLink[] = OFFERED_WALLETS.filter(
+const WEB_WALLETS: InstallLink[] = BROWSER_WALLETS.filter(
   (entry) => entry.kind === 'web' || entry.kind === 'extension-or-web'
 ).map((entry) => ({
-  entry,
+  key: `web-${entry.id}`,
+  name: entry.name,
+  icon: entry.icon,
   href: entry.webUrl ?? entry.url,
   note: entry.needsHttps
     ? 'Web wallet; needs an HTTPS page'
     : 'Web wallet; opens in a new window',
 }))
 
-const NOT_SUPPORTED = WALLET_CATALOG.filter((entry) => !entry.offered)
-  .map((entry) => entry.name)
+const PHONE_APPS: InstallLink[] = WALLETCONNECT_APPS.map((app) => ({
+  key: `phone-${app.name}`,
+  name: app.name,
+  icon: 'icon' in app ? app.icon : undefined,
+  href: app.url,
+  note: 'Phone app; choose “Mobile wallet” when you connect',
+}))
+
+const NOT_SUPPORTED = WALLET_CATALOG.filter(
+  (entry) =>
+    !entry.offered ||
+    (entry.id === WALLET_IDS.walletConnect && !WALLETCONNECT_ON)
+)
+  .map((entry) =>
+    entry.id === WALLET_IDS.walletConnect ? 'mobile wallets' : entry.name
+  )
   .join(', ')
 
 const GROUPS = [
   { id: 'extensions', heading: 'Browser extensions', links: EXTENSIONS },
   { id: 'web', heading: 'Web wallets, nothing to install', links: WEB_WALLETS },
+  ...(WALLETCONNECT_ON
+    ? [{ id: 'phone', heading: 'On your phone', links: PHONE_APPS }]
+    : []),
 ]
 
 export function InstallWalletDialog({
@@ -100,8 +133,8 @@ export function InstallWalletDialog({
                 {group.heading}
               </h3>
               <ul className="wallet-install-options">
-                {group.links.map(({ entry, href, note }) => (
-                  <li key={`${group.id}-${entry.id}`}>
+                {group.links.map(({ key, name, icon, href, note }) => (
+                  <li key={key}>
                     <a
                       href={href}
                       target="_blank"
@@ -109,11 +142,9 @@ export function InstallWalletDialog({
                       className="wallet-install-option wallet-picker-option"
                     >
                       <span className="wallet-row-body">
-                        <WalletIcon name={entry.name} src={entry.icon} />
+                        <WalletIcon name={name} src={icon} />
                         <span className="wallet-row-text">
-                          <span className="wallet-install-name">
-                            {entry.name}
-                          </span>
+                          <span className="wallet-install-name">{name}</span>
                           <span className="wallet-install-note">{note}</span>
                         </span>
                       </span>
