@@ -75,6 +75,7 @@ function blockAtReadingLine(root: HTMLElement): HTMLElement | null {
  */
 export function ReaderIsland({ article }: { article: ReadArticle }) {
   const [tipped, setTipped] = useState<PaintedSpan[]>([])
+  const [kept, setKept] = useState<PaintedSpan[]>([])
   const [tick, setTick] = useState<Tick | null>(null)
   const [margin, setMargin] = useState<HTMLElement | null>(null)
 
@@ -92,7 +93,7 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   useEffect(() => {
     const root = body()
     if (!root) return
-    const cleanup = paintPassages(root, passage, tipped)
+    const cleanup = paintPassages(root, { chosen: passage, kept, tipped })
     const place = () => {
       const frame = document.getElementById(READ_MARGIN_ID)
       if (!passage || !frame) return
@@ -110,7 +111,7 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
       resize.disconnect()
       cleanup()
     }
-  }, [passage, tipped])
+  }, [passage, kept, tipped])
 
   // Back at the reader's place: a quiet tick beside that paragraph, and
   // nothing chosen.
@@ -202,7 +203,16 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   )
 
   const onKeep = useCallback(() => {
-    void keep((chosen) => actions.keep(article.id, chosen))
+    void keep(async (chosen) => {
+      const id = await actions.keep(article.id, chosen)
+      // Kept: a marker-ink underline on this visit (N5).
+      if (id !== null)
+        setKept((list) => [
+          ...list,
+          { startOffset: chosen.startOffset, endOffset: chosen.endOffset },
+        ])
+      return id
+    })
   }, [actions, article.id, keep])
 
   return (

@@ -2,8 +2,18 @@ import { rangeAt } from '@/hooks/read/passageOffsets'
 
 export type PaintedSpan = { startOffset: number; endOffset: number }
 
+/** What this visit has to draw over the server text (DESIGN-ZERO N5). */
+export type PaintedLines = {
+  /** The line the tip bar will tip: an ink underline (and a margin tick). */
+  chosen: PaintedSpan | null
+  /** Lines kept on this visit: a marker-ink underline. */
+  kept: PaintedSpan[]
+  /** Lines this reader tipped on this visit: full marker and a ✓. */
+  tipped: PaintedSpan[]
+}
+
 const CHOSEN = 'qt-read-chosen'
-const TIPPED = 'qt-read-tipped'
+const KEPT = 'qt-read-kept'
 
 type HighlightRegistry = Map<string, unknown>
 type HighlightConstructor = new (...ranges: Range[]) => unknown
@@ -22,8 +32,8 @@ function registry(): {
     : null
 }
 
-/** Wraps a range's text in marks: for engines without highlights. */
-function wrap(range: Range, attrs: Record<string, string>): HTMLElement[] {
+/** Wraps a range's text nodes in elements made by `make`. */
+function wrap(range: Range, make: () => HTMLElement): HTMLElement[] {
   const marks: HTMLElement[] = []
   const root = range.commonAncestorContainer
   const walker = document.createTreeWalker(
@@ -40,10 +50,7 @@ function wrap(range: Range, attrs: Record<string, string>): HTMLElement[] {
     if (end <= start) continue
     if (end < text.length) text.splitText(end)
     if (start > 0) text = text.splitText(start)
-    const mark = document.createElement('mark')
-    mark.className = 'qt-mark'
-    for (const [name, value] of Object.entries(attrs))
-      mark.setAttribute(name, value)
+    const mark = make()
     text.replaceWith(mark)
     mark.append(text)
     marks.push(mark)
@@ -51,52 +58,92 @@ function wrap(range: Range, attrs: Record<string, string>): HTMLElement[] {
   return marks
 }
 
-function unwrap(marks: HTMLElement[]) {
-  for (const mark of marks) {
-    const parent = mark.parentNode
+/** Removes what `wrap` and the ✓ added, leaving the server text as it was. */
+function unwrap(added: HTMLElement[]) {
+  for (const node of added) {
+    const parent = node.parentNode
     if (!parent) continue
-    mark.replaceWith(...Array.from(mark.childNodes))
+    if (node.dataset.readCheck !== undefined) node.remove()
+    else node.replaceWith(...Array.from(node.childNodes))
     parent.normalize()
   }
 }
 
+const element = (
+  tag: string,
+  className: string,
+  attrs: Record<string, string> = {}
+) => {
+  const node = document.createElement(tag)
+  node.className = className
+  node.dataset.readPaint = ''
+  for (const [name, value] of Object.entries(attrs))
+    node.setAttribute(name, value)
+  return node
+}
+
 /**
- * Draws the chosen line and the lines tipped on this visit over the server
- * text. Custom highlights where the engine has them (no change to the
- * text, so a native selection is never disturbed); marks otherwise, and
- * only while no selection is live. Colour is never the only cue: the chosen
- * line is underlined and gets a margin tick. Returns the cleanup.
+ * A tipped line: the system's full marker mark, then a ✓ in marker-ink and
+ * "You tipped this line" for screen readers. Marker on paper is 1.1:1, so
+ * the fill never carries the meaning alone. The ✓ is skipped by the text
+ * offsets (`data-read-skip`), so passages chosen later still line up.
+ */
+function markTipped(range: Range): HTMLElement[] {
+  const marks = wrap(range, () =>
+    element('mark', 'qt-mark', { 'data-heat': '3', 'data-mine': '' })
+  )
+  const last = marks.at(-1)
+  if (!last) return marks
+  const check = element('span', 'qt-read__mine', { 'data-read-skip': '' })
+  check.dataset.readCheck = ''
+  const glyph = document.createElement('span')
+  glyph.setAttribute('aria-hidden', 'true')
+  glyph.textContent = '✓'
+  const words = document.createElement('span')
+  words.className = 'qt-visually-hidden'
+  words.textContent = ' You tipped this line.'
+  check.append(glyph, words)
+  last.after(check)
+  return [...marks, check]
+}
+
+/**
+ * Draws the chosen, kept and tipped lines over the server text. The chosen
+ * and kept lines use custom highlights where the engine has them (no change
+ * to the text, so a native selection is never disturbed), and marks
+ * otherwise, only while no selection is live. Tipped lines are marks, drawn
+ * after acceptance, when the selection has been cleared. Returns the
+ * cleanup.
  */
 export function paintPassages(
   body: HTMLElement,
-  chosen: PaintedSpan | null,
-  tipped: PaintedSpan[]
+  lines: PaintedLines
 ): () => void {
   const toRange = (span: PaintedSpan) =>
     rangeAt(body, span.startOffset, span.endOffset)
+  const added: HTMLElement[] = lines.tipped.flatMap((span) =>
+    markTipped(toRange(span))
+  )
   const api = registry()
   if (api) {
-    api.highlights.set(TIPPED, new api.Highlight(...tipped.map(toRange)))
-    if (chosen) api.highlights.set(CHOSEN, new api.Highlight(toRange(chosen)))
+    api.highlights.set(KEPT, new api.Highlight(...lines.kept.map(toRange)))
+    if (lines.chosen)
+      api.highlights.set(CHOSEN, new api.Highlight(toRange(lines.chosen)))
     else api.highlights.delete(CHOSEN)
     return () => {
       api.highlights.delete(CHOSEN)
-      api.highlights.delete(TIPPED)
+      api.highlights.delete(KEPT)
+      unwrap(added.reverse())
     }
   }
   const selection = window.getSelection()
-  if (selection && !selection.isCollapsed) return () => {}
-  const marks = [
-    ...tipped.flatMap((span) =>
-      wrap(toRange(span), { 'data-heat': '3', 'data-read-paint': '' })
-    ),
-    ...(chosen
-      ? wrap(toRange(chosen), {
-          'data-heat': '1',
-          'data-targeted': '',
-          'data-read-paint': '',
-        })
-      : []),
-  ]
-  return () => unwrap(marks)
+  if (!selection || selection.isCollapsed) {
+    for (const span of lines.kept)
+      added.push(...wrap(toRange(span), () => element('mark', 'qt-read__kept')))
+    if (lines.chosen)
+      added.push(
+        ...wrap(toRange(lines.chosen), () => element('mark', 'qt-read__chosen'))
+      )
+  }
+  return () => unwrap(added.reverse())
 }

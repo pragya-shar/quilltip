@@ -86,14 +86,14 @@
     border-radius: 3px;
     background: var(--qt-ink);
   }
-  /* Your place: marker-ink, then it fades once you are reading. */
+  /* Your place: marker-ink, fading to a quarter after 2.4 s (N5). */
   .qt-read__tick[data-kind='place'] {
     background: var(--qt-marker-ink);
     animation: qt-read-fade 1.6s var(--qt-ease-out) 2.4s both;
   }
   @keyframes qt-read-fade {
     to {
-      opacity: 0;
+      opacity: 0.25;
     }
   }
 
@@ -163,21 +163,53 @@
     color: var(--qt-ink);
   }
 
-  /* The chosen line: faint fill and an underline (not colour alone); the
-   * margin tick is the third cue. Tipped lines get the full marker. */
+  /* Passage marks (DESIGN-ZERO N5); none rests on colour alone.
+   * Chosen: a 2px ink underline, and the margin tick. */
   ::highlight(qt-read-chosen) {
-    background-color: var(--qt-marker-faint);
+    background: none;
+    color: inherit;
     text-decoration: underline;
     text-decoration-color: var(--qt-ink);
     text-decoration-thickness: 2px;
     text-underline-offset: 0.22em;
   }
-  ::highlight(qt-read-tipped) {
-    background-color: var(--qt-marker);
-    color: var(--qt-on-marker);
-  }
-  .qt-read__prose mark[data-read-paint][data-targeted] {
+  /* A rule of its own: an engine that cannot parse ::highlight would drop
+   * the fallback with it. */
+  .qt-read__chosen {
+    background: none;
+    color: inherit;
+    text-decoration: underline;
     text-decoration-color: var(--qt-ink);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.22em;
+  }
+  /* Kept by you: a 2px marker-ink underline. */
+  ::highlight(qt-read-kept) {
+    background: none;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--qt-marker-ink);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.22em;
+  }
+  /* A rule of its own: an engine that cannot parse ::highlight would drop
+   * the fallback with it. */
+  .qt-read__kept {
+    background: none;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--qt-marker-ink);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.22em;
+  }
+  /* Tipped by you: the system's full marker, then a ✓ in marker-ink. */
+  .qt-read__mine {
+    margin-inline-start: 0.2em;
+    color: var(--qt-marker-ink);
+    font-family: var(--qt-font-ui);
+    font-size: 0.8em;
+    font-weight: var(--qt-weight-ui-strong);
+    user-select: none;
   }
 
   /* The end of the article. */
@@ -397,9 +429,8 @@
       background: CanvasText;
     }
     ::highlight(qt-read-chosen),
-    ::highlight(qt-read-tipped) {
-      background-color: Highlight;
-      color: HighlightText;
+    ::highlight(qt-read-kept) {
+      text-decoration-color: CanvasText;
     }
   }
 }

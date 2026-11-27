@@ -37,8 +37,13 @@ type TipBarProps = {
   onSent: (tip: SentTip) => void
 }
 
-/** How long "Sent $1" stays before the bar is ready for the next tip. */
-const SENT_HOLD_MS = 5000
+/**
+ * How long "Sent $1" stays before the bar returns to idle (DESIGN-ZERO N1,
+ * `--qt-dur-sent`). Read it from the system's token once the foundation
+ * adopts the design-zero tokens; when the money layer's controller owns
+ * the tip moment, this reset moves there.
+ */
+const SENT_HOLD_MS = 1600
 
 /** A few words for a reader who cannot tip here from the balance. */
 const UNAVAILABLE_WORDS: Partial<Record<UnavailableReason, string>> = {

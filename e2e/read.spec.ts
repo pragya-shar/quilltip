@@ -131,7 +131,7 @@ test('a tap on a line chooses that sentence, for free, and a second tap lets it 
     }
     return css.highlights
       ? css.highlights.has('qt-read-chosen')
-      : document.querySelector('mark[data-targeted]') !== null
+      : document.querySelector('mark.qt-read__chosen') !== null
   })
   expect(painted).toBe(true)
   expect((await server(page)).requests).toBe(0)
@@ -173,8 +173,6 @@ test('a tip on a line is sent once, keeps the line in view, and has a receipt', 
       const body = document.getElementById('read-body')!
       const at = body.textContent!.indexOf(line)
       void at
-      const marks = (CSS as unknown as { highlights?: Map<string, unknown> })
-        .highlights
       const dock = document
         .querySelector('.qt-read__dock')!
         .getBoundingClientRect()
@@ -190,7 +188,12 @@ test('a tip on a line is sent once, keeps the line in view, and has a receipt', 
           top: rect.top,
           bottom: rect.bottom,
           dockTop: dock.top,
-          tipped: marks ? marks.has('qt-read-tipped') : true,
+          // Tipped by you: the full marker and a ✓ with words (N5).
+          tipped:
+            node.parentElement?.matches('mark.qt-mark[data-mine]') === true &&
+            (node.parentElement.nextElementSibling?.textContent ?? '').includes(
+              'You tipped this line'
+            ),
         }
       }
       return null
@@ -220,6 +223,21 @@ test('a tip on a line is sent once, keeps the line in view, and has a receipt', 
   await press(page, sheet.getByRole('button', { name: 'Keep reading' }))
   await expect(sheet).toBeHidden()
   expect((await server(page)).accepted).toHaveLength(1)
+
+  // Back to idle after Sent, with nothing chosen (N1). A later line still
+  // gets its own offsets: the ✓ is not part of the text.
+  await expect(tipButton(page)).toHaveAccessibleName('Tip $1')
+  await tapLine(page, 'rarely remembers')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip this line $1')
+  await press(page, tipButton(page))
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  const after = await server(page)
+  expect(after.accepted.map((tip) => tip.target.passage?.text)).toEqual([
+    LINES.gate,
+    LINES.quote,
+  ])
 })
 
 test('the tip bar works by keyboard: amount, then tip', async ({ page }) => {
@@ -411,6 +429,15 @@ test('Keep saves the chosen line privately, and not as a tip', async ({
   await tapLine(page, 'rarely remembers')
   await press(page, page.getByRole('button', { name: 'Keep' }))
   await expect(page.getByText('Kept on your Shelf.')).toBeVisible()
+  // Kept: a marker-ink underline on this visit (a highlight or a mark).
+  expect(
+    await page.evaluate(() => {
+      const css = CSS as unknown as { highlights?: Map<string, unknown> }
+      return css.highlights
+        ? css.highlights.has('qt-read-kept')
+        : document.querySelector('mark.qt-read__kept') !== null
+    })
+  ).toBe(true)
   const mutations = (await (
     await page.request.get(`/api/mutations?run=${run}`)
   ).json()) as { name: string; args: { text: string; isPublic: boolean } }[]
