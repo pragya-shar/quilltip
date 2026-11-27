@@ -14,7 +14,9 @@
  * - **Keys.** Revocation only lowers `valid_until` and never un-revokes, so
  *   `KeyRegistered` and `KeyRevoked` give the same result in either order.
  * - **Payments.** `paidOnChain` only grows (`max`), so a replayed or late
- *   `TabSettled` cannot lower it.
+ *   `TabSettled` cannot lower it. The settler's own record of a settlement
+ *   can arrive before or after the event; until the event's debit is
+ *   applied, the paid amount stays reserved as `settledUnindexed`.
  */
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc } from '../../_generated/dataModel'
@@ -354,6 +356,7 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
     paidAfter,
     cumulative,
     eventId: event.doc.eventId,
+    indexedGross: gross,
     now: event.now,
   })
   return 'done'

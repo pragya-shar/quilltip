@@ -267,6 +267,13 @@ function initial(): Store {
         config: { v2Enabled: false, paused: {} },
         record: v1Unminted,
       }
+    case 'nft-unset':
+      // v2 on, no NFT_CONTRACT_ID on the backend: getMintProgress is DISABLED.
+      return {
+        ...base,
+        progress: progress({ state: 'DISABLED', nftContractId: null }),
+        record: v1Row,
+      }
     case 'reader-below':
       return { ...base, progress: progress(below) }
     case 'reader-unknown-threshold':

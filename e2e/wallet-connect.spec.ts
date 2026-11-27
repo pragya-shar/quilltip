@@ -79,14 +79,11 @@ async function pairAndApprove(page: Page, opts?: unknown) {
   await expect(account(page)).toContainText('Mobile wallet')
 }
 
+/** Sends the default tip ($1, 10 XLM) from the v2 article tip dialog. */
 async function tip(page: Page) {
   await page.getByRole('button', { name: 'Tip article', exact: true }).click()
-  const dialog = page.getByRole('dialog')
-  await dialog.getByRole('button', { name: '1 test XLM' }).click()
-  await dialog
-    .getByRole('button', { name: 'Choose wallet', exact: true })
-    .click()
-  await dialog.getByRole('button', { name: 'Review in wallet' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Tip this article' })
+  await dialog.getByRole('button', { name: 'Send tip' }).click()
   return dialog
 }
 

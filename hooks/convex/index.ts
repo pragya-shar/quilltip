@@ -14,16 +14,10 @@ export {
   type ListArticlesArgs,
   type CreatorRecentWorkArgs,
 } from './useArticles'
-export {
-  useArticleTipStats,
-  useAuthorEarnings,
-  useMyEarningsSummary,
-} from './useTipsQueries'
+export { useMyEarningsSummary } from './useTipsQueries'
 export {
   useNFTByArticle,
-  useNFTsByOwner,
   useNFTsByOwnerPaginated,
-  useUserMintedNFTs,
   useUserMintedNFTsPaginated,
   type NFTsByOwnerPaginatedArgs,
   type UserMintedNFTsPaginatedArgs,
@@ -31,7 +25,6 @@ export {
 export {
   useArticleHighlightsQuery,
   useUserHighlightsQuery,
-  useHighlightTipsByHighlight,
   useArticleHighlightTipStats,
   useArticleHighlightTipStatsOptional,
 } from './useHighlightQueries'

@@ -241,6 +241,43 @@ for (const [view, query, ready] of [
   })
 }
 
+// Runbook sections 4.1 and 7.1: history rows recorded by the earlier
+// contracts (`contractVersion: 'v1'`) carry "Testnet v1"; v2 rows carry
+// "Testnet" only. The fixture rows go through the real activity mapping.
+test('tip history labels v1 rows "Testnet v1" and v2 rows "Testnet" (#451)', async ({
+  page,
+}) => {
+  await openDashboard(page, 'link=verified&tips=1')
+  const row = (title: string) =>
+    page.locator('li').filter({ has: page.getByText(title, { exact: true }) })
+  for (const title of [
+    'The quiet economics of attention',
+    'Notes on slow reading',
+    'Why marginalia matter',
+  ]) {
+    await expect(
+      row(title).getByText('Testnet v1', { exact: true })
+    ).toBeVisible()
+  }
+  const v2 = row('Reading in the margins')
+  await expect(v2.getByText('Testnet', { exact: true })).toBeVisible()
+  await expect(v2.getByText('Testnet v1')).toHaveCount(0)
+
+  // The receipts say the same.
+  const dialog = page.locator('.account-dialog')
+  await page
+    .getByRole('button', { name: /^Receipt for The quiet economics/ })
+    .click()
+  await expect(dialog.getByText('Testnet v1', { exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await page
+    .getByRole('button', { name: /^Receipt for Reading in the margins/ })
+    .click()
+  await expect(dialog.getByText('Status')).toBeVisible()
+  await expect(dialog.getByText('Testnet v1')).toHaveCount(0)
+})
+
 // The two account dialogs are portaled outside the dashboard surface and stay
 // light on their own (`.account-dialog`, #539). Each state, opened from the
 // real wallet page, renders exactly as in light appearance and passes the

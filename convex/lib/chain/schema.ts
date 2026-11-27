@@ -197,6 +197,13 @@ export const tabTables = {
     confirmedBalance: v.string(),
     /** Accepted but not yet settled: Σ (cumulative − paidOnChain) over pairs. */
     outstanding: v.string(),
+    /**
+     * Settled by the settler's own record but not yet debited from
+     * `confirmedBalance` by the indexed `TabSettled` event:
+     * Σ max(0, paidOnChain − indexed paid) over pairs. Spendable is
+     * `confirmedBalance − outstanding − settledUnindexed`. Unset is zero.
+     */
+    settledUnindexed: v.optional(v.string()),
     /** Accepted today (UTC), for `TAB_DAILY_LIMIT`. */
     acceptedToday: v.string(),
     /** `YYYY-MM-DD` (UTC) that `acceptedToday` counts. */
@@ -326,6 +333,15 @@ export const tabTables = {
     acceptance: v.object({ acceptor: v.string(), signature: v.string() }),
     seq: v.number(),
     paidOnChain: v.string(),
+    /**
+     * Paid ranges `[paid_after − gross, paid_after]` of the `TabSettled`
+     * events the indexer applied, merged. Their total is the part of
+     * `paidOnChain` already debited from `confirmedBalance`. Unset means
+     * all of `paidOnChain` (rows written before this field).
+     */
+    indexedPaid: v.optional(
+      v.array(v.object({ from: v.string(), to: v.string() }))
+    ),
     /** True while `paidOnChain < cumulative` and the pair can still settle. */
     unsettled: v.boolean(),
     /** Acceptance time of the oldest receipt not yet settled. */
