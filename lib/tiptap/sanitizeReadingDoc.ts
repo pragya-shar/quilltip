@@ -217,33 +217,14 @@ const dimension = (value: unknown) => {
     : null
 }
 
-const HEADING_LEVELS = [2, 3, 4]
-const SIMPLE_MARKS = new Set(['bold', 'italic', 'underline', 'strike'])
+// --- The allowlist, as data ------------------------------------------
+//
+// One definition of what an article may hold. The sanitiser walks these
+// tables, and the editor builds its schema from them, so what a writer can
+// make and what a reader is shown are the same set.
 
-type Mark = NonNullable<JSONContent['marks']>[number]
-
-/**
- * The marks of one text node: known types once each, a checked link, and
- * code alone (it excludes every other mark). Malformed marks are dropped.
- */
-function cleanMarks(marks: unknown): Mark[] | undefined {
-  if (!Array.isArray(marks)) return undefined
-  const kept = new Map<string, Mark>()
-  for (const mark of marks.slice(0, MAX_MARKS)) {
-    if (!isRecord(mark) || typeof mark.type !== 'string') continue
-    const type = mark.type
-    if (kept.has(type)) continue
-    if (SIMPLE_MARKS.has(type) || type === 'code') kept.set(type, { type })
-    else if (type === 'link' && isRecord(mark.attrs)) {
-      const href = safeLinkHref(mark.attrs.href)
-      if (href) kept.set(type, { type, attrs: { href } })
-    }
-  }
-  if (kept.has('code')) return [{ type: 'code' }]
-  return kept.size ? [...kept.values()] : undefined
-}
-
-const BLOCKS = new Set([
+/** Block nodes: the children of the document, a quote and a list item. */
+export const READING_BLOCKS = [
   'paragraph',
   'heading',
   'blockquote',
@@ -251,23 +232,169 @@ const BLOCKS = new Set([
   'orderedList',
   'codeBlock',
   'horizontalRule',
-  'image',
   'resizableImage',
   'youtube',
-])
-const INLINE = new Set(['text', 'hardBreak'])
-const LIST_ITEMS = new Set(['listItem'])
+] as const
+/** Inline nodes: the children of a paragraph and a heading. */
+export const READING_INLINE = ['text', 'hardBreak'] as const
 
-/** The children each parent may hold; any other child is dropped. */
-const CHILDREN: Record<string, ReadonlySet<string>> = {
-  doc: BLOCKS,
-  blockquote: BLOCKS,
-  listItem: BLOCKS,
-  bulletList: LIST_ITEMS,
-  orderedList: LIST_ITEMS,
-  paragraph: INLINE,
-  heading: INLINE,
-  codeBlock: new Set(['text']),
+export type ReadingNodeName =
+  | 'doc'
+  | 'listItem'
+  | (typeof READING_BLOCKS)[number]
+  | (typeof READING_INLINE)[number]
+
+export type ReadingNodeRule = {
+  /** The node types it may hold, in any order; any other child is dropped. */
+  children: readonly ReadingNodeName[]
+  /** The attributes an author may set; every other attribute is dropped. */
+  attrs: readonly string[]
+  /** Whether its text may carry marks. */
+  marks: boolean
+}
+
+const leaf = (attrs: readonly string[] = []): ReadingNodeRule => ({
+  children: [],
+  attrs,
+  marks: false,
+})
+
+/** Every node the reading view renders, with its children and attributes. */
+export const READING_NODES: Readonly<Record<ReadingNodeName, ReadingNodeRule>> =
+  {
+    doc: { children: READING_BLOCKS, attrs: [], marks: false },
+    paragraph: { children: READING_INLINE, attrs: [], marks: true },
+    heading: { children: READING_INLINE, attrs: ['level'], marks: true },
+    blockquote: { children: READING_BLOCKS, attrs: [], marks: false },
+    bulletList: { children: ['listItem'], attrs: [], marks: false },
+    orderedList: { children: ['listItem'], attrs: ['start'], marks: false },
+    // A list item opens with a paragraph; the sanitiser adds one if not.
+    listItem: { children: READING_BLOCKS, attrs: [], marks: false },
+    codeBlock: { children: ['text'], attrs: [], marks: false },
+    text: leaf(),
+    hardBreak: leaf(),
+    horizontalRule: leaf(),
+    resizableImage: leaf(['src', 'alt', 'title', 'width', 'height']),
+    youtube: leaf(['src']),
+  }
+
+/** Older names read as a listed node: the editor's plain image. */
+export const READING_NODE_ALIASES: Readonly<Record<string, ReadingNodeName>> = {
+  image: 'resizableImage',
+}
+
+/**
+ * Attributes the reading renderer sets itself, never from the author:
+ * the anchors of `readAnchors.ts` and the lazy loading of later images.
+ */
+export const READING_DERIVED_ATTRS: Readonly<
+  Partial<Record<ReadingNodeName, readonly string[]>>
+> = { paragraph: ['anchor'], heading: ['anchor'], resizableImage: ['loading'] }
+
+export type ReadingMarkName =
+  | 'bold'
+  | 'italic'
+  | 'underline'
+  | 'strike'
+  | 'code'
+  | 'link'
+
+/** Every mark, with its attributes. `code` excludes every other mark. */
+export const READING_MARKS: Readonly<
+  Record<ReadingMarkName, { attrs: readonly string[]; excludesOthers: boolean }>
+> = {
+  bold: { attrs: [], excludesOthers: false },
+  italic: { attrs: [], excludesOthers: false },
+  underline: { attrs: [], excludesOthers: false },
+  strike: { attrs: [], excludesOthers: false },
+  code: { attrs: [], excludesOthers: true },
+  link: { attrs: ['href'], excludesOthers: false },
+}
+
+/** Heading levels kept; any other level reads as the first. */
+export const READING_HEADING_LEVELS = [2, 3, 4] as const
+
+const isNodeName = (type: string): type is ReadingNodeName =>
+  Object.hasOwn(READING_NODES, type)
+const isMarkName = (type: string): type is ReadingMarkName =>
+  Object.hasOwn(READING_MARKS, type)
+
+type Check = (value: unknown, walk: Walk) => unknown
+
+/**
+ * The value check of every listed attribute: a checked value, or null to
+ * drop the attribute. A node whose `required` attribute fails is dropped.
+ */
+export const READING_ATTR_CHECKS: Readonly<
+  Partial<Record<ReadingNodeName | ReadingMarkName, Record<string, Check>>>
+> = {
+  heading: {
+    level: (value) =>
+      READING_HEADING_LEVELS.includes(value as 2)
+        ? value
+        : READING_HEADING_LEVELS[0],
+  },
+  orderedList: {
+    start: (value) => {
+      const start = dimension(value)
+      return start && start !== 1 ? start : null
+    },
+  },
+  resizableImage: {
+    src: (value, walk) => safeImageSrc(value, walk.sources),
+    alt: shortText,
+    title: shortText,
+    width: dimension,
+    height: dimension,
+  },
+  youtube: { src: (value) => safeYoutubeSrc(value) },
+  link: { href: (value) => safeLinkHref(value) },
+}
+const REQUIRED: Readonly<Record<string, string>> = {
+  resizableImage: 'src',
+  youtube: 'src',
+  link: 'href',
+}
+
+/** The listed attributes of `type`, checked; null when a required one fails. */
+function cleanAttrs(
+  type: ReadingNodeName | ReadingMarkName,
+  names: readonly string[],
+  given: unknown,
+  walk: Walk
+): Record<string, unknown> | null {
+  const attrs = isRecord(given) ? given : {}
+  const checks = READING_ATTR_CHECKS[type] ?? {}
+  const out: Record<string, unknown> = {}
+  for (const name of names) {
+    const value = checks[name]?.(attrs[name], walk) ?? null
+    if (value !== null) out[name] = value
+    else if (REQUIRED[type] === name) return null
+  }
+  return out
+}
+
+type Mark = NonNullable<JSONContent['marks']>[number]
+
+/**
+ * The marks of one text node: listed types once each, with checked
+ * attributes, and an excluding mark alone. Malformed marks are dropped.
+ */
+function cleanMarks(marks: unknown, walk: Walk): Mark[] | undefined {
+  if (!Array.isArray(marks)) return undefined
+  const kept = new Map<ReadingMarkName, Mark>()
+  for (const mark of marks.slice(0, MAX_MARKS)) {
+    if (!isRecord(mark) || typeof mark.type !== 'string') continue
+    const type = mark.type
+    if (!isMarkName(type) || kept.has(type)) continue
+    const names = READING_MARKS[type].attrs
+    const attrs = cleanAttrs(type, names, mark.attrs, walk)
+    if (!attrs) continue
+    kept.set(type, names.length ? { type, attrs } : { type })
+  }
+  for (const [type, mark] of kept)
+    if (READING_MARKS[type].excludesOthers) return [mark]
+  return kept.size ? [...kept.values()] : undefined
 }
 
 type Walk = {
@@ -280,117 +407,77 @@ type Walk = {
 }
 
 function cleanChildren(
-  parent: string,
+  parent: ReadingNodeName,
   content: unknown,
   walk: Walk,
   depth: number
 ): JSONContent[] {
   if (!Array.isArray(content)) return []
   if (depth > READING_LIMITS.depth) throw new DocumentTooLarge('depth')
-  const allowed = CHILDREN[parent]
+  const allowed: readonly string[] = READING_NODES[parent].children
   const out: JSONContent[] = []
   for (let i = 0; i < content.length; i++) {
     // Every entry counts, whatever it holds.
     if (++walk.nodes > READING_LIMITS.nodes) throw new DocumentTooLarge('nodes')
     const child: unknown = content[i]
     if (!isRecord(child) || typeof child.type !== 'string') continue
-    if (!allowed?.has(child.type)) continue
-    const clean = cleanNode(parent, child, walk, depth)
+    const type = Object.hasOwn(READING_NODE_ALIASES, child.type)
+      ? READING_NODE_ALIASES[child.type]!
+      : child.type
+    if (!isNodeName(type) || !allowed.includes(type)) continue
+    const clean = cleanNode(parent, type, child, walk, depth)
     if (clean) out.push(clean)
   }
   return out
 }
 
 function cleanNode(
-  parent: string,
+  parent: ReadingNodeName,
+  type: ReadingNodeName,
   node: Record<string, unknown>,
   walk: Walk,
   depth: number
 ): JSONContent | null {
-  const attrs = isRecord(node.attrs) ? node.attrs : {}
-  const children = (type: string) =>
-    cleanChildren(type, node.content, walk, depth + 1)
-  switch (node.type) {
-    case 'text': {
-      if (typeof node.text !== 'string') return null
-      if (node.text.length > READING_LIMITS.textLength)
-        throw new DocumentTooLarge('text')
-      // Code blocks hold plain text.
-      const marks = parent === 'codeBlock' ? undefined : cleanMarks(node.marks)
-      const linked = marks?.some((mark) => mark.type === 'link')
-      const text = linked ? node.text.replace(BIDI_CONTROLS, '') : node.text
-      if (!text) return null
-      return marks ? { type: 'text', text, marks } : { type: 'text', text }
-    }
-    case 'paragraph':
-    case 'codeBlock': {
-      const content = children(node.type)
-      return content.length ? { type: node.type, content } : { type: node.type }
-    }
-    case 'heading': {
-      const level = HEADING_LEVELS.includes(attrs.level as number)
-        ? (attrs.level as number)
-        : 2
-      const content = children('heading')
-      return {
-        type: 'heading',
-        attrs: { level },
-        ...(content.length ? { content } : {}),
-      }
-    }
-    case 'blockquote':
-    case 'bulletList': {
-      // An empty quote or list is not valid; it is dropped.
-      const content = children(node.type)
-      return content.length ? { type: node.type, content } : null
-    }
-    case 'orderedList': {
-      const content = children('orderedList')
-      if (!content.length) return null
-      const start = dimension(attrs.start)
-      return {
-        type: 'orderedList',
-        ...(start && start !== 1 ? { attrs: { start } } : {}),
-        content,
-      }
-    }
-    case 'listItem': {
-      // A list item opens with a paragraph.
-      const content = children('listItem')
-      if (content[0]?.type !== 'paragraph')
-        content.unshift({ type: 'paragraph' })
-      return { type: 'listItem', content }
-    }
-    case 'hardBreak':
-    case 'horizontalRule':
-      return { type: node.type }
-    case 'image':
-    case 'resizableImage': {
-      if (++walk.images > READING_LIMITS.images)
-        throw new DocumentTooLarge('images')
-      const src = safeImageSrc(attrs.src, walk.sources)
-      if (!src) return null
-      const image: Record<string, unknown> = { src }
-      const alt = shortText(attrs.alt)
-      const title = shortText(attrs.title)
-      const width = dimension(attrs.width)
-      const height = dimension(attrs.height)
-      if (alt) image.alt = alt
-      if (title) image.title = title
-      if (width) image.width = width
-      if (height) image.height = height
-      // The first image may be the largest paint; the rest wait.
-      if (++walk.shown > 1) image.loading = 'lazy'
-      return { type: 'resizableImage', attrs: image }
-    }
-    case 'youtube': {
-      if (++walk.embeds > READING_LIMITS.embeds)
-        throw new DocumentTooLarge('embeds')
-      const src = safeYoutubeSrc(attrs.src)
-      return src ? { type: 'youtube', attrs: { src } } : null
-    }
-    default:
-      return null
+  if (type === 'text') {
+    if (typeof node.text !== 'string') return null
+    if (node.text.length > READING_LIMITS.textLength)
+      throw new DocumentTooLarge('text')
+    const marks = READING_NODES[parent].marks
+      ? cleanMarks(node.marks, walk)
+      : undefined
+    const linked = marks?.some((mark) => mark.type === 'link')
+    const text = linked ? node.text.replace(BIDI_CONTROLS, '') : node.text
+    if (!text) return null
+    return marks ? { type, text, marks } : { type, text }
+  }
+  if (type === 'resizableImage' && ++walk.images > READING_LIMITS.images)
+    throw new DocumentTooLarge('images')
+  if (type === 'youtube' && ++walk.embeds > READING_LIMITS.embeds)
+    throw new DocumentTooLarge('embeds')
+
+  const rule = READING_NODES[type]
+  const attrs = cleanAttrs(type, rule.attrs, node.attrs, walk)
+  if (!attrs) return null
+  // The first image may be the largest paint; the rest wait.
+  if (type === 'resizableImage' && ++walk.shown > 1) attrs.loading = 'lazy'
+  const content = rule.children.length
+    ? cleanChildren(type, node.content, walk, depth + 1)
+    : []
+  // An empty quote or list is not valid; it is dropped.
+  if (
+    (type === 'blockquote' ||
+      type === 'bulletList' ||
+      type === 'orderedList') &&
+    !content.length
+  )
+    return null
+  // A list item opens with a paragraph.
+  if (type === 'listItem' && content[0]?.type !== 'paragraph')
+    content.unshift({ type: 'paragraph' })
+  return {
+    type,
+    ...(Object.keys(attrs).length ? { attrs } : {}),
+    ...(content.length ? { content } : {}),
   }
 }
 
