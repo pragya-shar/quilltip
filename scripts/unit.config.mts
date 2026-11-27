@@ -33,6 +33,8 @@ export default defineConfig({
       'scripts/convex-runtime/*.test.ts',
       // The design system: money figure layout, navigation config.
       'scripts/system/*.test.ts',
+      // Files deleted by the rebuild stay deleted through merges.
+      'scripts/rebuild/*.test.ts',
     ],
   },
 })

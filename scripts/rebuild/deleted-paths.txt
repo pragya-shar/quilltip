@@ -1,0 +1,6 @@
+# Paths deleted by the rebuild. A pull request that replaces a surface and
+# deletes its legacy files appends each deleted file or directory here, one
+# path per line, relative to the repository root. The check
+# (scripts/rebuild/deleted-paths.test.ts, part of `bun run check`) fails if
+# any listed path exists, so a merge cannot bring a deleted file back.
+# Lines starting with # are comments.

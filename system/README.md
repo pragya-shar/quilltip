@@ -47,7 +47,9 @@ for a missing token, component or state.
 2. In the same pull request, delete the legacy route it replaces, with its
    components, CSS, hooks only it used, specs, fixtures, fixture suite entry,
    budget entries and `proxy.ts` font preloads (rebuild plan R2). The same
-   URL never exists in both groups.
+   URL never exists in both groups. List every deleted path in
+   `scripts/rebuild/deleted-paths.txt`; `bun run check` fails if one comes
+   back through a merge.
 3. A new top-level segment goes into `APP_ROUTE_SEGMENTS`
    (`lib/routing/publicContentPath.ts`), or the proxy treats it as a
    username.
