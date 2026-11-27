@@ -900,3 +900,55 @@ applied-throttling rows load the page on a slowed network and CPU.
   content instead of the loading placeholder, and the load event is later
   because the fonts load up front.
 - Re-measure production after deployment with the command in the notes above.
+
+## Presses before the page scripts run (#554)
+
+On a slow phone, the browser paints the server HTML seconds before React
+attaches its handlers. A press in that window used to be lost: the sign-in
+form posted natively and reloaded the page, and the mobile menu button did
+nothing. Both now answer from the first paint, without changing how Next.js
+loads its scripts.
+
+- **Auth forms** (`/login`, `/register`, `/forgot-password`,
+  `/reset-password`). An inline script at the start of `<body>`
+  (`components/layout/EarlyInteractionScript.tsx`, `lib/auth/earlySubmit.ts`)
+  cancels a submit made before React attaches the form and marks the form as
+  holding it; CSS shows the busy label ("One moment…") from the next frame.
+  When React attaches the form, `useEarlySubmit` reports the values typed so
+  far to the form's handlers and sends the held submit once with
+  `requestSubmit()`, through the same validation, Convex Auth call, errors and
+  `returnTo` handling as a later press. Nothing is stored; the password stays
+  in the field and goes only over the Convex connection, as before. A hold
+  ends after 20 s without sending if the scripts never run. `/waitlist` only
+  gained `method="post"`: the waitlist refuses forms sent faster than
+  `WAITLIST_MIN_FILL_MS`, so a held submit would be dropped there.
+- **Mobile menu.** The sheet is a native `<dialog>` in the server HTML. Before
+  the scripts run, the header button opens it as a popover
+  (`popovertarget`, action `show`); an inline script closes the popover when
+  focus leaves it (`lib/navigation/earlyMenu.ts`). Once the scripts run, the
+  button opens it with `showModal()` (focus moves in, the page is inert,
+  Escape closes it and focus returns to the button), and a popover the reader
+  opened earlier becomes the modal dialog in the same frame. The sheet's
+  slide uses CSS transitions (`translate` and backdrop `opacity`, 200 ms in,
+  150 ms out) and none under reduced motion.
+
+### Measuring tap-to-visible-result
+
+`scripts/perf/tap-to-visible.ts` taps a control and records the first
+animation frame that shows its response, on the slow phone profile used in
+this document (375 × 812 touch screen; Slow 4G as Lighthouse applies it and 4×
+CPU in Chromium; the same latency and download rate by request interception
+in WebKit, without CPU slowdown). Usage and options are at the top of the
+script. To match the deployed site, build with immutable asset paths and serve
+through the HTTP/2 proxy, which also sends the deployed cache headers:
+
+```bash
+QUILLTIP_IMMUTABLE_ASSETS=1 NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
+bun run start -- -p 3104   # with the fixture backend on 3299 (scripts/perf/fixture-backend.ts)
+PROXY_KEY=key.pem PROXY_CERT=cert.pem bun scripts/perf/http2-proxy.ts
+bun scripts/perf/tap-to-visible.ts --browsers chromium --base-url https://127.0.0.1:3443 --label change --out chromium.json
+bun scripts/perf/tap-to-visible.ts --browsers webkit --base-url http://127.0.0.1:3104 --label change --out webkit.json
+```
+
+`bun run test:e2e:early-taps` checks the behaviour in Chromium and WebKit with
+the page scripts held back (`e2e/early-taps.spec.ts`).

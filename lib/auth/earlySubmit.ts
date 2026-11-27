@@ -3,9 +3,9 @@
  *
  * The browser paints the server HTML before React attaches its handlers. A
  * submit in that window would post the form natively and reload the page, so
- * the reader's tap is lost. A small inline script in the root layout catches
- * that submit, cancels it and marks the form as holding it; CSS shows the
- * pending state from the next frame. When React attaches the form
+ * the reader's tap is lost. A small inline script at the start of `<body>`
+ * catches that submit, cancels it and marks the form as holding it; CSS shows
+ * the pending state from the next frame. When React attaches the form
  * (`useEarlySubmit`), it sends the held submit once through the form's own
  * handler, which reads the fields as they are then.
  *
@@ -33,7 +33,7 @@ export const HELD_FORM_PROPERTY = '__heldSubmitForm'
 export const HELD_SUBMIT_MS = 20_000
 
 /**
- * Runs inline in `<head>`, before any form is parsed. Keep it small and
- * dependency-free.
+ * Runs inline at the start of `<body>`, before any form is parsed. Keep it
+ * small and dependency-free.
  */
 export const EARLY_SUBMIT_SCRIPT = `(function(){var h="${HELD_SUBMIT_ATTRIBUTE}",a="${SCRIPTS_ACTIVE_ATTRIBUTE}";document.addEventListener("submit",function(e){var f=e.target;if(!(f instanceof HTMLFormElement)||!f.hasAttribute("${EARLY_SUBMIT_ATTRIBUTE}")||f.hasAttribute(a))return;e.preventDefault();if(f.hasAttribute(h))return;f.setAttribute(h,"");self.${HELD_FORM_PROPERTY}=f;setTimeout(function(){if(f.hasAttribute(a))return;f.removeAttribute(h);if(self.${HELD_FORM_PROPERTY}===f)self.${HELD_FORM_PROPERTY}=null},${HELD_SUBMIT_MS})},true)})()`

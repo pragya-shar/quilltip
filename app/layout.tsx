@@ -39,10 +39,13 @@ export default async function RootLayout({
           type="font/woff2"
           crossOrigin="anonymous"
         />
-        {/* Answers presses made before the page scripts run. */}
-        <EarlyInteractionScript nonce={nonce} />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
+        {/* Answers presses made before the page scripts run. It runs before
+            any form or menu is parsed. In <head> it would change when Chrome
+            runs the page's chunks (first paint about 0.9 s earlier, React
+            about 0.9 s later on the slow phone profile; issue #554). */}
+        <EarlyInteractionScript nonce={nonce} />
         <Providers nonce={nonce}>{children}</Providers>
         <Analytics />
         {analyticsServerKey() && <AnalyticsConsent />}

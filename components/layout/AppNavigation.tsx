@@ -43,7 +43,11 @@ export default function AppNavigation() {
     const wasPopover = dialog.matches(':popover-open')
     if (wasPopover) dialog.hidePopover()
     dialog.showModal()
-    if (wasPopover && focused instanceof HTMLElement && dialog.contains(focused))
+    if (
+      wasPopover &&
+      focused instanceof HTMLElement &&
+      dialog.contains(focused)
+    )
       focused.focus()
     setMenuOpen(true)
   }
