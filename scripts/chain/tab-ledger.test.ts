@@ -3368,6 +3368,261 @@ describe('spendable balance across settler records and indexed events', () => {
     expect((await account(t)).confirmedBalance).toBe(expected)
   })
 
+  // -------------------------------------------------------------------------
+  // #576: each `TabSettled` debit counted once, however many there are.
+
+  const GROSS = BigInt(1000)
+  /** A settlement of the other writer's pair, which has no voucher here. */
+  const otherSettled = (i: number, ledger: number) =>
+    ev.tabSettled(
+      {
+        writer: OTHER_WRITER,
+        cumulative: GROSS * BigInt(i + 1),
+        paidAfter: GROSS * BigInt(i + 1),
+        gross: GROSS,
+      },
+      { ledger }
+    )
+  async function ingestAll(t: T, events: RawRpcEvent[]) {
+    for (let i = 0; i < events.length; i += 100) {
+      await ingest(t, ...events.slice(i, i + 100))
+    }
+  }
+  /** Marks stored events `pending` (all, or those ids) and dispatches them. */
+  async function redispatchEvents(t: T, ids?: string[]) {
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        if (!ids || ids.includes(row.eventId)) {
+          await ctx.db.patch(row._id, { handled: 'pending' })
+        }
+      }
+    })
+    for (;;) {
+      const r = await t.mutation(internal.chain.indexer.redispatch, {
+        limit: 500,
+      })
+      if (r.checked === 0) break
+    }
+  }
+  const balanceOf = async (t: T) => BigInt((await account(t)).confirmedBalance)
+  const debitRows = (t: T) =>
+    t.run(
+      async (ctx) => (await ctx.db.query('tabBalanceDebits').collect()).length
+    )
+
+  it.each([300, 2000])(
+    '%i settlements after a balance: the oldest and a middle one re-dispatched, then a full replay, each debited once (#576)',
+    async (n) => {
+      const t = convexTest(schema, modules)
+      await seed(t)
+      const events = Array.from({ length: n }, (_, i) =>
+        otherSettled(i, LEDGER + 1 + i)
+      )
+      await ingestAll(t, events)
+      const expected = BigInt(10) * XLM - GROSS * BigInt(n)
+      expect(await balanceOf(t)).toBe(expected)
+      await redispatchEvents(t, [events[0]!.id, events[n >> 1]!.id])
+      expect(await balanceOf(t)).toBe(expected)
+      await ingestAll(t, events)
+      await redispatchEvents(t)
+      expect(await balanceOf(t)).toBe(expected)
+      expect(await debitRows(t)).toBe(n)
+      // The account row does not grow with the number of settlements.
+      const row = await account(t)
+      expect(row.settledSinceBalance).toEqual([])
+      expect(JSON.stringify(row).length).toBeLessThan(2_000)
+    },
+    120_000
+  )
+
+  it('a late older absolute balance after more than 256 debits subtracts every one of them (#576)', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t)
+    const events = Array.from({ length: 300 }, (_, i) =>
+      otherSettled(i, LEDGER + 10 + i)
+    )
+    await ingestAll(t, events)
+    // A deposit from before all of them is indexed late.
+    await ingest(
+      t,
+      ev.deposited(READER, XLM, BigInt(11) * XLM, { ledger: LEDGER + 5 })
+    )
+    const expected = BigInt(11) * XLM - GROSS * BigInt(300)
+    expect(await balanceOf(t)).toBe(expected)
+    expect(await debitRows(t)).toBe(300)
+    // A newer balance covers them all: the rows go, nothing is counted again.
+    await ingest(
+      t,
+      ev.deposited(READER, XLM, expected + XLM, { ledger: LEDGER + 1000 })
+    )
+    expect(await balanceOf(t)).toBe(expected + XLM)
+    expect(await debitRows(t)).toBe(0)
+    await redispatchEvents(t)
+    expect(await balanceOf(t)).toBe(expected + XLM)
+  })
+
+  it('the reconciliation leaves no debit to count twice (#576)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    // The settler's settlement event is lost; 300 settlements of another
+    // pair follow (0.03 in all).
+    await settlerRecord(t, settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    await ingestAll(
+      t,
+      Array.from({ length: 300 }, (_, i) => otherSettled(i, LEDGER + 2 + i))
+    )
+    expect(await debitRows(t)).toBe(300)
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 400,
+        balance: BigInt(2) * CENT,
+        paid: new Map([[WRITER, BigInt(10) * CENT]]),
+      })
+    ).toMatchObject({ status: 'applied' })
+    expect(await debitRows(t)).toBe(0)
+    await redispatchEvents(t)
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(2) * CENT).toString(),
+      available: (BigInt(2) * CENT).toString(),
+    })
+    expect(flagged()).toEqual([])
+  })
+
+  it('rows written before the change: list entries still count, and the next balance drains them (#576)', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t)
+    const events = [1, 2, 3].map((i) => otherSettled(i, LEDGER + i))
+    await ingest(t, ...events)
+    // As written before this change: the debits in the list, no rows.
+    await t.run(async (ctx) => {
+      const rows = await ctx.db.query('tabBalanceDebits').collect()
+      const row = (await ctx.db.query('tabAccounts').first())!
+      await ctx.db.patch(row._id, {
+        settledSinceBalance: rows.map((r) => ({
+          eventId: r.eventId,
+          gross: r.gross,
+        })),
+      })
+      for (const r of rows) await ctx.db.delete(r._id)
+    })
+    const expected = BigInt(10) * XLM - GROSS * BigInt(3)
+    await redispatchEvents(t, [events[1]!.id])
+    expect(await balanceOf(t)).toBe(expected)
+    expect(await debitRows(t)).toBe(0)
+    // A late deposit from before them still subtracts the listed debits.
+    await ingest(
+      t,
+      ev.deposited(READER, XLM, BigInt(11) * XLM, { ledger: LEDGER })
+    )
+    expect(await balanceOf(t)).toBe(BigInt(11) * XLM - GROSS * BigInt(3))
+    // A newer balance drains the list.
+    await ingest(
+      t,
+      ev.deposited(READER, XLM, BigInt(12) * XLM, { ledger: LEDGER + 9 })
+    )
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(12) * XLM).toString(),
+      settledSinceBalance: [],
+    })
+  })
+
+  it('a pair written before #565 with its event still in flight is debited once (#576)', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = paidOf(WRITER, 10)
+    await settlerRecord(t, settlementId, [paid], LEDGER + 1)
+    // As the code before #565 left it: paid raised by the settler's record,
+    // no reserve, no indexed ranges, the balance not yet debited.
+    await t.run(async (ctx) => {
+      const pair = (await ctx.db.query('tabVouchers').first())!
+      await ctx.db.patch(pair._id, {
+        indexedPaid: undefined,
+        paidLedger: undefined,
+      })
+      const row = (await ctx.db.query('tabAccounts').first())!
+      await ctx.db.patch(row._id, {
+        settledUnindexed: undefined,
+        settledUnindexedSince: undefined,
+      })
+    })
+    const event = settledEvent(paid, { ledger: LEDGER + 1 })
+    await ingest(t, event)
+    await ingest(t, event)
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      available: (BigInt(5) * CENT).toString(),
+    })
+  })
+
+  it('long runs: thousands of settlements between rare balances, delivered out of order, re-dispatched and replayed (#576)', async () => {
+    for (const seedNo of [11, 12, 13, 14]) {
+      const rand = prng(seedNo)
+      const pick = (n: number) => Math.floor(rand() * n)
+      const t = convexTest(schema, modules)
+      await seed(t)
+      let balance = BigInt(10) * XLM
+      let ledger = LEDGER
+      let paid = BigInt(0)
+      const queue: RawRpcEvent[] = []
+      const indexed: RawRpcEvent[] = []
+      let sinceBalance = 0
+      let longest = 0
+      for (let step = 0; step < 700; step++) {
+        const op = pick(200)
+        // About one balance event per 600 steps: runs well past 256 debits.
+        if (op === 0 && pick(3) === 0) {
+          const amount = BigInt(1 + pick(5)) * XLM
+          balance += amount
+          sinceBalance = 0
+          queue.push(
+            ev.deposited(READER, amount, balance, { ledger: ++ledger })
+          )
+        } else if (op < 170) {
+          const gross = BigInt(1 + pick(5000))
+          if (gross > balance) continue
+          balance -= gross
+          paid += gross
+          sinceBalance++
+          longest = Math.max(longest, sinceBalance)
+          queue.push(
+            ev.tabSettled(
+              {
+                writer: OTHER_WRITER,
+                cumulative: paid,
+                paidAfter: paid,
+                gross,
+              },
+              { ledger: ++ledger }
+            )
+          )
+        } else if (op < 190 && queue.length) {
+          // Out of order within a window of the oldest 20.
+          const [e] = queue.splice(pick(Math.min(20, queue.length)), 1)
+          await ingest(t, e!)
+          indexed.push(e!)
+        } else if (op < 196 && indexed.length) {
+          await redispatchEvents(t, [indexed[pick(indexed.length)]!.id])
+        } else if (indexed.length) {
+          await ingest(t, indexed[pick(indexed.length)]!)
+        }
+      }
+      while (queue.length) {
+        const [e] = queue.splice(pick(Math.min(20, queue.length)), 1)
+        await ingest(t, e!)
+      }
+      expect(await balanceOf(t), `seed ${seedNo}`).toBe(balance)
+      await redispatchEvents(t)
+      expect(await balanceOf(t), `seed ${seedNo} after a replay`).toBe(balance)
+      // Rows are kept only for debits after the newest balance.
+      expect(await debitRows(t), `seed ${seedNo}`).toBeLessThanOrEqual(
+        sinceBalance + 20
+      )
+      expect((await account(t)).settledSinceBalance).toEqual([])
+      expect(longest, `seed ${seedNo}`).toBeGreaterThan(256)
+    }
+  }, 300_000)
+
   it('review: property over settler, settle_own, shuffled and lost events, and reconciliations', async () => {
     const SEEDS = 40
     const STEPS = 60
