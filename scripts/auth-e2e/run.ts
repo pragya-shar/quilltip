@@ -386,6 +386,9 @@ async function main(): Promise<number> {
           AUTH_E2E_CONVEX_URL: convexUrl,
           AUTH_E2E_EMAIL: account.email,
           AUTH_E2E_PASSWORD: account.password,
+          // This run's throwaway key on the local backend: the suite signs an
+          // expired copy of a real token with it.
+          AUTH_E2E_JWT_PRIVATE_KEY: privateKey,
           NEXT_PUBLIC_CONVEX_URL: convexUrl,
           CONVEX_DEPLOYMENT: DEPLOYMENT,
           QUILLTIP_NETWORK_GUARD_OPT_IN: 'testnet',
