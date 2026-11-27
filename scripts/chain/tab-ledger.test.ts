@@ -28,6 +28,7 @@ import {
   type StoredReceipt,
 } from '../../convex/lib/chain/voucher'
 import { hexToBytes, bytesToHex } from '../../convex/lib/chain/ids'
+import { formatUsd, formatXlmFromStroops } from '../../lib/copy/network-status'
 import { checkTabTipAmount, tabTipLimitsAt } from '../../lib/tab-ui/tip-limits'
 import { signEd25519 } from '../../lib/stellar/v2/tab/encoding'
 import {
@@ -1044,6 +1045,116 @@ describe('tip limits in getMyTab (#546)', () => {
     } finally {
       delete process.env.TAB_TIP_MAX
     }
+  })
+})
+
+describe('writer earnings summary with tab tips (#552)', () => {
+  // $1 per XLM in the seed: 10 cents is 1,000,000 stroops.
+  const summary = (t: T, s: Seeded) =>
+    as(t, s.authorId).query(api.tips.getMyEarningsSummary, {})
+
+  it('a tab tip accepted but not settled is in none of the figures', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    expect(await summary(t, s)).toMatchObject({
+      tipCount: 0,
+      earnedStroops: '0',
+      estimatedUsd: 0,
+    })
+  })
+
+  it('settled tab tips only: XLM, USD and count cover the same tips', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(3_500_000),
+        gross: BigInt(3_500_000),
+      })
+    )
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SETTLED'])
+    expect(await summary(t, s)).toMatchObject({
+      tipCount: 2,
+      // 97.5 % of 3.5 XLM, under the cumulative fee rule.
+      earnedStroops: netOf(BigInt(3_500_000)).toString(),
+      // 97.5 % of 35 cents.
+      estimatedUsd: 0.34125,
+    })
+  })
+
+  it('a short settlement counts only the receipts it settled, in all three', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    // 1.5 of 3.5 XLM paid: receipt 1 settles, receipt 2 waits (SHORTFALL).
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(1_500_000),
+        gross: BigInt(1_500_000),
+      })
+    )
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SHORTFALL'])
+    // The pair's paid amount runs ahead of its settled receipts.
+    expect((await earnings(t, s.authorId))?.earnedBaseUnits?.[TOKEN]).toBe(
+      netOf(BigInt(1_500_000)).toString()
+    )
+    expect(await summary(t, s)).toMatchObject({
+      tipCount: 1,
+      earnedStroops: netOf(BigInt(1_000_000)).toString(),
+      estimatedUsd: 0.0975,
+    })
+  })
+
+  it('wallet and tab tips together: the integration writer reads 114.58 XLM, $14.87 and 9 tips', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Three tab tips of 50, 50 and 25 cents, settled on chain.
+    await tip(t, s, { cents: 50 })
+    await tip(t, s, { cents: 50 })
+    await tip(t, s, { cents: 25 })
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(12_500_000),
+        paidAfter: BigInt(12_500_000),
+        gross: BigInt(12_500_000),
+      })
+    )
+    // Six confirmed wallet tips, as the earnings sync credits them: the
+    // integration row has 1,145,760,615 base units in all and 1,365 cents.
+    const tabNet = netOf(BigInt(12_500_000))
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === s.authorId
+      )!
+      expect(row.earnedBaseUnits?.[TOKEN]).toBe(tabNet.toString())
+      // The tab settlement already credited the display totals.
+      expect(row).toMatchObject({ tipCount: 3, totalEarnedCents: 121.875 })
+      await ctx.db.patch(row._id, {
+        earnedBaseUnits: { [TOKEN]: '1145760615' },
+        v2EarnedCents: 1365,
+        v2TipCount: 6,
+        totalEarnedCents: 1486.875,
+        tipCount: 9,
+      })
+    })
+    const result = (await summary(t, s))!
+    expect(result).toMatchObject({
+      tipCount: 9,
+      earnedStroops: '1145760615',
+      estimatedUsd: 14.86875,
+    })
+    // As the stats page shows them.
+    expect(formatXlmFromStroops(result.earnedStroops, 2)).toBe('114.58 XLM')
+    expect(formatUsd(result.estimatedUsd)).toBe('$14.87')
   })
 })
 

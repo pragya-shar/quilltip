@@ -28,6 +28,8 @@ export function CreatorStatsPanel({
     {
       label: 'Tips received',
       value: tipsReceivedCount.toLocaleString('en-US'),
+      // The same tips as the earned figure (#552).
+      note: 'From wallets and settled tabs',
     },
     { label: 'NFTs owned', value: nftsOwned.toLocaleString('en-US') },
     {

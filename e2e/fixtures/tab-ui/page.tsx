@@ -9,6 +9,7 @@ import { createRoot } from 'react-dom/client'
 
 import { TabServicesContext } from '../../../hooks/tab/TabServicesContext'
 import { CollectPanel } from '../../../components/tab/CollectPanel'
+import { CreatorStatsPanel } from '../../../components/dashboard/CreatorStatsPanel'
 import { TabHome } from '../../../components/tab/TabHome'
 import { TabTipAction } from '../../../components/tab/TabTipAction'
 import '../../../components/account/account.css'
@@ -48,6 +49,17 @@ function Fixture() {
                 onTipFromWallet={() =>
                   document.body.setAttribute('data-wallet-tip', 'opened')
                 }
+              />
+            </div>
+          ) : view === 'stats' && scenario?.stats ? (
+            <div className="tab-ui" style={{ paddingTop: 24 }}>
+              <CreatorStatsPanel
+                articleCount={4}
+                tipsReceivedCount={scenario.stats.tipCount}
+                earnedStroops={scenario.stats.earnedStroops}
+                estimatedUsd={scenario.stats.estimatedUsd}
+                isTestnet
+                nftsOwned={0}
               />
             </div>
           ) : (
