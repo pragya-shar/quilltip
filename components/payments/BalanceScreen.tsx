@@ -7,6 +7,7 @@
  * without a reason on screen.
  */
 import { Plus } from 'lucide-react'
+import { formatTokenAmount } from '@/lib/payments/money'
 import type { ActivityView, BalanceView } from '@/lib/payments/types'
 import { ActivityList } from './ActivityList'
 import './balance.css'
@@ -35,6 +36,15 @@ export function BalanceScreen({
           className="qt-skeleton qt-figure-skeleton"
           aria-label="Loading your balance"
         />
+      ) : balance.exact ? (
+        <>
+          <p className="qt-figure" data-testid="balance-available">
+            {formatTokenAmount(balance.exact.available)}
+          </p>
+          <p className="qt-notice" role="status" data-testid="balance-no-price">
+            Dollar value not available right now.
+          </p>
+        </>
       ) : null}
       <h1 className="qt-figure-label">Ready to tip</h1>
       <p className="qt-testnet">Testnet. Practice money only.</p>

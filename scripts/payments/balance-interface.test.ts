@@ -426,14 +426,43 @@ describe('the spoken form and the conversion price', () => {
     expect(fakePayments('loading', NOW).balance.price).toBeNull()
     expect(fakePayments('signed-out', NOW).balance.price).toBeNull()
   })
+
+  it('floors the price per token, never rounding it up', () => {
+    const at = (usd: number) =>
+      balance({ ...session(), prices: [{ token: 'xlm', usd, at: NOW }] }).price!
+        .perToken.display
+    expect(at(0.12735)).toBe('$0.1273')
+    expect(at(0.12739)).toBe('$0.1273')
+    expect(at(0.1273)).toBe('$0.1273')
+    expect(at(0.3)).toBe('$0.30')
+  })
+
+  it('shows no dollar figure for a balance when no price is known', () => {
+    for (const prices of [[], [{ token: 'xlm', usd: 0, at: NOW }]]) {
+      const v = balance({ ...session(), prices })
+      expect(v.status).toBe('ready')
+      expect(v.available).toBeNull()
+      expect(v.price).toBeNull()
+      // The token amount stays: 20 XLM.
+      expect(v.exact).toEqual({ token: 'XLM', available: '200000000' })
+      expect(v.amounts).toEqual([])
+      expect(v.noAmountReason).toBe('price')
+      // Tip-time figures need no price.
+      expect(v.pending).toMatchObject({ cents: 0, display: '$0.00' })
+    }
+  })
 })
 
 describe('the review’s contract points', () => {
   it('writes the money text samples a parsing component relies on', () => {
-    for (const sample of MONEY_TEXT_SAMPLES)
+    for (const sample of MONEY_TEXT_SAMPLES) {
       expect(formatMoney(sample.cents, sample.format), sample.name).toBe(
         sample.text
       )
+      expect(spokenMoney(sample.cents, sample.format), sample.name).toBe(
+        sample.spoken
+      )
+    }
   })
 
   it('refuses a second tap synchronously: one outbox entry', () => {

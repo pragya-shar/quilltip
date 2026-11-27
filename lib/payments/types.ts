@@ -90,7 +90,10 @@ export type BalanceView = {
     | 'closing'
     | 'unavailable'
   /** What a tip can use now, including tips sent from this device.
-   * Null until the server answered: never a placeholder zero. */
+   * Null until the server answered: never a placeholder zero. Also null in
+   * `ready` or `closing` when no price is known (`price` null,
+   * `noAmountReason: 'price'`): the dollar value is not known, and `exact`
+   * holds the token amount. */
   available: Money | null
   /** Accepted tips not yet paid on chain, at their own dollars. */
   pending: Money | null
@@ -105,8 +108,9 @@ export type BalanceView = {
   } | null
   /** The quick amounts beside the tip button, within every limit. */
   amounts: Money[]
-  /** Why no amount fits now, when none does. */
-  noAmountReason: 'cap' | 'daily' | 'balance' | null
+  /** Why no amount fits now, when none does. `price`: no price is known to
+   * convert the balance with, so no amount is known to fit. */
+  noAmountReason: 'cap' | 'daily' | 'balance' | 'price' | null
   /** Tips accepted but slower than the expected settlement time are lagging. */
   settlement: { enabled: boolean; expectedWithinMs: number }
   online: boolean
@@ -210,7 +214,7 @@ export type TipController = {
   /** The amount the tip button states and sends; null when none fits. */
   amount: Money | null
   /** Why the control cannot send now, with no figure in token units. */
-  blocked: 'cap' | 'daily' | 'balance' | 'choose' | null
+  blocked: 'cap' | 'daily' | 'balance' | 'price' | 'choose' | null
   amounts: Money[]
   setAmount(cents: Cents): void
   /** Sends the chosen amount from the balance. Ignored while sending. */

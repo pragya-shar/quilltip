@@ -40,6 +40,14 @@ no converted figure or no price); `asOf` (client time the figures were last
 known current: it follows the clock while online and stops when offline, so
 a screen can say "as of 4 minutes ago"; null until read).
 
+**No price known.** With a balance but no cached price to convert it with,
+`status` stays `ready` (or `closing`) and the dollar value is unknown, never
+"≈ $0.00": `available` is `null`, `price` is `null`, `exact` holds the token
+amount, `amounts` is empty and `noAmountReason` is `'price'` (a control's
+`blocked` is `'price'`). Show `exact` with "Dollar value not available right
+now". Tip-time figures (`pending`, `limits`) are unaffected. The price per
+token is floored to four decimals ($0.12735 reads "$0.1273").
+
 If the reader spent from the balance outside the app, spendable can be
 below zero on the ledger: `available` reads "$0.00" and no amount fits
 (`noAmountReason: 'balance'`).
@@ -76,7 +84,8 @@ that is not fails the tip, with nothing charged.
   Write the button's and the choices' text with
   `formatMoney(cents, { short: true })` ("$1", "$0.50"); `display` is the
   row form ("$1.00").
-- `blocked`: `cap`, `daily`, `balance` or `choose`, with no token figure.
+- `blocked`: `cap`, `daily`, `balance`, `price` (no price known) or
+  `choose`, with no token figure.
 - `signedOut`: always present. For a signed-out visitor, `{ signedOut: true,
 amount, amounts }`: the default and the ladder from public data only (the minimum
   tip, the per-tip cap and the current price; never a balance or a daily
@@ -200,6 +209,14 @@ amount; a `Money`'s `display` is its output with the defaults.
   and `spoken` says "about 18 dollars 40" for a screen reader
   (`spokenMoney`).
 
+- **Spoken form** (`spokenMoney(cents, { converted, sign })`, and a
+  `Money`'s `spoken`): under one dollar it is said in cents, never as a
+  decimal of a dollar ("9.75 cents", "50 cents", "10 cents"); from one
+  dollar up, dollars then cents ("1 dollar", "2 dollars 50", "18 dollars
+  40"). "about" for a converted figure; "plus" or "minus" for a signed one
+  ("plus 9.75 cents" for a writer's row, "minus 1 dollar" for a reader's).
+  A `Money`'s `spoken` has no sign: a row label passes the row's `sign`.
+
 - **Converted figures:** a `Money` converted from a token amount at today's
   price (the reader's spendable `available`) has `converted: true`; its
   price time is the view's `asOf` and its token amount the view's `exact`.
@@ -211,8 +228,9 @@ amount; a `Money`'s `display` is its output with the defaults.
 - There is no `formatExactCents` (it was removed): every amount goes through
   `formatMoney`.
 - `money-samples.ts` exports `MONEY_TEXT_SAMPLES` (plain, six decimals,
-  signed, converted, zero, short, dust): sample outputs of `formatMoney` that a
-  component parsing the text imports in its own tests.
+  cents, signed, converted, zero, short, dust): sample outputs of
+  `formatMoney` (`text`) and `spokenMoney` (`spoken`) that a component
+  parsing or speaking the text imports in its own tests.
 
 ## Without a backend: `fake.ts`
 

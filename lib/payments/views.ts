@@ -54,8 +54,8 @@ export const TIP_LADDER = [10, 25, 50, 100, 200, 300, 500] as const
 export const MAX_CHOICES = 4
 export const DEFAULT_CHOICE_CENTS = 100
 
-/** Why no amount of the ladder fits. */
-export type NoAmountReason = 'cap' | 'daily' | 'balance'
+/** Why no amount of the ladder fits (`price`: no price to convert with). */
+export type NoAmountReason = 'cap' | 'daily' | 'balance' | 'price'
 
 export function tipChoices(bounds: {
   minCents: number
@@ -159,10 +159,16 @@ export function balanceViewOf(input: {
     return { ...base, status: 'signed-out' }
   if (session === undefined) return base
   // The price the conversion uses, the same one the server's figure used.
-  const read = session.prices[0]
+  // Floored to four decimals of a dollar, as every conversion is.
+  const read =
+    session.prices[0] &&
+    session.prices[0].usd > 0 &&
+    Number.isFinite(session.prices[0].usd)
+      ? session.prices[0]
+      : null
   const priceView = read
     ? {
-        perToken: money(Math.round(read.usd * 10_000) / 100),
+        perToken: money(Math.floor(read.usd * 10_000 + 1e-6) / 100),
         asOf: read.at,
       }
     : null
@@ -179,7 +185,7 @@ export function balanceViewOf(input: {
       price: null,
     }
 
-  const price = session.prices[0]?.usd ?? 0
+  const price = read?.usd ?? 0
   const sending = unansweredEntries(input.outbox, session)
   const reserved = sending.reduce(
     (sum, e) => sum + BigInt(e.estimate),
@@ -216,12 +222,18 @@ export function balanceViewOf(input: {
     })
     amounts = choices.amounts.map(money)
     noAmountReason = choices.reason
+    // No price: no dollar figure, so no amount is known to fit.
+    if (!read) {
+      amounts = []
+      noAmountReason = 'price'
+    }
   }
   return {
     ...base,
     status: session.status === 'closing' ? 'closing' : 'ready',
-    // Converted from the token at today's price: an estimate.
-    available: convertedMoney(availableCents),
+    // Converted from the token at today's price: an estimate. With no price
+    // there is no dollar figure, never "≈ $0.00": `exact` holds the amount.
+    available: read ? convertedMoney(availableCents) : null,
     exact: {
       token: 'XLM',
       available: (left > BigInt(0) ? left : BigInt(0)).toString(),
