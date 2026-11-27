@@ -6,6 +6,7 @@
 import {
   FixtureState,
   LEDGER,
+  tipLimitsFor,
   NOW,
   XLM,
   baseState,
@@ -862,6 +863,78 @@ const S: Scenario[] = [
     seed: (s) => {
       open(s)
       s.settleAs = null
+    },
+  },
+  // --- Reader: the tip dialog's tab section (#546, page /dialog) ----------
+  // The dialog page also runs the tip-* states above.
+  {
+    id: 'dialog-loading',
+    title: 'Tip dialog: the tab is loading',
+    view: 'tip',
+    device: 'none',
+    seed: (s) => {
+      s.scenario = 'home-loading'
+    },
+  },
+  {
+    id: 'dialog-tiny-balance',
+    title: 'Tip dialog: one stroop free',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      openTab(s, BigInt(1))
+      s.tab!.tipLimits = tipLimitsFor()
+    },
+  },
+  {
+    id: 'dialog-large-balance',
+    title: 'Tip dialog: a very large free balance',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      openTab(s, BigInt('123456789012345678'))
+      s.settleAs = null
+    },
+  },
+  {
+    id: 'dialog-low-max',
+    title: 'Tip dialog: a 2.5 XLM tab tip maximum',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.tab!.tipLimits = tipLimitsFor({ tipMax: '25000000' })
+    },
+  },
+  {
+    id: 'dialog-no-price',
+    title: 'Tip dialog: no current XLM price',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.tab!.tipLimits = tipLimitsFor({ priceUsd: null })
+    },
+  },
+  {
+    id: 'dialog-daily-left',
+    title: 'Tip dialog: 0.5 XLM left today',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      // 19.5 of 20 XLM accepted today (UTC): 0.5 XLM left.
+      s.tab!.tipLimits = tipLimitsFor({ acceptedToday: '195000000' })
+    },
+  },
+  {
+    id: 'dialog-key-limit',
+    title: 'Tip dialog: 0.5 XLM left on this device',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.keySpendLimit = BigInt(5_000_000)
     },
   },
   // --- Writer: collect ----------------------------------------------------

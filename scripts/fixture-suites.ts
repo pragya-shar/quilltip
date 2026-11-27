@@ -93,12 +93,13 @@ export const FIXTURES = [
     env: {},
   },
   {
-    // Tab screens (#449): every state in Chromium, the session-key and
-    // voucher paths in Chromium, Firefox and WebKit (its own config).
+    // Tab screens (#449) and the tip dialog's tab section (#546): every
+    // state in Chromium, the session-key and voucher paths in Chromium,
+    // Firefox and WebKit (its own config).
     name: 'tab-ui',
     server: 'e2e/fixtures/tab-ui/server.mjs',
     port: 4183,
-    spec: 'e2e/tab-ui(-keys)?.spec.ts',
+    spec: 'e2e/(tab-ui(-keys)?|tab-tip-dialog).spec.ts',
     config: 'e2e/fixtures/tab-ui/playwright.config.ts',
     env: {},
   },

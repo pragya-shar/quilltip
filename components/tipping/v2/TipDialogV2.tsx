@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  useCallback,
   useEffect,
   useId,
   useMemo,
@@ -22,6 +23,8 @@ import {
   WalletGate,
 } from '@/components/payments'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { LazyTabTipAction } from '@/components/tab/LazyTabTipAction'
+import type { TabTipDialogPhase } from '@/components/tab/TabTipDialogSection'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { TipPassageContext } from '@/components/tipping/TipPassageContext'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -33,6 +36,8 @@ import { coreTipSplit } from '@/lib/payments/format'
 import { buildLoginHref } from '@/lib/auth/safeReturnPath'
 import { v2Runtime } from '@/lib/stellar/v2/chain-runtime'
 import { AMOUNT_ERRORS, BASKET_COPY, TIP_DIALOG } from '@/lib/copy/tip-flow'
+import { TAB_TIP_DIALOG } from '@/lib/copy/tab'
+import { tabTipPresets } from '@/lib/tab-ui/tip-limits'
 import {
   TIP_MAX_CENTS,
   TIP_PRESET_CENTS,
@@ -99,7 +104,11 @@ export function TipDialogV2({
   const prepareHighlight = useMutation(api.tipsV2.prepareHighlightTip)
   const [installOpen, setInstallOpen] = useState(false)
 
-  const [preset, setPreset] = useState<number | null>(TIP_PRESET_CENTS[0])
+  /** The preset the reader pressed; null until then (the first preset). */
+  const [picked, setPicked] = useState<number | null>(null)
+  /** The largest tab tip at today's price while the tab can send. */
+  const [tabMaxCents, setTabMaxCents] = useState<number | null>(null)
+  const [tabPhase, setTabPhase] = useState<TabTipDialogPhase>('unavailable')
   const [custom, setCustom] = useState('')
   const [message, setMessage] = useState('')
   const [amountError, setAmountError] = useState<string | null>(null)
@@ -118,13 +127,35 @@ export function TipDialogV2({
     }
   }, [])
 
+  // One amount for the dialog: with a quick tip on offer, no preset is above
+  // the tab tip maximum. A pressed preset that no longer fits becomes the
+  // largest that does.
+  const presets = (tabMaxCents === null
+    ? null
+    : tabTipPresets(
+        TIP_PRESET_CENTS,
+        tabMaxCents,
+        eligibility.minTipCents ?? 1
+      )) ?? [...TIP_PRESET_CENTS]
+  const preset =
+    picked === null
+      ? presets[0]!
+      : presets.includes(picked)
+        ? picked
+        : presets[presets.length - 1]!
   const cents = custom.trim() ? parseDollars(custom) : preset
   const check = checkAmount(cents, eligibility.minTipCents, custom)
   const running = flow.state.stage === 'preparing' || flow.state.step !== null
+  const tabBusy = tabPhase === 'busy'
+  /** A quick tip is sending or answered: the dialog shows only its section. */
+  const tabOwns = tabPhase === 'busy' || tabPhase === 'result'
+  const tabReady = tabPhase === 'ready'
+  /** The tab section has its heading: the wallet tip gets one too. */
+  const tabShown = tabReady || tabPhase === 'blocked'
 
   useEffect(() => {
-    onBusyChange(running)
-  }, [running, onBusyChange])
+    onBusyChange(running || tabBusy)
+  }, [running, tabBusy, onBusyChange])
 
   const confirmed = flow.record?.uiState === 'confirmed'
   useEffect(() => {
@@ -237,7 +268,7 @@ export function TipDialogV2({
       customRef.current?.focus()
       return
     }
-    if (blocked || gate.kind !== 'ready') return
+    if (blocked || gate.kind !== 'ready' || tabOwns) return
     if (flowCondition) flow.dismiss()
     setAmountError(null)
     setAdded(null)
@@ -278,6 +309,22 @@ export function TipDialogV2({
               ? BASKET_COPY.busy
               : BASKET_COPY.unavailable
     setAdded({ ok: false, ...copy })
+  }
+
+  // "Send from your tab" with no valid amount: the same message as Send tip.
+  // A quick tip that starts sending holds the dialog open in the same
+  // render as the press; the effect above releases it.
+  const onTabPhase = useCallback(
+    (phase: TabTipDialogPhase) => {
+      setTabPhase(phase)
+      if (phase === 'busy') onBusyChange(true)
+    },
+    [onBusyChange]
+  )
+
+  const onTabInvalidAmount = () => {
+    setAmountError(amountMessage(check))
+    customRef.current?.focus()
   }
 
   const clearRefusal = () => {
@@ -394,216 +441,253 @@ export function TipDialogV2({
 
       {showForm ? (
         <form className="tip-v2-form" onSubmit={onSubmit} noValidate>
-          <fieldset className="tip-v2-fieldset">
-            <legend>{TIP_DIALOG.amountLegend}</legend>
-            <div
-              className="tip-presets"
-              role="group"
-              aria-label="Preset amounts"
-            >
-              {TIP_PRESET_CENTS.map((value) => (
-                <button
-                  key={value}
-                  type="button"
-                  className="tip-preset"
-                  aria-pressed={!custom.trim() && preset === value}
-                  onClick={() => {
-                    setPreset(value)
-                    setCustom('')
-                    clearRefusal()
-                  }}
+          {tabOwns ? null : (
+            <>
+              <fieldset className="tip-v2-fieldset">
+                <legend>{TIP_DIALOG.amountLegend}</legend>
+                <div
+                  className="tip-presets"
+                  role="group"
+                  aria-label="Preset amounts"
                 >
-                  {formatCents(value)}
-                </button>
-              ))}
-            </div>
-            <div>
-              <label htmlFor={ids.custom} className="tip-field-label">
-                {TIP_DIALOG.customLabel}
-              </label>
-              <div className="tip-v2-dollar">
-                <span aria-hidden="true">$</span>
-                <input
-                  ref={customRef}
-                  id={ids.custom}
-                  className="tip-input"
-                  type="text"
-                  inputMode="decimal"
-                  autoComplete="off"
-                  spellCheck={false}
-                  enterKeyHint="send"
-                  placeholder="0.00"
-                  value={custom}
-                  aria-invalid={amountError ? true : undefined}
-                  aria-describedby={
-                    amountError ? `${ids.error} ${ids.hint}` : ids.hint
-                  }
-                  onChange={(event) => {
-                    setCustom(event.target.value)
-                    if (amountError) {
-                      const next = event.target.value.trim()
-                        ? parseDollars(event.target.value)
-                        : preset
-                      setAmountError(
-                        amountMessage(
-                          checkAmount(
-                            next,
-                            eligibility.minTipCents,
-                            event.target.value
+                  {presets.map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className="tip-preset"
+                      aria-pressed={!custom.trim() && preset === value}
+                      onClick={() => {
+                        setPicked(value)
+                        setCustom('')
+                        clearRefusal()
+                      }}
+                    >
+                      {formatCents(value)}
+                    </button>
+                  ))}
+                </div>
+                <div>
+                  <label htmlFor={ids.custom} className="tip-field-label">
+                    {TIP_DIALOG.customLabel}
+                  </label>
+                  <div className="tip-v2-dollar">
+                    <span aria-hidden="true">$</span>
+                    <input
+                      ref={customRef}
+                      id={ids.custom}
+                      className="tip-input"
+                      type="text"
+                      inputMode="decimal"
+                      autoComplete="off"
+                      spellCheck={false}
+                      enterKeyHint="send"
+                      placeholder="0.00"
+                      value={custom}
+                      aria-invalid={amountError ? true : undefined}
+                      aria-describedby={
+                        amountError ? `${ids.error} ${ids.hint}` : ids.hint
+                      }
+                      onChange={(event) => {
+                        setCustom(event.target.value)
+                        if (amountError) {
+                          const next = event.target.value.trim()
+                            ? parseDollars(event.target.value)
+                            : preset
+                          setAmountError(
+                            amountMessage(
+                              checkAmount(
+                                next,
+                                eligibility.minTipCents,
+                                event.target.value
+                              )
+                            )
                           )
-                        )
-                      )
-                    }
-                    if (flowCondition) flow.dismiss()
-                    setAdded(null)
-                  }}
-                  onBlur={() => {
-                    if (custom.trim()) setAmountError(amountMessage(check))
-                  }}
-                  data-1p-ignore
-                  data-lpignore="true"
-                />
-              </div>
-              {amountError ? (
-                <p id={ids.error} className="tip-v2-field-error">
-                  <CircleAlert aria-hidden="true" />
-                  {amountError}
-                </p>
-              ) : null}
-              <p id={ids.hint} className="tip-hint">
-                {TIP_DIALOG.customHint(
-                  formatCents(Math.max(eligibility.minTipCents ?? 1, 1)),
-                  formatCents(TIP_MAX_CENTS)
-                )}
-              </p>
-            </div>
-          </fieldset>
+                        }
+                        if (flowCondition) flow.dismiss()
+                        setAdded(null)
+                      }}
+                      onBlur={() => {
+                        if (custom.trim()) setAmountError(amountMessage(check))
+                      }}
+                      data-1p-ignore
+                      data-lpignore="true"
+                    />
+                  </div>
+                  {amountError ? (
+                    <p id={ids.error} className="tip-v2-field-error">
+                      <CircleAlert aria-hidden="true" />
+                      {amountError}
+                    </p>
+                  ) : null}
+                  <p id={ids.hint} className="tip-hint">
+                    {TIP_DIALOG.customHint(
+                      formatCents(Math.max(eligibility.minTipCents ?? 1, 1)),
+                      formatCents(TIP_MAX_CENTS)
+                    )}
+                    {tabMaxCents !== null
+                      ? ` ${TAB_TIP_DIALOG.maxHint(formatCents(tabMaxCents))}`
+                      : null}
+                  </p>
+                </div>
+              </fieldset>
 
-          {estimate && estimate !== '0' ? (
-            <AmountSummary
-              total={estimate}
-              breakdown={(() => {
-                const split = coreTipSplit(estimate)
-                return split
-                  ? [
-                      { label: 'To the author', amount: split.writer },
-                      { label: 'Platform fee', amount: split.fee },
-                    ]
-                  : []
-              })()}
-              quoteCents={check.ok ? check.cents : null}
-              estimate
-            />
-          ) : (
-            <TestnetLabel detail />
+              {estimate && estimate !== '0' ? (
+                <AmountSummary
+                  total={estimate}
+                  breakdown={(() => {
+                    const split = coreTipSplit(estimate)
+                    return split
+                      ? [
+                          { label: 'To the author', amount: split.writer },
+                          { label: 'Platform fee', amount: split.fee },
+                        ]
+                      : []
+                  })()}
+                  quoteCents={check.ok ? check.cents : null}
+                  estimate
+                />
+              ) : (
+                <TestnetLabel detail />
+              )}
+            </>
           )}
 
-          {variant === 'article' ? (
-            <details>
-              <summary className="tip-help-trigger">
-                {TIP_DIALOG.messageLabel}
-              </summary>
-              <div className="tip-help-content">
-                <label htmlFor={ids.note} className="tip-field-label">
-                  Note
-                </label>
-                <textarea
-                  id={ids.note}
-                  className="tip-input resize-none"
-                  rows={3}
-                  maxLength={500}
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (
-                      (event.metaKey || event.ctrlKey) &&
-                      event.key === 'Enter'
-                    ) {
-                      event.currentTarget.form?.requestSubmit()
-                    }
-                  }}
-                />
-                <p className="tip-hint">{message.length}/500 characters</p>
-              </div>
-            </details>
-          ) : null}
+          {/* "From your tab": the same amount, with no wallet prompt. */}
+          <LazyTabTipAction
+            layout="dialog"
+            articleId={articleId}
+            highlight={variant === 'highlight' && highlight ? highlight : null}
+            recipientCount={eligibility.recipientCount}
+            writerName={authorName}
+            manageHref="/dashboard/tab"
+            amountCents={check.ok ? check.cents : null}
+            onMaxChange={setTabMaxCents}
+            onPhaseChange={onTabPhase}
+            onInvalidAmount={onTabInvalidAmount}
+            onDone={onDone}
+          />
 
-          <div className="tip-actions">
-            <WalletGate
-              state={gate}
-              onSignIn={() =>
-                router.push(
-                  buildLoginHref(`${pathname}${window.location.search}`)
-                )
-              }
-              onInstall={() => setInstallOpen(true)}
-              onConnect={() => {
-                gateActed.current = true
-                if (flowCondition) flow.dismiss()
-                void flow.wallet.connect().catch(() => undefined)
-              }}
-              onRecheck={() => {
-                gateActed.current = true
-                if (flowCondition) flow.dismiss()
-                void flow.wallet.refreshConnection()
-              }}
-              onVerify={() => {
-                gateActed.current = true
-                if (flowCondition) flow.dismiss()
-                void ownership.verify()
-              }}
-              busy={
-                ownership.status === 'challenge' ||
-                ownership.status === 'sign' ||
-                ownership.status === 'verify'
-              }
-              help={gate.kind === 'no-wallet' ? <WalletSetupHelp /> : undefined}
-            >
-              <Button
-                ref={sendRef}
-                type="submit"
-                className="tip-primary"
-                aria-disabled={blocked || undefined}
-              >
-                <Heart className="w-4 h-4" aria-hidden="true" />
-                {TIP_DIALOG.send}
-              </Button>
-            </WalletGate>
-            {gate.kind !== 'signed-out' && gate.kind !== 'checking' ? (
-              <Button
-                type="button"
-                variant="outline"
-                className="tip-v2-secondary"
-                onClick={onAddToBasket}
-              >
-                <ShoppingBasket className="w-4 h-4" aria-hidden="true" />
-                {TIP_DIALOG.addToBasket}
-              </Button>
-            ) : null}
-          </div>
-          <div className="tip-v2-added" role="status" aria-live="polite">
-            {added?.ok ? (
-              <>
-                <span>{TIP_DIALOG.added}</span>
-                <button
-                  type="button"
-                  className="tip-v2-link"
-                  onClick={onOpenBasket}
+          {tabOwns ? null : (
+            <>
+              {tabShown ? (
+                <h3 className="tip-wallet-title">
+                  {TAB_TIP_DIALOG.walletHeading}
+                </h3>
+              ) : null}
+
+              {variant === 'article' ? (
+                <details>
+                  <summary className="tip-help-trigger">
+                    {TIP_DIALOG.messageLabel}
+                  </summary>
+                  <div className="tip-help-content">
+                    <label htmlFor={ids.note} className="tip-field-label">
+                      Note
+                    </label>
+                    <textarea
+                      id={ids.note}
+                      className="tip-input resize-none"
+                      rows={3}
+                      maxLength={500}
+                      value={message}
+                      onChange={(event) => setMessage(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (
+                          (event.metaKey || event.ctrlKey) &&
+                          event.key === 'Enter'
+                        ) {
+                          event.currentTarget.form?.requestSubmit()
+                        }
+                      }}
+                    />
+                    <p className="tip-hint">{message.length}/500 characters</p>
+                  </div>
+                </details>
+              ) : null}
+
+              <div className="tip-actions">
+                <WalletGate
+                  state={gate}
+                  // With the tab ready, its send is the one primary action.
+                  className={tabReady ? 'tip-gate-quiet' : undefined}
+                  onSignIn={() =>
+                    router.push(
+                      buildLoginHref(`${pathname}${window.location.search}`)
+                    )
+                  }
+                  onInstall={() => setInstallOpen(true)}
+                  onConnect={() => {
+                    gateActed.current = true
+                    if (flowCondition) flow.dismiss()
+                    void flow.wallet.connect().catch(() => undefined)
+                  }}
+                  onRecheck={() => {
+                    gateActed.current = true
+                    if (flowCondition) flow.dismiss()
+                    void flow.wallet.refreshConnection()
+                  }}
+                  onVerify={() => {
+                    gateActed.current = true
+                    if (flowCondition) flow.dismiss()
+                    void ownership.verify()
+                  }}
+                  busy={
+                    ownership.status === 'challenge' ||
+                    ownership.status === 'sign' ||
+                    ownership.status === 'verify'
+                  }
+                  help={
+                    gate.kind === 'no-wallet' ? <WalletSetupHelp /> : undefined
+                  }
                 >
-                  {TIP_DIALOG.openBasket}
-                </button>
-              </>
-            ) : added ? (
-              <span>
-                <strong>{added.title}.</strong> {added.detail}
-              </span>
-            ) : null}
-          </div>
-          {ownership.error ? (
-            <p className="tip-v2-field-error" role="alert">
-              {ownership.error.title}. {ownership.error.detail}
-            </p>
-          ) : null}
+                  <Button
+                    ref={sendRef}
+                    type="submit"
+                    variant={tabReady ? 'outline' : 'default'}
+                    className={tabReady ? 'tip-v2-secondary' : 'tip-primary'}
+                    aria-disabled={blocked || undefined}
+                  >
+                    <Heart className="w-4 h-4" aria-hidden="true" />
+                    {tabReady ? TAB_TIP_DIALOG.sendFromWallet : TIP_DIALOG.send}
+                  </Button>
+                </WalletGate>
+                {gate.kind !== 'signed-out' && gate.kind !== 'checking' ? (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="tip-v2-secondary"
+                    onClick={onAddToBasket}
+                  >
+                    <ShoppingBasket className="w-4 h-4" aria-hidden="true" />
+                    {TIP_DIALOG.addToBasket}
+                  </Button>
+                ) : null}
+              </div>
+              <div className="tip-v2-added" role="status" aria-live="polite">
+                {added?.ok ? (
+                  <>
+                    <span>{TIP_DIALOG.added}</span>
+                    <button
+                      type="button"
+                      className="tip-v2-link"
+                      onClick={onOpenBasket}
+                    >
+                      {TIP_DIALOG.openBasket}
+                    </button>
+                  </>
+                ) : added ? (
+                  <span>
+                    <strong>{added.title}.</strong> {added.detail}
+                  </span>
+                ) : null}
+              </div>
+              {ownership.error ? (
+                <p className="tip-v2-field-error" role="alert">
+                  {ownership.error.title}. {ownership.error.detail}
+                </p>
+              ) : null}
+            </>
+          )}
         </form>
       ) : null}
 

@@ -2,17 +2,15 @@
 
 import { useId, useState } from 'react'
 import {
-  PaymentNotice,
   TestnetLabel,
-  type NoticeAction,
   TransactionProgress,
-  WalletGate,
   XlmAmount,
 } from '@/components/payments'
-import { NoticeActionButton } from '@/components/payments/NoticeActionButton'
 import { useTabTip, type TabTipTarget } from '@/hooks/tab/useTabTip'
-import { TAB_ACTIONS, TAB_KEYS, TAB_PAGE, TAB_TIP } from '@/lib/copy/tab'
+import { TAB_TIP } from '@/lib/copy/tab'
 import { formatUsd } from '@/lib/copy/network-status'
+import { TabTipAvailabilityNotice } from './TabTipAvailabilityNotice'
+import { TabTipOutcomeNotice } from './TabTipOutcomeNotice'
 
 export type TabTipActionProps = TabTipTarget & {
   /** The tip in US cents, when the tip UI picks it; presets otherwise. */
@@ -50,141 +48,15 @@ export function TabTipAction({
   const walletAction = onTipFromWallet
     ? { onClick: onTipFromWallet, label: TAB_TIP.tipFromWallet }
     : undefined
-  const manage = { href: manageHref, label: TAB_ACTIONS.manage }
 
-  const body = (() => {
-    switch (availability.kind) {
-      case 'loading':
-        return (
-          <p className="tab-subtle" role="status">
-            {TAB_TIP.heading}…
-          </p>
-        )
-      case 'splits':
-        return (
-          <PaymentNotice
-            kind="tips-unavailable"
-            reason="splits"
-            action={walletAction}
-          />
-        )
-      case 'unavailable':
-        return (
-          <PaymentNotice
-            kind="refused"
-            copy={{
-              title: TAB_TIP.unavailable,
-              detail: TAB_PAGE.unavailableDetail,
-            }}
-          />
-        )
-      case 'settlement-off':
-        return (
-          <>
-            <PaymentNotice
-              kind="refused"
-              copy={{
-                title: TAB_TIP.unavailable,
-                detail: TAB_TIP.settlementOff,
-              }}
-            />
-            {walletAction ? (
-              <div className="tab-actions">
-                <NoticeActionButton
-                  action={walletAction}
-                  label={walletAction.label}
-                />
-              </div>
-            ) : null}
-          </>
-        )
-      case 'gate':
-        return (
-          <WalletGate state={availability.gate} verifyHref="/dashboard/wallet">
-            {null}
-          </WalletGate>
-        )
-      case 'tab-none':
-        return (
-          <PaymentNotice
-            kind="tab-none"
-            action={{ ...manage, label: TAB_ACTIONS.open }}
-          />
-        )
-      case 'tab-closing':
-        return <PaymentNotice kind="tab-closing" action={walletAction} />
-      case 'key': {
-        // Each key state with its own cause and next step.
-        const d = availability.device
-        const notice = (
-          title: string,
-          detail: string,
-          action: NoticeAction | undefined
-        ) => (
-          <>
-            <PaymentNotice kind="refused" copy={{ title, detail }} />
-            {action?.label ? (
-              <div className="tab-actions">
-                <NoticeActionButton action={action} label={action.label} />
-              </div>
-            ) : null}
-          </>
-        )
-        switch (d.kind) {
-          case 'gone':
-            return <PaymentNotice kind="session-key-missing" action={manage} />
-          case 'expired':
-            return <PaymentNotice kind="session-key-expired" action={manage} />
-          case 'none':
-            return (
-              <PaymentNotice
-                kind="session-key-none"
-                action={{ ...manage, label: TAB_ACTIONS.setUpKey }}
-              />
-            )
-          case 'other-device':
-            return notice(
-              TAB_KEYS.otherDeviceTitle,
-              TAB_KEYS.otherDeviceDetail,
-              {
-                ...manage,
-                label: TAB_ACTIONS.setUpKey,
-              }
-            )
-          case 'pending':
-            return notice(TAB_KEYS.pendingTitle, TAB_KEYS.pendingDetail, {
-              ...manage,
-              label: TAB_KEYS.pendingAction,
-            })
-          case 'revoked':
-            return notice(TAB_KEYS.revokedTitle, TAB_KEYS.revokedDetail, {
-              ...manage,
-              label: TAB_ACTIONS.setUpKey,
-            })
-          case 'stopped':
-            return notice(TAB_KEYS.stoppedTitle, TAB_KEYS.stoppedDetail, {
-              ...manage,
-              label: TAB_ACTIONS.setUpKey,
-            })
-          case 'storage-unavailable':
-            // No key can live in this browser: the wallet is the way.
-            return notice(
-              TAB_KEYS.storageTitle,
-              TAB_KEYS.storageDetail,
-              walletAction
-            )
-          case 'unchecked':
-            return notice(
-              TAB_KEYS.uncheckedTitle,
-              TAB_KEYS.uncheckedDetail,
-              walletAction
-            )
-        }
-      }
-      case 'ready':
-        return null
-    }
-  })()
+  const body =
+    availability.kind === 'ready' ? null : (
+      <TabTipAvailabilityNotice
+        availability={availability}
+        manageHref={manageHref}
+        walletAction={walletAction}
+      />
+    )
 
   const ready = availability.kind === 'ready'
   const running = state.phase === 'running'
@@ -204,72 +76,13 @@ export function TabTipAction({
         ) : null}
       </div>
       {body}
-      {refusal ? (
-        refusal.kind === 'notice' ? (
-          refusal.notice.kind === 'insufficient-balance' ? (
-            <PaymentNotice
-              kind="insufficient-balance"
-              source="tab"
-              available={ready ? availability.free : undefined}
-              action={manage}
-              announce
-            />
-          ) : refusal.notice.kind === 'daily-limit' ||
-            refusal.notice.kind === 'tab-closing' ? (
-            <PaymentNotice
-              kind={refusal.notice.kind}
-              action={walletAction}
-              announce
-            />
-          ) : (
-            <PaymentNotice
-              kind={refusal.notice.kind}
-              action={manage}
-              announce
-            />
-          )
-        ) : refusal.kind === 'refused' ? (
-          <PaymentNotice kind="refused" copy={refusal.copy} announce />
-        ) : refusal.kind === 'tips-unavailable' ? (
-          <PaymentNotice
-            kind="tips-unavailable"
-            reason={refusal.reason}
-            action={walletAction}
-            announce
-          />
-        ) : (
-          <WalletGate state={refusal.gate} verifyHref="/dashboard/wallet">
-            {null}
-          </WalletGate>
-        )
-      ) : null}
-      {outcome?.kind === 'stopped' ? (
-        <PaymentNotice
-          kind="refused"
-          copy={{ title: TAB_TIP.stoppedTitle, detail: outcome.message }}
-          announce
-        />
-      ) : null}
-      {outcome?.kind === 'unconfirmed' ? (
-        <PaymentNotice
-          kind="refused"
-          copy={{
-            title: TAB_TIP.unconfirmedTitle,
-            detail: TAB_TIP.unconfirmedDetail,
-          }}
-          announce
-        />
-      ) : null}
-      {outcome?.kind === 'unreachable' ? (
-        <PaymentNotice
-          kind="refused"
-          copy={{
-            title: TAB_TIP.unreachableTitle,
-            detail: TAB_TIP.unreachableDetail,
-          }}
-          announce
-        />
-      ) : null}
+      <TabTipOutcomeNotice
+        refusal={refusal}
+        outcome={outcome}
+        free={ready ? availability.free : undefined}
+        manageHref={manageHref}
+        walletAction={walletAction}
+      />
       {progress ? (
         <TransactionProgress
           flow="tab-tip"

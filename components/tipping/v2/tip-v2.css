@@ -286,6 +286,109 @@
   gap: 12px;
 }
 
+/*
+ * Two ways to send the dialog's amount (issue #546): "From your tab" and
+ * "From your wallet", each under a rule with its own small heading.
+ */
+.tip-tab {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+}
+.tip-tab,
+.tip-wallet-title {
+  border-top: 1px solid var(--ui-border);
+  padding-top: 16px;
+}
+.tip-v2-form > .pay-amount + .tip-tab {
+  /* The amount summary's rule already separates them. */
+  border-top: 0;
+  padding-top: 0;
+}
+.tip-tab-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 16px;
+}
+.tip-tab-title,
+.tip-wallet-title {
+  margin: 0;
+  color: var(--ui-foreground);
+  font: 600 15px/1.4 var(--ui-font);
+}
+.tip-tab-free {
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.tip-tab .tip-hint {
+  margin-top: 0;
+}
+.tip-tab-limit:empty {
+  display: none;
+}
+/*
+ * The one line for a reader without a tab, and its placeholder of the same
+ * height, so the wallet tip below does not move when the tab answers.
+ */
+.tip-tab-line {
+  min-height: 44px;
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+.tip-tab-link {
+  /* A 44 px target that stays in the line of text. */
+  display: inline-block;
+  padding-block: 12px;
+  margin-block: -12px;
+  color: var(--ui-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 4px;
+  touch-action: manipulation;
+}
+@media (hover: hover) and (pointer: fine) {
+  .tip-tab-link:hover {
+    text-decoration-thickness: 2px;
+  }
+}
+.tip-tab-loading {
+  display: flex;
+  align-items: center;
+}
+.tip-tab-loading > span[aria-hidden] {
+  display: block;
+  width: min(22rem, 70%);
+  height: 12px;
+  border-radius: 2px;
+  background: var(--ui-muted);
+}
+.tip-tab .tip-actions {
+  gap: 10px;
+}
+/* The wallet gate's action steps down while the tab send is primary. */
+.tip-dialog .tip-gate-quiet .pay-action {
+  border: 1px solid var(--ui-input);
+  background: var(--ui-accent);
+  color: var(--ui-primary);
+}
+@media (hover: hover) and (pointer: fine) {
+  .tip-dialog .tip-gate-quiet .pay-action:hover {
+    background: var(--ui-surface);
+  }
+}
+/* Focusable, so its reason is read, but plainly not available. */
+.tip-tab .tip-primary[aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
 /* The basket list. */
 .tip-basket-list {
   display: grid;

@@ -205,3 +205,36 @@ export const COLLECT = {
   feeExplainer:
     'The fee and your share are from the settlement events on chain.',
 } as const
+
+/**
+ * The tab tip section of the tip dialog (issue #546): one amount for the
+ * dialog, sent from the tab or from the wallet.
+ */
+export const TAB_TIP_DIALOG = {
+  heading: 'From your tab',
+  /** After the amount: "12.5 XLM free". */
+  free: 'free',
+  send: (amount: string) => `Send ${amount} from your tab`,
+  sending: 'Sending from your tab…',
+  /** The wallet button while the tab can send. */
+  sendFromWallet: 'Send from your wallet',
+  walletHeading: 'From your wallet',
+  noTab: 'Tip without a wallet prompt from a prepaid tab.',
+  loading: 'Checking your tab…',
+  /** Under the amount field while a quick tip is on offer. */
+  maxHint: (max: string) => `Tab tips go up to ${max} at today’s XLM price.`,
+  aboveMax: (max: string) => ({
+    title: `Tab tips go up to ${max} right now`,
+    detail: `That is the most a tab tip can be at today’s XLM price. Choose ${max} or less, or send this amount from your wallet.`,
+  }),
+  dailyLimit: (left: string) => ({
+    title: 'This is over today’s tab limit',
+    detail: `You can tip ${left} more from your tab today. Choose a smaller amount, or send this one from your wallet.`,
+  }),
+  keyLimit: (left: string) => ({
+    title: 'This is over this device’s quick-tip limit',
+    detail: `This device can tip ${left} more from your tab. Set up quick tips again to raise it, or send this from your wallet.`,
+  }),
+  chooseAmount: 'Choose an amount first.',
+  done: 'Done',
+} as const

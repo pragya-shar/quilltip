@@ -117,12 +117,56 @@ export type FixtureState = {
   accepted: Record<string, SubmittedTabTip>
   nextKeyId: number
   calls: string[]
+  /** Spend limit of the key the page seeds as ready; 50 XLM when unset. */
+  keySpendLimit?: bigint
 }
 
 export const XLM = BigInt(10_000_000)
 const ZERO = BigInt(0)
 /** The fixture prices XLM at $0.10: one cent is 0.1 XLM. */
 export const STROOPS_PER_CENT = BigInt(1_000_000)
+export const PRICE_USD = 0.1
+/** `TAB_TIP_MAX` and `TAB_DAILY_LIMIT` defaults: 5 and 20 XLM. */
+export const TIP_MAX = BigInt(5) * BigInt(10_000_000)
+export const DAILY_LIMIT = BigInt(20) * BigInt(10_000_000)
+
+/** `TAB_PRICE_MAX_AGE_MS`: prepare refuses a price older than 30 minutes. */
+export const PRICE_MAX_AGE_MS = 30 * 60 * 1000
+
+/** The UTC day of a time, as Convex counts the daily limit. */
+export const utcDayOf = (at: number) => new Date(at).toISOString().slice(0, 10)
+
+/**
+ * What `tabs.getMyTab` returns as `tipLimits`, at the fixture's price: raw
+ * values, fetched now, nothing accepted today unless the scenario says.
+ */
+export function tipLimitsFor(
+  o: Partial<NonNullable<MyTab['tipLimits']>> = {}
+): NonNullable<MyTab['tipLimits']> {
+  const tipMax = BigInt(o.tipMax ?? TIP_MAX.toString())
+  const priceUsd = o.priceUsd === undefined ? PRICE_USD : o.priceUsd
+  return {
+    tipMax: tipMax.toString(),
+    dailyLimit: DAILY_LIMIT.toString(),
+    acceptedToday: o.acceptedToday ?? '0',
+    acceptedDay: o.acceptedDay ?? utcDayOf(Date.now()),
+    minTip: o.minTip === undefined ? '100000' : o.minTip,
+    priceUsd,
+    priceFetchedAt:
+      o.priceFetchedAt !== undefined
+        ? o.priceFetchedAt
+        : priceUsd === null
+          ? null
+          : Date.now(),
+    priceMaxAgeMs: PRICE_MAX_AGE_MS,
+    tipMaxCents:
+      o.tipMaxCents !== undefined
+        ? o.tipMaxCents
+        : priceUsd === null
+          ? null
+          : Number(tipMax / STROOPS_PER_CENT),
+  }
+}
 export const LEDGER = 1_000_000
 const DAY = 17_280
 /** Server start: scenario times are relative to the real clock. */
@@ -196,6 +240,7 @@ export function openTab(
     acceptedToday: '0',
     acceptedDay: '2026-11-27',
     withdrawUnlockLedger: null,
+    tipLimits: tipLimitsFor(),
     keys,
     pairs: [],
   }
@@ -531,6 +576,17 @@ export function prepareTip(
   if (!key) throw new FixtureError('TAB_KEY_UNKNOWN')
   if (key.revoked) throw new FixtureError('TAB_KEY_REVOKED')
   const amount = BigInt(args.amountCents) * STROOPS_PER_CENT
+  // Prepare's order (convex/lib/chain/tabLedger.ts, checkTabTip).
+  const limits = state.tab.tipLimits
+  if (limits && amount > BigInt(limits.tipMax))
+    throw new FixtureError('TAB_ABOVE_TIP_MAX')
+  if (limits) {
+    const today = utcDayOf(Date.now())
+    const accepted =
+      limits.acceptedDay === today ? BigInt(limits.acceptedToday) : ZERO
+    if (accepted + amount > BigInt(limits.dailyLimit))
+      throw new FixtureError('TAB_DAILY_LIMIT')
+  }
   if (BigInt(state.tab.available) < amount)
     throw new FixtureError('TAB_OVER_BALANCE')
   const pairId = `${args.keyId}|${FIXTURE_WRITER}`
@@ -634,6 +690,14 @@ export function submitTip(
     alreadyAccepted: false,
   }
   state.accepted[args.prepareId] = result
+  if (state.tab?.tipLimits) {
+    const limits = state.tab.tipLimits
+    const today = utcDayOf(Date.now())
+    const before =
+      limits.acceptedDay === today ? BigInt(limits.acceptedToday) : ZERO
+    limits.acceptedDay = today
+    limits.acceptedToday = (before + BigInt(args.receipt.amount)).toString()
+  }
   key.acceptedTotal = (
     BigInt(key.acceptedTotal) + BigInt(args.receipt.amount)
   ).toString()
