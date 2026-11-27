@@ -25,6 +25,12 @@
   },
   {
     "class": "C",
+    "path": "docs/contracts/v3-testnet-deployment.md",
+    "match": "`\"QuillTip Article\"`",
+    "reason": "The NFT collection name stored on chain by the deployed NFT contract is \"QuillTip Article\". This record lists the deployed value."
+  },
+  {
+    "class": "C",
     "path": "convex/lib/walletChallenge.ts",
     "match": "QuillTip asks you to prove you control this Stellar account.",
     "reason": "Wallet challenge text. The server rebuilds it from the stored challenge and checks the wallet signature over it, so a challenge issued before a deploy and answered after it (5 minute lifetime) would fail."

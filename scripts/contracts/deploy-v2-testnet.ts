@@ -23,7 +23,7 @@
 import { execFileSync } from 'child_process'
 import { join, resolve } from 'path'
 
-import { SETS, type ContractSet } from './deploy-v2/config'
+import { SET_DEFAULTS, SETS, type ContractSet } from './deploy-v2/config'
 import { stepConvexEnv } from './deploy-v2/convex-env'
 import { writeEvidence } from './deploy-v2/evidence'
 import { assertKeysDirOutsideRepo, restrictKeyFiles } from './deploy-v2/keys'
@@ -64,13 +64,15 @@ export type DeployOptions = {
   baseRef: string
 }
 
-const USAGE = `Usage: bun scripts/contracts/deploy-v2-testnet.ts --set integration|live --commit <sha> --keys-dir <dir> [options]
+const USAGE = `Usage: bun scripts/contracts/deploy-v2-testnet.ts --set ${SETS.join('|')} --commit <sha> --keys-dir <dir> [options]
 
   --steps <list>       Comma-separated subset of ${STEPS.join(',')} (default: all but convex-env)
-  --base-ref <ref>     A testnet commit must be on this ref (default: origin/overhaul/v2)
+  --base-ref <ref>     A testnet commit must be on this ref (default: origin/overhaul/v3
+                       for v3, origin/overhaul/v2 otherwise)
   --state-file <path>  Default: <keys-dir>/<set>/deploy-state.json
   --build-dir <dir>    Default: <keys-dir>/<set>/build
-  --evidence <path>    Default: docs/contracts/v2-testnet-deployment.md on testnet,
+  --evidence <path>    Default: docs/contracts/v3-testnet-deployment.md for v3 and
+                       docs/contracts/v2-testnet-deployment.md otherwise on testnet,
                        <keys-dir>/<set>/v2-local-deployment.md on a local network
   --nft-base-uri <url> Default: https://www.quilltip.me/api/nft/`
 
@@ -88,7 +90,7 @@ export function parseArgs(argv: string[]): DeployOptions {
   }
   const set = values.get('set')
   if (!set || !(SETS as readonly string[]).includes(set))
-    throw new Error(`--set must be integration or live\n${USAGE}`)
+    throw new Error(`--set must be one of ${SETS.join(', ')}\n${USAGE}`)
   const commit = values.get('commit')
   if (!commit || !/^[0-9a-f]{40}$/.test(commit))
     throw new Error(`--commit must be a full 40-character commit SHA\n${USAGE}`)
@@ -112,7 +114,7 @@ export function parseArgs(argv: string[]): DeployOptions {
     buildDir: values.get('build-dir'),
     evidence: values.get('evidence'),
     nftBaseUri: values.get('nft-base-uri'),
-    baseRef: values.get('base-ref') ?? 'origin/overhaul/v2',
+    baseRef: values.get('base-ref') ?? SET_DEFAULTS[set as ContractSet].baseRef,
   }
 }
 
@@ -201,7 +203,7 @@ export async function main(
     const evidence = resolve(
       options.evidence ??
         (net.network === 'TESTNET'
-          ? join(repoRoot, 'docs/contracts/v2-testnet-deployment.md')
+          ? join(repoRoot, SET_DEFAULTS[options.set].evidence)
           : join(setDir, 'v2-local-deployment.md'))
     )
     writeEvidence(evidence, s.state, net, toolVersions())
