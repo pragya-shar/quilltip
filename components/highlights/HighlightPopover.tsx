@@ -3,7 +3,7 @@
 import '@/components/highlights/highlights.css'
 import type { TipXlmPreset } from '@/lib/constants'
 
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -14,6 +14,8 @@ import { HighlightPaperSlip } from './HighlightPaperSlip'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useHighlightPanelDismiss } from '@/hooks/useHighlightPanelDismiss'
 import { useSuspendDialogModalForWallet } from '@/hooks/useSuspendDialogModalForWallet'
+import { useTip } from '@/hooks/payments/useTip'
+import { PassageTip } from '@/components/payments/PassageTip'
 
 interface HighlightPopoverProps {
   position: { top: number; left: number }
@@ -45,6 +47,8 @@ interface HighlightPopoverProps {
   } | null
   onHighlightTipResumeOpened?: () => void
   onSignInToSave: () => void
+  /** True while the balance tip bar keeps the chosen passage open. */
+  onKeepPassage?: (keep: boolean) => void
 }
 
 export function HighlightPopover({
@@ -66,11 +70,56 @@ export function HighlightPopover({
   resumeHighlightTip,
   onHighlightTipResumeOpened,
   onSignInToSave,
+  onKeepPassage,
 }: HighlightPopoverProps) {
   const { isAuthenticated } = useAuth()
   const walletConnectionActive = useSuspendDialogModalForWallet()
   const [isSaving, setIsSaving] = useState(false)
   const [error, setError] = useState('')
+  // A reader with a balance and this device's key tips the passage from the
+  // balance with one tap; everyone else keeps the passage slip below.
+  const passageTarget = useMemo(
+    () => ({
+      kind: 'passage' as const,
+      // Without an article there is nothing to tip; the slip handles it.
+      articleId: (articleId ?? '') as Id<'articles'>,
+      passage: {
+        text: selectedText,
+        startOffset: startOffset ?? 0,
+        endOffset: endOffset ?? 0,
+        startContainerPath,
+        endContainerPath,
+      },
+    }),
+    [
+      articleId,
+      selectedText,
+      startOffset,
+      endOffset,
+      startContainerPath,
+      endContainerPath,
+    ]
+  )
+  const passageMeta = useMemo(
+    () => ({
+      articleTitle: articleTitle ?? '',
+      writerName: authorName || 'the writer',
+      href: null,
+    }),
+    [articleTitle, authorName]
+  )
+  const balanceTip = useTip(passageTarget, passageMeta)
+  // While the payments code loads for a signed-in reader, the control shows
+  // at once and a tap waits for it (`warming`).
+  const fromBalance =
+    !!articleId &&
+    startOffset !== undefined &&
+    endOffset !== undefined &&
+    ((balanceTip.ready && balanceTip.unavailable === null) ||
+      balanceTip.warming ||
+      // Payments failed for a signed-in reader: say so beside the passage.
+      balanceTip.unavailable === 'not-loaded')
+  const deciding = !!articleId && !balanceTip.ready && !balanceTip.warming
 
   const handleSaveHighlight = async (keepOpen = false) => {
     if (!isAuthenticated) {
@@ -103,7 +152,30 @@ export function HighlightPopover({
     }
   }
 
-  useHighlightPanelDismiss(onClose, !isSaving && !walletConnectionActive)
+  // Keep the passage while the bar shows, so a tap on it does not close it.
+  useEffect(() => {
+    onKeepPassage?.(fromBalance)
+    return () => onKeepPassage?.(false)
+  }, [fromBalance, onKeepPassage])
+
+  useHighlightPanelDismiss(
+    onClose,
+    !isSaving && !walletConnectionActive && !fromBalance && !deciding
+  )
+
+  if (deciding) return null
+  if (fromBalance)
+    return (
+      <PassageTip
+        tip={balanceTip}
+        writerName={authorName || 'the writer'}
+        onClose={onClose}
+        onHighlight={
+          isAuthenticated ? () => void handleSaveHighlight(true) : undefined
+        }
+        highlightBusy={isSaving}
+      />
+    )
 
   return (
     <HighlightPaperSlip>

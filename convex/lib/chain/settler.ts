@@ -35,6 +35,38 @@ export const SETTLEMENT_CONFIRMED = 'CONFIRMED' as const
 export const DUE_AGE_MS = 6 * 60 * 60 * 1000
 /** Due when the unsettled amount reaches this (3.8, rule 2). */
 export const DUE_AMOUNT = BigInt(50_000_000)
+
+/**
+ * The two due thresholds (3.8, rules 1 and 2). The defaults are the
+ * constants above; a deployment sets `TAB_SETTLE_DUE_AGE_MS` and
+ * `TAB_SETTLE_DUE_AMOUNT` (base units) to settle sooner. Zero makes every
+ * unsettled pair due by that rule.
+ */
+export type DueRule = { ageMs: number; amount: bigint }
+
+export const DEFAULT_DUE_RULE: DueRule = {
+  ageMs: DUE_AGE_MS,
+  amount: DUE_AMOUNT,
+}
+
+/**
+ * The due rule from the environment. A value that is not a decimal integer
+ * is ignored, so a typo never stops settlement: the default applies.
+ */
+export function dueRuleFromEnv(
+  env: Record<string, string | undefined> = process.env
+): DueRule {
+  const age = env.TAB_SETTLE_DUE_AGE_MS?.trim()
+  const amount = env.TAB_SETTLE_DUE_AMOUNT?.trim()
+  return {
+    ageMs:
+      age && /^[0-9]{1,15}$/.test(age) ? Number(age) : DEFAULT_DUE_RULE.ageMs,
+    amount:
+      amount && /^[0-9]{1,30}$/.test(amount)
+        ? BigInt(amount)
+        : DEFAULT_DUE_RULE.amount,
+  }
+}
 /** Due, and settled first after closing tabs, this close to the window end. */
 export const EXPIRING_LEDGERS = 2 * DAY_LEDGERS
 /** Settler lag alerts (3.7). */
@@ -209,6 +241,8 @@ export type SettlerDeps = {
   sleep(ms: number): Promise<void>
   /** Lookups after sending before the run leaves the result to the next run. */
   pollAttempts?: number
+  /** The due thresholds; `DEFAULT_DUE_RULE` when omitted. */
+  due?: DueRule
 }
 
 export type CycleResult = {
@@ -232,20 +266,22 @@ export type CycleResult = {
 
 export function dueReasons(
   c: SettleCandidate,
-  at: { ledger: number; now: number }
+  at: { ledger: number; now: number },
+  rule: DueRule = DEFAULT_DUE_RULE
 ): DueReason[] {
   const reasons: DueReason[] = []
   if (c.accountStatus === 'CLOSING' || c.accountStatus === 'CLOSED') {
     reasons.push('closing')
   }
   if (c.settleBy - at.ledger <= EXPIRING_LEDGERS) reasons.push('expiring')
+  // Zero means "due at once", even in the millisecond of acceptance.
   if (
     c.oldestUnsettledAt !== null &&
-    at.now - c.oldestUnsettledAt > DUE_AGE_MS
+    (rule.ageMs === 0 || at.now - c.oldestUnsettledAt > rule.ageMs)
   ) {
     reasons.push('age')
   }
-  if (BigInt(c.unsettledAmount) >= DUE_AMOUNT) reasons.push('amount')
+  if (BigInt(c.unsettledAmount) >= rule.amount) reasons.push('amount')
   return reasons
 }
 
@@ -255,10 +291,11 @@ export function dueReasons(
  */
 export function orderDue(
   candidates: SettleCandidate[],
-  at: { ledger: number; now: number }
+  at: { ledger: number; now: number },
+  rule: DueRule = DEFAULT_DUE_RULE
 ): SettleCandidate[] {
   const due = candidates
-    .map((c) => ({ c, reasons: dueReasons(c, at) }))
+    .map((c) => ({ c, reasons: dueReasons(c, at, rule) }))
     .filter((x) => x.reasons.length > 0)
   const rank = (r: DueReason[]) => (r.includes('closing') ? 0 : 1)
   due.sort((a, b) => {
@@ -633,10 +670,11 @@ export async function runSettlementCycle(
     }
 
     // 4. Due pairs, pre-checked with the shared encoder.
-    const ordered = orderDue(selection.candidates, {
-      ledger: latest.sequence,
-      now,
-    })
+    const ordered = orderDue(
+      selection.candidates,
+      { ledger: latest.sequence, now },
+      deps.due
+    )
     const rejections: Array<{ voucherId: string; reason: string }> = []
     const checked: SettleCandidate[] = []
     for (const c of ordered) {
