@@ -13,6 +13,18 @@ export function permanentStorageEnabled(): boolean {
   )
 }
 
+/**
+ * The storage status a reader sees. With permanent storage off, nothing
+ * uploads a `pending` article (the upload action returns at once), so that
+ * status is a leftover and readers see no status. The stored row is unchanged.
+ */
+export function readableArweaveStatus(
+  status: string | undefined
+): string | undefined {
+  if (status === 'pending' && !permanentStorageEnabled()) return undefined
+  return status
+}
+
 /** Lets the publish dialog say whether the article will be stored permanently. */
 export const isEnabled = query({
   args: {},
