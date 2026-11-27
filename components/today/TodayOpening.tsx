@@ -78,7 +78,8 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
         </Prose>
       </div>
       <p className="qt-today__onward">
-        <Button href={article.href} variant="primary" size="l">
+        {/* Continues where the opening stopped (the paragraph anchor). */}
+        <Button href={article.readMoreHref} variant="primary" size="l">
           Read more
         </Button>
         {article.minutesLeft > 0 ? (

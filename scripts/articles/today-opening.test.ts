@@ -13,6 +13,7 @@ import {
   firstSentence,
   minutesLeft,
   openingOf,
+  readAnchor,
   windowOf,
 } from '../../convex/lib/todayOpening'
 
@@ -151,6 +152,8 @@ describe('today.opening', () => {
       readMinutes: expect.any(Number),
       paragraphs: expect.any(Array),
       continues: true,
+      // Seven paragraphs shown (0 to 6): Read more continues at the eighth.
+      readMoreHref: '/writer0/a0#s-7-0',
       minutesLeft: expect.any(Number),
     })
     // Whole paragraphs up to 220 words: seven of 30 words (210).
@@ -333,6 +336,7 @@ describe('the opening rule', () => {
     expect(whole.paragraphs).toHaveLength(2)
     expect(whole.continues).toBe(false)
     expect(whole.shownWords).toBe(whole.totalWords)
+    expect(opening.nextParagraph).toBe(7)
   })
 
   test('a first paragraph over 220 words is cut at a sentence', () => {
@@ -342,6 +346,8 @@ describe('the opening rule', () => {
     expect(opening.shownWords).toBeLessThanOrEqual(220)
     expect(opening.paragraphs[0]).toMatch(/bread\.$/)
     expect(opening.continues).toBe(true)
+    // Reading continues in the same first paragraph.
+    expect(opening.nextParagraph).toBe(0)
   })
 
   test('needs at least two body paragraphs', () => {
@@ -480,5 +486,35 @@ describe('today.latestDraft', () => {
         .withIdentity({ subject: `${nobody}|session` })
         .query(api.today.latestDraft, {})
     ).toBeNull()
+  })
+})
+
+describe('Read more', () => {
+  test('a whole article links to itself, with no anchor', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const authorId = await writer(ctx, 'short')
+      await article(ctx, authorId, 'short', 'short', NOW - 24 * HOUR, {
+        content: body(2, 4),
+      })
+    })
+    const result = await t.query(api.today.opening, { at: NOW })
+    expect(result.opening!.continues).toBe(false)
+    expect(result.opening!.readMoreHref).toBe('/short/short')
+  })
+
+  test('paragraphs in quotes count, as the article view counts them', () => {
+    const doc = {
+      type: 'doc',
+      content: [
+        paragraph(`${SENTENCE} `.repeat(20)),
+        { type: 'blockquote', content: [paragraph(`${SENTENCE} `.repeat(4))] },
+        { type: 'heading', content: [{ type: 'text', text: 'Heading' }] },
+        paragraph(`${SENTENCE} `.repeat(20)),
+      ],
+    }
+    // 180 + 36 words fit; the third body paragraph (index 2) does not.
+    expect(openingOf(doc)!.nextParagraph).toBe(2)
+    expect(readAnchor(2)).toBe('s-2-0')
   })
 })

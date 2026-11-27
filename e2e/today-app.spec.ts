@@ -16,7 +16,9 @@ const TODAY = {
   heading: 'The Lamp on Orchard Street',
   writer: { name: 'Fixture Writer', href: '/fixture-writer' },
   text: 'The lamp on Orchard Street came on every evening at a quarter past six',
-  readMore: '/fixture-writer/the-lamp-on-orchard-street',
+  // The opening shows paragraphs 0 to 6; Read more continues at the eighth
+  // (the article view's paragraph anchor).
+  readMore: '/fixture-writer/the-lamp-on-orchard-street#s-7-0',
 }
 
 /** Old paths and where they now go (lib/routing/redirects/today.ts). */
@@ -68,7 +70,9 @@ test.describe('with no script', () => {
     })
     await expect(readMore).toHaveAttribute('href', TODAY.readMore)
     await readMore.click()
-    await expect(page).toHaveURL(new RegExp(`${TODAY.readMore}$`))
+    await expect(page).toHaveURL((url) =>
+      `${url.pathname}${url.hash}`.endsWith(TODAY.readMore)
+    )
   })
 
   test('no row space is reserved', async ({ page }) => {

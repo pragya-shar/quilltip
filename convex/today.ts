@@ -14,6 +14,7 @@ import {
   firstSentence,
   minutesLeft,
   openingOf,
+  readAnchor,
   windowOf,
 } from './lib/todayOpening'
 
@@ -38,6 +39,9 @@ const openingValidator = v.object({
   readMinutes: v.number(),
   paragraphs: v.array(v.string()),
   continues: v.boolean(),
+  /** "Read more": the article at the first paragraph not shown, or the
+   * article itself when the opening is the whole of it. */
+  readMoreHref: v.string(),
   /** Minutes left after the shown paragraphs; 0 when they are the whole article. */
   minutesLeft: v.number(),
 })
@@ -173,6 +177,9 @@ export const opening = query({
           readMinutes,
           paragraphs: text.paragraphs,
           continues: text.continues,
+          readMoreHref: text.continues
+            ? `${href}#${readAnchor(text.nextParagraph)}`
+            : href,
           minutesLeft: text.continues
             ? minutesLeft(text.totalWords - text.shownWords)
             : 0,

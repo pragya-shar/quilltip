@@ -146,6 +146,9 @@ export function openingOf(content: unknown): {
   continues: boolean
   totalWords: number
   shownWords: number
+  /** The `bodyParagraphs` index where reading continues: the first
+   * paragraph not shown, or the cut first paragraph itself. */
+  nextParagraph: number
 } | null {
   const all = bodyParagraphs(content)
   if (all.length < MIN_PARAGRAPHS) return null
@@ -158,17 +161,31 @@ export function openingOf(content: unknown): {
     paragraphs.push(text)
     words += count
   }
+  let nextParagraph = paragraphs.length
   if (paragraphs.length === 0) {
     const cut = cutToWords(all[0]!, OPENING_WORDS)
     paragraphs.push(cut)
     words = wordCount(cut.replace(/…$/u, ''))
+    nextParagraph = 0
   }
   return {
     paragraphs,
     continues: words < total,
     totalWords: total,
     shownWords: words,
+    nextParagraph,
   }
+}
+
+/**
+ * Where "Read more" continues: the article view gives every body paragraph
+ * `id="s-{p}-0"` in its server HTML, counting paragraphs exactly as
+ * `bodyParagraphs` does (`readAnchor(p)` in lib/tiptap/readAnchors, pull
+ * request 601). The anchor is positional, so it is built from the content
+ * at the time of the read.
+ */
+export function readAnchor(paragraph: number): string {
+  return `s-${paragraph}-0`
 }
 
 /** The first sentence of a paragraph, cut at a word near `max` characters. */

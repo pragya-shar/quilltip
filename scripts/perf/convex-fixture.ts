@@ -6,6 +6,7 @@ import {
   firstSentence,
   minutesLeft,
   openingOf,
+  readAnchor,
   windowOf,
 } from '../../convex/lib/todayOpening'
 
@@ -126,6 +127,9 @@ function todayOpening(at: number, exclude: unknown) {
       publishedAt: first.publishedAt,
       paragraphs: opening.paragraphs,
       continues: opening.continues,
+      readMoreHref: opening.continues
+        ? `/${FIXTURE_WRITER}/${first.slug}#${readAnchor(opening.nextParagraph)}`
+        : `/${FIXTURE_WRITER}/${first.slug}`,
       minutesLeft: minutesLeft(opening.totalWords - opening.shownWords),
     },
     more: ordered.slice(1, 13).map((article) => ({
