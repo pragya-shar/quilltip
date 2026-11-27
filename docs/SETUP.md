@@ -164,8 +164,8 @@ own HTTP-action origin, provided by Convex and used in `convex/auth.config.ts`.
 | Feature                | Local Next.js environment                                                                                                | Convex deployment environment                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
 | App/auth               | Generated Convex URL                                                                                                     | `SITE_URL`; Auth signing configuration                             |
-| Article/highlight tips | `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`                                                        | `TIPPING_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`                   |
-| NFT (v1)               | `NEXT_PUBLIC_NFT_CONTRACT_ID`; optional `NEXT_PUBLIC_NFT_METADATA_URL`                                                   | Check the affected backend function's requirements                 |
+| Article/highlight tips | `NEXT_PUBLIC_CORE_CONTRACT_ID`, `NEXT_PUBLIC_TOKEN_CONTRACT_ID`                                                          | `CHAIN_V2_ENABLED`, `CORE_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`  |
+| Article NFT            | `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`                                                                                    | `NFT_CONTRACT_ID`; `SITE_URL` sets each token's metadata URL       |
 | Permanent publishing   | `ARWEAVE_ENABLED=false` by default                                                                                       | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY` when intentionally enabled |
 | Product analytics      | `NEXT_PUBLIC_ANALYTICS_ENABLED=false` by default; server-only `ANALYTICS_POSTHOG_KEY`, optional `ANALYTICS_POSTHOG_HOST` | None                                                               |
 | Password reset         | None                                                                                                                     | `AUTH_RESEND_KEY`, `AUTH_EMAIL_FROM`; uses `SITE_URL` for the link |
@@ -175,10 +175,8 @@ and `STELLAR_NETWORK` take `TESTNET`, `MAINNET`, or `LOCAL`; the guard refuses
 `MAINNET`. Network settings (wallet network, passphrase, Horizon and RPC defaults,
 Stellar CLI network name) come from one module, `convex/lib/stellarNetwork.ts`,
 used by the browser config, the wallet adapter, the backend, and scripts. Tip
-flows on the backend accept only `TESTNET`. When the
-XLM price cache is unavailable, the browser uses a fixed practice rate on
-`TESTNET` and refuses to quote on any other network. Missing backend
-contract configuration blocks quote preparation before wallet approval.
+flows on the backend accept only `TESTNET`. Missing backend contract
+configuration blocks quote preparation before wallet approval.
 Arweave wallet configuration is required by `convex/arweave.ts` when enabled,
 including for small uploads; keep it only on the backend. The public query
 `permanentStorage:isEnabled` returns `true` only when both `ARWEAVE_ENABLED`
@@ -265,9 +263,7 @@ cutover. Its Convex variables, all testnet:
 
 The Next.js side reads `NEXT_PUBLIC_CORE_CONTRACT_ID`,
 `NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` and
-`NEXT_PUBLIC_TOKEN_CONTRACT_ID`. The v2 NFT name differs from
-`NEXT_PUBLIC_NFT_CONTRACT_ID`, which the v1 NFT code reads until it is
-removed. `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` must name the same contract as
+`NEXT_PUBLIC_TOKEN_CONTRACT_ID`. `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` must name the same contract as
 the backend's `NFT_CONTRACT_ID`; while it is unset or different, the article
 NFT panel says minting and transfers are not available on this site instead
 of offering them. The cutover order is in
@@ -355,7 +351,7 @@ checks. Its build step uses a placeholder `NEXT_PUBLIC_CONVEX_URL` when none is 
 `bun run test:unit` covers the network module, guard, health report, and profile
 helpers. `bun run test:e2e:fixtures` starts the NFT, recovery, and avatar fixture
 servers and runs their Playwright suites; they need no backend or credentials.
-`bun run test:contracts` runs `cargo test` for each contract. Each crate pins its
+`bun run test:contracts` runs `cargo test` for the contract workspace. Each crate pins its
 Rust toolchain (1.94.1) and the `wasm32v1-none` target in `rust-toolchain.toml`;
 build a contract with `cargo build --locked --target wasm32v1-none --release`
 inside its directory. Live-route Playwright suites use an existing server rather than launching
