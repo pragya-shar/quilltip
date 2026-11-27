@@ -3335,7 +3335,7 @@ describe('spendable balance across settler records and indexed events', () => {
   })
 
   it.fails(
-    'known issue: more than 256 debits after an absolute balance, then a re-dispatch of the oldest, debits it twice',
+    'known issue (#576): more than 256 debits after an absolute balance, then a re-dispatch of the oldest, debits it twice',
     async () => {
       const t = convexTest(schema, modules)
       await seed(t)
