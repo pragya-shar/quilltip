@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useMutation } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
@@ -35,6 +35,7 @@ export function OwnerWalletSettings({
   const [error, setError] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<string | null>(null)
   const mounted = useRef(true)
+  const lastUsedId = useId()
   const removeButton = useRef<HTMLButtonElement>(null)
   useEffect(() => {
     mounted.current = true
@@ -125,7 +126,7 @@ export function OwnerWalletSettings({
             </p>
           )}
           {lastUsed && !isConnected && (
-            <p className="account-key">
+            <p id={lastUsedId} className="account-key">
               <span>Last used: {lastUsed.walletName}</span>
               <span>{lastUsed.address}</span>
             </p>
@@ -160,6 +161,7 @@ export function OwnerWalletSettings({
               mode="send"
               className="account-connect"
               showHelp={false}
+              describedBy={lastUsed ? lastUsedId : undefined}
             />
           )}
         </div>
