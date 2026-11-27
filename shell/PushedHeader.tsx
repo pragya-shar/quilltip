@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
 import { Icon } from '@/system/components/Icon'
 import { BackIcon } from '@/system/icons'
-import { firstPage } from './firstPage'
+import { appHistory } from './appHistory'
 
 type PushedHeaderProps = {
   /** Where back goes when the screen was opened from outside (a shared
@@ -19,10 +19,11 @@ type PushedHeaderProps = {
 
 /**
  * The top of a pushed screen: a back control and, at the end, the screen's
- * actions. Back returns through history when the screen was reached inside
- * the application, so the place underneath gets its scroll position back;
- * opened from outside, it is a plain link to `fallbackHref`. It works with
- * no script (the link).
+ * actions. Back returns through history when the entry behind is a page of
+ * the application (shell/appHistory.ts), so the place underneath gets its
+ * scroll position back; otherwise (opened from outside, or after the
+ * browser's Back took the visit to the first page) it is a plain link to
+ * `fallbackHref`, and never leaves the site. It works with no script.
  */
 export function PushedHeader({
   fallbackHref,
@@ -43,7 +44,8 @@ export function PushedHeader({
         onClick={(event) => {
           if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
             return
-          if (firstPage.navigated()) {
+          // Through history only when the entry behind is ours.
+          if (appHistory.canGoBack()) {
             event.preventDefault()
             router.back()
           }
