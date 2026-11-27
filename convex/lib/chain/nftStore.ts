@@ -394,7 +394,12 @@ function expectedForMatch(
  * Rule (b) with an event in hand: confirms the open submission this event
  * belongs to. The transaction's time bound proves which submission produced
  * it: an event that closed after a submission's `maxTime` is not its own.
- * A matching event after `FAILED`, or under another hash, is flagged.
+ *
+ * A matching event after `FAILED`, or under another hash, is flagged, unless
+ * another matching submission that is not `FAILED` recorded the event's hash.
+ * That submission accounts for the event, so a retry that confirms does not
+ * flag the earlier attempts for the same target. A submission without a hash
+ * does not account for an event: nothing then proves which attempt sent it.
  */
 export async function resolveNftSubmissionsFromEvent(
   ctx: MutationCtx,
@@ -405,32 +410,38 @@ export async function resolveNftSubmissionsFromEvent(
     .query('chainSubmissions')
     .withIndex('by_nft_key', (q) => q.eq('nftKey', args.nftKey))
     .take(LOOKUP_LIMIT)
-  let result: 'linked' | 'conflict' | 'none' = 'none'
-  for (const submission of candidates) {
+  const matching = candidates.filter((submission) => {
     if (
       submission.kind !== 'nft' ||
       !submission.expectedNft ||
       submission.contractId !== ev.contractId ||
       submission.chainEpoch !== ev.chainEpoch
     ) {
-      continue
+      return false
     }
     const outcome = matchNftEvent(
       expectedForMatch(submission.expectedNft),
       args.facts
     )
-    if (outcome.status !== 'CONFIRMED') continue
-    if (ev.ledgerCloseTime > submission.maxTime) continue
-    if (
-      submission.createdLedger !== undefined &&
-      ev.ledger < submission.createdLedger
-    ) {
-      continue
-    }
+    if (outcome.status !== 'CONFIRMED') return false
+    if (ev.ledgerCloseTime > submission.maxTime) return false
+    return (
+      submission.createdLedger === undefined ||
+      ev.ledger >= submission.createdLedger
+    )
+  })
+  // A FAILED submission never accounts for an event, even under its hash.
+  const accounted = matching.some(
+    (submission) =>
+      submission.status !== 'FAILED' && submission.txHash === ev.txHash
+  )
+  let result: 'linked' | 'conflict' | 'none' = 'none'
+  for (const submission of matching) {
     if (
       submission.status === 'FAILED' ||
       (submission.txHash && submission.txHash !== ev.txHash)
     ) {
+      if (accounted) continue
       if (!submission.needsReview) {
         await ctx.db.patch(submission._id, {
           needsReview: true,
