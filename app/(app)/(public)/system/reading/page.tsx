@@ -1,14 +1,12 @@
 import type { Metadata } from 'next'
-import Link from 'next/link'
 import '@/system/gallery/gallery.css'
 import { Avatar } from '@/system/components/Avatar'
 import { Heading } from '@/system/components/Heading'
-import { Icon } from '@/system/components/Icon'
 import { PassageMark } from '@/system/components/PassageMark'
 import { Prose } from '@/system/components/Prose'
 import { TextLink } from '@/system/components/TextLink'
 import { SampleTipDock } from '@/system/gallery/SampleTipDock'
-import { BackIcon } from '@/system/icons'
+import { PushedHeader } from '@/shell/PushedHeader'
 import { PushedScreen } from '@/shell/PushedScreen'
 
 export const metadata: Metadata = {
@@ -26,16 +24,7 @@ export default function SampleReadingPage() {
   return (
     <PushedScreen>
       <div className="qt-page qt-sample" data-width="read">
-        <header className="qt-sample__top">
-          <Link
-            href="/"
-            className="qt-icon-button"
-            data-variant="plain"
-            aria-label="Back to reading"
-          >
-            <Icon icon={BackIcon} size={24} />
-          </Link>
-        </header>
+        <PushedHeader fallbackHref="/" backLabel="Back to reading" />
         <article className="qt-sample__article">
           <Heading level={1} variant="display">
             What my grandmother’s ledger taught me about money

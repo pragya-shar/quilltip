@@ -144,6 +144,22 @@
     padding-block-end: calc(var(--qt-safe-bottom) + var(--qt-space-6));
   }
 
+  .qt-pushed__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--qt-space-2);
+    margin-inline-start: calc(-1 * var(--qt-space-3));
+    margin-block-end: var(--qt-space-4);
+  }
+  .qt-pushed__actions {
+    display: flex;
+    gap: var(--qt-space-1);
+  }
+  [dir='rtl'] .qt-pushed__header > a svg {
+    transform: scaleX(-1);
+  }
+
   /* A pushed screen slides in when it was reached by navigation; never on
    * a first load. Transform and opacity only. */
   .qt-pushed[data-arrived] {

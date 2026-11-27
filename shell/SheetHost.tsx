@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
+import { usePathname } from 'next/navigation'
 import { Sheet } from '@/system/components/Sheet'
 import { firstPage } from './firstPage'
 import { PocketContent } from './pocket/PocketContent'
@@ -20,6 +21,12 @@ export function SheetHost() {
   const wide = useWide()
   // Mounted once with the shell: from now on, pages arrive by navigation.
   useEffect(() => firstPage.markShown(), [])
+  // A change of path after the first page is an in-app navigation.
+  const pathname = usePathname()
+  const firstPath = useRef(pathname)
+  useEffect(() => {
+    if (pathname !== firstPath.current) firstPage.markNavigated()
+  }, [pathname])
   return (
     <>
       {entries.map((entry) => {

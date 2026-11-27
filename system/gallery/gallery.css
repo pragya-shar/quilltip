@@ -239,14 +239,6 @@
   .qt-sample {
     padding-inline: calc(var(--qt-gutter-read) - var(--qt-gutter));
   }
-  .qt-sample__top {
-    display: flex;
-    margin-inline-start: calc(-1 * var(--qt-space-3));
-    margin-block-end: var(--qt-space-4);
-  }
-  [dir='rtl'] .qt-sample__top svg {
-    transform: scaleX(-1);
-  }
   .qt-sample__article {
     display: flex;
     flex-direction: column;
