@@ -51,7 +51,7 @@ function look(props: PanelNotice): Look {
       return {
         tone: 'warning',
         icon: <PauseCircle />,
-        copy: NOTICE_COPY.paused[props.audience ?? 'reader'],
+        copy: props.copy ?? NOTICE_COPY.paused[props.audience ?? 'reader'],
       }
     case 'insufficient-balance':
       return props.source === 'wallet'

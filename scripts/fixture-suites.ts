@@ -72,6 +72,17 @@ export const FIXTURES = [
     },
   },
   {
+    // The v2 article NFT: mint at the threshold and transfer, every state.
+    name: 'nft-v2',
+    server: 'e2e/fixtures/nft-v2/server.mjs',
+    port: 4182,
+    spec: 'e2e/nft-v2.spec.ts',
+    env: {
+      NFT_V2_FIXTURES: '1',
+      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4182',
+    },
+  },
+  {
     // Chromium, Firefox and WebKit (its own config); key storage and
     // WebCrypto Ed25519 differ between engines.
     name: 'tab',

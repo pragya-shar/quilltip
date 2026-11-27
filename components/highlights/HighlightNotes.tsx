@@ -1,5 +1,6 @@
 'use client'
 
+import '@/components/highlights/highlights.css'
 import { Id } from '@/convex/_generated/dataModel'
 import { isTestnetValue } from '@/lib/copy/network-status'
 import { formatDistanceToNow } from 'date-fns'

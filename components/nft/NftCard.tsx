@@ -13,6 +13,8 @@ export interface NftCardProps {
   footerLabel: string
   footerUsername?: string
   href?: string
+  /** `'v1 record'` for an NFT from the earlier testnet version. */
+  recordLabel?: string | null
 }
 
 function buildArticleHref(
@@ -33,6 +35,7 @@ export function NftCard({
   footerLabel,
   footerUsername,
   href,
+  recordLabel,
 }: NftCardProps) {
   const articleHref = href ?? buildArticleHref(authorUsername, slug)
   const displayTitle = title || 'Untitled'
@@ -53,7 +56,9 @@ export function NftCard({
             <span>Collected words</span>
           </div>
         )}
-        <span className="nft-card-edition">Article NFT</span>
+        <span className="nft-card-edition">
+          Article NFT · {recordLabel || 'Stellar testnet'}
+        </span>
       </div>
       <div className="nft-card-copy">
         <h3 title={displayTitle}>{displayTitle}</h3>
