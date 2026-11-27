@@ -17,6 +17,7 @@ import {
   DAY_LEDGERS,
   SETTLE_GRACE_LEDGERS,
   netOf,
+  receiptPaidNet,
 } from '../../convex/lib/chain/tabLedger'
 import {
   networkIdOf,
@@ -28,6 +29,19 @@ import {
   type StoredReceipt,
 } from '../../convex/lib/chain/voucher'
 import { hexToBytes, bytesToHex } from '../../convex/lib/chain/ids'
+import { formatUsd, formatXlmFromStroops } from '../../lib/copy/network-status'
+import { applyV2TipEarnings } from '../../convex/lib/v2Earnings'
+import { AGGREGATE_LIMIT } from '../../convex/lib/tipReads'
+import {
+  creditAuthorEarnings,
+  roundCents,
+  tabShareCents,
+  writerShareCents,
+} from '../../convex/lib/authorEarnings'
+import {
+  creditTabTipTotals,
+  creditV1TipTotals,
+} from '../../convex/lib/lifetimeEarnings'
 import { checkTabTipAmount, tabTipLimitsAt } from '../../lib/tab-ui/tip-limits'
 import { signEd25519 } from '../../lib/stellar/v2/tab/encoding'
 import {
@@ -1045,6 +1059,1754 @@ describe('tip limits in getMyTab (#546)', () => {
       delete process.env.TAB_TIP_MAX
     }
   })
+})
+
+describe('writer earnings summary with tab tips (#552)', () => {
+  beforeEach(() => {
+    vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
+  })
+  // $1 per XLM in the seed: 10 cents is 1,000,000 stroops.
+  const rawSummary = (t: T, userId: Id<'users'>) =>
+    as(t, userId).query(api.tips.getMyEarningsSummary, {})
+  /**
+   * The figures the stats cards show: `lifetime` once the row is rebuilt,
+   * the fields as computed before #552 until then.
+   */
+  async function summaryOf(t: T, userId: Id<'users'>) {
+    const r = await rawSummary(t, userId)
+    if (!r) return r
+    return r.lifetime
+      ? { ...r, ...r.lifetime, complete: true, source: 'lifetime' as const }
+      : { ...r, source: 'previous' as const }
+  }
+  const summary = (t: T, s: Seeded) => summaryOf(t, s.authorId)
+
+  /** `n` tips of 10 cents and 0.1 XLM: what all three figures must read. */
+  const lifetime = (n: number) => ({
+    tipCount: n,
+    earnedStroops: (BigInt(n) * BigInt(975_000)).toString(),
+    estimatedUsd: (n * 9.75) / 100,
+    complete: true,
+    updating: false,
+    source: 'lifetime',
+  })
+
+  /** `n` confirmed v2 wallet tips of 0.1 XLM, credited by the earnings sync. */
+  async function walletRows(
+    t: T,
+    s: Seeded,
+    n: number,
+    table: 'tips' | 'highlightTips' = 'tips'
+  ) {
+    await t.run(async (ctx) => {
+      for (let i = 0; i < n; i += 1) {
+        const now = Date.now()
+        const row = {
+          articleId: s.articleId,
+          tipperId: s.readerId,
+          authorId: s.authorId,
+          articleTitle: 'Words',
+          articleSlug: 'words',
+          amountUsd: 0.1,
+          amountCents: 10,
+          status: 'CONFIRMED',
+          contractVersion: 'v2' as const,
+          channel: 'direct' as const,
+          tokenContractId: TOKEN,
+          onChainTokenContractId: TOKEN,
+          grossBaseUnits: '1000000',
+          netBaseUnits: '975000',
+          onChainAuthorAddress: WRITER,
+          expectedAuthorAddress: WRITER,
+          chainEpoch: EPOCH,
+          verifiedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        }
+        const id =
+          table === 'tips'
+            ? await ctx.db.insert('tips', row)
+            : await ctx.db.insert('highlightTips', {
+                ...row,
+                highlightId: `w${i}`,
+                highlightText: 'words',
+                startOffset: 0,
+                endOffset: 5,
+              })
+        expect(await applyV2TipEarnings(ctx, table, id, now)).toBe('credited')
+      }
+    })
+  }
+
+  /**
+   * `n` confirmed wallet tips of 0.1 XLM, fast: the first through the earnings
+   * sync, the rest inserted as the sync leaves them and credited in one patch
+   * with the same amounts. `walletRows` credits each row for real.
+   */
+  async function walletRowsBulk(
+    t: T,
+    s: Seeded,
+    n: number,
+    table: 'tips' | 'highlightTips' = 'tips'
+  ) {
+    await walletRows(t, s, 1, table)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (let i = 1; i < n; i += 1) {
+        const row = {
+          articleId: s.articleId,
+          tipperId: s.readerId,
+          authorId: s.authorId,
+          articleTitle: 'Words',
+          articleSlug: 'words',
+          amountUsd: 0.1,
+          amountCents: 10,
+          status: 'CONFIRMED',
+          contractVersion: 'v2' as const,
+          channel: 'direct' as const,
+          tokenContractId: TOKEN,
+          onChainTokenContractId: TOKEN,
+          grossBaseUnits: '1000000',
+          netBaseUnits: '975000',
+          onChainAuthorAddress: WRITER,
+          expectedAuthorAddress: WRITER,
+          chainEpoch: EPOCH,
+          verifiedAt: now,
+          earningsAppliedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        }
+        if (table === 'tips') await ctx.db.insert('tips', row)
+        else {
+          await ctx.db.insert('highlightTips', {
+            ...row,
+            highlightId: `b${i}`,
+            highlightText: 'words',
+            startOffset: 0,
+            endOffset: 5,
+          })
+        }
+      }
+      const earnings = (await ctx.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === s.authorId
+      )!
+      const add = (units: Record<string, string> | undefined) => ({
+        ...units,
+        [TOKEN]: (
+          BigInt(units?.[TOKEN] ?? '0') +
+          BigInt(975_000) * BigInt(n - 1)
+        ).toString(),
+      })
+      await ctx.db.patch(earnings._id, {
+        earnedBaseUnits: add(earnings.earnedBaseUnits),
+        walletEarnedBaseUnits: add(earnings.walletEarnedBaseUnits),
+        v2EarnedCents: (earnings.v2EarnedCents ?? 0) + 9.75 * (n - 1),
+        v2TipCount: (earnings.v2TipCount ?? 0) + (n - 1),
+        tipCount: earnings.tipCount + (n - 1),
+        totalEarnedCents: earnings.totalEarnedCents + 9.75 * (n - 1),
+      })
+    })
+  }
+
+  /**
+   * `n` verified v1 tips of 10 cents and 0.1 XLM, fast: inserted, with the
+   * user's earnings row created by one v1 credit (rows from before this
+   * change, as the rebuild finds them).
+   */
+  async function v1RowsBulk(
+    t: T,
+    userId: Id<'users'>,
+    articleId: Id<'articles'>,
+    n: number
+  ) {
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      for (let i = 0; i < n; i += 1) {
+        await ctx.db.insert('tips', {
+          articleId,
+          tipperId: userId,
+          authorId: userId,
+          articleTitle: 'Words',
+          articleSlug: 'words',
+          amountUsd: 0.1,
+          amountCents: 10,
+          expectedAmountStroops: '1000000',
+          status: 'CONFIRMED',
+          verifiedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+      await creditAuthorEarnings(ctx, {
+        authorId: userId,
+        articleId,
+        articleTitle: 'Words',
+        shareCents: writerShareCents(10, '1000000'),
+        now,
+      })
+    })
+  }
+
+  /** `n` verified v1 tips of 10 cents and 0.1 XLM, credited as v1 was. */
+  async function v1Rows(
+    t: T,
+    userId: Id<'users'>,
+    articleId: Id<'articles'>,
+    n: number
+  ) {
+    await t.run(async (ctx) => {
+      for (let i = 0; i < n; i += 1) {
+        const now = Date.now()
+        await ctx.db.insert('tips', {
+          articleId,
+          tipperId: userId,
+          authorId: userId,
+          articleTitle: 'Words',
+          articleSlug: 'words',
+          amountUsd: 0.1,
+          amountCents: 10,
+          expectedAmountStroops: '1000000',
+          status: 'CONFIRMED',
+          verifiedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        })
+        await creditAuthorEarnings(ctx, {
+          authorId: userId,
+          articleId,
+          articleTitle: 'Words',
+          shareCents: writerShareCents(10, '1000000'),
+          now,
+        })
+      }
+    })
+  }
+
+  const settleAll = (t: T, gross: bigint, writer = WRITER) =>
+    ingest(
+      t,
+      ev.tabSettled({ cumulative: gross, paidAfter: gross, gross, writer })
+    )
+
+  async function tabRowIndex(
+    t: T,
+    s: Seeded,
+    table: 'tips' | 'highlightTips' = 'tips'
+  ) {
+    return t.run(async (ctx) =>
+      (await ctx.db.query(table).collect())
+        .filter((r) => r.authorId === s.authorId)
+        .flatMap((row, i) => (row.channel === 'tab' ? [i] : []))
+    )
+  }
+
+  const earningsRow = (t: T, userId: Id<'users'>) =>
+    t.run(
+      async (ctx) =>
+        (await ctx.db.query('authorEarnings').collect()).find(
+          (r) => r.userId === userId
+        ) ?? null
+    )
+
+  /** The row as it was before this change: no lifetime totals. */
+  async function forgetTotals(t: T, userId: Id<'users'>) {
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === userId
+      )!
+      await ctx.db.patch(row._id, {
+        v1TipCount: undefined,
+        v1EarnedCents: undefined,
+        v1ShareStroops: undefined,
+        v1UnpricedTipCount: undefined,
+        tabTipCount: undefined,
+        tabEarnedCents: undefined,
+        tabSettledBaseUnits: undefined,
+        walletEarnedBaseUnits: undefined,
+        lifetimeTotalsAt: undefined,
+        lifetimeRebuild: undefined,
+        lifetimeRebuildTurnAt: undefined,
+      })
+    })
+  }
+
+  const rebuildRun = (t: T) => t.action(internal.earningsTotalsBackfill.run, {})
+  async function rebuildAll(t: T) {
+    for (let i = 0; i < 100; i += 1) {
+      const pending = await t.query(
+        internal.earningsTotalsBackfill.pendingRows,
+        { limit: 1 }
+      )
+      if (pending.length === 0) return
+      await rebuildRun(t)
+    }
+    throw new Error('the rebuild did not finish')
+  }
+
+  /**
+   * The live totals equal the totals rebuilt from history: forget them, read
+   * the history (when it fits in one read), rebuild, and compare.
+   */
+  async function liveEqualsHistory(t: T, userId: Id<'users'>) {
+    const live = (await summaryOf(t, userId))!
+    expect(live.source).toBe('lifetime')
+    await forgetTotals(t, userId)
+    // Not rebuilt: the previous figures.
+    expect(await summaryOf(t, userId)).toMatchObject({ source: 'previous' })
+    await rebuildAll(t)
+    expect((await earningsRow(t, userId))?.lifetimeTotalsAt).toBeTypeOf(
+      'number'
+    )
+    expect(await summaryOf(t, userId)).toEqual(live)
+    return live
+  }
+
+  it('a tab tip accepted but not settled is in none of the figures', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    // Accepting credits only the pending amount.
+    const row = await earningsRow(t, s.authorId)
+    expect(row?.pendingBaseUnits?.[TOKEN]).toBe(
+      netOf(BigInt(1_000_000)).toString()
+    )
+    expect(row?.lifetimeTotalsAt).toBeTypeOf('number')
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(0))
+  })
+
+  it('settled tab tips only: XLM, USD and count cover the same tips', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    await settleAll(t, BigInt(3_500_000))
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SETTLED'])
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject({
+      tipCount: 2,
+      // 97.5 % of 3.5 XLM, under the cumulative fee rule.
+      earnedStroops: netOf(BigInt(3_500_000)).toString(),
+      // 97.5 % of 35 cents.
+      estimatedUsd: 0.34125,
+      complete: true,
+    })
+  })
+
+  it('a short settlement counts the net paid on chain, the partly paid tip included', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    // 1.5 of 3.5 XLM paid: receipt 1 settles, receipt 2 waits (SHORTFALL).
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(1_500_000),
+        gross: BigInt(1_500_000),
+      })
+    )
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SHORTFALL'])
+    // The tab total is the pair's paid net: all of receipt 1 and the paid
+    // part of receipt 2 (0.5 of 2.5 XLM), with the tips' quoted cents in
+    // proportion: 9.75 + 25 × 0.195.
+    const row = await earningsRow(t, s.authorId)
+    expect(row?.earnedBaseUnits?.[TOKEN]).toBe(
+      netOf(BigInt(1_500_000)).toString()
+    )
+    expect(row?.tabSettledBaseUnits?.[TOKEN]).toBe(
+      netOf(BigInt(1_500_000)).toString()
+    )
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject({
+      tipCount: 2,
+      earnedStroops: '1462500',
+      estimatedUsd: 0.14625,
+    })
+  })
+
+  it('wallet and tab tips together: the integration writer reads 114.58 XLM, $14.87 and 9 tips', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Three tab tips of 50, 50 and 25 cents, settled on chain.
+    await tip(t, s, { cents: 50 })
+    await tip(t, s, { cents: 50 })
+    await tip(t, s, { cents: 25 })
+    await settleAll(t, BigInt(12_500_000))
+    const tabNet = netOf(BigInt(12_500_000))
+    // Six confirmed wallet tips, as the earnings sync credits them: the
+    // integration row has 1,145,760,615 base units in all and 1,365 cents.
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === s.authorId
+      )!
+      // The tab settlement credited the display totals and the tab totals.
+      expect(row).toMatchObject({
+        tipCount: 3,
+        totalEarnedCents: 121.875,
+        tabTipCount: 3,
+        tabEarnedCents: 121.875,
+        tabSettledBaseUnits: { [TOKEN]: tabNet.toString() },
+        earnedBaseUnits: { [TOKEN]: tabNet.toString() },
+      })
+      await ctx.db.patch(row._id, {
+        earnedBaseUnits: { [TOKEN]: '1145760615' },
+        walletEarnedBaseUnits: {
+          [TOKEN]: (BigInt('1145760615') - tabNet).toString(),
+        },
+        v2EarnedCents: 1365,
+        v2TipCount: 6,
+        totalEarnedCents: 1486.875,
+        tipCount: 9,
+      })
+    })
+    const result = await liveEqualsHistory(t, s.authorId)
+    expect(result).toMatchObject({
+      tipCount: 9,
+      earnedStroops: '1145760615',
+      estimatedUsd: 14.86875,
+      unpricedTipCount: 0,
+      complete: true,
+    })
+    // As the stats page shows them.
+    expect(formatXlmFromStroops(result.earnedStroops, 2)).toBe('114.58 XLM')
+    expect(formatUsd(result.estimatedUsd)).toBe('$14.87')
+  })
+
+  it('a settled tab tip after more than one read of wallet rows is in all three', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await walletRows(t, s, AGGREGATE_LIMIT + 1)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    expect(await receiptStatuses(t)).toEqual(['SETTLED'])
+    expect((await tabRowIndex(t, s))[0]).toBe(AGGREGATE_LIMIT + 1)
+    expect(await summary(t, s)).toEqual(
+      expect.objectContaining(lifetime(AGGREGATE_LIMIT + 2))
+    )
+    await liveEqualsHistory(t, s.authorId)
+  }, 120_000)
+
+  it('a settled tab tip before more than one read of wallet rows is in all three', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await walletRowsBulk(t, s, AGGREGATE_LIMIT + 1)
+    await settleAll(t, BigInt(1_000_000))
+    expect((await tabRowIndex(t, s))[0]).toBe(0)
+    expect(await summary(t, s)).toMatchObject(lifetime(AGGREGATE_LIMIT + 2))
+  }, 120_000)
+
+  it('settled tab tips on both sides of one read are all in all three', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await walletRowsBulk(t, s, AGGREGATE_LIMIT)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(2_000_000))
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SETTLED'])
+    expect(await tabRowIndex(t, s)).toEqual([0, AGGREGATE_LIMIT + 1])
+    expect(await summary(t, s)).toMatchObject(lifetime(AGGREGATE_LIMIT + 2))
+  }, 120_000)
+
+  it('a settled passage tab tip after more than one read of passage wallet rows is in all three', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await walletRowsBulk(t, s, AGGREGATE_LIMIT + 1, 'highlightTips')
+    await tip(t, s, { cents: 10, highlight: HIGHLIGHT })
+    await settleAll(t, BigInt(1_000_000))
+    expect((await tabRowIndex(t, s, 'highlightTips'))[0]).toBe(
+      AGGREGATE_LIMIT + 1
+    )
+    expect(await summary(t, s)).toMatchObject(lifetime(AGGREGATE_LIMIT + 2))
+    await liveEqualsHistory(t, s.authorId)
+  }, 120_000)
+
+  it('an accepted, unsettled tab tip after one read is in none of the figures', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await walletRowsBulk(t, s, AGGREGATE_LIMIT + 1)
+    await tip(t, s, { cents: 10 })
+    expect(await receiptStatuses(t)).toEqual(['ACCEPTED'])
+    expect(await summary(t, s)).toMatchObject(lifetime(AGGREGATE_LIMIT + 1))
+  }, 120_000)
+
+  it('wallet tips only', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await walletRows(t, s, 2)
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(2))
+  })
+
+  it('v1, wallet and settled tab tips are all in all three', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await v1Rows(t, s.authorId, s.articleId, 3)
+    await walletRows(t, s, 2)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    // The row was created with v1 rows behind it: until the rebuild, the
+    // previous figures (the tab tip in the XLM only, as before).
+    expect((await earningsRow(t, s.authorId))?.lifetimeTotalsAt).toBeUndefined()
+    expect(await summary(t, s)).toMatchObject({
+      tipCount: 5,
+      earnedStroops: (BigInt(6) * BigInt(975_000)).toString(),
+      estimatedUsd: 0.4875,
+      source: 'previous',
+      updating: false,
+    })
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(6))
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(6))
+  })
+
+  it('more v1 rows than one read: the previous figures until the rebuild, then every tip', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await v1RowsBulk(t, s.authorId, s.articleId, AGGREGATE_LIMIT + 1)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    // The previous figures read 2,000 v1 rows: a lower bound, said so.
+    expect(await summary(t, s)).toMatchObject({
+      tipCount: AGGREGATE_LIMIT,
+      complete: false,
+      updating: false,
+      source: 'previous',
+    })
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(AGGREGATE_LIMIT + 2))
+  }, 120_000)
+
+  it('a writer without an earnings row: v1 rows beyond one read are a lower bound in all three', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await t.run(async (ctx) => {
+      for (let i = 0; i <= AGGREGATE_LIMIT; i += 1) {
+        const now = Date.now()
+        await ctx.db.insert('tips', {
+          articleId: s.articleId,
+          tipperId: s.readerId,
+          authorId: s.authorId,
+          articleTitle: 'Words',
+          articleSlug: 'words',
+          amountUsd: 0.1,
+          amountCents: 10,
+          expectedAmountStroops: '1000000',
+          status: 'CONFIRMED',
+          verifiedAt: now,
+          createdAt: now,
+          updatedAt: now,
+        })
+      }
+    })
+    expect(await earningsRow(t, s.authorId)).toBeNull()
+    expect(await summary(t, s)).toMatchObject({
+      ...lifetime(AGGREGATE_LIMIT),
+      complete: false,
+      updating: false,
+      source: 'previous',
+    })
+  }, 120_000)
+
+  it('a co-author split: each writer reads their share, the co-author without rows of their own', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // The other article: OTHER_WRITER first, this writer second, 50/50.
+    await t.run(async (ctx) => {
+      const chain = (await ctx.db.query('chainArticles').collect()).find(
+        (a) => a.articleId === s.otherArticleId
+      )!
+      await ctx.db.patch(chain._id, {
+        splits: [
+          { recipient: OTHER_WRITER, bps: 5000 },
+          { recipient: WRITER, bps: 5000 },
+        ],
+      })
+      const now = Date.now()
+      const id = await ctx.db.insert('tips', {
+        articleId: s.otherArticleId,
+        tipperId: s.readerId,
+        authorId: s.otherAuthorId,
+        articleTitle: 'Other',
+        articleSlug: 'other-article',
+        amountUsd: 0.1,
+        amountCents: 10,
+        status: 'CONFIRMED',
+        contractVersion: 'v2',
+        channel: 'direct',
+        tokenContractId: TOKEN,
+        onChainTokenContractId: TOKEN,
+        grossBaseUnits: '1000000',
+        netBaseUnits: '975000',
+        onChainAuthorAddress: OTHER_WRITER,
+        expectedAuthorAddress: OTHER_WRITER,
+        chainArticleKey: 'cd'.repeat(32),
+        chainEpoch: EPOCH,
+        verifiedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      expect(await applyV2TipEarnings(ctx, 'tips', id, now)).toBe('credited')
+    })
+    const share = {
+      tipCount: 1,
+      earnedStroops: '487500',
+      estimatedUsd: 0.04875,
+      complete: true,
+    }
+    // This writer is the co-author: the row is under the main author's id.
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(share)
+    expect(await liveEqualsHistory(t, s.otherAuthorId)).toMatchObject(share)
+  })
+
+  it("a settled tip whose pair is past one read of the writer's pairs is counted once", async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // The writer already has one read's worth of other pairs, nothing earned.
+    await t.run(async (ctx) => {
+      const account = (await ctx.db.query('tabAccounts').first())!
+      const now = Date.now()
+      for (let i = 0; i < AGGREGATE_LIMIT; i += 1) {
+        await ctx.db.insert('tabVouchers', {
+          network: 'TESTNET',
+          chainEpoch: EPOCH,
+          tabAccountId: account._id,
+          tabContractId: TAB,
+          tokenContractId: TOKEN,
+          readerAddress: READER,
+          keyId: 1000 + i,
+          writerAddress: WRITER,
+          authorId: s.authorId,
+          cumulative: '0',
+          receiptsRoot: '00'.repeat(32),
+          leafHashes: [],
+          signature: '00'.repeat(64),
+          acceptance: { acceptor: ACCEPTOR_PUBLIC, signature: '00'.repeat(64) },
+          seq: 0,
+          paidOnChain: '0',
+          unsettled: false,
+          state: 'UNPAID',
+          settleQueue: 'done',
+          earnedNet: '0',
+          pendingNet: '0',
+          acceptedAt: now,
+          updatedAt: now,
+        })
+      }
+    })
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    expect(await receiptStatuses(t)).toEqual(['SETTLED'])
+    expect(await summary(t, s)).toMatchObject(lifetime(1))
+    await liveEqualsHistory(t, s.authorId)
+  }, 120_000)
+
+  it('a writer who changed addresses keeps the tab tips of both', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    const NEW_WRITER = seedAddress(42)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(s.authorId, { stellarAddress: NEW_WRITER })
+      await ctx.db.patch(s.chainArticleId, { authorAddress: NEW_WRITER })
+    })
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000), NEW_WRITER)
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SETTLED'])
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(2))
+  })
+
+  it('a legacy v1 tip without a trusted USD amount keeps its XLM and its place in the count', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await t.run(async (ctx) => {
+      const now = Date.now()
+      await ctx.db.insert('highlightTips', {
+        highlightId: 'legacy',
+        highlightText: 'legacy passage',
+        startOffset: 0,
+        endOffset: 14,
+        articleId: s.articleId,
+        tipperId: s.readerId,
+        authorId: s.authorId,
+        articleTitle: 'Words',
+        articleSlug: 'words',
+        amountUsd: 0,
+        amountCents: 0,
+        amountUsdSuspicious: true,
+        status: 'CONFIRMED',
+        contractVersion: 'v1',
+        expectedAmountStroops: '1000000',
+        verifiedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      })
+      await creditAuthorEarnings(ctx, {
+        authorId: s.authorId,
+        articleId: s.articleId,
+        articleTitle: 'Words',
+        shareCents: 0,
+        now,
+      })
+    })
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject({
+      tipCount: 1,
+      earnedStroops: '975000',
+      // No dollars for it: the USD figure is a lower bound.
+      estimatedUsd: 0,
+      unpricedTipCount: 1,
+      complete: true,
+    })
+  })
+
+  it('a long rebuild resumes from its stored cursor, not from the first page', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await v1Rows(t, s.authorId, s.articleId, 450)
+    const row = (await earningsRow(t, s.authorId))!
+    // One step, then the action stops (an interrupted run or a restart).
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, {
+        id: row._id,
+      })
+    ).toBe('more')
+    const progress = (await earningsRow(t, s.authorId))!.lifetimeRebuild!
+    expect(progress).toMatchObject({ phase: 'tips', steps: 1 })
+    expect(progress.cursor).toBeTypeOf('string')
+    expect(progress.totals.v1TipCount).toBe(200)
+    // Mid-rebuild the summary says so, with the previous figures.
+    expect(await summary(t, s)).toMatchObject({
+      ...lifetime(450),
+      updating: true,
+      source: 'previous',
+    })
+    // Probe: change a row of the first page behind the rebuild's back. A
+    // rebuild that started again would read the new amount.
+    await t.run(async (ctx) => {
+      const first = (await ctx.db.query('tips').collect()).find(
+        (r) => r.authorId === s.authorId
+      )!
+      await ctx.db.patch(first._id, { amountCents: 1_000 })
+    })
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(450))
+  }, 60_000)
+
+  it('a writer who keeps receiving tips during a rebuild holds up no one, and every tip counts once', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // A long writer: one pending v1 tip first, then 2,100 verified v1 tips.
+    const pendingId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return ctx.db.insert('tips', {
+        articleId: s.articleId,
+        tipperId: s.readerId,
+        authorId: s.authorId,
+        articleTitle: 'Words',
+        articleSlug: 'words',
+        amountUsd: 0.1,
+        amountCents: 10,
+        expectedAmountStroops: '1000000',
+        stellarTxId: 'ef'.repeat(32),
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+    await v1RowsBulk(t, s.authorId, s.articleId, 2_100)
+    // A short writer queued behind.
+    await v1Rows(t, s.otherAuthorId, s.otherArticleId, 3)
+
+    const first = await rebuildRun(t)
+    expect(first).toEqual({
+      status: 'ran',
+      rebuilt: 1,
+      inProgress: 1,
+      failed: 0,
+    })
+    expect(await summaryOf(t, s.otherAuthorId)).toMatchObject(lifetime(3))
+    // While the long row is rebuilt, the summary says so, with the previous
+    // figures: 2,000 rows read, the pending tip among them (a lower bound).
+    expect(await summary(t, s)).toMatchObject({
+      tipCount: AGGREGATE_LIMIT - 1,
+      complete: false,
+      updating: true,
+      source: 'previous',
+    })
+    const progress = (await earningsRow(t, s.authorId))!.lifetimeRebuild!
+    expect(progress.phase).toBe('tips')
+
+    // Tips arrive mid-rebuild: the pending v1 tip (a row it has read) is
+    // verified, and a tab tip (a row it has not read) settles.
+    await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
+      tipId: pendingId,
+    })
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+
+    // A row that never had a turn goes before the one that had one.
+    await v1Rows(t, s.readerId, s.articleId, 1)
+    const queue = await t.query(internal.earningsTotalsBackfill.pendingRows, {
+      limit: 5,
+    })
+    const ids = await t.run(async (ctx) =>
+      Promise.all(
+        [s.readerId, s.authorId].map(
+          async (userId) =>
+            (await ctx.db.query('authorEarnings').collect()).find(
+              (r) => r.userId === userId
+            )!._id
+        )
+      )
+    )
+    expect(queue).toEqual(ids)
+
+    await rebuildAll(t)
+    // 2,101 v1 tips and one tab tip, each once.
+    expect(await summary(t, s)).toMatchObject(lifetime(2_102))
+    expect(await summaryOf(t, s.otherAuthorId)).toMatchObject(lifetime(3))
+    expect(await summaryOf(t, s.readerId)).toMatchObject(lifetime(1))
+  }, 120_000)
+
+  it('pairs paid during the rebuild count once, read or not yet listed', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const NEW_WRITER = seedAddress(42)
+    const THIRD_WRITER = seedAddress(43)
+    const moveTo = (address: string) =>
+      t.run(async (ctx) => {
+        await ctx.db.patch(s.authorId, { stellarAddress: address })
+        await ctx.db.patch(s.chainArticleId, { authorAddress: address })
+      })
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    await moveTo(NEW_WRITER)
+    await tip(t, s, { cents: 10 })
+    await forgetTotals(t, s.authorId)
+    const id = (await earningsRow(t, s.authorId))!._id
+    const step = () =>
+      t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    // `tips`, `highlightTips`, then the pairs of the current address.
+    for (let i = 0; i < 3; i += 1) expect(await step()).toBe('more')
+    expect((await earningsRow(t, s.authorId))!.lifetimeRebuild).toMatchObject({
+      phase: 'pairs',
+      writers: [NEW_WRITER, WRITER],
+      writerIndex: 1,
+    })
+    // The pair it has read is paid.
+    await settleAll(t, BigInt(1_000_000), NEW_WRITER)
+    // A new address it never lists: accepted and paid.
+    await moveTo(THIRD_WRITER)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000), THIRD_WRITER)
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SETTLED', 'SETTLED'])
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(3))
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(3))
+  })
+
+  it('the tab totals are credited once per settled receipt: replays and later events add nothing', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    const settled = ev.tabSettled({
+      cumulative: BigInt(1_000_000),
+      paidAfter: BigInt(1_000_000),
+      gross: BigInt(1_000_000),
+    })
+    const credited = async () => {
+      const row = (await earningsRow(t, s.authorId))!
+      return {
+        tabTipCount: row.tabTipCount,
+        tabEarnedCents: row.tabEarnedCents,
+        tabSettledBaseUnits: row.tabSettledBaseUnits,
+        tipCount: row.tipCount,
+        totalEarnedCents: row.totalEarnedCents,
+      }
+    }
+    await ingest(t, settled)
+    const once = await credited()
+    expect(once).toEqual({
+      tabTipCount: 1,
+      tabEarnedCents: 9.75,
+      tabSettledBaseUnits: { [TOKEN]: '975000' },
+      tipCount: 1,
+      totalEarnedCents: 9.75,
+    })
+    // The same event again (a replay or a retried mutation).
+    await ingest(t, settled)
+    // Another report of the same payment.
+    await settleAll(t, BigInt(1_000_000))
+    // Later events on the pair and the key: a settled receipt stays settled.
+    await ingest(t, ev.voucherSkipped(BigInt(1_000_000), 2))
+    await ingest(t, ev.keyRevoked(READER, 0, LEDGER + 10))
+    expect(await receiptStatuses(t)).toEqual(['SETTLED'])
+    expect(await credited()).toEqual(once)
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(1))
+  })
+
+  it('each credit writes only its own totals: a row of another kind changes nothing', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await v1Rows(t, s.authorId, s.articleId, 1)
+    await walletRows(t, s, 1)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    // The first receipt settles; the second stays accepted.
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(1_000_000),
+        gross: BigInt(1_000_000),
+      })
+    )
+    await rebuildAll(t)
+    const before = await earningsRow(t, s.authorId)
+    await t.run(async (ctx) => {
+      const rows = (await ctx.db.query('tips').collect()).filter(
+        (r) => r.authorId === s.authorId
+      )
+      const v1 = rows.find((r) => r.contractVersion === undefined)!
+      const wallet = rows.find((r) => r.channel === 'direct')!
+      const settledTab = rows.find(
+        (r) => r.channel === 'tab' && r.earningsAppliedAt !== undefined
+      )!
+      const acceptedTab = rows.find(
+        (r) => r.channel === 'tab' && r.earningsAppliedAt === undefined
+      )!
+      for (const row of [settledTab, acceptedTab, wallet]) {
+        await creditV1TipTotals(ctx, s.authorId, 'tips', row)
+      }
+      // A tab change for a row that is not a tab tip.
+      const tabDelta = {
+        tabTipCount: 1,
+        tabEarnedCents: 9.75,
+        tabSettledBaseUnits: { [TOKEN]: '975000' },
+      }
+      for (const row of [v1, wallet]) {
+        await creditTabTipTotals(ctx, s.authorId, 'tips', row, tabDelta)
+      }
+    })
+    expect(await earningsRow(t, s.authorId)).toEqual(before)
+  })
+
+  /** A v1 tip verified through the real path, as a pending row first. */
+  async function verifiedV1(t: T, s: Seeded) {
+    const tipId = await t.run(async (ctx) => {
+      const now = Date.now()
+      return ctx.db.insert('tips', {
+        articleId: s.articleId,
+        tipperId: s.readerId,
+        authorId: s.authorId,
+        articleTitle: 'Words',
+        articleSlug: 'words',
+        amountUsd: 0.1,
+        amountCents: 10,
+        expectedAmountStroops: '1000000',
+        stellarTxId: crypto.randomUUID(),
+        status: 'PENDING',
+        createdAt: now,
+        updatedAt: now,
+      })
+    })
+    await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
+      tipId,
+    })
+    return tipId
+  }
+
+  it('a v1 tip marked fraudulent leaves all three figures, live and during a rebuild', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Live: rebuilt totals, then reconciliation marks the tip fraudulent.
+    const first = await verifiedV1(t, s)
+    const second = await verifiedV1(t, s)
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(2))
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId: first,
+      reason: 'test',
+    })
+    expect(await summary(t, s)).toMatchObject(lifetime(1))
+    // During a rebuild that has read the tip.
+    await v1RowsBulk(t, s.authorId, s.articleId, 250)
+    await forgetTotals(t, s.authorId)
+    const id = (await earningsRow(t, s.authorId))!._id
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    ).toBe('more')
+    await t.mutation(internal.tips.markArticleTipFraudulent, {
+      tipId: second,
+      reason: 'test',
+    })
+    await rebuildAll(t)
+    // 250 bulk v1 tips; both verified tips are out.
+    expect(await summary(t, s)).toMatchObject(lifetime(250))
+    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(250))
+  }, 60_000)
+
+  it('a credit to the last row a rebuild step read counts once', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await walletRowsBulk(t, s, 199)
+    // The 200th row: the last one the first page reads.
+    await tip(t, s, { cents: 10 })
+    await walletRowsBulk(t, s, 5)
+    await forgetTotals(t, s.authorId)
+    const id = (await earningsRow(t, s.authorId))!._id
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    ).toBe('more')
+    const tabRow = await t.run(
+      async (ctx) =>
+        (await ctx.db.query('tips').collect()).find((r) => r.channel === 'tab')!
+    )
+    expect(
+      (await earningsRow(t, s.authorId))!.lifetimeRebuild!.lastCreationTime
+    ).toBe(tabRow._creationTime)
+    await settleAll(t, BigInt(1_000_000))
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(205))
+  }, 60_000)
+
+  it('a pair of an old address paid before the rebuild lists the address counts once', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await walletRowsBulk(t, s, 250)
+    // To the old address, after the first page.
+    await tip(t, s, { cents: 10 })
+    const NEW_WRITER = seedAddress(43)
+    await t.run(async (ctx) => {
+      await ctx.db.patch(s.authorId, { stellarAddress: NEW_WRITER })
+      await ctx.db.patch(s.chainArticleId, { authorAddress: NEW_WRITER })
+    })
+    await forgetTotals(t, s.authorId)
+    const id = (await earningsRow(t, s.authorId))!._id
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    ).toBe('more')
+    expect(
+      (await earningsRow(t, s.authorId))!.lifetimeRebuild!.writers
+    ).toEqual([NEW_WRITER])
+    // The old pair is paid: held apart until the tab row lists the address.
+    await settleAll(t, BigInt(1_000_000))
+    expect(
+      Object.keys(
+        (await earningsRow(t, s.authorId))!.lifetimeRebuild!.unlistedPairNet
+      )
+    ).toEqual([WRITER])
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(251))
+  }, 60_000)
+
+  /** A total of zero and a missing total are the same. */
+  const zeroAsMissing = (value: unknown) =>
+    value === undefined ||
+    value === 0 ||
+    value === '0' ||
+    (typeof value === 'object' &&
+      value !== null &&
+      Object.values(value).every((n) => n === '0'))
+      ? null
+      : value
+
+  /** The rebuild from history gives what the live credits gave. */
+  async function rebuiltEqualsLive(t: T, userId: Id<'users'>) {
+    const live = (await summaryOf(t, userId))!
+    const row = (await earningsRow(t, userId))!
+    await forgetTotals(t, userId)
+    await rebuildAll(t)
+    expect(await summaryOf(t, userId)).toEqual(live)
+    const rebuilt = (await earningsRow(t, userId))!
+    for (const field of [
+      'tabTipCount',
+      'tabEarnedCents',
+      'tabSettledBaseUnits',
+      'walletEarnedBaseUnits',
+      'v1TipCount',
+      'v1EarnedCents',
+      'v1ShareStroops',
+    ] as const) {
+      expect(zeroAsMissing(rebuilt[field])).toEqual(zeroAsMissing(row[field]))
+    }
+    return live
+  }
+
+  /** The tab figures from the chain records: pair paid amounts and receipts. */
+  async function fromChain(t: T, userId: Id<'users'>) {
+    return t.run(async (ctx) => {
+      const pairs = (await ctx.db.query('tabVouchers').collect()).filter(
+        (p) => p.authorId === userId
+      )
+      let units = BigInt(0)
+      let cents = 0
+      let tips = 0
+      for (const pair of pairs) {
+        units += BigInt(pair.earnedNet)
+        const receipts = (await ctx.db.query('tabReceipts').collect()).filter(
+          (r) =>
+            r.tabAccountId === pair.tabAccountId &&
+            r.keyId === pair.keyId &&
+            r.writerAddress === pair.writerAddress
+        )
+        for (const receipt of receipts) {
+          const paid = receiptPaidNet(receipt, BigInt(pair.paidOnChain))
+          if (paid <= BigInt(0)) continue
+          const row = (await ctx.db.get(receipt.tipRowId))!
+          tips += 1
+          cents = roundCents(
+            cents + tabShareCents(row.amountCents, paid, BigInt(receipt.amount))
+          )
+        }
+      }
+      return { units: units.toString(), cents, tips }
+    })
+  }
+
+  async function expectTabTotals(
+    t: T,
+    s: Seeded,
+    f: { tips: number; units: string; cents: number }
+  ) {
+    const row = (await earningsRow(t, s.authorId))!
+    expect({
+      tips: row.tabTipCount ?? 0,
+      units: row.tabSettledBaseUnits?.[TOKEN] ?? '0',
+      cents: row.tabEarnedCents ?? 0,
+    }).toEqual(f)
+    expect(await fromChain(t, s.authorId)).toEqual(f)
+  }
+
+  it('a short settlement, then the rest: the remainder enters as a change, the tip counted once', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(1_500_000),
+        gross: BigInt(1_500_000),
+      })
+    )
+    // Receipt 1 in full, 0.5 of receipt 2's 2.5 XLM: 975,000 + 487,500.
+    await expectTabTotals(t, s, { tips: 2, units: '1462500', cents: 14.625 })
+    await rebuiltEqualsLive(t, s.authorId)
+    const rest = ev.tabSettled({
+      cumulative: BigInt(3_500_000),
+      paidAfter: BigInt(3_500_000),
+      gross: BigInt(2_000_000),
+    })
+    await ingest(t, rest)
+    await ingest(t, rest)
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SETTLED'])
+    await expectTabTotals(t, s, { tips: 2, units: '3412500', cents: 34.125 })
+    expect(await rebuiltEqualsLive(t, s.authorId)).toMatchObject({
+      tipCount: 2,
+      earnedStroops: '3412500',
+      estimatedUsd: 0.34125,
+    })
+  })
+
+  it('the dollars keep the tip quote when the price changes before the payment: live, replayed, dry run and rebuilt', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Quoted at $1 per XLM: 10 and 25 cents are 0.1 and 0.25 XLM.
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    // The price doubles before the pair is paid.
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('xlmPriceCache').collect()) {
+        await ctx.db.patch(row._id, { priceUsd: 2, fetchedAt: Date.now() })
+      }
+    })
+    /** The dry run's view of this writer: nothing to change, same figures. */
+    async function dryRunAgrees() {
+      const live = (await rawSummary(t, s.authorId))!.lifetime!
+      const report = await t.action(internal.earningsTotalsBackfill.dryRun, {})
+      const mine = report.rows.find((r) => r.userId === s.authorId)!
+      expect(mine.changedFields).toEqual([])
+      expect(mine.rebuilt).toEqual({
+        tipCount: live.tipCount,
+        earnedStroops: live.earnedStroops,
+        estimatedUsd: live.estimatedUsd,
+      })
+    }
+    const short = ev.tabSettled({
+      cumulative: BigInt(3_500_000),
+      paidAfter: BigInt(1_500_000),
+      gross: BigInt(1_500_000),
+    })
+    await ingest(t, short)
+    // 9.75 + 25 × 0.195 cents, from the quotes, not from $2 per XLM.
+    const partly = { tips: 2, units: '1462500', cents: 14.625 }
+    await expectTabTotals(t, s, partly)
+    // A replay of the same event.
+    await ingest(t, short)
+    await expectTabTotals(t, s, partly)
+    await dryRunAgrees()
+    await rebuiltEqualsLive(t, s.authorId)
+    // The rest is paid later: a change only, at the same quotes.
+    const rest = ev.tabSettled({
+      cumulative: BigInt(3_500_000),
+      paidAfter: BigInt(3_500_000),
+      gross: BigInt(2_000_000),
+    })
+    await ingest(t, rest)
+    await ingest(t, rest)
+    const paid = { tips: 2, units: '3412500', cents: 34.125 }
+    await expectTabTotals(t, s, paid)
+    await dryRunAgrees()
+    expect(await rebuiltEqualsLive(t, s.authorId)).toMatchObject({
+      tipCount: 2,
+      earnedStroops: '3412500',
+      estimatedUsd: 0.34125,
+    })
+  })
+
+  it('a short settlement, then UNPAID: the net paid on chain stays in all three', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(1_500_000),
+        gross: BigInt(1_500_000),
+      })
+    )
+    const end = VALID_UNTIL + SETTLE_GRACE_LEDGERS + 10
+    await setLedger(t, end)
+    await ingest(t, ev.voucherSkipped(BigInt(3_500_000), 2, { ledger: end }))
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'UNPAID'])
+    // The pair's paid net, 1,462,500, not the settled receipt's 975,000.
+    expect((await voucherRow(t)).earnedNet).toBe('1462500')
+    await expectTabTotals(t, s, { tips: 2, units: '1462500', cents: 14.625 })
+    expect(await rebuiltEqualsLive(t, s.authorId)).toMatchObject({
+      tipCount: 2,
+      earnedStroops: '1462500',
+      estimatedUsd: 0.14625,
+    })
+  })
+
+  it('several short settlements of one tip: counted once, each paid part added', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 25 })
+    let paid = BigInt(0)
+    const expected = [
+      // 0.5 XLM: 25 × 0.195 cents.
+      { paidAfter: BigInt(500_000), units: '487500', cents: 4.875 },
+      // 1.2 XLM: 25 × 0.468 cents.
+      { paidAfter: BigInt(1_200_000), units: '1170000', cents: 11.7 },
+      // All 2.5 XLM: 25 × 0.975 cents.
+      { paidAfter: BigInt(2_500_000), units: '2437500', cents: 24.375 },
+    ]
+    for (const step of expected) {
+      await ingest(
+        t,
+        ev.tabSettled({
+          cumulative: BigInt(2_500_000),
+          paidAfter: step.paidAfter,
+          gross: step.paidAfter - paid,
+        })
+      )
+      paid = step.paidAfter
+      await expectTabTotals(t, s, {
+        tips: 1,
+        units: step.units,
+        cents: step.cents,
+      })
+      await rebuiltEqualsLive(t, s.authorId)
+    }
+  })
+
+  it('property: over random settlements, shortfalls, replays and unpaid ends, the tab totals are the paid net on chain', async () => {
+    let state = 552
+    const rand = (n: number) => {
+      state = (state * 1_103_515_245 + 12_345) % 2_147_483_648
+      return state % n
+    }
+    for (let run = 0; run < 10; run += 1) {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      let cumulative = BigInt(0)
+      for (let k = 1 + rand(4); k > 0; k -= 1) {
+        const cents = 1 + rand(60)
+        await tip(t, s, { cents })
+        cumulative += BigInt(cents) * BigInt(100_000)
+      }
+      let paid = BigInt(0)
+      let last: RawRpcEvent | null = null
+      for (let n = 1 + rand(5); n > 0; n -= 1) {
+        const action = rand(5)
+        if (action <= 1 && paid < cumulative) {
+          // A settlement of part of what is owed, or all of it.
+          const owed = cumulative - paid
+          const part = action === 0 ? BigInt(1 + rand(Number(owed))) : owed
+          last = ev.tabSettled({
+            cumulative,
+            paidAfter: paid + part,
+            gross: part,
+          })
+          paid += part
+          await ingest(t, last)
+        } else if (action === 2 && last) {
+          await ingest(t, last)
+        } else if (action === 3) {
+          await ingest(t, ev.voucherSkipped(cumulative, 4))
+        } else {
+          const end = VALID_UNTIL + SETTLE_GRACE_LEDGERS + 10
+          await setLedger(t, end)
+          await ingest(t, ev.voucherSkipped(cumulative, 2, { ledger: end }))
+          break
+        }
+        const chain = await fromChain(t, s.authorId)
+        const row = (await earningsRow(t, s.authorId))!
+        expect({
+          tips: row.tabTipCount ?? 0,
+          units: row.tabSettledBaseUnits?.[TOKEN] ?? '0',
+          cents: row.tabEarnedCents ?? 0,
+        }).toEqual(chain)
+        expect(chain.units).toBe(netOf(paid).toString())
+      }
+      await rebuiltEqualsLive(t, s.authorId)
+    }
+  }, 120_000)
+
+  it('previous figures until the row is rebuilt, the lifetime totals after', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 50 })
+    await tip(t, s, { cents: 50 })
+    await tip(t, s, { cents: 25 })
+    await settleAll(t, BigInt(12_500_000))
+    const tabNet = netOf(BigInt(12_500_000))
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === s.authorId
+      )!
+      await ctx.db.patch(row._id, {
+        earnedBaseUnits: { [TOKEN]: '1145760615' },
+        walletEarnedBaseUnits: {
+          [TOKEN]: (BigInt('1145760615') - tabNet).toString(),
+        },
+        v2EarnedCents: 1365,
+        v2TipCount: 6,
+      })
+    })
+    await forgetTotals(t, s.authorId)
+    // What the stats page showed before #552 for the integration writer.
+    expect(await summary(t, s)).toMatchObject({
+      tipCount: 6,
+      earnedStroops: '1145760615',
+      estimatedUsd: 13.65,
+      source: 'previous',
+      updating: false,
+    })
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject({
+      tipCount: 9,
+      earnedStroops: '1145760615',
+      estimatedUsd: 14.86875,
+      source: 'lifetime',
+    })
+  })
+
+  it('the switch: off reads and writes nothing, a row keeps its place, on resumes', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await v1RowsBulk(t, s.authorId, s.articleId, 450)
+    const before = await earningsRow(t, s.authorId)
+    vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'false')
+    expect(await rebuildRun(t)).toEqual({
+      status: 'disabled',
+      rebuilt: 0,
+      inProgress: 0,
+      failed: 0,
+    })
+    expect(await earningsRow(t, s.authorId)).toEqual(before)
+    // On for one step, then off: the position stays.
+    vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
+    await t.mutation(internal.earningsTotalsBackfill.rebuildStep, {
+      id: before!._id,
+    })
+    const paused = await earningsRow(t, s.authorId)
+    vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'false')
+    expect((await rebuildRun(t)).status).toBe('disabled')
+    expect(await earningsRow(t, s.authorId)).toEqual(paused)
+    expect(paused!.lifetimeRebuild).toMatchObject({ phase: 'tips', steps: 1 })
+    vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(450))
+  }, 60_000)
+
+  it('the dry run reports what a rebuild would write, and writes nothing', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await v1Rows(t, s.authorId, s.articleId, 1)
+    await walletRows(t, s, 1)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    const all = () =>
+      t.run(async (ctx) => ctx.db.query('authorEarnings').collect())
+    const before = await all()
+    const report = await t.action(internal.earningsTotalsBackfill.dryRun, {})
+    expect(await all()).toEqual(before)
+    expect(report.isDone).toBe(true)
+    const mine = report.rows.find((r) => r.userId === s.authorId)!
+    expect(mine).toMatchObject({
+      source: 'previous',
+      // Before: the tab tip in the XLM only.
+      shown: {
+        tipCount: 2,
+        earnedStroops: '2925000',
+        estimatedUsd: 0.195,
+      },
+      rebuilt: {
+        tipCount: 3,
+        earnedStroops: '2925000',
+        estimatedUsd: 0.2925,
+      },
+    })
+    // The wallet and tab totals were credited live; the v1 tip was credited
+    // before the v1 totals existed, so only they change.
+    expect([...mine.changedFields].sort()).toEqual([
+      'v1EarnedCents',
+      'v1ShareStroops',
+      'v1TipCount',
+    ])
+  })
+
+  it('progress lists rebuilt, waiting, in-progress and failed rows; reset restarts or removes', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await v1RowsBulk(t, s.authorId, s.articleId, 450)
+    await v1Rows(t, s.otherAuthorId, s.otherArticleId, 2)
+    const [mine, other] = await t.run(async (ctx) => {
+      const rows = await ctx.db.query('authorEarnings').collect()
+      return [s.authorId, s.otherAuthorId].map(
+        (userId) => rows.find((r) => r.userId === userId)!._id
+      )
+    })
+    await t.mutation(internal.earningsTotalsBackfill.rebuildStep, {
+      id: mine!,
+    })
+    await t.mutation(internal.earningsTotalsBackfill.recordError, {
+      id: other!,
+      error: 'test error',
+    })
+    let p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p).toMatchObject({
+      enabled: true,
+      total: 2,
+      rebuilt: 0,
+      waiting: 0,
+      failed: [{ id: other, userId: s.otherAuthorId, error: 'test error' }],
+      settledTabRowsWithoutApplied: 0,
+      complete: true,
+    })
+    expect(p.inProgress).toEqual([
+      expect.objectContaining({ userId: s.authorId, phase: 'tips', steps: 1 }),
+    ])
+    // The failed row is skipped until it is put back.
+    await rebuildAll(t)
+    p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p).toMatchObject({ rebuilt: 1, waiting: 0, inProgress: [] })
+    expect(p.failed).toHaveLength(1)
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.retryFailed, {})
+    ).toEqual({ retried: 1 })
+    await rebuildAll(t)
+    p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p).toMatchObject({
+      rebuilt: 2,
+      waiting: 0,
+      inProgress: [],
+      failed: [],
+    })
+    const rebuilt = await summary(t, s)
+
+    // Restart: every row is rebuilt again, to the same figures.
+    await t.action(internal.earningsTotalsBackfill.reset, { mode: 'restart' })
+    expect(await summary(t, s)).toMatchObject({ source: 'previous' })
+    await rebuildAll(t)
+    expect(await summary(t, s)).toEqual(rebuilt)
+
+    // Remove: the shape before #552.
+    await t.action(internal.earningsTotalsBackfill.reset, { mode: 'remove' })
+    const row = (await earningsRow(t, s.authorId))!
+    for (const field of [
+      'v1TipCount',
+      'v1EarnedCents',
+      'v1ShareStroops',
+      'v1UnpricedTipCount',
+      'tabTipCount',
+      'tabEarnedCents',
+      'tabSettledBaseUnits',
+      'walletEarnedBaseUnits',
+      'lifetimeTotalsAt',
+      'lifetimeRebuild',
+      'lifetimeRebuildTurnAt',
+      'lifetimeRebuildError',
+      'lifetimeRebuildFailedAt',
+    ] as const) {
+      expect(row[field]).toBeUndefined()
+    }
+  }, 60_000)
+
+  it('a row that fails is recorded and skipped; the rows around it are rebuilt, and it is retried on request', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Three rows: the middle one cannot be read (an unparsable amount).
+    await v1Rows(t, s.authorId, s.articleId, 2)
+    await v1Rows(t, s.otherAuthorId, s.otherArticleId, 2)
+    await v1Rows(t, s.readerId, s.articleId, 2)
+    const poisoned = (await earningsRow(t, s.otherAuthorId))!
+    await t.run(async (ctx) => {
+      await ctx.db.patch(poisoned._id, {
+        earnedBaseUnits: { [TOKEN]: 'not a number' },
+      })
+    })
+    expect(await rebuildRun(t)).toEqual({
+      status: 'ran',
+      rebuilt: 2,
+      inProgress: 0,
+      failed: 1,
+    })
+    expect(await summary(t, s)).toMatchObject(lifetime(2))
+    expect(await summaryOf(t, s.readerId)).toMatchObject(lifetime(1 + 1))
+    let p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p.failed).toEqual([
+      expect.objectContaining({
+        id: poisoned._id,
+        userId: s.otherAuthorId,
+        error: expect.stringContaining('not a number'),
+      }),
+    ])
+    // Later runs skip it: nothing is retried until asked.
+    const failedRow = await earningsRow(t, s.otherAuthorId)
+    expect(await rebuildRun(t)).toEqual({
+      status: 'ran',
+      rebuilt: 0,
+      inProgress: 0,
+      failed: 0,
+    })
+    expect(await earningsRow(t, s.otherAuthorId)).toEqual(failedRow)
+    // Fixed and put back: it resumes and finishes.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(poisoned._id, { earnedBaseUnits: {} })
+    })
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.retryFailed, {
+        id: poisoned._id,
+      })
+    ).toEqual({ retried: 1 })
+    await rebuildAll(t)
+    expect(await summaryOf(t, s.otherAuthorId)).toMatchObject(lifetime(2))
+    p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p).toMatchObject({ failed: [], waiting: 0, rebuilt: 3 })
+  })
+
+  it('a settled tab row without earningsAppliedAt is counted from its receipt and pair, and shown in progress', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    // As if an older write path had set the status alone.
+    await t.run(async (ctx) => {
+      const row = (await ctx.db.query('tips').collect()).find(
+        (r) => r.channel === 'tab'
+      )!
+      expect(row.status).toBe('SETTLED')
+      await ctx.db.patch(row._id, { earningsAppliedAt: undefined })
+    })
+    const p = await t.query(internal.earningsTotalsBackfill.progress, {})
+    expect(p.settledTabRowsWithoutApplied).toBe(1)
+    await forgetTotals(t, s.authorId)
+    await rebuildAll(t)
+    expect(await summary(t, s)).toMatchObject(lifetime(1))
+  })
+
+  /**
+   * `getMyEarningsSummary` as `overhaul/v2` computes it before #552, run on
+   * the same data: the values a client built before #552 must keep reading.
+   */
+  async function previousSummary(t: T, userId: Id<'users'>) {
+    return t.run(async (ctx) => {
+      const share = (tip: {
+        expectedAmountStroops?: string
+        stellarAmountXlm?: string
+      }) => {
+        let stroops: bigint | null = null
+        if (
+          tip.expectedAmountStroops &&
+          /^[1-9]\d*$/.test(tip.expectedAmountStroops)
+        ) {
+          stroops = BigInt(tip.expectedAmountStroops)
+        } else if (
+          tip.stellarAmountXlm &&
+          /^\d+(\.\d{1,7})?$/.test(tip.stellarAmountXlm)
+        ) {
+          const [whole, fraction = ''] = tip.stellarAmountXlm.split('.')
+          stroops = BigInt(whole ?? '0') * XLM + BigInt(fraction.padEnd(7, '0'))
+        }
+        if (!stroops || stroops <= BigInt(0)) return null
+        return stroops - (stroops * BigInt(250)) / BigInt(10_000)
+      }
+      const byAuthor = async (table: 'tips' | 'highlightTips') =>
+        (await ctx.db.query(table).collect())
+          .filter((r) => r.authorId === userId)
+          .slice(0, AGGREGATE_LIMIT + 1)
+      const articleTips = await byAuthor('tips')
+      const passageTips = await byAuthor('highlightTips')
+      const earnings =
+        (await ctx.db.query('authorEarnings').collect()).find(
+          (r) => r.userId === userId
+        ) ?? null
+      const complete =
+        articleTips.length <= AGGREGATE_LIMIT &&
+        passageTips.length <= AGGREGATE_LIMIT
+      const v1Tips = [
+        ...articleTips.slice(0, AGGREGATE_LIMIT),
+        ...passageTips.slice(0, AGGREGATE_LIMIT),
+      ].filter(
+        (tip) =>
+          (tip.contractVersion ?? 'v1') === 'v1' &&
+          tip.status === 'CONFIRMED' &&
+          typeof tip.verifiedAt === 'number' &&
+          tip.verifiedAt > 0
+      )
+      let stroops = BigInt(0)
+      let cents = 0
+      for (const tip of v1Tips) {
+        stroops += share(tip) ?? BigInt(0)
+        if (!('amountUsdSuspicious' in tip && tip.amountUsdSuspicious)) {
+          cents += writerShareCents(tip.amountCents, tip.expectedAmountStroops)
+        }
+      }
+      const v2Xlm = BigInt(earnings?.earnedBaseUnits?.[TOKEN] ?? '0')
+      return {
+        network: 'TESTNET',
+        tipCount: v1Tips.length + (earnings?.v2TipCount ?? 0),
+        writerShareStroops: stroops.toString(),
+        earnedStroops: (stroops + v2Xlm).toString(),
+        estimatedUsd: roundCents(cents + (earnings?.v2EarnedCents ?? 0)) / 100,
+        earnedBaseUnits: earnings?.earnedBaseUnits ?? {},
+        v2TipCount: earnings?.v2TipCount ?? 0,
+        complete,
+      }
+    })
+  }
+
+  it('a client built before #552 reads the same figures before, during and after the rebuild', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await v1Rows(t, s.authorId, s.articleId, 2)
+    await walletRows(t, s, 2)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(1_500_000),
+        gross: BigInt(1_500_000),
+      })
+    )
+    // The fields that client reads, called as it calls the query.
+    const oldClient = async () => {
+      const r = (await as(t, s.authorId).query(
+        api.tips.getMyEarningsSummary,
+        {}
+      ))!
+      return {
+        network: r.network,
+        tipCount: r.tipCount,
+        writerShareStroops: r.writerShareStroops,
+        earnedStroops: r.earnedStroops,
+        estimatedUsd: r.estimatedUsd,
+        earnedBaseUnits: r.earnedBaseUnits,
+        v2TipCount: r.v2TipCount,
+        complete: r.complete,
+      }
+    }
+    // Before the rebuild (the row was created with v1 rows behind it).
+    expect((await earningsRow(t, s.authorId))?.lifetimeTotalsAt).toBeUndefined()
+    expect(await oldClient()).toEqual(await previousSummary(t, s.authorId))
+    // During it.
+    const id = (await earningsRow(t, s.authorId))!._id
+    await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    expect((await rawSummary(t, s.authorId))?.updating).toBe(true)
+    expect(await oldClient()).toEqual(await previousSummary(t, s.authorId))
+    // After it: the same fields, and the lifetime totals beside them.
+    await rebuildAll(t)
+    const after = (await rawSummary(t, s.authorId))!
+    expect(await oldClient()).toEqual(await previousSummary(t, s.authorId))
+    expect(after.lifetime).toEqual({
+      // 2 v1, 2 wallet and 2 tab tips (one partly paid).
+      tipCount: 6,
+      writerShareStroops: '1950000',
+      earnedStroops: (
+        BigInt(4) * BigInt(975_000) +
+        BigInt(1_462_500)
+      ).toString(),
+      estimatedUsd: 0.53625,
+      unpricedTipCount: 0,
+    })
+    // The previous fields still read the tab pair's payment in the XLM only.
+    expect(after).toMatchObject({ tipCount: 4, estimatedUsd: 0.39 })
+  })
+
+  it('the rebuild writes only authorEarnings, and running it again changes nothing', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await v1Rows(t, s.authorId, s.articleId, 2)
+    await walletRows(t, s, 2)
+    await tip(t, s, { cents: 10 })
+    await settleAll(t, BigInt(1_000_000))
+    await forgetTotals(t, s.authorId)
+    const OTHER_TABLES = [
+      'tips',
+      'highlightTips',
+      'users',
+      'articles',
+      'chainArticles',
+      'tabAccounts',
+      'tabReceipts',
+      'tabVouchers',
+      'tabSettlements',
+      'tabSessionKeys',
+    ] as const
+    const others = () =>
+      t.run(async (ctx) =>
+        Promise.all(OTHER_TABLES.map((table) => ctx.db.query(table).collect()))
+      )
+    const rows = () =>
+      t.run(async (ctx) => ctx.db.query('authorEarnings').collect())
+    const before = await others()
+    await rebuildAll(t)
+    expect(await others()).toEqual(before)
+    const once = await rows()
+    expect(await summary(t, s)).toMatchObject(lifetime(5))
+    expect(await rebuildRun(t)).toEqual({
+      status: 'ran',
+      rebuilt: 0,
+      inProgress: 0,
+      failed: 0,
+    })
+    // A step on a rebuilt row does nothing.
+    const id = (await earningsRow(t, s.authorId))!._id
+    expect(
+      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
+    ).toBe('done')
+    expect(await rows()).toEqual(once)
+    expect(await others()).toEqual(before)
+  }, 60_000)
 })
 
 describe('event handlers', () => {
@@ -4152,5 +5914,216 @@ describe('spendable balance across settler records and indexed events', () => {
       available: (BigInt(10) * CENT).toString(),
     })
     await screenSums(t, s)
+  })
+
+  // Writer lifetime totals (#552) on both settlement paths: one credit per
+  // paid range, whichever path arrives first, equal to a rebuild.
+  async function writerTotals(t: T, s: Seeded) {
+    const row = (await ctx(t)).find((r) => r.userId === s.authorId)!
+    return {
+      tips: row.tabTipCount ?? 0,
+      units: row.tabSettledBaseUnits?.[TOKEN] ?? '0',
+      cents: row.tabEarnedCents ?? 0,
+    }
+  }
+  const ctx = (t: T) =>
+    t.run(async (c) => c.db.query('authorEarnings').collect())
+  /** The pairs' paid net on chain: what the tab totals must equal. */
+  async function chainPaid(t: T) {
+    const net = (await pairs(t)).reduce(
+      (sum, v) => sum + netOf(BigInt(v.paidOnChain)),
+      BigInt(0)
+    )
+    return net.toString()
+  }
+  /** Rebuilds the writer's row from history and returns its tab totals. */
+  async function rebuilt(t: T, s: Seeded) {
+    await t.run(async (c) => {
+      const row = (await c.db.query('authorEarnings').collect()).find(
+        (r) => r.userId === s.authorId
+      )!
+      await c.db.patch(row._id, {
+        tabTipCount: undefined,
+        tabEarnedCents: undefined,
+        tabSettledBaseUnits: undefined,
+        walletEarnedBaseUnits: undefined,
+        lifetimeTotalsAt: undefined,
+        lifetimeRebuild: undefined,
+      })
+    })
+    vi.stubEnv('EARNINGS_TOTALS_REBUILD_ENABLED', 'true')
+    for (let i = 0; i < 20; i += 1) {
+      const r = await t.action(internal.earningsTotalsBackfill.run, {})
+      if (r.rebuilt + r.inProgress === 0) break
+    }
+    return writerTotals(t, s)
+  }
+  async function expectWriter(
+    t: T,
+    s: Seeded,
+    f: { tips: number; units: string; cents: number }
+  ) {
+    expect(await writerTotals(t, s)).toEqual(f)
+    expect(await chainPaid(t)).toBe(f.units)
+  }
+
+  for (const order of ['record first', 'event first'] as const) {
+    it(`writer totals (#552): ${order}, each replayed, one credit, equal to a rebuild`, async () => {
+      const { t, s } = await opened(BigInt(15) * CENT, [10])
+      const { settlementId } = await beginSettlement(t)
+      const paid = {
+        kind: 'settled' as const,
+        writer: WRITER,
+        cumulative: BigInt(10) * CENT,
+        paidAfter: BigInt(10) * CENT,
+        gross: BigInt(10) * CENT,
+      }
+      const event = settledEvent(paid)
+      const once = { tips: 1, units: '975000', cents: 9.75 }
+      if (order === 'record first') {
+        await settlerRecord(t, settlementId, [paid])
+        await expectWriter(t, s, once)
+        await ingest(t, event)
+      } else {
+        await ingest(t, event)
+        await expectWriter(t, s, once)
+        await settlerRecord(t, settlementId, [paid])
+      }
+      await expectWriter(t, s, once)
+      // Replays: the same event, the same report under a new id, the record.
+      await ingest(t, event)
+      await ingest(t, settledEvent(paid))
+      await settlerRecord(t, settlementId, [paid])
+      await expectWriter(t, s, once)
+      expect(await rebuilt(t, s)).toEqual(once)
+    })
+  }
+
+  it("writer totals (#552): the writer's settle_own with the settler's STALE skip counts once", async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [
+      {
+        kind: 'skipped',
+        writer: WRITER,
+        cumulative: BigInt(10) * CENT,
+        reason: 3,
+      },
+    ])
+    // A STALE skip means the chain holds the payment: the record applies it,
+    // and the writer's own event and its replay add nothing.
+    const once = { tips: 1, units: '975000', cents: 9.75 }
+    await expectWriter(t, s, once)
+    const own = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    await ingest(t, settledEvent(own))
+    await ingest(t, settledEvent(own))
+    await expectWriter(t, s, once)
+    expect(await rebuilt(t, s)).toEqual(once)
+  })
+
+  it('writer totals (#552): a partial settler record, then the rest by event, counted by paid range', async () => {
+    const { t, s } = await opened(BigInt(40) * CENT, [10, 25])
+    const { settlementId } = await beginSettlement(t)
+    // The settler paid 0.15 of 0.35 XLM: tip 1 in full, 0.05 of tip 2.
+    const part = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(35) * CENT,
+      paidAfter: BigInt(15) * CENT,
+      gross: BigInt(15) * CENT,
+    }
+    await settlerRecord(t, settlementId, [part])
+    const partial = { tips: 2, units: '1462500', cents: 14.625 }
+    await expectWriter(t, s, partial)
+    await ingest(t, settledEvent(part))
+    await expectWriter(t, s, partial)
+    expect(await rebuilt(t, s)).toEqual(partial)
+    // The writer's settle_own pays the rest; its event arrives twice.
+    const rest = settledEvent({
+      kind: 'settled',
+      writer: WRITER,
+      cumulative: BigInt(35) * CENT,
+      paidAfter: BigInt(35) * CENT,
+      gross: BigInt(20) * CENT,
+    })
+    await ingest(t, rest)
+    await ingest(t, rest)
+    const full = { tips: 2, units: '3412500', cents: 34.125 }
+    await expectWriter(t, s, full)
+    expect(await rebuilt(t, s)).toEqual(full)
+  })
+
+  it('writer totals (#552): a pair written before indexedPaid, then new records and events', async () => {
+    const { t, s } = await opened(BigInt(40) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const first = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    await settlerRecord(t, settlementId, [first])
+    // As the old code left it: no indexed ranges, no reserve.
+    await t.run(async (c) => {
+      const a = await c.db.query('tabAccounts').first()
+      await c.db.patch(a!._id, { settledUnindexed: undefined })
+      for (const v of await c.db.query('tabVouchers').collect()) {
+        await c.db.patch(v._id, { indexedPaid: undefined })
+      }
+    })
+    expect(await rebuilt(t, s)).toEqual({
+      tips: 1,
+      units: '975000',
+      cents: 9.75,
+    })
+    await tip(t, s, { cents: 5 })
+    const next = await beginSettlement(t)
+    const second = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(15) * CENT,
+      paidAfter: BigInt(15) * CENT,
+      gross: BigInt(5) * CENT,
+    }
+    await settlerRecord(t, next.settlementId, [second])
+    await ingest(t, settledEvent(second))
+    await ingest(t, settledEvent(first))
+    // netOf(0.15 XLM): 1,462,500; 9.75 + 4.875 cents.
+    const both = { tips: 2, units: '1462500', cents: 14.625 }
+    await expectWriter(t, s, both)
+    expect(await rebuilt(t, s)).toEqual(both)
+  })
+
+  it('writer totals (#552): a rebuild of a pre-field pair reads its whole paidOnChain', async () => {
+    const { t, s } = await opened(BigInt(40) * CENT, [10, 25])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [
+      {
+        kind: 'settled',
+        writer: WRITER,
+        cumulative: BigInt(35) * CENT,
+        paidAfter: BigInt(35) * CENT,
+        gross: BigInt(35) * CENT,
+      },
+    ])
+    await t.run(async (c) => {
+      for (const v of await c.db.query('tabVouchers').collect()) {
+        await c.db.patch(v._id, { indexedPaid: undefined })
+      }
+    })
+    const pair = (await pairs(t))[0]!
+    expect(pair.earnedNet).toBe(netOf(BigInt(pair.paidOnChain)).toString())
+    expect(await rebuilt(t, s)).toEqual({
+      tips: 2,
+      units: netOf(BigInt(35) * CENT).toString(),
+      cents: 34.125,
+    })
   })
 })

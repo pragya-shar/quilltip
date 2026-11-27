@@ -48,7 +48,7 @@ export function ContextualWalletSetup({
   showHelp = true,
 }: ContextualWalletSetupProps) {
   const ownership = useWalletOwnership()
-  const { isLoading, connect } = useWallet({
+  const { isLoading, isRestoring, connect } = useWallet({
     activateOnMount: true,
   })
   const [isConnecting, setIsConnecting] = useState(false)
@@ -129,14 +129,16 @@ export function ContextualWalletSetup({
           ref={connectButtonRef}
           type="button"
           onClick={() => void handleConnect()}
-          aria-disabled={isConnecting || isLoading || undefined}
+          aria-disabled={isConnecting || isLoading || isRestoring || undefined}
           className="w-full"
           size="lg"
         >
-          {isConnecting || isLoading ? (
+          {isConnecting || isLoading || isRestoring ? (
             <>
               <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Connecting wallet...
+              {isRestoring && !isConnecting
+                ? 'Checking your wallet…'
+                : 'Connecting wallet...'}
             </>
           ) : (
             <>
