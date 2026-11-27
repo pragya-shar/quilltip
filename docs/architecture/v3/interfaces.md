@@ -87,13 +87,15 @@ export type TipResult =
 
 export type BalanceView = {
   status: 'loading' | 'signed-out' | 'none' | 'ready' | 'closing'
-  available: Money
-  /** Accepted and not yet on chain; for detail views only. */
-  pending: Money
+  /** What a new tip can use now: on-chain balance minus reserved and attested withdrawals. */
+  spendable: Money
+  /** Held by accepted tips that are not yet settled on chain. Never counted in spendable. */
+  reserved: Money
   byToken: Array<{
     token: TokenId
-    available: BaseUnits
-    availableCents: Cents
+    spendable: BaseUnits
+    spendableCents: Cents
+    reserved: BaseUnits
   }>
   /** True while the first frame shows the stored snapshot. */
   stale: boolean
@@ -127,12 +129,20 @@ export type ActivityView = {
   loadMore(): void
 }
 
+/**
+ * Three disjoint figures. Their sum is the lifetime total of tips to this
+ * writer that did not fail (not paid, rejected and failed tips are in none).
+ */
 export type EarningsView = {
   status: 'loading' | 'none' | 'ready'
+  /** Accepted (balance) or submitted (wallet), not yet settled on chain. */
+  pending: Money
+  /** Settled on chain and collectable now: claimable in the Tab, minus nothing collected. */
+  available: Money
+  /** Reached the writer's wallet: collected with `claim`, paid out in `settle`, or paid by `Core.tip`. */
+  collected: Money
+  /** pending + available + collected. */
   total: Money
-  onTheWay: Money
-  inWallet: Money
-  toCollect: Money
   tipCount: number
   supporterCount: number
 }
@@ -284,13 +294,13 @@ const sessionValidator = v.object({
     token: v.string(),                  // registry id
     contractId: v.string(),
     confirmed: v.string(),
-    outstanding: v.string(),
-    reserved: v.string(),
-    available: v.string(),
-    availableCents: v.number(),
+    reserved: v.string(),            // tabAccounts.outstanding
+    withdrawReserved: v.string(),
+    spendable: v.string(),           // readerSpendable(account)
+    spendableCents: v.number(),
   })),
-  availableCents: v.number(),
-  pendingCents: v.number(),
+  spendableCents: v.number(),
+  reservedCents: v.number(),
   limits: v.object({
     perTipCents: v.number(),
     dailyCents: v.number(),
@@ -407,25 +417,29 @@ export const mine = query({   // activity.mine
 export const mine = query({   // earnings.mine
   args: {},
   returns: v.union(v.null(), v.object({
-    totalCents: v.number(), onTheWayCents: v.number(), inWalletCents: v.number(),
-    toCollectCents: v.number(), tipCount: v.number(), supporterCount: v.number(),
-    toCollect: v.array(v.object({ token: v.string(), baseUnits: v.string() })),
+    pendingCents: v.number(), availableCents: v.number(), collectedCents: v.number(),
+    totalCents: v.number(), tipCount: v.number(), supporterCount: v.number(),
+    byToken: v.array(v.object({ token: v.string(), pending: v.string(),
+                                available: v.string(), collected: v.string() })),
   })),
 })
 ```
 
 `Money.display` is formatted on the client (`lib/payments/money.ts`, P0).
+Every figure in `balance.session` and `earnings.mine` is read from a running
+field ([section 2.6](02-instant-state.md#26-earnings)), never summed from a
+scan; `activity.mine` is paginated.
 
 ### Cross-package internal functions
 
-| Function                                                                       | Owner | Called by | Signature                                                                                                  |
-| ------------------------------------------------------------------------------ | ----- | --------- | ---------------------------------------------------------------------------------------------------------- |
-| `requestSettlement(ctx, now)`                                                  | P2    | P5        | `(ctx: MutationCtx, now: number) => Promise<void>` in `convex/lib/chain/settleSchedule.ts`                 |
-| `internal.chain.indexer.kick`                                                  | P4    | P2, P4    | `internalMutation({ args: {}, returns: v.null() })`                                                        |
-| `scheduleVerification(ctx, submissionId)`                                      | P4    | P5        | `(ctx: MutationCtx, id: Id<'chainSubmissions'>) => Promise<void>` in `convex/lib/chain/submissionStore.ts` |
-| `writeActivity(ctx, row)`, `updateActivity(ctx, tip, patch)`                   | P5    | P4        | `convex/lib/activity.ts`                                                                                   |
-| `adjustEarningsCents(ctx, { userId, incoming?, pending?, earned?, paidOut? })` | P5    | P2, P4    | `convex/lib/earnings.ts`                                                                                   |
-| `applySettlementOutcomes(ctx, settlementId, result)`                           | P5    | P2        | replaces the ledger half of v2 `finishSettlement`; P2 keeps the record half                                |
+| Function                                                                                                                | Owner | Called by | Signature                                                                                                  |
+| ----------------------------------------------------------------------------------------------------------------------- | ----- | --------- | ---------------------------------------------------------------------------------------------------------- |
+| `requestSettlement(ctx, now)`                                                                                           | P2    | P5        | `(ctx: MutationCtx, now: number) => Promise<void>` in `convex/lib/chain/settleSchedule.ts`                 |
+| `internal.chain.indexer.kick`                                                                                           | P4    | P2, P4    | `internalMutation({ args: {}, returns: v.null() })`                                                        |
+| `scheduleVerification(ctx, submissionId)`                                                                               | P4    | P5        | `(ctx: MutationCtx, id: Id<'chainSubmissions'>) => Promise<void>` in `convex/lib/chain/submissionStore.ts` |
+| `writeActivity(ctx, row)`, `updateActivity(ctx, tip, patch)`                                                            | P5    | P4        | `convex/lib/activity.ts`                                                                                   |
+| `moveEarnings(ctx, { userId, token, from, to, cents, baseUnits })` (states `none`, `pending`, `available`, `collected`) | P5    | P2, P4    | `convex/lib/earnings.ts`                                                                                   |
+| `applySettlementOutcomes(ctx, settlementId, result)`                                                                    | P5    | P2        | replaces the ledger half of v2 `finishSettlement`; P2 keeps the record half                                |
 
 ### Client libraries
 

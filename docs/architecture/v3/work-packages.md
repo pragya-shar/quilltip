@@ -158,9 +158,9 @@ P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
   `scheduleVerification(ctx, submissionId)`; a `chainSubmissions.kind`
   `tab_op` record type for P5's `recordTransaction` (P5 adds the schema value).
 - **Interfaces used:** `writeActivity`, `updateActivity`,
-  `adjustEarningsCents` (P5).
+  `moveEarnings` (P5).
 - **Tests:** verification cadence with a fake clock and RPC; kick dedupe and
-  rerun; wallet tip `sending` rows and `incomingCents` at record, credit once
+  rerun; wallet tip `sending` rows and `pending` at record, moved to `collected` once
   at confirm with the cron running; failure and expiry remove incoming.
 - **Depends on:** P0. **Size:** M.
 
@@ -185,7 +185,7 @@ P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
   `scripts/tab/*.test.ts`.
 - **Interfaces provided:** I3 (`convex/balance.ts`, `activity.mine`,
   `earnings.mine`), `applySettlementOutcomes`, `writeActivity`,
-  `updateActivity`, `adjustEarningsCents`, `signBalanceTip`,
+  `updateActivity`, `moveEarnings`, `signBalanceTip`,
   `commitAcceptedTip`, `BALANCE_ERROR_CODES`.
 - **Interfaces used:** `requestSettlement` (P2), `scheduleVerification` (P4),
   `v3.json` vectors (P1).
@@ -300,8 +300,9 @@ listed so the coordinator can sequence them.
   `tabReceipts.kind`), `convex/balance.ts` (export the acceptance core so
   `agents.acceptRead` and `agents.acceptTip` reuse it), the article page head
   (UI track, one `<link>`).
-- **Not in A3:** the standard MPP `charge` path (7.6) and its SDK
-  dependencies, until the owner decides.
+- **Also in A3:** the wording check of section 7.6 (`scripts/brand/`).
+- **Not built:** standard MPP `charge` and x402 `exact` (rejected, 7.6); no
+  MPP or x402 SDK dependency is added.
 - **Depends on:** P5, P2. **Size:** M.
 
 #### S1. Split legs

@@ -91,7 +91,7 @@ the v2 event handlers keep working for every other event.
 ### Convex side of the instant withdrawal
 
 `balance.prepareWithdraw({ token, amountBaseUnits })` signs the attestation
-only when `amount ≤ confirmedBalance − outstanding − reserved − tipOnly`. It
+only when `amount ≤ readerSpendable(account) − tipOnly`. It
 sets `tabAccounts.withdrawReserved = { amount, nonce, validUntil }`, which
 acceptance subtracts from `available` until the `WithdrawnNow` event lands or
 `validUntil` passes. Because the reservation is at most `available`, every
@@ -163,7 +163,7 @@ invariant.
 | I-16 Delayed withdrawal          | `withdraw_now` adds a second exit | The delayed path is unchanged. New I-16b: `withdraw_now` pays at most the balance, only to the reader, only with the reader's auth and an unexpired acceptor attestation for this reader, amount and current nonce; each nonce succeeds once.                             |
 | I-14 Voucher binding             | None                              | Voucher payloads are unchanged. New I-14b: the withdraw payload binds its own domain, the network, the Tab contract, the reader, the amount, the nonce and the expiry, so no voucher or acceptance signature verifies as an attestation.                                  |
 | I-18 `settle_own`                | Pays the caller directly          | Still requires a valid acceptance from `acceptor_keys` and only for the calling writer; the payment goes only to the caller.                                                                                                                                              |
-| I-22 Acceptance                  | Convex side of `withdraw_now`     | The balance rule becomes `outstanding + reserved + unindexedSettled + amount ≤ confirmedBalance`, so an attested withdrawal can never take funds an accepted voucher needs.                                                                                               |
+| I-22 Acceptance                  | Convex side of `withdraw_now`     | The balance rule becomes `amount ≤ readerSpendable(account)`, which subtracts `outstanding` and `withdrawReserved` from `confirmedBalance`, so an attested withdrawal can never take funds an accepted voucher needs.                                                     |
 | I-25 TTL                         | New `WithdrawNonce`               | Extended on every write like other persistent entries.                                                                                                                                                                                                                    |
 | I-27 Pause never blocks exits    | `withdraw_now`                    | Added to the list of calls pause never blocks.                                                                                                                                                                                                                            |
 | I-28 Accounts never removed      | `withdraw_now`                    | A zero balance keeps the entry; `WithdrawNonce` never decreases, including across `migrate`.                                                                                                                                                                              |
@@ -214,10 +214,78 @@ With `withdraw_now`:
 - **Bound:** the reader's accepted and unsettled amount, which the fast
   settler keeps to about the last 15 to 60 s of that reader's tips, and the
   cent limits (at most $100 accepted per reader per day).
-- **Detection and response:** the indexer flags a `WithdrawnNow` without a
-  matching `withdrawReserved` (`TAB_UNRESERVED_WITHDRAWAL` alert). The
-  response is `set_acceptor` twice (the contract keeps the current and the
-  previous key, so two rotations remove the leaked one), which also stops
-  `settle_own` under the old key. Pause does not help, because exits are
+- **Response:** the runbook below. Pause does not help, because exits are
   never paused (I-27).
+
+### Detection signals
+
+Convex records every attestation it signs (`withdrawAttestations`:
+reader, Tab, nonce, amount, `validUntil`, signed at). A legitimate instant
+withdrawal can never cause a shortfall, because its amount is at most
+`readerSpendable`. So each of these is evidence of a leaked acceptor key:
+
+| Signal                                                                                                                                                | Seen by                                  | Alert code                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------- | -------------------------------- |
+| A `WithdrawnNow` whose `(reader, nonce)` has no `withdrawAttestations` row, or whose amount differs from the attested amount                          | Indexer, `WithdrawnNow` handler          | `TAB_UNRESERVED_WITHDRAWAL`      |
+| A `VoucherSkipped` with reason `SHORTFALL` (in the settler's own result or indexed) for a reader with a `WithdrawnNow` after the voucher's acceptance | Settler (`finishSettlement`) and indexer | `TAB_SHORTFALL_AFTER_WITHDRAWAL` |
+| A `settle_own` (`TabSettled` with `by_writer: true`) for a voucher Convex never countersigned under the current or previous acceptor key              | Indexer                                  | `TAB_UNKNOWN_ACCEPTANCE`         |
+
+Each alert is a `console.error` JSON line like the v2 settler alerts, and
+sets `chainConfig.acceptorSuspect = true`, which makes acceptance refuse new
+balance tips (`BALANCE_PAUSED`) until an operator clears it. Exits and
+settlement continue.
+
+### Runbook: acceptor key compromise
+
+Run from the repository root with the v3 set's Stellar CLI identities
+(`--keys-dir/<set>` of the deploy, here `$KEYS_DIR/v3`), the testnet guard
+variables of the deploy script, and the v3 Tab's id in `$TAB_ID`. Each
+command targets only the v3 Tab (D9 rule: no v2 contract).
+
+1. Make a fresh acceptor key and read its raw public key:
+
+   ```bash
+   stellar keys generate qt-v2-v3-acceptor-r1 --config-dir "$KEYS_DIR/v3"
+   ```
+
+   ```bash
+   ACCEPTOR_HEX=$(ADDR=$(stellar keys public-key qt-v2-v3-acceptor-r1 --config-dir "$KEYS_DIR/v3") bun -e "import { StrKey } from '@stellar/stellar-sdk'; console.log(Buffer.from(StrKey.decodeEd25519PublicKey(process.env.ADDR)).toString('hex'))")
+   ```
+
+2. Point Convex at the new key first. Acceptance then refuses until the Tab
+   lists the key (`TAB_ACCEPTOR_MISMATCH`), which is the safe order. Set the
+   value through the Convex dashboard's environment page for the v3
+   integration deployment (variable `TAB_ACCEPTOR_SECRET`, value from
+   `stellar keys show qt-v2-v3-acceptor-r1 --config-dir "$KEYS_DIR/v3"`), so
+   the secret is not in shell history.
+3. Rotate twice with the same new key, so the list becomes `[new, new]` and
+   the leaked key is gone:
+
+   ```bash
+   stellar contract invoke --id "$TAB_ID" --source qt-v2-v3-admin --config-dir "$KEYS_DIR/v3" --network testnet -- set_acceptor --public_key "$ACCEPTOR_HEX"
+   ```
+
+   ```bash
+   stellar contract invoke --id "$TAB_ID" --source qt-v2-v3-admin --config-dir "$KEYS_DIR/v3" --network testnet -- set_acceptor --public_key "$ACCEPTOR_HEX"
+   ```
+
+4. Confirm the list and refresh the cached config:
+
+   ```bash
+   stellar contract invoke --id "$TAB_ID" --source qt-v2-v3-admin --config-dir "$KEYS_DIR/v3" --network testnet --send no -- config
+   ```
+
+   ```bash
+   CONVEX_DEPLOYMENT=<v3 integration deployment> npx convex run chain/config:refreshChainConfig
+   ```
+
+5. Re-sign the acceptance of every open latest voucher with the new key
+   (`internal.tabs.resignAcceptances`, P5), so writers keep their `settle_own`
+   recourse. `settle` ignores acceptances, so settlement continued throughout.
+6. Clear `chainConfig.acceptorSuspect` (`internal.chain.config.clearAcceptorSuspect`,
+   P5) once the alerts stop, and record the transaction hashes in the
+   deployment evidence.
+7. For each `TAB_SHORTFALL_AFTER_WITHDRAWAL`, list the affected writers' `not
+paid` amounts in the incident note. On testnet nothing is refunded.
+
 - **Mainnet:** the acceptor key moves to a KMS, as v2 already requires.

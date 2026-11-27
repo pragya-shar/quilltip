@@ -23,6 +23,25 @@ vouchers) and replaces when it runs and what the transaction does.
 Targets: accepted to on-chain 25 s p50 and 60 s p95; on-chain to the writer's
 wallet in the same transaction.
 
+### Precondition: the spendable fix
+
+The fast cadence turns settlement results from rare to constant, so it must
+not start before the reader's spendable amount is right during settlement.
+Today `outstanding` falls at the settler's result while `confirmedBalance`
+falls only at the indexed `TabSettled`, so spendable reads too high in
+between. The fix lands once, on `overhaul/v2`, from the owner of the tab
+ledger, and `overhaul/v3` takes it by merge; no v3 package writes a second
+fix. P2 does not enable event-driven scheduling until that merge is on
+`overhaul/v3` and its test passes there.
+
+- **Invariant:** spendable never rises between a settlement result and its
+  indexed event (nor when the event is replayed).
+- **One helper:** `readerSpendable(account: Doc<'tabAccounts'>): bigint`,
+  exported from `convex/lib/chain/tabLedger.ts`. `tabs.getMyTab`,
+  `balance.session`, `tipContext` and `checkTabTip`'s balance rule all call it;
+  nothing else computes spendable. In v3 it also subtracts
+  `withdrawReserved` ([contracts C2](contracts.md#convex-side-of-the-instant-withdrawal)).
+
 ## 3.2 Scheduling
 
 A singleton document schedules the next run. It is read on every
@@ -162,9 +181,10 @@ and token, at the end of the call. Writers in `hold` are credited to
 - A transfer to a writer can fail only when the writer's address cannot hold
   the token (for example a classic account without a trustline for a
   credit asset). Simulation shows it, and the run moves that writer to `hold`.
-- `tabVouchers` gains `payout: 'paid' | 'held'` per settlement outcome;
-  `authorEarnings.claimableBaseUnits[token]` tracks held amounts.
-- `earnings.mine.toCollect` shows held amounts. The writer's "Collect" action
+- `tabVouchers` gains `payout: 'paid' | 'held'` per settlement outcome. A
+  paid writer's share moves `pending → collected`; a held writer's share moves
+  `pending → available` ([section 2.6](02-instant-state.md#26-earnings)).
+- `earnings.mine.available` shows held amounts. The writer's "Collect" action
   calls `Tab.claim(writer, token)` (anyone may call; funds go only to the
   writer), so the settler also retries held writers once an hour with a
   separate `claim` transaction when simulation shows it now succeeds.

@@ -48,8 +48,8 @@ outbox entry as "Sending" until its resubmission is answered
 
 `balance.send` writes everything 2.1 lists, plus:
 
-- `authorEarnings.pendingCents` (+ the writer's share in cents at the
-  acceptance price). The writer's headline figure counts accepted tips.
+- The writer's running `pending` figure (+ the receipt's `writerCents` and
+  net base units, section 2.6). The writer's total counts accepted tips.
 - One `activity` row per side (section 2.5).
 
 The writer's screens subscribe to `earnings.mine` and `activity.mine({ role: 'writer' })`;
@@ -61,21 +61,23 @@ Settlement (document 3) applies each settled voucher with the v2 function
 `applyPairSettlement`, from the settler's own transaction result, not from
 the indexer. In the same mutation, v3:
 
-- moves the receipt's cents from `pendingCents` to `earnedCents`, and from
-  `earnedCents` to `paidOutCents` when the payout went to the writer's wallet
-  in the same transaction;
-- sets the activity rows' status to `on-chain`, then `in-wallet`.
+- moves each settled receipt's `writerCents` and net from the writer's
+  `pending` to `collected` when the writer was paid in the settlement
+  transaction, or to `available` when the writer was in `hold`
+  (section 2.6);
+- sets the activity rows' status to `in-wallet` or `on-chain`.
 
-The reader's `available` must not change at settlement: `confirmedBalance`
-falls by the settled gross and `outstanding` by the same amount. v2 lowers
-`outstanding` from the settler's result at once but lowers
-`confirmedBalance` only when the indexer applies `TabSettled`, so
-`available` reads too high for one indexer cycle. v3 adds
-`tabAccounts.unindexedSettled`: `applySettlementOutcomes` adds each settled
-voucher's gross to it, and the `TabSettled` handler subtracts it once (the
-handler already runs once per event id) when the event's transaction hash
-matches a confirmed settlement record. `available = confirmedBalance −
-outstanding − reserved − unindexedSettled`, floored at zero.
+The reader's spendable amount must not change at settlement:
+`confirmedBalance` falls by the settled gross and `outstanding` by the same
+amount. Today `outstanding` falls at the settler's result and
+`confirmedBalance` only when the indexer applies `TabSettled`, so spendable
+reads too high for one indexer cycle. That defect is fixed once, on
+`overhaul/v2`, by the tab ledger's owner, and `overhaul/v3` takes the fix by
+merge. v3 relies on its invariant: **spendable never rises between a
+settlement result and its indexed event.** Every read model and
+`checkTabTip` compute spendable with one exported helper,
+`readerSpendable(account)` in `convex/lib/chain/tabLedger.ts`
+([section 3.1](03-settlement.md#31-what-changes-from-v2)).
 
 ### Not paid
 
@@ -89,7 +91,7 @@ balance to fall without Convex knowing; with the v3 withdrawal paths
 | Side   | What changes                                                                                                                      | What the screen says                                      |
 | ------ | --------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
 | Reader | `outstanding` releases the unpaid amount (v2 `closePair` and the `SHORTFALL` path do this); the activity item becomes `not-paid`. | "Not paid. $1 is back in your balance." on the item       |
-| Writer | `pendingCents` falls by the receipt's share; the activity item becomes `not-paid`.                                                | The item is listed as "Not paid" with no amount in totals |
+| Writer | `pending` falls by the receipt's `writerCents` and net; the activity item becomes `not-paid`.                                     | The item is listed as "Not paid" with no amount in totals |
 
 A `SHORTFALL` pair stays `blocked` as in v2 and settles after the next
 deposit; its items return to `sent`.
@@ -100,15 +102,12 @@ A wallet tip is final only when the server confirms the `Tipped` event. It
 still shows at once:
 
 1. When `tipsV2.recordSubmitted` stores the hash, it writes both activity rows
-   with status `sending` and adds the writer's share to
-   `authorEarnings.incomingCents`. The writer sees "incoming" without a
-   figure change in totals.
+   with status `sending` and adds the writer's share to `pending`.
 2. Verification (section 2.4) confirms in about 5 to 10 s. The confirming
-   mutation credits the earnings directly (moves `incomingCents` to
-   `earnedCents` and `paidOutCents`, because a Core tip pays the writer in the
-   tip transaction) and sets both rows to `in-wallet`.
-3. `FAILED` or `EXPIRED` removes the incoming amount and sets both rows to
-   `failed` (reader) or removes the writer's row.
+   mutation moves the share from `pending` to `collected` (a Core tip pays the
+   writer inside the tip transaction) and sets both rows to `in-wallet`.
+3. `FAILED` or `EXPIRED` removes the share from `pending` and sets the
+   reader's row to `failed`; the writer's row is removed.
 
 The `syncV2TipEarnings` cron stays as a backstop for rows that a crash left
 unapplied; each row is still credited once (`earningsAppliedAt`).
@@ -182,36 +181,64 @@ does not start empty.
 
 ## 2.6 Earnings
 
-`authorEarnings` keeps its v2 fields and gains cents by state, so the
-writer's headline needs no base-unit arithmetic on the client:
+A money label means exactly what it says at any history length. The writer
+has three disjoint figures; their sum is the lifetime total of tips that did
+not fail.
 
-| Field (cents)   | Moves at                                                                   |
-| --------------- | -------------------------------------------------------------------------- |
-| `incomingCents` | wallet tip recorded (+), confirmed or failed (−)                           |
-| `pendingCents`  | balance tip accepted (+), settled or not paid (−)                          |
-| `earnedCents`   | settled or confirmed (+)                                                   |
-| `paidOutCents`  | reached the writer's wallet (+): Core tips at once, balance tips at payout |
+| Figure      | Meaning                                                                   | Moves in (same mutation as the receipt's state change)                                      |
+| ----------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `pending`   | Accepted balance tips and submitted wallet tips, not yet settled on chain | + at acceptance or `recordSubmitted`; − at settlement, confirmation, not paid, failed       |
+| `available` | Settled on chain and collectable now (claimable in the Tab)               | + at settlement for a writer in `hold`; − at the writer's `claim`                           |
+| `collected` | In the writer's wallet                                                    | + at settlement with direct payout, at a wallet tip's confirmation, at the writer's `claim` |
 
-`earnings.mine` returns `total = pending + earned`, `onTheWay = pending + (earned − paidOut)`,
-`inWallet = paidOut`, and `toCollect` from `claimableBaseUnits` (writers the
-settler could not pay directly, [section 3.5](03-settlement.md#35-automatic-payout)).
-The figures are in cents at the acceptance price; base units stay in the v2
-fields for audits.
+Each figure is a running field on `authorEarnings`, per token, in cents and
+in base units (`pendingCents`, `availableCents`, `collectedCents`, and
+`pendingBaseUnits`, `availableBaseUnits`, `collectedBaseUnits` maps), written
+only through `moveEarnings(ctx, { userId, token, from, to, cents, baseUnits })`
+in the mutation that changes the receipt's or tip's state. No total is
+computed from a capped scan. Lists (`activity.mine`) are paginated. The
+reader's figures are running fields too: `reserved` is
+`tabAccounts.outstanding`, and `spendable` is `readerSpendable(account)`.
+
+**Cents.** Each tip carries its writer share in cents at its own acceptance
+price (`tabReceipts.writerCents`, set at acceptance:
+`amountCents − round(amountCents × 250 / 10,000)`). Settlement moves exactly
+the settled receipts' `writerCents`. A collect is in base units: a `claim` of
+`b` base units of a token with `available` of `A` base units and `C` cents
+moves `round(C × b / A)` cents, and a collect that takes `available` to zero
+base units moves all remaining `C` cents. So cents never drift across
+collects, and `available` is zero in cents exactly when it is zero in base
+units.
+
+**With direct payout** (v3 contracts), settlement moves `pending` straight to
+`collected`, and `available` holds only writers the settler put in `hold`; for
+most writers it is $0, and "Ready to collect" may be hidden at zero. **Before
+the v3 contracts** (slice 1 on the v2 contracts), settlement moves `pending`
+to `available` and the writer's `claim` moves it to `collected`. The labels are
+true in both: `available` is always what a `claim` would pay now, and
+`collected` is always what reached the wallet.
+
+`earnings.mine` returns the three figures, `total = pending + available +
+collected`, and the per-token base units. The v2 `earnedBaseUnits` and
+`totalEarnedCents` fields stay for audits and history.
 
 ## 2.7 Tests
 
-- `unindexedSettled`: between a confirmed settlement result and its indexed
-  `TabSettled`, `available` does not rise; after the event (and after a
-  replay of it), `unindexedSettled` is back to zero and `available` is
-  unchanged.
+- The v2 fix's invariant, re-run on `overhaul/v3`: between a confirmed
+  settlement result and its indexed `TabSettled`, and after a replay of the
+  event, `readerSpendable` does not rise.
+- Earnings figures: for any sequence of accept, settle (paid or held),
+  partial and full claim, not paid and replay, `pending + available +
+collected` equals Σ `writerCents` of tips that did not fail, and
+  `availableCents` is zero exactly when `availableBaseUnits` is zero.
 - `convex-test`: after `balance.send`, `balance.session`, `activity.mine`
   (both roles) and `earnings.mine` return the new figures in the same
   transaction's results; after `finishSettlement`, figures move between
   states and totals are unchanged; shortfall, unpaid and rejected paths
   restore the reader's balance and remove the writer's pending share;
   no client path edits `balance.session` or `activity.mine` before acceptance.
-- Wallet tips: `recordSubmitted` writes `sending` rows and `incomingCents`;
-  confirmation credits once even when the cron also runs.
+- Wallet tips: `recordSubmitted` writes `sending` rows and adds to `pending`;
+  confirmation moves it to `collected` once, even when the cron also runs.
 - Display state: `useTip` shows "Sending" during the hold and the send, and the
   balance view changes only with the server result.
 - Verification cadence: an injected clock and RPC fake confirm at the first
