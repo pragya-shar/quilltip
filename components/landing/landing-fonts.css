@@ -59,7 +59,7 @@
 }
 @font-face {
   font-family: 'Landing Alegreya';
-  src: url('/landing/fonts/alegreya-latin-400-italic.woff') format('woff');
+  src: url('/landing/fonts/alegreya-latin-400-italic.woff2') format('woff2');
   font-weight: 400;
   font-style: italic;
   font-display: swap;

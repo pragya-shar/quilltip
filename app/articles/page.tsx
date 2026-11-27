@@ -7,6 +7,7 @@ import {
 import { searchParamsRecordReader } from '@/lib/auth/safeReturnPath'
 import { getReadingRoomList } from '@/lib/seo/publicContent'
 import { preloadUiFont } from '@/lib/fonts/preloadFonts'
+import { listArticleForClient } from '@/lib/articles/listArticleForClient'
 import '@/components/articles/reading-room.css'
 
 /**
@@ -22,10 +23,17 @@ export default async function ArticlesPage({
   preloadUiFont()
   const params = searchParamsRecordReader(await searchParams)
   const args = readingRoomListArgs(params)
-  const initialList =
+  const list =
     params.get('bookmarked') === '1'
       ? undefined
       : await getReadingRoomList(args)
+  // Cards need each article's opening, not its whole body.
+  const initialList =
+    list &&
+    ({
+      ...list,
+      articles: list.articles.map(listArticleForClient),
+    } as typeof list)
 
   return (
     <ReadingRoomShell>

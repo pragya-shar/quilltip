@@ -29,7 +29,7 @@
 .ui-light,
 .account-surface,
 .account-dialog {
-  --ui-font: 'QuillTip UI', sans-serif;
+  --ui-font: 'QuillTip UI', 'Work Sans Fallback', sans-serif;
   --ui-surface: #faf5ec;
   --ui-foreground: #390c18;
   --ui-primary: #790333;

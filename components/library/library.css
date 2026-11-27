@@ -6,20 +6,20 @@
 }
 @font-face {
   font-family: 'Library Alegreya';
-  src: url('/prototype/fonts/library-alegreya.woff');
+  src: url('/prototype/fonts/library-alegreya.woff2') format('woff2');
   font-display: swap;
 }
 /* Restore the prototype's document defaults inside the landing only. */
 :where(.prototype-library) {
   font-size: 16px;
   line-height: normal;
-  font-family: 'Landing DM', sans-serif;
+  font-family: 'Landing DM', 'DM Sans Fallback', sans-serif;
   font-synthesis: none;
-  --headline-font: 'Library Syne', sans-serif;
-  --support-font: 'Landing Work', sans-serif;
-  --reading-font: 'Landing Work', sans-serif;
-  --ui: 'Landing DM', sans-serif;
-  --serif: 'Library Syne', sans-serif;
+  --headline-font: 'Library Syne', 'Syne 600 Fallback', sans-serif;
+  --support-font: 'Landing Work', 'Work Sans Fallback', sans-serif;
+  --reading-font: 'Landing Work', 'Work Sans Fallback', sans-serif;
+  --ui: 'Landing DM', 'DM Sans Fallback', sans-serif;
+  --serif: 'Library Syne', 'Syne 600 Fallback', sans-serif;
   --display-weight: 700;
   --opening-play: running;
   --flow-play: running;
@@ -67,6 +67,7 @@
   color: var(--ink);
   font:
     15px/1.5 'Library Syne',
+    'Syne 600 Fallback',
     sans-serif;
   transition: background 0.3s;
 }
@@ -99,7 +100,9 @@
   border-bottom: 1px solid var(--line);
 }
 :where(.prototype-library) .brand {
-  font: 32px 'Library Syne';
+  font:
+    32px 'Library Syne',
+    'Syne 600 Fallback';
   letter-spacing: -1.5px;
 }
 :where(.prototype-library) header nav {
@@ -117,6 +120,7 @@
 :where(.prototype-library) h1 {
   font:
     clamp(44px, 5vw, 76px)/1.06 'Library Alegreya',
+    'Alegreya Fallback',
     serif;
   letter-spacing: -2px;
   margin: 14px 0 18px;
@@ -193,6 +197,7 @@
   color: #660033;
   font:
     600 37px/1 'Library Syne',
+    'Syne 600 Fallback',
     sans-serif;
   letter-spacing: -0.055em;
   min-height: 60px;
@@ -282,6 +287,7 @@
 :where(.prototype-library) .collection-page h2 {
   font:
     600 24px 'Library Syne',
+    'Syne 600 Fallback',
     sans-serif;
   margin-top: 40px;
 }
@@ -300,6 +306,7 @@
   display: block;
   font:
     28px 'Library Alegreya',
+    'Alegreya Fallback',
     serif;
   color: var(--accent);
   margin: 6px 0;
@@ -311,6 +318,7 @@
 :where(.prototype-library) .library-row blockquote {
   font:
     24px/1.45 'Library Alegreya',
+    'Alegreya Fallback',
     serif;
   margin: 0 0 12px;
 }
@@ -353,13 +361,14 @@
 :where(.prototype-library) .collection-page h1 {
   font:
     600 clamp(34px, 5vw, 54px)/1.12 'Library Syne',
+    'Syne 600 Fallback',
     sans-serif;
   letter-spacing: -0.035em;
 }
 :where(.prototype-library)
   .collection-page
   :is(p, small, .back, .library-browse) {
-  font-family: 'Library Syne', sans-serif;
+  font-family: 'Library Syne', 'Syne 600 Fallback', sans-serif;
 }
 :where(.prototype-library) .library-empty {
   padding: 12px 0 20px;
@@ -385,7 +394,7 @@
 }
 .prototype-library {
   min-height: 100dvh;
-  --headline-font: 'Library Syne', sans-serif;
+  --headline-font: 'Library Syne', 'Syne 600 Fallback', sans-serif;
 }
 .prototype-library .wordmark {
   text-decoration: none;
@@ -396,6 +405,7 @@
   color: #660033;
   font:
     600 37px/1 'Library Syne',
+    'Syne 600 Fallback',
     sans-serif;
   letter-spacing: -0.055em;
   min-height: 60px;

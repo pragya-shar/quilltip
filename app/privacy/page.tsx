@@ -27,14 +27,16 @@ export default function PrivacyPage() {
           <p>
             When product analytics is turned on for this site, we ask before
             recording anything. If you allow it, we count page views and a few
-            actions, such as joining the waitlist or sending feedback. A page
-            view records the page path without search terms or other query
-            details, so a visit to a public article records that article’s link.
-            Events go through QuillTip’s own server to PostHog, hosted in the
-            EU, so your IP address is not shared with them. We never include
-            what you write, your name, your email address or your wallet
-            address. Do Not Track and Global Privacy Control are treated as a
-            refusal.
+            actions, such as joining the waitlist or sending feedback. We also
+            record how quickly each page loads and whether it shifts while
+            loading, as a rating and a range for each measure, to check the
+            site’s speed. A page view records the page path without search terms
+            or other query details, so a visit to a public article records that
+            article’s link. Events go through QuillTip’s own server to PostHog,
+            hosted in the EU, so your IP address is not shared with them. We
+            never include what you write, your name, your email address or your
+            wallet address. Do Not Track and Global Privacy Control are treated
+            as a refusal.
           </p>
           <AnalyticsPreferences enabled={analyticsServerKey() !== null} />
         </div>

@@ -1,5 +1,5 @@
 .writer-introduction {
-  --ui: 'Landing Syne', sans-serif;
+  --ui: 'Landing Syne', 'Syne Fallback', sans-serif;
   background: linear-gradient(115deg, #cfa29c, #be98ae);
 
   min-height: 100svh;
@@ -35,7 +35,7 @@
   margin: 0 0 22px;
 }
 .writer-intro-invitation h1 {
-  font-family: 'Landing Syne', sans-serif;
+  font-family: 'Landing Syne', 'Syne Fallback', sans-serif;
   font-size: clamp(28px, 2.35vw, 34px);
   line-height: 1.25;
   letter-spacing: -1.3px;
@@ -128,11 +128,12 @@
 .writer-intro-prose {
   padding: 24px 28px;
   min-height: 320px;
-  font-family: 'Landing Alegreya', Georgia, serif;
+  font-family: 'Landing Alegreya', 'Alegreya Fallback', Georgia, serif;
 }
 .writer-intro-prose h2 {
   font:
     32px/1.2 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   min-height: 39px;

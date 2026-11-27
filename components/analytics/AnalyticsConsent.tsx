@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
@@ -11,6 +12,12 @@ import {
 } from '@/lib/analytics/consent'
 import { activateAnalytics, track } from '@/lib/analytics/track'
 import './analytics.css'
+
+// Page-speed reporting loads only after a visitor allows analytics.
+const WebVitalsReporter = dynamic(
+  () => import('./WebVitalsReporter').then((mod) => mod.WebVitalsReporter),
+  { ssr: false }
+)
 
 /**
  * Asks once whether optional product analytics may run, then records page
@@ -36,6 +43,7 @@ export function AnalyticsConsent() {
     track('$pageview')
   }, [consent, pathname])
 
+  if (consent === 'granted') return <WebVitalsReporter />
   if (consent !== null) return null
 
   return (

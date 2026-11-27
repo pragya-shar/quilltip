@@ -402,6 +402,9 @@ connections the local server allows. The global stylesheet finished at about
 
 ### What simulated mobile under 2 s would need
 
+Superseded by the HTTP/2 measurements in
+[Fonts, list data and field data over HTTP/2](#fonts-list-data-and-field-data-over-http2-405-428).
+
 Lighthouse's simulation charges the bytes that finish, and the scripts that
 run, before the observed first paint (see
 [Why simulated mobile LCP stays above 2 s](#why-simulated-mobile-lcp-stays-above-2-s)).
@@ -423,6 +426,202 @@ load far below the framework's own size. The options that remain are owner
 decisions: fewer typefaces on the first screen (the landing page uses ten),
 or accepting applied throttling (or field data) as the measure for #405.
 
+## Fonts, list data and field data over HTTP/2 (#405, #428)
+
+Measured 2026-11-27. Targets, all four routes: Lighthouse simulated mobile
+LCP < 2 s, applied-throttling mobile LCP < 2 s, CLS < 0.1 (mobile and
+desktop). Field data after cutover is the final confirmation (see
+[Field data](#field-data)).
+
+### Method: HTTP/2, as production serves the site
+
+Same builds, data and tool as above (local production build, seeded local
+backend, Lighthouse 12.8.2, five runs, median), with one change: Lighthouse
+now loads the pages over HTTP/2 and TLS, through a local proxy in front of
+`next start`. `next start` itself speaks HTTP/1.1, and the protocol changes
+both lab methods:
+
+- **Simulated:** Lighthouse models connections from the observed protocol.
+  Over HTTP/1.1 it allows six connections per host and queues the page's
+  20 or so chunk requests behind each other, each extra round costing a
+  simulated 150 ms round trip. That queueing does not exist on the deployed
+  site, which serves HTTP/2. On the same build, HTTP/2 lowered simulated LCP
+  by 650 to 800 ms (login 2918 to 2105 ms, article 3510 to 2706 ms).
+- **Applied:** DevTools throttling shares the bandwidth equally between
+  requests in flight. Over HTTP/1.1 only six run at once, so the stylesheet
+  and fonts were never competing with the scripts; over HTTP/2 all of them
+  start together and the low-priority scripts take bandwidth from the
+  stylesheet. Applied LCP rose by 400 to 750 ms.
+
+HTTP/2 is the protocol readers get, so every number in this section uses it.
+The tables earlier on this page (HTTP/1.1) are not comparable with these.
+
+### Cause
+
+On every route the page paints when its stylesheets have arrived, and its
+async chunk scripts (190 to 207 KB gzip, about 145 KB of it React and the
+Next.js router) work against that in both methods:
+
+- On the unthrottled load Lighthouse records, Chrome runs every chunk script
+  before it presents the first frame, so the simulation charges all of their
+  bytes and evaluation to LCP.
+- Under applied throttling the scripts download alongside the stylesheet and
+  fonts and slow them down.
+
+Next.js 16.4 has no setting for when these scripts load: the App Router
+writes the root chunks through `ReactDOM.preinit` and React writes every other
+chunk as a hoisted `<script async>` (checked in the installed
+`next/dist/server/app-render/required-scripts.js` and the App Router runtime).
+
+The change that takes the chunk scripts off the paint path edits the Next.js
+runtime. It is proposed in a separate pull request, stacked on this one, so
+the changes below can merge without it.
+
+### What changed
+
+Medians of five runs, LCP in ms, HTTP/2. Each row adds one change to the
+previous row.
+
+| Step                                    | `/` sim. | `/login` sim. | `/articles` sim. | Article sim. | `/` applied | `/login` applied | `/articles` applied | Article applied |
+| --------------------------------------- | -------: | ------------: | ---------------: | -----------: | ----------: | ---------------: | ------------------: | --------------: |
+| Before (#506 merged with `overhaul/v2`) |     2779 |          2105 |             2854 |         2859 |        2593 |             2214 |                2814 |            2565 |
+| 1. Fonts                                |     2857 |          2105 |             2860 |         2704 |        2596 |             2209 |                2792 |            2563 |
+| 2. `/articles` card data                |     2857 |          2255 |             2705 |         2855 |        2680 |             2264 |                3030 |            2637 |
+
+Row 2 is the whole branch, measured again on one build after a merge of
+`overhaul/v2` (#498, #530) and the review fixes of #503 and #506, which put
+the toaster back in every first load (about 10 KB). Changes on routes the
+card data does not touch (`/login` simulated 2105 to 2255 ms) are likely
+from those; they were not measured separately.
+
+1. **Fonts.** Every face was rewritten losslessly to WOFF2 without glyph
+   names (19 KB less in total; the two `.woff` files became WOFF2), and
+   each typeface got a metric-matched fallback (`app/font-fallbacks.css`:
+   size, ascent and descent overrides computed the way `next/font` computes
+   them, one face per weight). Text that paints before its web font now keeps
+   its line breaks when the font swaps in; CLS fell on `/` (0.002 to 0.001)
+   and `/articles` (0.005 to 0.000). LCP changed within noise.
+   - Faces at weight 600 and above use Arial Bold as their source, with
+     values computed against Arial Bold. With `local('Arial')` at 600, WebKit
+     draws Arial Bold and Chromium draws regular Arial made bold, so values
+     computed against regular Arial made Syne headings wider in WebKit: an
+     article title took 3 lines with the fallback and 2 with Syne, and the
+     text below it moved up by about 38 px per heading at the swap.
+   - Liberation Sans and Liberation Serif are listed after Arial and Times New
+     Roman. They have the same advance widths, so the same values hold on
+     systems that have only them, such as most Linux systems. WebKit on Linux
+     resolves only the regular ones (see below).
+   - Each fallback face matches the file its family draws at that weight.
+     Syne has three files (400, 600, 700). `Landing Syne` and the sign-in
+     pages' `Account Syne` have one face per file, so 500 draws the 400 file:
+     they use `Syne Fallback`. `QuillTip Display`, `Reader`, `Reading Room`,
+     `Library`, `Writing` and `Wallet Syne`, and the account pages'
+     `Account Syne`, draw the 600 file at every weight: they use
+     `Syne 600 Fallback`. Before this split, the `/guide` wallet button
+     (`Landing Syne` 500) was 311 px in the fallback against 275 px in Syne
+     and took two lines until the font arrived.
+   - `bun run perf:font-fallbacks` checks this. See
+     [Font fallback check](#font-fallback-check).
+2. **`/articles` sends card data, not article bodies.** The first list in
+   the HTML carried every listed article's full document and search text
+   (the long article's text 40 times). The server now sends each card its
+   opening (`lib/articles/listArticleForClient.ts`); the card text is the
+   same (unit test), and the live query brings full rows after load. The
+   page's HTML fell from 160 KB to 49 KB raw (26.6 to 10.3 KB gzip).
+
+### Result
+
+Median of 5; CLS is the largest median across the simulated, applied and
+desktop runs.
+
+| Route       | Simulated mobile LCP | Applied mobile LCP | Desktop LCP |   CLS | Simulated < 2 s | Applied < 2 s | CLS < 0.1 |
+| ----------- | -------------------: | -----------------: | ----------: | ----: | --------------- | ------------- | --------- |
+| `/`         |                 2857 |               2680 |         586 | 0.001 | no              | no            | yes       |
+| `/login`    |                 2255 |               2264 |         486 | 0.016 | no              | no            | yes       |
+| `/articles` |                 2705 |               3030 |         526 | 0.001 | no              | no            | yes       |
+| Article     |                 2855 |               2637 |         545 | 0.001 | no              | no            | yes       |
+
+CLS is met everywhere; neither LCP target is met on any route. The chunk
+scripts are the cause on all four routes (see [Cause](#cause-1)), and the
+first load cannot shrink enough to change that (see
+[Checked and not changed](#checked-and-not-changed-1)).
+
+`/articles` applied LCP (3030 ms) is higher than in the earlier runs on this
+page (2792 to 2814 ms). This build also has the toaster back in the first
+load (#503 review) and the `overhaul/v2` merges; the difference is not
+attributed.
+
+### Checked and not changed
+
+- **JavaScript content.** The first load is React DOM (about 62 KB gzip),
+  the Next.js router and runtime (about 85 KB), the Convex client (about
+  23 KB) and 15 to 40 KB of app code per route. Public pages need the Convex
+  client for live data, and the app code is the page's own, so no route
+  can drop enough of it to bring simulated LCP under 2 s. What can change is
+  when it runs (the separate pull request). `convex/_generated/api.js` pulls
+  Convex's schema helpers into the browser (about 1.7 KB); generated code is
+  left as it is.
+- **Splitting the global stylesheet.** `experimental.cssChunking: 'graph'`
+  produced the same stylesheets for these routes (one global sheet from
+  `app/globals.css`). Rule coverage shows 74 to 83 percent of it used at
+  first paint on each route; a hand split would save at most about 6 KB gzip.
+- **Variable fonts.** A Syne variable file is 34.6 KB against 41.7 KB for
+  the three static weights, and larger wherever a page needs only one or two
+  weights before paint.
+- **Font preloads and swap.** With `font-display: swap`, Chrome does not
+  report a new LCP when a web font replaces the fallback (tested), so a late
+  font does not move LCP; the preloads stay because every preloaded face is
+  on its route's first screen.
+- **Article HTML order.** The head carries the font preloads and stylesheets
+  first; the LCP paragraph starts about 9 KB into the 98 KB (raw) document,
+  before the hydration data.
+- **The article's later CSS and font requests** seen in the earlier
+  script-delay experiment came from that experiment's proxy; in direct loads
+  the article requests them at 14 ms, like `/articles` (13 ms).
+
+### Landing typefaces: proposal for the owner
+
+The landing page loads ten font files (169 KB). Three of them can be
+replaced by faces the page already loads:
+
+| Face                | Size  | First screen                              | Replacement     |
+| ------------------- | ----- | ----------------------------------------- | --------------- |
+| DM Sans 400         | 14 KB | The two hero buttons                      | Work Sans 400   |
+| DM Sans 700         | 14 KB | none (below the fold)                     | Work Sans 600   |
+| Literata 600 italic | 22 KB | The handwritten "writing" in the headline | Alegreya italic |
+
+With all three replaced the page loads seven files (120 KB). Measured with
+the chunk-script change from the separate pull request in place: simulated
+mobile LCP 1803 ms against 1804 ms, applied 1815 ms against 1829 ms. **The change is visible (the
+headline's handwritten word becomes lighter, and the buttons change face)
+and brings no measurable LCP gain, so the recommendation is to keep the
+ten faces.** Screenshots at 375 and 1440 px are in the report for #405.
+
+### Field data
+
+Real-visit page speed is recorded only where product analytics is enabled
+(`NEXT_PUBLIC_ANALYTICS_ENABLED=true` and `ANALYTICS_POSTHOG_KEY` set) and
+only after a visitor allows analytics; it is off locally and by default.
+After consent, `components/analytics/WebVitalsReporter.tsx` (loaded on
+demand, not in any first load) sends one `web_vital` event per measure
+through the existing same-origin relay (`/api/analytics`). Each event carries
+fixed values only (`lib/analytics/webVitals.ts`):
+
+| Property | Values                                                                                                                           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `metric` | `LCP`, `CLS`, `INP`, `FCP`, `TTFB`                                                                                               |
+| `rating` | `good`, `needs-improvement`, `poor` (the web-vitals thresholds)                                                                  |
+| `band`   | timing: `<1000`, `1000-1499`, `1500-1999`, `2000-2499`, `2500-3999`, `>=4000` ms; INP `<200` to `>=500`; CLS `<0.05` to `>=0.25` |
+| `route`  | `landing`, `login`, `articles`, `article`, `other`                                                                               |
+| `device` | `mobile` (viewport under 768 px), `desktop`                                                                                      |
+
+To read it in PostHog: Insights, event `web_vital`, filter `metric = LCP`
+(or `CLS`), break down by `route` and `band`, and split by `device`. The
+target holds on a route when at least 75 percent of its mobile LCP events
+fall in bands under 2000 ms (`<1000`, `1000-1499`, `1500-1999`), and 75
+percent of its CLS events in `<0.05` or `0.05-0.099`. The privacy page says
+that page-speed ratings are recorded with consent.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without
@@ -441,14 +640,30 @@ secrets:
    | Gate                                         | Budget | Heaviest route |
    | -------------------------------------------- | -----: | -------------: |
    | Scripts referenced by the server HTML        | 230 KB |         216 KB |
-   | Stylesheets referenced by the server HTML    |  50 KB |          38 KB |
-   | Fonts the page requests                      | 220 KB |         181 KB |
-   | Render-blocking stylesheets                  |      6 |              3 |
+   | Render-blocking stylesheets                  |      4 |              3 |
    | CLS (median of 3)                            |    0.1 |          0.016 |
    | LCP element in the server HTML (2 of 3 runs) |    yes |            yes |
    | LCP image URL in the server HTML (2 of 3)    |    yes |            yes |
 
-   Bytes are compressed sizes as served by `next start`. Which element the
+   Each route also has its own budgets for the server HTML, its stylesheets
+   and its fonts, set a little above the measured size, so one more font
+   face (the smallest is 12 KB), a larger stylesheet or a list that embeds
+   more data fails. Raise a budget in the change that needs it.
+
+   | Route       | Server HTML (uncompressed) | Stylesheets | Fonts (larger of mobile and desktop) |
+   | ----------- | -------------------------: | ----------: | -----------------------------------: |
+   | `/`         |                 42 (38) KB |  41 (39) KB |                         172 (169) KB |
+   | `/login`    |                 34 (30) KB |  31 (29) KB |                           42 (39) KB |
+   | `/articles` |                 48 (44) KB |  31 (29) KB |                           82 (79) KB |
+   | Article     |                 44 (40) KB |  28 (26) KB |                          101 (98) KB |
+
+   Budget, then the measured size in brackets. The HTML budget is
+   uncompressed because repeated data compresses well: on `/articles`,
+   sending every article's full document and search text again (without
+   `listArticleForClient`) takes the fixture page's HTML from 44 to 68 KB (8 to 10 KB gzip), and the check fails.
+   The fixture articles carry search text, as real rows do.
+
+   Other bytes are compressed sizes as served by `next start`. Which element the
    browser reports as the largest paint can depend on timing: on a slow run
    the landing page's client-side opening animation can be reported. So the
    LCP element checks pass when two of the three runs pass, like the medians,
@@ -488,6 +703,90 @@ no longer renders.
 The fixture has no cover images and the stand-in never sends live data, so
 the timings are lower than the real-data runs above. Use the check for
 regressions, not as the measured result.
+
+### Font fallback check
+
+`bun run perf:font-fallbacks` (`scripts/perf/font-fallback-check.ts`) uses the
+same build and fixture backend as `perf:budget`. For `/`, `/login`,
+`/articles`, the article page and `/guide`, in Chromium and WebKit, at 375 and
+1440 px, it loads the page twice: once with every font request blocked, so
+text stays in the fallback faces, and once with the web fonts loaded. It
+fails when:
+
+1. a text element names a fallback family (`... Fallback`) that has no font
+   face for its weight;
+2. for a font (family, weight and style) set in a fallback stack, the page's
+   text in that font is more than 7% wider or narrower in the fallback face.
+   Each element's width is the sum of its line pieces, so it does not depend
+   on where lines break, and fonts with fewer than 30 characters on the page
+   are skipped;
+3. a heading (`h1` to `h3`) anywhere on the page changes its height, that is
+   its number of lines;
+4. on the first 1.5 screens, the 90th percentile of the text blocks' vertical
+   movement is over 4 px. Positions are layout positions (`offsetTop`), so
+   transforms and animations do not count. One case is exempt, by name, with
+   its reason: `/guide` at 375 px (below).
+
+Rule 2 is what the faces control. On the fixture build, over 13 routes in
+three engines, matched faces measured 0.985 to 1.051. A face matched to the
+wrong file measured 0.879 to 0.891 (`Wallet` and `Reading Room Syne` with the
+shared fallback) or 1.148 to 1.168 (`Landing Syne` 500 with the 600-file
+values), and the earlier bold values measured 1.076 to 1.111 in WebKit. The
+landing headline in `Landing Literata` italic is split into single letters
+and has fewer than 30 characters per font, so it is skipped.
+
+Rule 4 is needed as well: a face a few percent too wide passes rule 2 while
+text in view moves. With `Syne Fallback` 400 to 500 made 5% wider, `/login`
+at 375 px measures 1.067 and moves 22 px in Chromium and WebKit; rule 4 fails it there, and rule 2 fails
+only `/login` at 1440 px (1.074).
+
+**Trade-off on `/guide` at 375 px.** There, text in view moves 26 px at the
+swap, against 0 px on `overhaul/v2`, which has no fallback faces. The cause is
+the "Send 1 test XLM…" paragraph: its text is 663 px wide in Work Sans and
+669 px in the matched fallback, in a 335 px box, so it takes two lines in
+Work Sans and three in the fallback. This happens in Chromium, WebKit and
+Firefox. All Work Sans 400 text on that page is 1.02 times as wide in its
+fallback, within rule 2; a line that is already almost full can wrap in a
+face 1% wider, and no face values rule that out for every text. The check
+reports this case and does not gate it (`MOVEMENT_EXEMPT`). `/guide` at
+1440 px is gated.
+
+Results on the fixture build, five gated routes, Chromium, WebKit and Firefox:
+the check passes, no heading changes lines, and the worst font measures 0.993
+to 1.027. Text in view moves 0 px everywhere (Firefox: at most 2 px) except
+`/guide` at 375 px (26 px, the paragraph above). The same build with
+`PERF_FONT_ROUTES="/support /terms /contact /privacy /register /welcome
+/wallet/practice /library"` also passes. `/support` and `/contact` at 1440 px,
+`/terms` and `/wallet/practice` at 375 px still move 26 to 56 px at the swap,
+with every font within 5.1%. Pages added with `PERF_FONT_ROUTES` are checked
+on rules 1 to 3; their movement is only reported.
+
+Deliberate breaks, each failing the check:
+
+- `Syne 600 Fallback` stacks sent back to `Syne Fallback`: `Wallet Syne` and
+  `Reading Room Syne` 400 at 0.879 to 0.891, in Chromium and WebKit.
+- The `Syne Fallback` 500 face with the 600-file values: `Landing Syne` 500 at
+  1.148 to 1.168 on `/` and `/guide`.
+- Bold faces with the earlier values and `local('Arial')`: WebKit fails on
+  `/` and `/guide`, bold Syne, DM Sans and Work Sans at 1.076 to 1.111.
+  Chromium passes, as before the fix.
+- No fallback faces (the `@import` removed): 88 missing faces and 38 fonts
+  off by 8 to 25% (0.883 to 1.253), across both engines.
+
+CI runs it as the **Font Fallbacks** job on a macOS runner, which has Arial
+and Times New Roman, as Safari readers do. On the Linux runner it failed for
+reasons that say little about those browsers:
+
+- WebKit on Linux leaves the bold faces in `error`: it does not resolve the
+  full face names (`Arial Bold`, `Liberation Sans Bold`), so bold text falls
+  through to the generic sans-serif. The regular faces, named by family,
+  resolve.
+- Chromium on Linux resolves every face, but one `/articles` heading and one
+  `/login` block still changed at the swap. The cause was not investigated;
+  Linux text rendering differs from macOS.
+
+When the check fails, it lists each fallback face's status (`loaded`,
+`unloaded` or `error`), so a runner without the expected fonts shows.
 
 ## First-load JavaScript
 
@@ -532,6 +831,9 @@ code belongs behind `import()`, `next/dynamic` or `React.lazy`, loaded on the
 reader's action.
 
 ## Re-run
+
+Measure over HTTP/2 (`scripts/perf/http2-proxy.ts` describes the setup), as
+the deployed site is served; `next start` alone speaks HTTP/1.1.
 
 ```bash
 # Real data (read-only public queries), Lighthouse

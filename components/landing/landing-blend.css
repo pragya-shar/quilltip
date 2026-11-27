@@ -2,13 +2,13 @@
 :where(.landing-blend) {
   font-size: 16px;
   line-height: normal;
-  font-family: 'Landing DM', sans-serif;
+  font-family: 'Landing DM', 'DM Sans Fallback', sans-serif;
   font-synthesis: none;
-  --headline-font: 'Landing Syne', sans-serif;
-  --support-font: 'Landing Work', sans-serif;
-  --reading-font: 'Landing Work', sans-serif;
-  --ui: 'Landing DM', sans-serif;
-  --serif: 'Landing Syne', sans-serif;
+  --headline-font: 'Landing Syne', 'Syne Fallback', sans-serif;
+  --support-font: 'Landing Work', 'Work Sans Fallback', sans-serif;
+  --reading-font: 'Landing Work', 'Work Sans Fallback', sans-serif;
+  --ui: 'Landing DM', 'DM Sans Fallback', sans-serif;
+  --serif: 'Landing Syne', 'Syne Fallback', sans-serif;
   --display-weight: 700;
   --opening-play: running;
   --flow-play: running;
@@ -50,7 +50,7 @@
   --correction: #f3bdd5;
   --line: #66003330;
   --serif: 'Cormorant Garamond', Georgia, serif;
-  --ui: 'Landing DM', sans-serif;
+  --ui: 'Landing DM', 'DM Sans Fallback', sans-serif;
   font-family: var(--ui);
   color: var(--ink);
   background: #8e4585;
@@ -1233,7 +1233,7 @@
   letter-spacing: -0.045em;
 }
 :where(.landing-blend).type-study[data-typeface='syne'] .replacement-word {
-  font-family: 'Landing Literata', Georgia, serif;
+  font-family: 'Landing Literata', 'Literata Fallback', Georgia, serif;
   font-size: 0.48em;
   text-transform: none;
   letter-spacing: -0.02em;
@@ -1822,6 +1822,7 @@
   color: var(--accent);
   font:
     600 35px/1 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   letter-spacing: -0.045em;
   white-space: nowrap;
@@ -1834,7 +1835,7 @@
   overflow: visible;
 }
 :where(.landing-blend) .logo-study-1 {
-  font-family: 'Landing Syne', sans-serif;
+  font-family: 'Landing Syne', 'Syne Fallback', sans-serif;
   font-weight: 700;
   font-size: 33px;
   letter-spacing: -0.05em;
@@ -2053,12 +2054,14 @@
 :where(.landing-blend).blend-study .reading-paper h2 {
   font:
     400 35px/1.2 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }
 :where(.landing-blend).blend-study .reading-paper .passage {
   font:
     400 25px/1.55 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }
@@ -2073,7 +2076,7 @@
     2px 3px 0 #f1dfd8;
 }
 :where(.landing-blend).blend-study .floating-receipt p {
-  font-family: 'Landing Alegreya', Georgia, serif;
+  font-family: 'Landing Alegreya', 'Alegreya Fallback', Georgia, serif;
   font-size: 20px;
   line-height: 1.4;
 }
@@ -2128,6 +2131,7 @@
 :where(.landing-blend).blend-study .reading-paper h2 {
   font:
     400 29px/1.2 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   margin: 16px 0 12px;
@@ -2135,6 +2139,7 @@
 :where(.landing-blend).blend-study .reading-paper .passage {
   font:
     400 22px/1.48 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }
@@ -2161,6 +2166,7 @@
   color: var(--accent);
   font:
     italic 23px/1.12 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }
@@ -2209,6 +2215,7 @@
 :where(.landing-blend).blend-study .writer-tips .tips-eyebrow {
   font:
     italic 20px/1.25 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
 }
@@ -2269,6 +2276,7 @@
 :where(.landing-blend).blend-study .writer-tips .floating-receipt p {
   font:
     400 19px/1.3 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   margin: 12px 0;
@@ -2847,6 +2855,7 @@
 :where(.landing-blend).connected-study .landing-notes-intro > p {
   font:
     italic 20px/1.45 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   max-width: 23ch;
@@ -3079,7 +3088,7 @@
     .nav-link,
     .nav-signup
   ) {
-  font-family: 'Landing Syne', sans-serif;
+  font-family: 'Landing Syne', 'Syne Fallback', sans-serif;
 }
 .landing-blend.onboarding-study .hero-wallet-note {
   margin-top: 14px !important;
@@ -3100,6 +3109,7 @@
   border-left: 3px solid #b98487;
   font:
     italic 22px/1.45 'Landing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   box-shadow: 2px 4px 0 #66003312;
@@ -3223,12 +3233,14 @@
 .landing-blend.onboarding-study .wallet-invite h2 {
   font:
     600 29px/1.12 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   margin: 18px 0;
 }
 .landing-blend.onboarding-study .wallet-invite p {
   font:
     16px/1.55 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   margin: 0 0 24px;
 }
@@ -3236,6 +3248,7 @@
   display: block;
   font:
     12px/1.6 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   margin-top: 15px;
 }
@@ -3279,6 +3292,7 @@
 .landing-blend.onboarding-study .wallet-invite p {
   font:
     400 14px/1.5 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   margin: 0 0 8px;
 }
@@ -3290,6 +3304,7 @@
   color: #660033;
   font:
     600 16px/1.4 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   text-underline-offset: 5px;
 }
@@ -3340,6 +3355,7 @@
 .landing-blend.onboarding-study .wallet-invite h2 {
   font:
     600 22px/1.2 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   color: #fff0db;
   margin: 0 0 8px;
@@ -3348,6 +3364,7 @@
 .landing-blend.onboarding-study .wallet-invite p {
   font:
     400 13px/1.5 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   color: #ebcdd6;
   margin: 0;
@@ -3361,6 +3378,7 @@
   min-height: 46px;
   font:
     600 14px/1.4 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   text-decoration: none;
   transition:
@@ -3384,6 +3402,7 @@
   color: #ebcdd6;
   font:
     11px/1.5 'Landing Syne',
+    'Syne Fallback',
     sans-serif;
   margin: 4px 0 0;
 }
@@ -3679,6 +3698,7 @@
   color: #fff9f2;
   font:
     italic 400 clamp(18px, 2vw, 24px)/1.5 'Landing Literata',
+    'Literata Fallback',
     Georgia,
     serif;
 }
@@ -3779,7 +3799,7 @@
   }
 }
 :where(.landing-blend) .opening-handwriting text {
-  font-family: 'Landing Literata', Georgia, serif;
+  font-family: 'Landing Literata', 'Literata Fallback', Georgia, serif;
   font-size: 80px;
   font-style: italic;
   font-weight: 600;
@@ -3822,6 +3842,7 @@
   color: #fff9f2;
   font:
     italic 600 clamp(18px, 2vw, 24px)/1.5 'Landing Literata',
+    'Literata Fallback',
     Georgia,
     serif;
 }
@@ -3868,6 +3889,7 @@
   color: #660033;
   font:
     500 13px/1.5 'Landing Work',
+    'Work Sans Fallback',
     sans-serif;
   cursor: pointer;
 }
@@ -3967,11 +3989,11 @@
 
 .landing-blend {
   --display-weight: 700;
-  --headline-font: 'Landing Syne', sans-serif;
-  --support-font: 'Landing Work', sans-serif;
-  --reading-font: 'Landing Work', sans-serif;
-  --ui: 'Landing DM', sans-serif;
-  --serif: 'Landing Syne', sans-serif;
+  --headline-font: 'Landing Syne', 'Syne Fallback', sans-serif;
+  --support-font: 'Landing Work', 'Work Sans Fallback', sans-serif;
+  --reading-font: 'Landing Work', 'Work Sans Fallback', sans-serif;
+  --ui: 'Landing DM', 'DM Sans Fallback', sans-serif;
+  --serif: 'Landing Syne', 'Syne Fallback', sans-serif;
 }
 .landing-blend .nav-signup {
   text-decoration: none;
