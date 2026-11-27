@@ -44,8 +44,12 @@
     letter-spacing: 0;
     vertical-align: var(--qt-money-cents-raise);
   }
+  /* "≈" and "→" come from one face, the platform's: Literata has
+   * neither. */
   .qt-money__approx {
     margin-inline-end: 0.08em;
+    font-family: var(--qt-font-ui);
+    font-weight: var(--qt-weight-ui);
     font-size: 0.6em;
     color: var(--qt-ink-2);
     letter-spacing: 0;
@@ -351,13 +355,17 @@
   }
 
   /* Passage marks. The fill never carries meaning alone:
-   * every state has a cue in shape or words. */
+   * every state has a cue in shape or words. No state has padding or
+   * margin, so a line changing state never moves a word or a line break:
+   * the fill bleeds past the text by a shadow, which takes no space. */
   .qt-mark {
     --qt-mark-fill: transparent;
-    padding: 0.04em 0.18em;
-    margin-inline: -0.12em;
+    --qt-mark-bleed: 0.14em;
+    padding: 0;
+    margin: 0;
     border-radius: 0.18em;
     background: var(--qt-mark-fill);
+    box-shadow: 0 0 0 var(--qt-mark-bleed) var(--qt-mark-fill);
     box-decoration-break: clone;
     -webkit-box-decoration-break: clone;
     color: inherit;
@@ -387,23 +395,24 @@
     text-decoration-style: dashed;
     text-decoration-color: var(--qt-marker-ink);
   }
-  .qt-mark[data-state='holding'],
-  .qt-mark[data-state='place'] {
-    padding: 0;
-    margin: 0;
-  }
   .qt-mark[data-fresh] {
     background-image: linear-gradient(var(--qt-mark-fill), var(--qt-mark-fill));
     background-color: transparent;
     background-repeat: no-repeat;
     animation: qt-stroke var(--qt-dur-stroke) var(--qt-ease-out) both;
   }
+  /* The stroke draws, then the bleed joins it. */
   @keyframes qt-stroke {
     from {
       background-size: 0% 100%;
+      box-shadow: 0 0 0 var(--qt-mark-bleed) transparent;
+    }
+    99% {
+      box-shadow: 0 0 0 var(--qt-mark-bleed) transparent;
     }
     to {
       background-size: 100% 100%;
+      box-shadow: 0 0 0 var(--qt-mark-bleed) var(--qt-mark-fill);
     }
   }
   .qt-mark__count {
@@ -416,11 +425,19 @@
     font-variant-numeric: tabular-nums;
     vertical-align: 0.2em;
   }
+  /* The check after your line takes no width: it sits raised over the
+   * space after the line, like a superscript, so tipping never rewraps. */
   .qt-mark__check {
-    display: inline-flex;
-    margin-inline-start: 0.2em;
+    position: relative;
+    display: inline-block;
+    width: 0;
+    height: 0;
     color: var(--qt-marker-ink);
-    vertical-align: -0.1em;
+  }
+  .qt-mark__check > * {
+    position: absolute;
+    inset-inline-start: 0.12em;
+    inset-block-end: 0.55em;
   }
 
   /* Drawn outside the text: margin ticks and the hold's band. */
@@ -525,6 +542,9 @@
   .qt-tip[data-phase='holding'] .qt-tip__nib {
     grid-row: span 2;
   }
+  .qt-tip__arrow {
+    font-family: var(--qt-font-ui);
+  }
   .qt-tip__projected {
     grid-column: 2;
     font-size: var(--qt-text-ui-xs);
@@ -537,7 +557,7 @@
     inset-inline: 0;
     inset-block-end: 0;
     height: 0.25rem;
-    background: var(--qt-marker);
+    background: var(--qt-countdown);
     transform-origin: left center;
     animation: qt-hold-fill var(--qt-dur-hold) linear both;
   }

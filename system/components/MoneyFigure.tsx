@@ -17,7 +17,8 @@ type MoneyFigureProps = {
   size?: 'xl' | 'l' | 'm' | 'pending' | 's'
   /** in: money received (marker-ink). muted: did not go through (grey). */
   tone?: 'default' | 'in' | 'muted'
-  /** Direction mark for activity rows. A sign never colours a figure red. */
+  /** Direction mark for activity rows, when the money layer's text has
+   * none ("−$1.00" carries its own). A sign never colours a figure red. */
   sign?: '+' | '−'
   /** What the number is, shown below it: "Ready to tip". */
   label?: ReactNode
@@ -45,13 +46,22 @@ export function MoneyFigure({
   className,
 }: MoneyFigureProps) {
   const state = figureState(value, status)
+  const drawnSign = state.kind === 'value' ? state.parts.sign || sign || '' : ''
+  const spokenSign =
+    state.kind === 'value' && !state.parts.sign && sign
+      ? sign === '+'
+        ? 'plus '
+        : 'minus '
+      : ''
   const figure =
     state.kind === 'value' ? (
       <span className="qt-money__figure">
         <span aria-hidden="true" className="qt-money__digits">
-          {sign ? <span className="qt-money__sign">{sign}</span> : null}
           {state.parts.approx ? (
             <span className="qt-money__approx">≈</span>
+          ) : null}
+          {drawnSign ? (
+            <span className="qt-money__sign">{drawnSign}</span>
           ) : null}
           <span className="qt-money__symbol">{state.parts.symbol}</span>
           <span className="qt-money__whole">{state.parts.whole}</span>
@@ -60,7 +70,7 @@ export function MoneyFigure({
           ) : null}
         </span>
         <span className="qt-visually-hidden">
-          {sign === '+' ? 'plus ' : sign === '−' ? 'minus ' : ''}
+          {spokenSign}
           {state.parts.spoken}
         </span>
       </span>

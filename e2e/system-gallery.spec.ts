@@ -215,13 +215,22 @@ test('the hold: focus on its status, +$1 restarts it, then it sends', async ({
   await press(page, group.getByRole('button', { name: 'Tip Ama $1' }))
   const status = group.locator('.qt-tip__button')
   await expect(status).toContainText('Sending $1')
-  await expect(status).toContainText('$18.40 → $17.40')
+  // The projected balance: glyphs drawn, words heard.
+  const projected = status.locator('.qt-tip__projected')
+  await expect(projected.locator('[aria-hidden="true"]')).toHaveText(
+    '≈ $18.40 → ≈ $17.40'
+  )
+  await expect(projected.locator('.qt-visually-hidden')).toHaveText(
+    '. about 18 dollars 40, then about 17 dollars 40'
+  )
   await expect
     .poll(async () => (await focused(page)).text)
     .toContain('Sending $1 to Ama Mensah. Cancel stops it.')
   await press(page, group.getByRole('button', { name: 'Add $1' }))
   await expect(status).toContainText('Sending $2')
-  await expect(status).toContainText('$18.40 → $16.40')
+  await expect(projected.locator('[aria-hidden="true"]')).toHaveText(
+    '≈ $18.40 → ≈ $16.40'
+  )
   await expect(group.getByRole('button', { name: 'Cancel' })).toBeVisible()
   // About 3 s after the last +$1 it sends; nothing about it before.
   await expect(status).toContainText('Sent $2', { timeout: 6000 })
@@ -246,6 +255,86 @@ test('the hold ends with Escape or Cancel, nothing sent, said once', async ({
   await expect(tip).toBeVisible()
   await page.waitForTimeout(3500)
   await expect(group.locator('.qt-tip__button')).toHaveText('Tip Ama $1')
+})
+
+/** Holds a key down: the first keydown, then repeats, then the keyup. */
+async function holdKey(page: Page, key: string, repeats = 6) {
+  for (let i = 0; i <= repeats; i++) await page.keyboard.down(key)
+  await page.keyboard.up(key)
+}
+
+test('a held key or a double press asks for one tip', async ({ page }) => {
+  await open(page)
+  const group = page.getByRole('group', { name: 'Tip Lena Park' })
+  const count = page.locator('[data-press-count]')
+  const tip = group.getByRole('button', { name: 'Tip Lena $1' })
+  await tip.focus()
+  await holdKey(page, 'Enter')
+  await expect(count).toHaveAttribute('data-press-count', '1')
+  // A second press before the phase moves is the same press.
+  await page.waitForTimeout(1100)
+  if (hasTouch()) {
+    await tip.tap()
+    await tip.tap()
+  } else await tip.dblclick()
+  await expect(count).toHaveAttribute('data-press-count', '2')
+  await page.waitForTimeout(1100)
+  await expect(count).toHaveAttribute('data-press-count', '2')
+})
+
+test('Enter held on Cancel or Not now never sends', async ({ page }) => {
+  await open(page)
+  const held = heldTip(page)
+  await press(page, held.getByRole('button', { name: 'Tip Ama $1' }))
+  await held.getByRole('button', { name: 'Cancel' }).focus()
+  await holdKey(page, 'Enter')
+  await expect(held).toHaveAttribute('data-phase', 'idle')
+  await page.waitForTimeout(400)
+  await expect(held).toHaveAttribute('data-phase', 'idle')
+
+  const live = liveTip(page)
+  await press(page, page.getByText('Refuse the next tip'))
+  await press(page, live.locator('.qt-tip__button'))
+  const notNow = live.getByRole('button', { name: 'Not now' })
+  await expect(notNow).toBeVisible()
+  await notNow.focus()
+  await holdKey(page, 'Enter')
+  await expect(live).toHaveAttribute('data-phase', 'idle')
+  await page.waitForTimeout(400)
+  await expect(live).toHaveAttribute('data-phase', 'idle')
+})
+
+test("the hold's countdown band shows on the button in both themes", async ({
+  page,
+}) => {
+  for (const scheme of ['light', 'dark'] as const) {
+    await page.emulateMedia({ colorScheme: scheme })
+    await open(page)
+    const group = heldTip(page)
+    await press(page, group.getByRole('button', { name: 'Tip Ama $1' }))
+    const ratio = await group.locator('.qt-tip__countdown').evaluate((band) => {
+      const canvas = document.createElement('canvas')
+      canvas.width = canvas.height = 1
+      const ctx = canvas.getContext('2d', { willReadFrequently: true })!
+      const rgb = (color: string) => {
+        ctx.clearRect(0, 0, 1, 1)
+        ctx.fillStyle = color
+        ctx.fillRect(0, 0, 1, 1)
+        return [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)]
+      }
+      const lum = (c: number[]) => {
+        const [r, g, b] = c.map((v) => {
+          const x = v / 255
+          return x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4
+        })
+        return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!
+      }
+      const a = lum(rgb(getComputedStyle(band).backgroundColor))
+      const b = lum(rgb(getComputedStyle(band.parentElement!).backgroundColor))
+      return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05)
+    })
+    expect(ratio, scheme).toBeGreaterThanOrEqual(3)
+  }
 })
 
 test('+$1 is disabled with its reason when a limit is reached', async ({
@@ -307,9 +396,65 @@ test('another amount: typed, checked, chosen without sending', async ({
   )
   await expect(group.locator('.qt-tray__error')).toHaveRole('alert')
   await other.fill('')
-  await page.keyboard.type('2.50')
+  await page.keyboard.type('2,50')
   await page.keyboard.press('Enter')
   await expect(group.locator('.qt-tip__button')).toHaveText('Tip Tomás $2.50')
+  // A typed amount checks no quick amount; the first one takes focus.
+  await press(page, group.getByRole('button', { name: 'Change amount' }))
+  const tray = group.getByRole('radiogroup', { name: 'Tip amount' })
+  await expect(tray.locator('[aria-checked="true"]')).toHaveCount(0)
+  await expect(
+    tray.getByRole('radio', { name: '$1', exact: true })
+  ).toBeFocused()
+})
+
+test('a line changing state keeps every line break', async ({ page }) => {
+  await open(page)
+  const layout = await page.evaluate(() =>
+    ['chosen', 'holding', 'mine'].map((state) => {
+      const p = document.querySelector<HTMLElement>(`[data-steady="${state}"]`)!
+      // Lines of text, not the ornaments drawn beside it.
+      const bottoms = new Set<number>()
+      const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        if (node.parentElement?.closest('[aria-hidden="true"]')) continue
+        const range = document.createRange()
+        range.selectNodeContents(node)
+        for (const r of range.getClientRects())
+          if (r.width > 0) bottoms.add(Math.round(r.bottom))
+      }
+      const lines = bottoms.size
+      const base = p.getBoundingClientRect()
+      const words = [...p.querySelector('.qt-mark')!.getClientRects()].map(
+        (r) =>
+          [r.left - base.left, r.top - base.top, r.width].map((v) =>
+            Math.round(v)
+          )
+      )
+      return { height: Math.round(base.height), lines, words }
+    })
+  )
+  expect(layout[0]!.lines).toBeGreaterThan(1)
+  expect(layout[1]).toEqual(layout[0])
+  expect(layout[2]).toEqual(layout[0])
+})
+
+test('forced colors keep their mapping under a stored dark theme', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName !== 'chromium', 'Forced colors emulate in Chromium')
+  await page.emulateMedia({ forcedColors: 'active', colorScheme: 'dark' })
+  await open(page)
+  for (const theme of ['dark', 'light', null]) {
+    const paper = await page.evaluate((value) => {
+      const root = document.documentElement
+      if (value) root.dataset.theme = value
+      else delete root.dataset.theme
+      return getComputedStyle(root).getPropertyValue('--qt-paper').trim()
+    }, theme)
+    expect(paper, String(theme)).toBe('Canvas')
+  }
 })
 
 for (const kind of [

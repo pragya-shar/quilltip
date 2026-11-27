@@ -12,6 +12,13 @@ const BALANCE_CENTS = 1840
 const dollars = (cents: number) =>
   `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`
 
+/** The balance, converted at today's price, as the money layer flags it. */
+const balance = (cents: number): MoneyValue => ({
+  cents,
+  display: `$${(cents / 100).toFixed(2)}`,
+  converted: true,
+})
+
 /**
  * A stand-in for `useTip` from hooks/payments, for the gallery only. With
  * `withHold`, a press holds for 3 s ("+$1" restarts it, Cancel or Escape
@@ -48,7 +55,7 @@ export function useDemoTip(refuse: boolean, withHold = false) {
   const startHold = useCallback(
     (held: MoneyValue) => {
       if (holdTimer.current !== null) window.clearTimeout(holdTimer.current)
-      setState({ phase: 'other', words: 'Sending', amount: held, busy: true })
+      setState({ phase: 'holding', amount: held })
       holdTimer.current = window.setTimeout(() => send(held), HOLD_MS)
     },
     [send]
@@ -62,29 +69,29 @@ export function useDemoTip(refuse: boolean, withHold = false) {
     setAmount(known ?? { cents, display: dollars(cents) })
     setState({ phase: 'idle' })
   }, [])
-  const held = state.phase === 'other' ? state.amount : undefined
-  const hold: TipHold | null =
-    state.phase === 'other' && held
-      ? {
-          projected: `${dollars(BALANCE_CENTS)} → ${dollars(BALANCE_CENTS - held.cents)}`,
-          restartKey,
-          addOneBlocked:
-            held.cents + 100 > 500 ? 'your daily limit is $5' : null,
-          onAddOne: () => {
-            const next = {
-              cents: held.cents + 100,
-              display: dollars(held.cents + 100),
-            }
-            setRestartKey((k) => k + 1)
-            startHold(next)
-          },
-          onCancel: () => {
-            if (holdTimer.current !== null)
-              window.clearTimeout(holdTimer.current)
-            holdTimer.current = null
-            setState({ phase: 'idle' })
-          },
-        }
-      : null
+  const held = state.phase === 'holding' ? state.amount : undefined
+  const hold: TipHold | null = held
+    ? {
+        projected: {
+          before: balance(BALANCE_CENTS),
+          after: balance(BALANCE_CENTS - held.cents),
+        },
+        restartKey,
+        addOneBlocked: held.cents + 100 > 500 ? 'your daily limit is $5' : null,
+        onAddOne: () => {
+          const next = {
+            cents: held.cents + 100,
+            display: dollars(held.cents + 100),
+          }
+          setRestartKey((k) => k + 1)
+          startHold(next)
+        },
+        onCancel: () => {
+          if (holdTimer.current !== null) window.clearTimeout(holdTimer.current)
+          holdTimer.current = null
+          setState({ phase: 'idle' })
+        },
+      }
+    : null
   return { state, amount, tip, setCents, hold }
 }

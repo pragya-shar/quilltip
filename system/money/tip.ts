@@ -7,17 +7,20 @@ import type { MoneyValue } from './figure'
  * `failed` (the server said no) or `needs-funds` (checked before sending);
  * "unavailable" is the control's `unavailable` prop.
  *
- * `other` is the slot for a phase the money layer adds. The hold uses it: `{ phase: 'other', words: 'Sending', amount, busy: true }`
- * with the control's `hold` prop.
+ * `holding` is the hold before sending, between `idle` and `sending`: the
+ * tip can still be cancelled; the control's `hold` prop carries Cancel and
+ * +$1. `other` is the slot for one more phase the money layer adds, with
+ * its own words.
  */
 export type TipControlPhase =
   | { phase: 'idle' }
+  | { phase: 'holding'; amount: MoneyValue }
   | { phase: 'sending'; amount: MoneyValue }
   | { phase: 'sent'; amount: MoneyValue }
   | { phase: 'failed'; amount: MoneyValue }
   | { phase: 'offline'; amount: MoneyValue }
   | { phase: 'needs-funds'; amount: MoneyValue; available: MoneyValue | null }
-  | { phase: 'other'; words: string; amount?: MoneyValue; busy: boolean }
+  | { phase: 'other'; words: string; amount: MoneyValue; busy: boolean }
 
 /** "Tomás Reyes" → "Tomás": the button names the writer by first name. */
 export function firstName(name: string): string {
@@ -35,6 +38,7 @@ export function tipButtonParts(
   recipient = ''
 ): { words: string; amount: string | null } {
   switch (state.phase) {
+    case 'holding':
     case 'sending':
       return { words: 'Sending', amount: state.amount.display }
     case 'sent':
@@ -46,7 +50,7 @@ export function tipButtonParts(
     case 'needs-funds':
       return { words: 'Add money to tip', amount: state.amount.display }
     case 'other':
-      return { words: state.words, amount: state.amount?.display ?? null }
+      return { words: state.words, amount: state.amount.display }
     case 'idle': {
       if (!amount) return { words: 'Choose an amount', amount: null }
       if (target === 'passage')
@@ -79,11 +83,13 @@ export function tipNote(state: TipControlPhase): string | null {
 export const HOLD_CANCELLED = 'Cancelled. Nothing was sent.'
 
 /**
- * Cents from what a reader typed in "Other": "2", "2.5", "2.50", "$2.50".
- * Null for anything else. Limits are the money layer's to check.
+ * Cents from what a reader typed in "Other": "2", "2.5", "2.50", "$2.50",
+ * and the decimal comma ("2,50"). Null for anything else, and for a
+ * thousands separator ("1,000"), which would read as a decimal comma.
+ * Limits are the money layer's to check.
  */
 export function centsFromInput(text: string): number | null {
-  const match = /^\$?\s*(\d{1,6})(?:\.(\d{1,2}))?$/.exec(text.trim())
+  const match = /^\$?\s*(\d{1,6})(?:[.,](\d{1,2}))?$/.exec(text.trim())
   if (!match) return null
   const cents =
     Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0') || 0)

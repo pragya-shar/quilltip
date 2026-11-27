@@ -2,7 +2,11 @@ import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
 import '@/system/system.css'
 import '@/shell/shell.css'
-import { readingFace, readingItalicFace } from '@/system/fonts'
+import {
+  readingFace,
+  readingFaceStyle,
+  readingItalicFace,
+} from '@/system/fonts'
 import { ToastRegion } from '@/system/components/ToastRegion'
 import { AppProviders } from '@/shell/AppProviders'
 import { AppShell } from '@/shell/AppShell'
@@ -49,6 +53,7 @@ export default async function AppRootLayout({
     <html
       lang="en"
       className={`${readingFace.variable} ${readingItalicFace.variable}`}
+      style={readingFaceStyle}
       suppressHydrationWarning
     >
       <head>
