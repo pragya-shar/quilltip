@@ -46,7 +46,7 @@ export const ACTIONS = ['pause', 'unpause', 'grant', 'revoke'] as const
 export type Action = (typeof ACTIONS)[number]
 export const ROLES = Object.values(ROLE_SYMBOLS)
 
-export const USAGE = `Usage: bun scripts/contracts/roles-v2-testnet.ts --set integration|live --keys-dir <dir> [options]
+export const USAGE = `Usage: bun scripts/contracts/roles-v2-testnet.ts --set integration|live|v3 --keys-dir <dir> [options]
 
   --contracts <list>    core,tab,nft subset (default: all)
   --action <name>       pause | unpause | grant | revoke (default: report only)

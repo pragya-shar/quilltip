@@ -16,8 +16,34 @@ export const WASM_FILES: Record<ContractName, string> = {
 }
 
 /** Contract sets. Each set has its own keys and contracts. */
-export const SETS = ['integration', 'live'] as const
+export const SETS = ['integration', 'live', 'v3'] as const
 export type ContractSet = (typeof SETS)[number]
+
+/**
+ * Per-set defaults. `baseRef` is the branch a testnet commit must be on,
+ * `evidence` the repo path of the evidence document on testnet, and
+ * `convexDeployment` the non-production Convex deployment that runs the set
+ * (none for `live`).
+ */
+export const SET_DEFAULTS: Record<
+  ContractSet,
+  { baseRef: string; evidence: string; convexDeployment?: string }
+> = {
+  integration: {
+    baseRef: 'origin/overhaul/v2',
+    evidence: 'docs/contracts/v2-testnet-deployment.md',
+    convexDeployment: 'efficient-tern-39',
+  },
+  live: {
+    baseRef: 'origin/overhaul/v2',
+    evidence: 'docs/contracts/v2-testnet-deployment.md',
+  },
+  v3: {
+    baseRef: 'origin/overhaul/v3',
+    evidence: 'docs/contracts/v3-testnet-deployment.md',
+    convexDeployment: 'tacit-salmon-216',
+  },
+}
 
 /**
  * Keys per set. `acceptor` signs voucher acceptances off chain and is never

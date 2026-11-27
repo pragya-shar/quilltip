@@ -157,9 +157,14 @@ export function renderSection(
     lines.push('')
   }
   if (state.convexEnv) {
-    lines.push('### Integration Convex deployment', '')
     lines.push(
-      `On ${state.convexEnv.at}, these variables were set on the integration Convex deployment (values for public IDs are listed above; secrets are not recorded): ${state.convexEnv.names.map((n) => `\`${n}\``).join(', ')}. \`CHAIN_V2_ENABLED\` and \`SETTLEMENT_ENABLED\` were left unchanged.`
+      state.set === 'integration'
+        ? '### Integration Convex deployment'
+        : `### Convex deployment (${state.set} set)`,
+      ''
+    )
+    lines.push(
+      `On ${state.convexEnv.at}, these variables were set on the ${state.set} Convex deployment (values for public IDs are listed above; secrets are not recorded): ${state.convexEnv.names.map((n) => `\`${n}\``).join(', ')}. \`CHAIN_V2_ENABLED\` and \`SETTLEMENT_ENABLED\` were left unchanged.`
     )
     lines.push('')
   }

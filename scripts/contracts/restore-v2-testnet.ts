@@ -37,7 +37,7 @@ import { submit } from './deploy-v2/network'
 
 export const OPERATION = 'restore-v2-testnet'
 
-export const USAGE = `Usage: bun scripts/contracts/restore-v2-testnet.ts --set integration|live --keys-dir <dir> [options]
+export const USAGE = `Usage: bun scripts/contracts/restore-v2-testnet.ts --set integration|live|v3 --keys-dir <dir> [options]
 
   --submit              Send the restore transactions (default: dry run)
   --extend-days <n>     After restoring, extend to this many days (default: 120,

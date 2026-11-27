@@ -255,13 +255,16 @@ describe('mainnet is refused before any work', () => {
 describe('arguments', () => {
   const base = ['--set', 'integration', '--keys-dir', '/tmp/k']
 
-  it('requires --set integration|live and --keys-dir, and rejects unknown options', () => {
+  it('requires --set integration|live|v3 and --keys-dir, and rejects unknown options', () => {
     const spec = { usage: 'usage' }
     expect(() => parseOpsArgs(['--keys-dir', '/k'], spec)).toThrow(/--set/)
     expect(() =>
       parseOpsArgs(['--set', 'mainnet', '--keys-dir', '/k'], spec)
     ).toThrow(/--set/)
     expect(() => parseOpsArgs(['--set', 'live'], spec)).toThrow(/--keys-dir/)
+    expect(parseOpsArgs(['--set', 'v3', '--keys-dir', '/k'], spec).set).toBe(
+      'v3'
+    )
     expect(() => parseOpsArgs([...base, '--network', 'mainnet'], spec)).toThrow(
       /Unknown option/
     )

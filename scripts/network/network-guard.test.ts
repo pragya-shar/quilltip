@@ -83,8 +83,16 @@ describe('guard defaults', () => {
     })
   })
 
-  it('allowlists the integration deployment and lists the live one', () => {
+  it('allowlists the integration and v3 deployments and lists the live one', () => {
     expect(ALLOWED_CONVEX_DEPLOYMENTS).toContain(ALLOWED)
+    expect(ALLOWED_CONVEX_DEPLOYMENTS).toContain('tacit-salmon-216')
+    expect(
+      assertTestnetOnly({
+        ...SAFE,
+        convexUrls: ['https://tacit-salmon-216.convex.cloud'],
+        convexDeployment: 'dev:tacit-salmon-216',
+      }).convexDeployments
+    ).toEqual(['tacit-salmon-216'])
     expect(LIVE_CONVEX_DEPLOYMENTS).toContain(LIVE)
     expect(ALLOWED_CONVEX_DEPLOYMENTS).not.toContain(LIVE)
   })

@@ -46,6 +46,7 @@ export type GuardedNetwork = 'TESTNET' | 'LOCAL'
 /** Non-production Convex deployments any guarded tool may target. */
 export const ALLOWED_CONVEX_DEPLOYMENTS: readonly string[] = [
   'efficient-tern-39',
+  'tacit-salmon-216',
 ]
 
 /**

@@ -36,7 +36,7 @@ import { submit } from './deploy-v2/network'
 
 export const OPERATION = 'extend-v2-testnet'
 
-export const USAGE = `Usage: bun scripts/contracts/extend-v2-testnet.ts --set integration|live --keys-dir <dir> [options]
+export const USAGE = `Usage: bun scripts/contracts/extend-v2-testnet.ts --set integration|live|v3 --keys-dir <dir> [options]
 
   --submit              Send the extension transactions (default: dry run)
   --threshold-days <n>  Extend entries with fewer days left (default: 30)
