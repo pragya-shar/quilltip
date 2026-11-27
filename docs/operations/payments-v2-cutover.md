@@ -25,8 +25,9 @@ Payments v2 goes live as soon as these items are true; it does not wait for
 later work.
 
 1. The open payment and sign-up fixes are merged, and the release tag is on a
-   commit that contains each of them: #583, #565 and #577 (merged), and #597,
-   #572 and the fix for #584 once they merge (#597 merges before #572). The
+   commit that contains each of them: #583, #565, #577 and #596 (the fix for
+   #584) are merged; #597 and #572 once they merge (#597 merges before #572;
+   #572 waits on a test fix tracked as #607). The
    release commit also contains the v1 client removal (#559). The checks in
    section 1.3 pass on that commit.
 2. The owner has decided the backend push method, and the push uses a deploy
@@ -541,7 +542,7 @@ Live data is larger, so the snapshot, push and backfill steps can take longer.
 | 1     | `--dry-run`, push, cron check, maintenance dry runs   | Dry run 19 s, push 32 s, cron check 2 min                                                                                                                                       |
 | 2     | Site deploy and checks                                | Checks about 5 min, plus the Vercel build                                                                                                                                       |
 | 3     | Contract set, TTL extension, variables, indexer check | Deploy 861 s, extension 28 s, variables 8 s, indexer `OK` within 70 s; config refresh up to 1 hour                                                                              |
-| 4     | Contract version backfill                             | 8 s                                                                                                                                                                             |
+| 4     | Contract version backfill, claim records              | 8 s                                                                                                                                                                             |
 | 5     | Freeze, 15-minute wait, drain                         | 15 min 17 s                                                                                                                                                                     |
 | 5A    | Lifetime totals: dry run, switch, progress            | About ⌈N/20⌉ min for N rows; 300 synthetic writers: dry run 197 s, rebuild 999.5 s                                                                                              |
 | 6     | Backfill again, switch on v2, section 7.1             | Registration indexed in 17 s, direct tip confirmed in 35 s; about 15 min for the full 7.1 list                                                                                  |
@@ -807,7 +808,7 @@ status `OK`; check that `lastRunAt` stops moving and the contract IDs are
 empty. Setting the variables again resumes it from its cursor. If the set
 itself is wrong, deploy a new set with a new `CHAIN_EPOCH`.
 
-### Stage 4. Contract version backfill
+### Stage 4. Contract version backfill and claim records
 
 Run the internal backfill on the live deployment. It is a dry run unless
 `"apply": true`. Run it in this order: dry run, apply, dry run again.
@@ -822,13 +823,43 @@ with `"cursor"` set to the returned `continueCursor`. Repeat for
 `"table":"highlightTips"` and `"table":"articleNFTs"`. The operator runs
 these with the credential from section 5.0.2.
 
-**Check:** the final dry run for each table reports `"toUpdate": 0`.
-**Rollback:** not needed. The field is optional, and an unset value already
-reads as `v1`.
-
 v1 rows confirmed after this stage (tips in flight at the freeze) have no
 `contractVersion`. Stage 6, step 1 runs this backfill once more after the
 drain.
+
+**Claim records (#596).** The release records each applied `Claimed` event of
+the Tab contract in `tabClaims`, and the `Claimed` handler adds the amount to
+`collectedBaseUnits` only when it creates that record. Until a record exists,
+a re-dispatch of an applied `Claimed` event would count it again.
+`chain/tabClaims:seedClaimRecords` records every applied `Claimed` event of
+the current contract set and epoch that has none, and changes no total.
+Run it here, after stage 3: while `TAB_CONTRACT_ID` or `TOKEN_CONTRACT_ID` is
+unset it returns `seeded: 0` without reading any event. Run, in this order:
+
+```bash
+bunx convex run chain/tabClaims:seedClaimRecords '{}'
+bunx convex run chain/tabClaims:seedClaimRecords '{"apply": true}'
+bunx convex run chain/tabClaims:seedClaimRecords '{}'
+bunx convex run chain/tabClaims:recomputeCollected '{}'
+```
+
+Each call handles one page. While the result has `isDone: false`, call again
+with `"cursor"` set to the returned `continueCursor`. Without `"apply": true`
+both functions only count: `seeded` is the number of applied events without a
+record, and `differences` lists each writer whose `collectedBaseUnits` differs
+from the sum of their records. The `live` set is new at stage 3, so the live
+deployment has no tab claim yet: expect `checked: 0` and `seeded: 0` from
+every `seedClaimRecords` call, and `"status": "dry_run"` with
+`"differences": []` from `recomputeCollected`. The step still runs because it
+is the check that no applied claim lacks its record before v2 is switched on.
+
+**Check:** the backfill's final dry run for each table reports
+`"toUpdate": 0`; the final `seedClaimRecords` dry run reports `seeded: 0`; and
+`recomputeCollected` reports `"differences": []`. If a difference appears,
+stop: do not apply `recomputeCollected` without an incident note (chain
+runbook, "Collected earnings").
+**Rollback:** not needed. `contractVersion` is optional, and an unset value
+already reads as `v1`. A claim record changes no total.
 
 ### Stage 5. Freeze v1 and drain
 
