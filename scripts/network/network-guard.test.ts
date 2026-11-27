@@ -34,6 +34,7 @@ import { runLiveWindowCli } from '../live-window'
 import {
   LIVE_WINDOW_FUNCTIONS,
   LIVE_WINDOW_LOG_ENV,
+  LIVE_WINDOW_RESTORE_ENV,
   LIVE_WINDOW_MAX_HOURS,
   LIVE_WINDOW_OPERATIONS,
   appendLiveWindowLog,
@@ -43,6 +44,8 @@ import {
   liveWindowLogPath,
   parseLiveWindowApproval,
   readLiveWindowFacts,
+  sha256File,
+  stageRestoreCopy,
   type LiveWindowFacts,
   type LiveWindowLogEntry,
 } from '../lib/live-window'
@@ -1228,6 +1231,7 @@ const WINDOW_ENV: Record<string, string | undefined> = {
   NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
   CONVEX_DEPLOY_KEY: DEPLOY_KEY,
   [LIVE_WINDOW_APPROVAL_ENV]: WINDOW_VALUE,
+  [LIVE_WINDOW_RESTORE_ENV]: `${LIVE}@sha256:${'c'.repeat(64)}`,
 }
 
 const WINDOW_FACTS: LiveWindowFacts = {
@@ -1241,7 +1245,11 @@ const WINDOW_FACTS: LiveWindowFacts = {
 }
 
 const EXISTING_RESTORE = '/backups/restore.zip'
-const fileExists = (file: string) => file === EXISTING_RESTORE
+const RESTORE_DIGEST = 'c'.repeat(64)
+const WINDOW_FILES = {
+  exists: (file: string) => file === EXISTING_RESTORE,
+  sha256: () => RESTORE_DIGEST,
+}
 
 function windowCodes(
   args: string[] | null,
@@ -1253,7 +1261,7 @@ function windowCodes(
       args,
       { ...WINDOW_ENV, ...env },
       { ...WINDOW_FACTS, ...facts },
-      fileExists
+      WINDOW_FILES
     )
     return []
   } catch (error) {
@@ -1392,7 +1400,7 @@ describe('window approval: the allowed operations', () => {
       args,
       WINDOW_ENV,
       WINDOW_FACTS,
-      fileExists
+      WINDOW_FILES
     )
     expect(decision.request?.convexArgs ?? null).toEqual(convexArgs)
     expect(decision.guard.liveWindowApproved).toBe(true)
@@ -1662,6 +1670,87 @@ describe('window approval: refusals', () => {
   })
 })
 
+describe('window approval: restore archive binding', () => {
+  const OTHER_DIGEST = 'd'.repeat(64)
+
+  it('reports the approved digest for the import', () => {
+    const decision = evaluateLiveWindow(
+      ['import', EXISTING_RESTORE],
+      WINDOW_ENV,
+      WINDOW_FACTS,
+      WINDOW_FILES
+    )
+    expect(decision.request).toMatchObject({
+      sha256: RESTORE_DIGEST,
+      detail: `import ${EXISTING_RESTORE} sha256:${RESTORE_DIGEST}`,
+    })
+  })
+
+  it.each([
+    ['unset', undefined],
+    ['empty', ''],
+    ['digest only', `sha256:${RESTORE_DIGEST}`],
+    ['no algorithm', `${LIVE}@${RESTORE_DIGEST}`],
+    ['short digest', `${LIVE}@sha256:${RESTORE_DIGEST.slice(1)}`],
+    ['upper-case digest', `${LIVE}@sha256:${RESTORE_DIGEST.toUpperCase()}`],
+    ['padded', ` ${LIVE}@sha256:${RESTORE_DIGEST}`],
+    ['another deployment', `${ALLOWED}@sha256:${RESTORE_DIGEST}`],
+    ['another archive', `${LIVE}@sha256:${OTHER_DIGEST}`],
+  ])('refuses an import when the binding is %s', (_label, value) => {
+    expect(
+      windowCodes(['import', EXISTING_RESTORE], {
+        [LIVE_WINDOW_RESTORE_ENV]: value,
+      })
+    ).toEqual(['LIVE_WINDOW_RESTORE'])
+  })
+
+  it('names the reason: no binding, or a malformed one', () => {
+    const message = (value: string | undefined) =>
+      guardError(() =>
+        evaluateLiveWindow(
+          ['import', EXISTING_RESTORE],
+          { ...WINDOW_ENV, [LIVE_WINDOW_RESTORE_ENV]: value },
+          WINDOW_FACTS,
+          WINDOW_FILES
+        )
+      ).message
+    expect(message(undefined)).toContain(
+      `import needs ${LIVE_WINDOW_RESTORE_ENV}`
+    )
+    for (const value of [
+      `${LIVE}@sha256:${RESTORE_DIGEST.toUpperCase()}`,
+      `${LIVE}@sha256:${RESTORE_DIGEST.slice(1)}`,
+      ` ${LIVE}@sha256:${RESTORE_DIGEST}`,
+    ]) {
+      expect(message(value)).toContain('is not in the format')
+    }
+  })
+
+  it('refuses an archive that cannot be read', () => {
+    expect(() =>
+      evaluateLiveWindow(
+        ['import', EXISTING_RESTORE],
+        WINDOW_ENV,
+        WINDOW_FACTS,
+        {
+          exists: WINDOW_FILES.exists,
+          sha256: () => {
+            throw new Error('EACCES')
+          },
+        }
+      )
+    ).toThrow(/LIVE_WINDOW_RESTORE/)
+  })
+
+  it('needs no binding for the other operations', () => {
+    expect(
+      windowCodes(['export', '/backups/stage0.zip'], {
+        [LIVE_WINDOW_RESTORE_ENV]: undefined,
+      })
+    ).toEqual([])
+  })
+})
+
 describe('window approval: shared guard input', () => {
   const WINDOW_INPUT: NetworkGuardInput = {
     ...SAFE,
@@ -1772,6 +1861,8 @@ describe('window CLI', () => {
       facts?: Partial<LiveWindowFacts>
       dryRunOutput?: string
       logFails?: boolean
+      spawn?: (args: string[]) => void
+      stage?: (file: string) => { path: string; cleanup: () => void }
     } = {}
   ) {
     const spawned: string[][] = []
@@ -1789,6 +1880,7 @@ describe('window CLI', () => {
         facts: () => ({ ...WINDOW_FACTS, ...options.facts }),
         spawn: (args, capture) => {
           spawned.push(args)
+          options.spawn?.(args)
           return {
             status: 0,
             output: capture
@@ -1805,6 +1897,8 @@ describe('window CLI', () => {
           }
           logged.push(entry)
         },
+        sha256: sha256File,
+        stage: options.stage ?? stageRestoreCopy,
       }
     )
     return { code, spawned, logged, out: out.join('\n') }
@@ -1908,6 +2002,104 @@ describe('window CLI', () => {
     expect(result.logged.map((e) => e.event)).toEqual(['allowed', 'dashboard'])
   })
 
+  describe('restore archives (synthetic files, stub Convex CLI)', () => {
+    const dirs: string[] = []
+    function archives() {
+      const dir = fs.realpathSync(
+        fs.mkdtempSync(path.join(os.tmpdir(), 'live-window-restore-'))
+      )
+      dirs.push(dir)
+      const stage0 = path.join(dir, 'stage0.zip')
+      const rebuilt = path.join(dir, 'restore.zip')
+      fs.writeFileSync(stage0, 'PK synthetic stage 0 snapshot\n')
+      fs.writeFileSync(rebuilt, 'PK synthetic rebuilt restore file\n')
+      return { dir, stage0, rebuilt, digest: sha256File(rebuilt) }
+    }
+    afterEach(() => {
+      for (const dir of dirs.splice(0)) {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('imports a private copy of the approved archive and logs its digest', () => {
+      const { rebuilt, digest } = archives()
+      const seen: Array<{ file: string; digest: string }> = []
+      const result = cli(['run', 'import', rebuilt], {
+        env: { [LIVE_WINDOW_RESTORE_ENV]: `${LIVE}@sha256:${digest}` },
+        spawn: (args) => {
+          const file = args[3] as string
+          seen.push({ file, digest: sha256File(file) })
+        },
+      })
+      expect(result.code).toBe(0)
+      expect(result.spawned).toHaveLength(1)
+      expect(result.spawned[0]?.slice(0, 3)).toEqual([
+        'import',
+        '--replace-all',
+        '-y',
+      ])
+      expect(seen[0]?.digest).toBe(digest)
+      expect(seen[0]?.file).not.toBe(rebuilt)
+      expect(fs.existsSync(seen[0]?.file as string)).toBe(false)
+      expect(result.logged).toEqual([
+        expect.objectContaining({ event: 'allowed', sha256: digest }),
+        expect.objectContaining({
+          event: 'finished',
+          sha256: digest,
+          exitCode: 0,
+        }),
+      ])
+      expect(result.out).toContain(`sha256:${digest}`)
+    })
+
+    it('refuses the stage 0 export in place of the reviewed restore file', () => {
+      const { stage0, digest } = archives()
+      const result = cli(['run', 'import', stage0], {
+        env: { [LIVE_WINDOW_RESTORE_ENV]: `${LIVE}@sha256:${digest}` },
+      })
+      expect(result.code).toBe(1)
+      expect(result.spawned).toEqual([])
+      expect(result.logged).toEqual([
+        expect.objectContaining({
+          event: 'refused',
+          operation: 'import',
+          codes: ['LIVE_WINDOW_RESTORE'],
+        }),
+      ])
+    })
+
+    it('imports nothing when the archive changes after the check', () => {
+      const { dir, rebuilt, digest } = archives()
+      const result = cli(['run', 'import', rebuilt], {
+        env: { [LIVE_WINDOW_RESTORE_ENV]: `${LIVE}@sha256:${digest}` },
+        stage: () => {
+          const copy = path.join(dir, 'swapped.zip')
+          fs.writeFileSync(copy, 'PK swapped after the check\n')
+          return { path: copy, cleanup: () => fs.rmSync(copy) }
+        },
+      })
+      expect(result.code).toBe(1)
+      expect(result.spawned).toEqual([])
+      expect(result.logged.at(-1)).toMatchObject({
+        event: 'finished',
+        codes: ['LIVE_WINDOW_RESTORE'],
+      })
+    })
+
+    it('logs the digest of a finished export', () => {
+      const { dir } = archives()
+      const target = path.join(dir, 'after-incident.zip')
+      const result = cli(['run', 'export', target], {
+        spawn: (args) => fs.writeFileSync(args[3] as string, 'PK export\n'),
+      })
+      expect(result.code).toBe(0)
+      expect(result.logged.at(-1)).toMatchObject({
+        event: 'finished',
+        sha256: sha256File(target),
+      })
+    })
+  })
+
   it('shows usage for an unknown command', () => {
     expect(cli(['deploy']).code).toBe(2)
     expect(cli(['run']).code).toBe(2)
@@ -1971,6 +2163,7 @@ describe('window log and local facts', () => {
       windowEnd: null,
       codes: [],
       exitCode: null,
+      sha256: null,
     })
     expect(
       guardError(() =>

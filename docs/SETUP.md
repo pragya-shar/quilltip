@@ -123,7 +123,9 @@ controls:
    line to `~/.quilltip/live-window.log` (or `QUILLTIP_LIVE_WINDOW_LOG`, outside
    the repository). `bun run live-window check` evaluates the approval without
    any network call. Every other tool refuses to run while the variable is set,
-   and `guard:convex` still refuses every live deploy. The operations and the
+   and `guard:convex` still refuses every live deploy. A replace-all import
+   also needs `QUILLTIP_LIVE_WINDOW_RESTORE=<deployment>@sha256:<digest>` for
+   the reviewed restore file. The operations and the
    procedure are in the
    [cutover runbook](operations/payments-v2-cutover.md#503-live-window-approval);
    the rules are in `scripts/lib/live-window.ts`.

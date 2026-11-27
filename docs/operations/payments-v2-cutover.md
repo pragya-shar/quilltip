@@ -587,16 +587,27 @@ development deploy key for that deployment. Mainnet is refused as always.
    | `convex deploy --dry-run`                            | `deploy-dry-run`                                                                                |
    | `convex deploy`                                      | `deploy` (runs the dry run first; pushes only if it names the approved deployment and no other) |
    | `convex export --include-file-storage --path <file>` | `export <file>.zip` (outside the repository, new file)                                          |
-   | `convex import --replace-all -y <file>`              | `import <file>.zip` (section 6.2 only)                                                          |
+   | `convex import --replace-all -y <file>`              | `import <file>.zip` (section 6.2 only; needs the restore binding below)                         |
    | `convex env set <NAME> <value>`                      | `env-set <NAME> <value>` (non-secret variables of section 3.1; values checked)                  |
    | `convex env remove <NAME>`                           | `env-remove <NAME>` (contract IDs, `INDEXER_START_LEDGER`)                                      |
    | `convex run <function> '<json>'`                     | `convex-run <function> '<json>'` (functions named in this runbook)                              |
    | Dashboard pause or resume (section 6.2)              | `pause`, `resume` (recorded only; do it in the dashboard)                                       |
 
+   `export` prints the SHA-256 of the file it wrote and logs it.
+
+   **Restore binding.** A section 6.2 import also needs
+   `QUILLTIP_LIVE_WINDOW_RESTORE=<deployment>@sha256:<64 hex digits>` for the
+   reviewed restore file. The restore file is rebuilt from the stage 0
+   snapshot and the second export, so its digest differs from both: take it
+   from the reviewed file (`shasum -a 256 <restore-file>.zip`), not from an
+   export line in the log. The tool refuses another file, another deployment
+   or a malformed value. It copies the file to a private directory, checks the
+   copy's digest again, imports the copy, and logs the digest.
+
 4. Clear it at the end of the window, and check that the tool now refuses:
 
    ```bash
-   unset QUILLTIP_LIVE_WINDOW_APPROVAL CONVEX_DEPLOY_KEY
+   unset QUILLTIP_LIVE_WINDOW_APPROVAL QUILLTIP_LIVE_WINDOW_RESTORE CONVEX_DEPLOY_KEY
    bun run live-window check
    ```
 

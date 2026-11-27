@@ -38,6 +38,8 @@ import {
   minutesLeft,
   parseLiveWindowApproval,
   readLiveWindowFacts,
+  sha256File,
+  stageRestoreCopy,
   type LiveWindowDecision,
   type LiveWindowFacts,
   type LiveWindowLogEntry,
@@ -54,6 +56,10 @@ export type LiveWindowDeps = {
   spawn: (convexArgs: string[], capture: boolean) => SpawnResult
   /** Append one log line; throws NetworkGuardError when it cannot. */
   log: (entry: LiveWindowLogEntry, now: Date) => void
+  /** SHA-256 of a file. */
+  sha256: (file: string) => string
+  /** Private copy of a restore archive, imported in place of the original. */
+  stage: (file: string) => { path: string; cleanup: () => void }
 }
 
 function defaultDeps(env: EnvLike): LiveWindowDeps {
@@ -86,6 +92,8 @@ function defaultDeps(env: EnvLike): LiveWindowDeps {
         now
       )
     },
+    sha256: sha256File,
+    stage: stageRestoreCopy,
   }
 }
 
@@ -111,6 +119,7 @@ function decisionFields(decision: LiveWindowDecision) {
     deployment: decision.approval.deployment,
     commit: decision.approval.commit,
     windowEnd: decision.approval.end.toISOString(),
+    ...(decision.request?.sha256 ? { sha256: decision.request.sha256 } : {}),
   }
 }
 
@@ -132,7 +141,10 @@ function decide(
 ): { decision: LiveWindowDecision; facts: LiveWindowFacts } | null {
   const facts = deps.facts()
   try {
-    return { decision: evaluateLiveWindow(args, env, facts), facts }
+    return {
+      decision: evaluateLiveWindow(args, env, facts, { sha256: deps.sha256 }),
+      facts,
+    }
   } catch (error) {
     if (!(error instanceof NetworkGuardError)) throw error
     console.error(error.message)
@@ -256,13 +268,80 @@ export function runLiveWindowCli(
     if (!again) return 1
   }
 
+  if (request.operation === 'import') {
+    return runImport(decision, deps)
+  }
+
   const run = deps.spawn(request.convexArgs, false)
+  let exported: string | undefined
+  if (request.operation === 'export' && run.status === 0 && request.file) {
+    try {
+      exported = deps.sha256(request.file)
+      console.log(`Export SHA-256: ${exported}`)
+    } catch {
+      console.error('The export finished, but its file cannot be read.')
+    }
+  }
   log(
     deps,
-    { event: 'finished', ...decisionFields(decision), exitCode: run.status },
+    {
+      event: 'finished',
+      ...decisionFields(decision),
+      exitCode: run.status,
+      ...(exported ? { sha256: exported } : {}),
+    },
     deps.facts().now
   )
   return run.status ?? 1
+}
+
+/**
+ * Import a private copy of the approved restore archive, after checking that
+ * the copy still has the approved SHA-256. The original can change after the
+ * check; the copy cannot.
+ */
+function runImport(decision: LiveWindowDecision, deps: LiveWindowDeps): number {
+  const request = decision.request
+  const expected = request?.sha256
+  if (!request?.file || !expected) return 1
+  let staged: { path: string; cleanup: () => void }
+  try {
+    staged = deps.stage(request.file)
+  } catch {
+    console.error('The restore archive cannot be copied. Nothing was imported.')
+    return 1
+  }
+  try {
+    const copied = deps.sha256(staged.path)
+    if (copied !== expected) {
+      console.error(
+        `The restore archive changed after the check (SHA-256 ${copied}). Nothing was imported.`
+      )
+      log(
+        deps,
+        {
+          event: 'finished',
+          ...decisionFields(decision),
+          codes: ['LIVE_WINDOW_RESTORE'],
+          exitCode: 1,
+        },
+        deps.facts().now
+      )
+      return 1
+    }
+    const run = deps.spawn(
+      ['import', '--replace-all', '-y', staged.path],
+      false
+    )
+    log(
+      deps,
+      { event: 'finished', ...decisionFields(decision), exitCode: run.status },
+      deps.facts().now
+    )
+    return run.status ?? 1
+  } finally {
+    staged.cleanup()
+  }
 }
 
 const scriptPath = process.argv[1] ? path.resolve(process.argv[1]) : ''

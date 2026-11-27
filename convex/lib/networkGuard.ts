@@ -156,6 +156,7 @@ export type NetworkGuardCode =
   | 'LIVE_WINDOW_CREDENTIAL'
   | 'LIVE_WINDOW_NOT_FOR_TOOL'
   | 'LIVE_WINDOW_LOG'
+  | 'LIVE_WINDOW_RESTORE'
 
 export type NetworkGuardRefusal = {
   code: NetworkGuardCode

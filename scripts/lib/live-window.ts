@@ -19,6 +19,7 @@
  * Every evaluation appends a line to a local log outside the repository.
  */
 import { execFileSync } from 'child_process'
+import { createHash } from 'crypto'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
@@ -48,6 +49,51 @@ type EnvLike = Record<string, string | undefined>
 /** Path of the local log. Defaults to LIVE_WINDOW_DEFAULT_LOG. */
 export const LIVE_WINDOW_LOG_ENV = 'QUILLTIP_LIVE_WINDOW_LOG'
 export const LIVE_WINDOW_DEFAULT_LOG = path.join('.quilltip', 'live-window.log')
+
+/**
+ * Binding for a replace-all import (runbook section 6.2): the reviewed restore
+ * archive, by deployment and SHA-256, `<deployment>@sha256:<64 hex>`. The
+ * restore file is rebuilt from the stage 0 snapshot and the second export, so
+ * its digest is recorded after review, not taken from either export.
+ */
+export const LIVE_WINDOW_RESTORE_ENV = 'QUILLTIP_LIVE_WINDOW_RESTORE'
+export const LIVE_WINDOW_RESTORE_FORMAT = '<deployment>@sha256:<64 hex digits>'
+const RESTORE_PATTERN = /^([a-z0-9]+(?:-[a-z0-9]+)*)@sha256:([0-9a-f]{64})$/
+
+/** SHA-256 of a file, read in chunks. */
+export function sha256File(file: string): string {
+  const hash = createHash('sha256')
+  const fd = fs.openSync(file, 'r')
+  try {
+    const buffer = Buffer.alloc(1 << 20)
+    let read = 0
+    while ((read = fs.readSync(fd, buffer, 0, buffer.length, null)) > 0) {
+      hash.update(buffer.subarray(0, read))
+    }
+  } finally {
+    fs.closeSync(fd)
+  }
+  return hash.digest('hex')
+}
+
+/**
+ * Copy a restore archive into a new private directory, so the file that is
+ * hashed is the file that is imported. `cleanup` removes the copy.
+ */
+export function stageRestoreCopy(file: string): {
+  path: string
+  cleanup: () => void
+} {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quilltip-restore-'))
+  fs.chmodSync(dir, 0o700)
+  const copy = path.join(dir, 'restore.zip')
+  fs.copyFileSync(file, copy, fs.constants.COPYFILE_EXCL)
+  fs.chmodSync(copy, 0o600)
+  return {
+    path: copy,
+    cleanup: () => fs.rmSync(dir, { recursive: true, force: true }),
+  }
+}
 
 /** Longest window an approval may name, in hours. */
 export const LIVE_WINDOW_MAX_HOURS = 4
@@ -243,6 +289,10 @@ export type LiveWindowRequest = {
   convexArgs: string[] | null
   /** Log-safe description: no credential, no secret value. */
   detail: string
+  /** export and import: the archive path. */
+  file?: string
+  /** import: the approved SHA-256 the archive matched. */
+  sha256?: string
 }
 
 function isInside(root: string, target: string): boolean {
@@ -319,7 +369,12 @@ export function parseLiveWindowRequest(
           ? ['export', '--include-file-storage', '--path', file]
           : ['import', '--replace-all', '-y', file]
       return {
-        request: { operation, convexArgs, detail: `${operation} ${file}` },
+        request: {
+          operation,
+          convexArgs,
+          detail: `${operation} ${file}`,
+          file,
+        },
       }
     }
     case 'env-set': {
@@ -652,11 +707,58 @@ export type LiveWindowDecision = {
  * Throws NetworkGuardError with every refusal. `args` null is the dry check
  * of the approval alone.
  */
+export type LiveWindowFiles = {
+  exists?: (file: string) => boolean
+  sha256?: (file: string) => string
+}
+
+/** Check an import against LIVE_WINDOW_RESTORE_ENV; returns the digest. */
+function restoreRefusals(
+  file: string,
+  approval: LiveWindowApproval,
+  env: EnvLike,
+  digestOf: (file: string) => string
+): { refusals: NetworkGuardRefusal[]; sha256?: string } {
+  const value = env[LIVE_WINDOW_RESTORE_ENV]
+  const refuse = (message: string) => ({
+    refusals: [refusal('LIVE_WINDOW_RESTORE', message)],
+  })
+  if (!value) {
+    return refuse(
+      `import needs ${LIVE_WINDOW_RESTORE_ENV}=${LIVE_WINDOW_RESTORE_FORMAT} for the reviewed restore archive.`
+    )
+  }
+  const match = RESTORE_PATTERN.exec(value)
+  if (!match) {
+    return refuse(
+      `${LIVE_WINDOW_RESTORE_ENV} is not in the format ${LIVE_WINDOW_RESTORE_FORMAT}.`
+    )
+  }
+  const [, deployment, expected] = match as unknown as [string, string, string]
+  if (deployment !== approval.deployment) {
+    return refuse(
+      `${LIVE_WINDOW_RESTORE_ENV} names "${deployment}", not the window deployment ${approval.deployment}.`
+    )
+  }
+  let actual: string
+  try {
+    actual = digestOf(file)
+  } catch {
+    return refuse('The restore archive cannot be read.')
+  }
+  if (actual !== expected) {
+    return refuse(
+      `The restore archive has SHA-256 ${actual}, not the approved ${expected}. Check that this is the reviewed file.`
+    )
+  }
+  return { refusals: [], sha256: actual }
+}
+
 export function evaluateLiveWindow(
   args: readonly string[] | null,
   env: EnvLike,
   facts: LiveWindowFacts,
-  fileExists?: (file: string) => boolean
+  files: LiveWindowFiles = {}
 ): LiveWindowDecision {
   const operation = `live window: ${describeLiveWindowArgs(args)}`
   const value = env[LIVE_WINDOW_APPROVAL_ENV]
@@ -699,9 +801,29 @@ export function evaluateLiveWindow(
 
   let request: LiveWindowRequest | null = null
   if (args) {
-    const result = parseLiveWindowRequest(args, facts.checkoutRoot, fileExists)
+    const result = parseLiveWindowRequest(
+      args,
+      facts.checkoutRoot,
+      files.exists
+    )
     if ('refusals' in result) refusals.push(...result.refusals)
     else request = result.request
+  }
+  if (request?.operation === 'import' && request.file) {
+    const restore = restoreRefusals(
+      request.file,
+      approval,
+      env,
+      files.sha256 ?? sha256File
+    )
+    refusals.push(...restore.refusals)
+    if (restore.sha256) {
+      request = {
+        ...request,
+        sha256: restore.sha256,
+        detail: `${request.detail} sha256:${restore.sha256}`,
+      }
+    }
   }
 
   // Control 1 and control 2 as for any deploy-kind run, with the Stellar
@@ -773,6 +895,8 @@ export type LiveWindowLogEntry = {
   windowEnd?: string
   codes?: string[]
   exitCode?: number | null
+  /** SHA-256 of the archive an export wrote or an import read. */
+  sha256?: string
 }
 
 export function liveWindowLogPath(env: EnvLike, home = os.homedir()): string {
@@ -794,6 +918,7 @@ export function formatLiveWindowLogLine(
     windowEnd: entry.windowEnd ?? null,
     codes: entry.codes ?? [],
     exitCode: entry.exitCode ?? null,
+    sha256: entry.sha256 ?? null,
   })}\n`
 }
 
