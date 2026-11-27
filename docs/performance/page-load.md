@@ -381,6 +381,10 @@ connections the local server allows. The global stylesheet finished at about
 
 ### What simulated mobile under 2 s would need
 
+Superseded: measured over HTTP/2 and with chunk scripts loaded after the
+first paint, all four routes meet it; see
+[First paint before scripts](#first-paint-before-scripts-405-428).
+
 Lighthouse's simulation charges the bytes that finish, and the scripts that
 run, before the observed first paint (see
 [Why simulated mobile LCP stays above 2 s](#why-simulated-mobile-lcp-stays-above-2-s)).
@@ -402,6 +406,213 @@ load far below the framework's own size. The options that remain are owner
 decisions: fewer typefaces on the first screen (the landing page uses ten),
 or accepting applied throttling (or field data) as the measure for #405.
 
+## First paint before scripts (#405, #428)
+
+Measured 2026-11-27. Targets, all four routes: Lighthouse simulated mobile
+LCP < 2 s, applied-throttling mobile LCP < 2 s, CLS < 0.1 (mobile and
+desktop). Field data after cutover is the final confirmation (see
+[Field data](#field-data)).
+
+### Method: HTTP/2, as production serves the site
+
+Same builds, data and tool as above (local production build, seeded local
+backend, Lighthouse 12.8.2, five runs, median), with one change: Lighthouse
+now loads the pages over HTTP/2 and TLS, through a local proxy in front of
+`next start`. `next start` itself speaks HTTP/1.1, and the protocol changes
+both lab methods:
+
+- **Simulated:** Lighthouse models connections from the observed protocol.
+  Over HTTP/1.1 it allows six connections per host and queues the page's
+  20 or so chunk requests behind each other, each extra round costing a
+  simulated 150 ms round trip. That queueing does not exist on the deployed
+  site, which serves HTTP/2. On the same build, HTTP/2 lowered simulated LCP
+  by 650 to 800 ms (login 2918 to 2105 ms, article 3510 to 2706 ms).
+- **Applied:** DevTools throttling shares the bandwidth equally between
+  requests in flight. Over HTTP/1.1 only six run at once, so the stylesheet
+  and fonts were never competing with the scripts; over HTTP/2 all of them
+  start together and the low-priority scripts take bandwidth from the
+  stylesheet. Applied LCP rose by 400 to 750 ms.
+
+HTTP/2 is the protocol readers get, so every number in this section uses it.
+The tables earlier on this page (HTTP/1.1) are not comparable with these.
+
+### Cause
+
+On every route the page paints when its stylesheets have arrived, and its
+async chunk scripts (190 to 207 KB gzip, about 145 KB of it React and the
+Next.js router) work against that in both methods:
+
+- On the unthrottled load Lighthouse records, Chrome runs every chunk script
+  before it presents the first frame, so the simulation charges all of their
+  bytes and evaluation to LCP.
+- Under applied throttling the scripts download alongside the stylesheet and
+  fonts and slow them down.
+
+Next.js 16.4 has no setting for when these scripts load: the App Router
+writes the root chunks through `ReactDOM.preinit` and React writes every other
+chunk as a hoisted `<script async>` (checked in the installed
+`next/dist/server/app-render/required-scripts.js` and the App Router runtime).
+
+### What changed
+
+Medians of five runs, LCP in ms, HTTP/2. Each row adds one change to the
+previous row.
+
+| Step                                    | `/` sim. | `/login` sim. | `/articles` sim. | Article sim. | `/` applied | `/login` applied | `/articles` applied | Article applied |
+| --------------------------------------- | -------: | ------------: | ---------------: | -----------: | ----------: | ---------------: | ------------------: | --------------: |
+| Before (#506 merged with `overhaul/v2`) | **2779** |      **2105** |         **2854** |     **2859** |    **2593** |         **2214** |            **2814** |        **2565** |
+| 1. Fonts                                | **2857** |      **2105** |         **2860** |     **2704** |    **2596** |         **2209** |            **2792** |        **2563** |
+| 2. Chunk scripts after the first paint  |     1804 |          1203 |             1954 |         1802 |        1829 |             1514 |                1860 |            1735 |
+| 3. `/articles` card data                |        – |             – |             1654 |            – |           – |                – |                1842 |               – |
+
+Row 3 re-measured `/articles` only; the change touches no other route.
+
+1. **Fonts.** Every face was rewritten losslessly to WOFF2 without glyph
+   names (19 KB less in total; the two `.woff` files became WOFF2), and
+   each typeface got a metric-matched fallback (`app/font-fallbacks.css`:
+   size, ascent and descent overrides computed the way `next/font` computes
+   them, one face per weight). Text that paints before its web font now keeps
+   its line breaks when the font swaps in; CLS fell on `/` (0.002 to 0.001)
+   and `/articles` (0.005 to 0.000). LCP changed within noise.
+2. **Chunk scripts after the first paint.** `scripts/next/hydrate-after-paint.ts`
+   edits the two production App Router runtimes before `next build`
+   (package.json and vercel.json run it): Next.js lists the root chunks in the
+   URL of one small loader (`public/hydrate-after-paint.js`) and writes every
+   other chunk script inert (`type="text/plain"` with
+   `data-hydrate-after-paint`). The loader starts them all, in the same order,
+   once the browser reports the first contentful paint, or on the first
+   pointer or key press, after 3 s, or at once in a hidden tab.
+   - The page is the same; hydration starts after the first paint. On a
+     fast connection the chunk requests start 15 to 20 ms after it (measured
+     on all four routes); on Slow 4G the scripts no longer slow the
+     stylesheet and fonts, and hydration finishes later (see the trade-off
+     below).
+   - Links work before hydration, as before. Buttons that need JavaScript
+     respond once the scripts have run; a press before that starts them at
+     once.
+   - It applies only to the first HTML document. Navigation inside the app
+     is unchanged, and `next dev` is unchanged.
+   - Safety: the script refuses any Next.js version other than 16.4.6 and any
+     runtime in which its two patterns do not match exactly once, so an
+     upgrade fails the build instead of skipping it;
+     `QUILLTIP_HYDRATE_AFTER_PAINT=false` at run time restores the default;
+     with subresource integrity on, the default is kept. `perf:budget` fails
+     when a chunk script would load before the first paint.
+3. **`/articles` sends card data, not article bodies.** The first list in
+   the HTML carried every listed article's full document and search text
+   (the long article's text 40 times). The server now sends each card its
+   opening (`lib/articles/listArticleForClient.ts`); the card text is the
+   same (unit test), and the live query brings full rows after load. The
+   page's HTML fell from 160 KB to 49 KB raw (26.6 to 10.3 KB gzip).
+
+### Result
+
+All changes, re-measured on one build (median of 5; CLS is the largest
+median across the simulated, applied and desktop runs):
+
+| Route       | Simulated mobile LCP | Applied mobile LCP | Desktop LCP |   CLS | Met |
+| ----------- | -------------------: | -----------------: | ----------: | ----: | --- |
+| `/`         |                 1804 |               1807 |         403 | 0.001 | yes |
+| `/login`    |                 1202 |               1501 |         323 | 0.016 | yes |
+| `/articles` |                 1653 |               1829 |         363 | 0.001 | yes |
+| Article     |                 1802 |               1734 |         383 | 0.001 | yes |
+
+`/articles` simulated mobile had one run at 2931 ms (four at 1653 to
+1654 ms): an occasional observed load in which the cover image finished
+after a script ran.
+
+**Trade-off: hydration starts later under throttling.** The scripts now
+start downloading when the page has painted instead of alongside the
+stylesheet. Under applied throttling the landing page finished hydrating at
+about 4.1 s instead of about 2.5 to 3.0 s (from its long tasks), and
+Lighthouse's time to interactive rose (median, ms):
+
+| Route       | Applied TTI before | Applied TTI after | Simulated TTI before | Simulated TTI after | TBT applied before → after |
+| ----------- | -----------------: | ----------------: | -------------------: | ------------------: | -------------------------: |
+| `/`         |               4145 |            10591¹ |                 3096 |                3100 |                  105 → 139 |
+| `/login`    |               2553 |              3340 |                 2105 |                1646 |                    12 → 11 |
+| `/articles` |               3119 |              4087 |                 2854 |                2099 |                    42 → 21 |
+| Article     |               6732 |              7098 |                 6562 |                5675 |                   151 → 79 |
+
+¹ Both landing builds have a long task at about 10.4 s, where the opening
+intro ends; in the new build, link prefetches after hydration end at
+6.1 s, so Lighthouse's 5-second quiet window only closes after that task.
+Hydration itself moved by about 1.1 s.
+
+Links work before hydration; buttons that need JavaScript respond once the
+scripts have run, and a press starts them at once. Field data (below) will
+show INP after cutover.
+
+### Checked and not changed
+
+- **JavaScript content.** The first load is React DOM (about 62 KB gzip),
+  the Next.js router and runtime (about 85 KB), the Convex client (about
+  23 KB) and 15 to 40 KB of app code per route. Public pages need the Convex
+  client for live data, and the app code is the page's own. Moving the
+  scripts after the first paint removes all of it from the paint path, so no
+  further split was needed. `convex/_generated/api.js` pulls Convex's schema
+  helpers into the browser (about 1.7 KB); generated code is left as it is.
+- **Splitting the global stylesheet.** `experimental.cssChunking: 'graph'`
+  produced the same stylesheets for these routes (one global sheet from
+  `app/globals.css`). Rule coverage shows 74 to 83 percent of it used at
+  first paint on each route; a hand split would save at most about 6 KB gzip.
+- **Variable fonts.** A Syne variable file is 34.6 KB against 41.7 KB for
+  the three static weights, and larger wherever a page needs only one or two
+  weights before paint.
+- **Font preloads and swap.** With `font-display: swap`, Chrome does not
+  report a new LCP when a web font replaces the fallback (tested), so a late
+  font does not move LCP; the preloads stay because every preloaded face is
+  on its route's first screen.
+- **Article HTML order.** The head carries the font preloads and stylesheets
+  first; the LCP paragraph starts about 9 KB into the 98 KB (raw) document,
+  before the hydration data.
+- **The article's later CSS and font requests** seen in the earlier
+  script-delay experiment came from that experiment's proxy; in direct loads
+  the article requests them at 14 ms, like `/articles` (13 ms).
+
+### Landing typefaces: proposal for the owner
+
+The landing page loads ten font files (169 KB). Three of them can be
+replaced by faces the page already loads:
+
+| Face                | Size  | First screen                              | Replacement     |
+| ------------------- | ----- | ----------------------------------------- | --------------- |
+| DM Sans 400         | 14 KB | The two hero buttons                      | Work Sans 400   |
+| DM Sans 700         | 14 KB | none (below the fold)                     | Work Sans 600   |
+| Literata 600 italic | 22 KB | The handwritten "writing" in the headline | Alegreya italic |
+
+With all three replaced the page loads seven files (120 KB). Measured with
+the chunk-script change in place: simulated mobile LCP 1803 ms against
+1804 ms, applied 1815 ms against 1829 ms. **The change is visible (the
+headline's handwritten word becomes lighter, and the buttons change face)
+and brings no measurable LCP gain, so the recommendation is to keep the
+ten faces.** Screenshots at 375 and 1440 px are in the report for #405.
+
+### Field data
+
+Real-visit page speed is recorded only where product analytics is enabled
+(`NEXT_PUBLIC_ANALYTICS_ENABLED=true` and `ANALYTICS_POSTHOG_KEY` set) and
+only after a visitor allows analytics; it is off locally and by default.
+After consent, `components/analytics/WebVitalsReporter.tsx` (loaded on
+demand, not in any first load) sends one `web_vital` event per measure
+through the existing same-origin relay (`/api/analytics`). Each event carries
+fixed values only (`lib/analytics/webVitals.ts`):
+
+| Property | Values                                                                                                                           |
+| -------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `metric` | `LCP`, `CLS`, `INP`, `FCP`, `TTFB`                                                                                               |
+| `rating` | `good`, `needs-improvement`, `poor` (the web-vitals thresholds)                                                                  |
+| `band`   | timing: `<1000`, `1000-1499`, `1500-1999`, `2000-2499`, `2500-3999`, `>=4000` ms; INP `<200` to `>=500`; CLS `<0.05` to `>=0.25` |
+| `route`  | `landing`, `login`, `articles`, `article`, `other`                                                                               |
+| `device` | `mobile` (viewport under 768 px), `desktop`                                                                                      |
+
+To read it in PostHog: Insights, event `web_vital`, filter `metric = LCP`
+(or `CLS`), break down by `route` and `band`, and split by `device`. The
+target holds on a route when at least 75 percent of its mobile LCP events
+fall in bands under 2000 ms (`<1000`, `1000-1499`, `1500-1999`), and 75
+percent of its CLS events in `<0.05` or `0.05-0.099`. The privacy page says
+that page-speed ratings are recorded with consent.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without
@@ -420,9 +631,10 @@ secrets:
    | Gate                                         | Budget | Heaviest route |
    | -------------------------------------------- | -----: | -------------: |
    | Scripts referenced by the server HTML        | 230 KB |         206 KB |
-   | Stylesheets referenced by the server HTML    |  50 KB |          38 KB |
-   | Fonts the page requests                      | 220 KB |         181 KB |
-   | Render-blocking stylesheets                  |      6 |              3 |
+   | Stylesheets referenced by the server HTML    |  45 KB |          38 KB |
+   | Fonts the page requests                      | 190 KB |         169 KB |
+   | Render-blocking stylesheets                  |      4 |              3 |
+   | Chunk scripts loaded before the first paint  |      0 |              0 |
    | CLS (median of 3)                            |    0.1 |          0.016 |
    | LCP element in the server HTML (2 of 3 runs) |    yes |            yes |
    | LCP image URL in the server HTML (2 of 3)    |    yes |            yes |
@@ -508,6 +720,9 @@ code belongs behind `import()`, `next/dynamic` or `React.lazy`, loaded on the
 reader's action.
 
 ## Re-run
+
+Measure over HTTP/2 (`scripts/perf/http2-proxy.ts` describes the setup), as
+the deployed site is served; `next start` alone speaks HTTP/1.1.
 
 ```bash
 # Real data (read-only public queries), Lighthouse
