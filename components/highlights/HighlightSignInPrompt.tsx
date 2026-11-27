@@ -1,5 +1,6 @@
 'use client'
 
+import '@/components/highlights/highlights.css'
 import { useEffect, useId, useRef, useState, type MouseEvent } from 'react'
 import Link from 'next/link'
 import { FocusScope } from '@radix-ui/react-focus-scope'
