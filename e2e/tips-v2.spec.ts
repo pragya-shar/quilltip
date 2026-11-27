@@ -138,7 +138,9 @@ const seen = (scope: Locator, text: string | RegExp) =>
 async function expectRefusal(scope: Locator, title: string, detail: string) {
   const notice = scope.locator('.pay-notice[data-state="refused"]')
   const panel = notice.locator('.pay-panel')
-  await expect(panel.locator('.pay-panel-title')).toHaveText(title)
+  const heading = panel.locator('.pay-panel-title')
+  await expect(heading).toHaveText(title)
+  await expect(heading).toBeVisible()
   const note = panel.locator('.pay-panel-detail')
   await expect(note).toHaveText(detail)
   await expect(note).toBeVisible()
