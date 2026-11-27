@@ -186,6 +186,37 @@ test('focus follows the tip by touch or pointer too, with no ring', async ({
   await expect(button).toHaveText('Tip Tomás $5')
 })
 
+test('focus moves never scroll, and a press elsewhere is never undone', async ({
+  page,
+}) => {
+  await open(page)
+  const group = liveTip(page)
+  const button = group.locator('.qt-tip__button')
+  await button.scrollIntoViewIfNeeded()
+  const y = await page.evaluate(() => window.scrollY)
+  await press(page, button)
+  await expect.poll(async () => (await focused(page)).text).toBe('Sending $1')
+  await expect(button).toHaveText(/^Sent \$1/)
+  expect(await page.evaluate(() => window.scrollY)).toBe(y)
+  // While it says Sent, the person presses plain text elsewhere: focus is
+  // theirs now (on the body in Safari and here), and stays there.
+  const text = page.getByText('Amounts are the money layer’s display strings', {
+    exact: false,
+  })
+  await press(page, text)
+  await expect(
+    group.getByRole('button', { name: 'Tip Tomás $1' })
+  ).toBeVisible()
+  await page.waitForTimeout(300)
+  expect(
+    await page.evaluate(() =>
+      document.activeElement?.closest('.qt-tip')
+        ? 'in the control'
+        : 'elsewhere'
+    )
+  ).toBe('elsewhere')
+})
+
 test('a refused tip moves focus to the reason, and Try again is there', async ({
   page,
 }) => {

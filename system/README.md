@@ -257,9 +257,12 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
 5. **Focus after a payment starts.** Safari does not focus a button on
    click, so never rely on the pressed button holding focus. When a tip or
    any money act starts, move focus to its status ("Sending $1"); when it
-   finishes, to the result ("Sent $1 to Tomás", or the reason it failed). If
-   focus is on the body or on a box around the control, treat it as lost
-   and move it. The change is read once, by focus: no live region repeats
+   finishes, to the result ("Sent $1 to Tomás", or the reason it failed),
+   always with `preventScroll`. When the status leaves, focus goes back to
+   the control only if the control still holds it: track that (you moved
+   focus there, and the person has not pressed elsewhere or tabbed away).
+   "Focus is on the body" is no test: in Safari a press on plain text leaves
+   it there too. The change is read once, by focus: no live region repeats
    it. `TipControl` does all of this; a surface's own money sheets must too.
 6. **A press while a sheet closes reaches nothing.** For 400 ms after a
    press closes a sheet or dialog, the shell swallows pointer presses

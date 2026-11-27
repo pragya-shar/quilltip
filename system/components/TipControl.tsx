@@ -83,16 +83,6 @@ function refuseRepeat(event: KeyboardEvent<HTMLElement>) {
 /** How long a press waits for the phase to change before another counts. */
 const PRESS_LATCH_MS = 1000
 
-/** Focus is lost when it sits on the body, or on a box around the control. */
-function focusLost(root: HTMLElement | null): boolean {
-  const active = document.activeElement
-  return (
-    !active ||
-    active === document.body ||
-    (root !== null && active !== root && active.contains(root))
-  )
-}
-
 /**
  * The main action: a labelled button that states the amount
  * ("Tip Tomás $1", "Tip this line $1"), with a visible amount button that
@@ -130,6 +120,13 @@ export function TipControl({
   const [trayOpen, setTrayOpen] = useState(false)
   const [cancelled, setCancelled] = useState(false)
   const root = useRef<HTMLDivElement>(null)
+  // Whether focus is the control's to move: it put focus on its status or
+  // its reason, or focus is inside it, and the person has not since moved
+  // it out (Tab) or pressed elsewhere. Not "focus is on the body": in
+  // Safari a press on plain text leaves focus there too, and the control
+  // must not pull it back.
+  const owned = useRef(false)
+  const wasBusy = useRef(false)
   const amountButton = useRef<HTMLButtonElement>(null)
   const tipButton = useRef<HTMLButtonElement>(null)
   const status = useRef<HTMLDivElement>(null)
@@ -153,18 +150,32 @@ export function TipControl({
 
   // Focus follows the tip: to the status while it is held or sending, kept
   // on "Sent", to the reason on a refusal, back to the button when the
-  // status leaves and focus went with it.
+  // status leaves and focus was still the control's. Every move uses
+  // preventScroll.
   useEffect(() => {
     const before = previous.current
     previous.current = state.phase
-    if (before === state.phase) return
+    if (before === state.phase) {
+      wasBusy.current = busy
+      return
+    }
     releaseLatch()
+    const started = busy && !wasBusy.current
+    wasBusy.current = busy
     if (busy) {
       setCancelled(false)
-      focusDestination(status.current)
+      // A tip starts: focus goes to its status. Held to sending to sent:
+      // it follows only while it is still the control's.
+      if (started) owned.current = true
+      if (owned.current) focusDestination(status.current)
     } else if (state.phase === 'failed') {
+      owned.current = true
       focusDestination(note.current)
-    } else if (state.phase === 'idle' && focusLost(root.current)) {
+    } else if (
+      state.phase === 'idle' &&
+      owned.current &&
+      !root.current?.contains(document.activeElement)
+    ) {
       tipButton.current?.focus({ preventScroll: true })
     }
     // `busy` follows the phase; listing the phase is enough.
@@ -174,6 +185,14 @@ export function TipControl({
     if (busy) setTrayOpen(false)
   }, [busy])
   useEffect(() => () => releaseLatch(), [])
+  useEffect(() => {
+    // A press anywhere else takes focus back from the control.
+    const onDown = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) owned.current = false
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    return () => document.removeEventListener('pointerdown', onDown, true)
+  }, [])
 
   // Escape ends a hold while focus is in the control (the hold puts it on
   // the status); elsewhere Escape belongs to whatever has focus.
@@ -257,7 +276,15 @@ export function TipControl({
       aria-label={`Tip ${recipient}`}
       data-phase={unavailable ? 'unavailable' : state.phase}
       data-target={target}
+      onFocus={() => {
+        owned.current = true
+      }}
       onBlur={(event) => {
+        const outside =
+          event.relatedTarget !== null &&
+          !event.currentTarget.contains(event.relatedTarget)
+        // Moved out (Tab, or a press on another control): not ours now.
+        if (outside) owned.current = false
         // Focus left the control and its tray: the tray closes.
         if (trayOpen && !event.currentTarget.contains(event.relatedTarget))
           setTrayOpen(false)
