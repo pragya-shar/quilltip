@@ -49,6 +49,11 @@ export type UnavailableReason =
   /** No payments shell on this page: other tip paths stay as they are. */
   | 'absent'
 
+/**
+ * A tip's phases. The design's tip moment (N1) adds a 3-second `holding`
+ * phase between `idle` and `sending`, owned by this controller; it is not
+ * built yet, so surfaces should switch on `phase` with a default branch.
+ */
 export type TipPhase =
   | { phase: 'idle' }
   /** The server has not answered yet. Nothing is final. */
@@ -189,6 +194,16 @@ export type TipController = {
   queued: boolean
   /** Null when this reader can tip here from the balance. */
   unavailable: UnavailableReason | null
+  /**
+   * A signed-out visitor's offer, from public data only (the minimum tip,
+   * the per-tip cap and the current price): `amount` is the default and
+   * `amounts` the ladder, so the button can state an amount and open
+   * sign-in. Null (or absent) when signed in: the person's own amounts are
+   * then `amount` and `amounts`, which stay null and empty while signed out.
+   * A choice made here (`setAmount`) carries into the signed-in amounts and
+   * is never raised.
+   */
+  signedOut?: { signedOut: true; amount: Money; amounts: Money[] } | null
 }
 
 /** What each screen reads. The live provider and the fixture supply it. */

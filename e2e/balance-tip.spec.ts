@@ -66,6 +66,24 @@ async function choosePassage(page: Page, options: { live?: boolean } = {}) {
   return bar
 }
 
+/** Selects the passage while signed out, until the control answers. */
+async function choosePassageSignedOut(page: Page) {
+  const unavailable = page.getByTestId('tip-unavailable')
+  await expect(async () => {
+    await page.evaluate(() => {
+      const p = document.querySelectorAll('[data-testid="article-body"] p')[1]!
+      const range = document.createRange()
+      range.setStart(p.firstChild!, 0)
+      range.setEnd(p.firstChild!, 'Leave it overnight.'.length)
+      const selection = window.getSelection()!
+      selection.removeAllRanges()
+      selection.addRange(range)
+      document.dispatchEvent(new Event('pointerup', { bubbles: true }))
+    })
+    await expect(unavailable).toBeVisible({ timeout: 1_000 })
+  }).toPass({ timeout: 10_000 })
+}
+
 const tipButton = (page: Page) =>
   page.getByRole('region', { name: 'Tip this passage' }).getByRole('button', {
     name: /^(Tip this line|Sending|Sent|Try again|Offline)/,
@@ -425,6 +443,29 @@ test.describe('earnings screen', () => {
       })
     })
   }
+})
+
+test.describe('a signed-out visitor', () => {
+  test('sees a tip amount from public terms only, then the reader’s own once signed in', async ({
+    page,
+  }) => {
+    const run = await open(page, 'tip', 'signed-out')
+    await choosePassageSignedOut(page)
+    const unavailable = page.getByTestId('tip-unavailable')
+    await expect(unavailable).toHaveText('Unavailable: signed-out')
+    // Public terms: the ladder within the cap, $1 by default.
+    await expect(unavailable).toHaveAttribute('data-amount', '$1.00')
+    await expect(unavailable).toHaveAttribute(
+      'data-amounts',
+      '$1.00 $2.00 $3.00 $5.00'
+    )
+    // Signed in: the amounts are the reader's own (balance and day).
+    await control(page, 'signIn', 'a')
+    await expect(tipButton(page)).toHaveText(/Tip this line \$1$/, {
+      timeout: 10_000,
+    })
+    void run
+  })
 })
 
 test.describe('states the ledger can reach', () => {

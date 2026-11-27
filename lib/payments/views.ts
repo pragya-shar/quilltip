@@ -24,6 +24,20 @@ export type ActivityEntry = FunctionReturnType<
   typeof api.activity.mine
 >['page'][number]
 export type EarningsRead = FunctionReturnType<typeof api.earnings.mine>
+/** Public tip terms for a signed-out visitor (`balance.publicTipTerms`). */
+export type PublicTerms = FunctionReturnType<typeof api.balance.publicTipTerms>
+
+/** The amounts a signed-out visitor's button offers: the cap and minimum
+ * only, never a balance or a daily remainder. */
+export function publicChoices(terms: PublicTerms | undefined): number[] {
+  if (!terms) return []
+  return tipChoices({
+    minCents: terms.minTipCents ?? 1,
+    perTipCents: Math.min(terms.perTipCents, terms.quickTipMaxCents),
+    dailyLeftCents: Number.POSITIVE_INFINITY,
+    spendableCents: Number.POSITIVE_INFINITY,
+  }).amounts
+}
 
 /** Pending tips older than this read as taking longer than usual. */
 export const LAG_NOTICE_MS = 5 * 60 * 1000

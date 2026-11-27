@@ -102,6 +102,12 @@ function set(patch: Partial<PaymentsState>) {
   for (const listener of listeners) listener()
 }
 
+/** A signed-out visitor's tip control needs the engine for its amounts. */
+function wantPublic() {
+  if (state.auth === 'signed-out' && Object.keys(state.registrations).length)
+    engineWanted?.()
+}
+
 /**
  * The controller a control shows before the engine computed one. With no
  * shell on the page nothing will answer, so the control says so at once
@@ -169,6 +175,7 @@ export const paymentsStore = {
       tips: {},
       queuedTaps: {},
     })
+    wantPublic()
   },
   /** The engine failed: every view reads unavailable until it recovers. */
   fail() {
@@ -196,6 +203,7 @@ export const paymentsStore = {
   /** Adds or updates a control; its computed controller stays. */
   register(id: string, registration: TipRegistration) {
     set({ registrations: { ...state.registrations, [id]: registration } })
+    wantPublic()
   },
   unregister(id: string) {
     const { [id]: _gone, ...rest } = state.registrations

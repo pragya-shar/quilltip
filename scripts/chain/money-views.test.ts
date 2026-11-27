@@ -386,6 +386,23 @@ describe('what each side is told', () => {
     })
   })
 
+  it('offers a signed-out visitor public tip terms only', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const terms = await t.query(api.balance.publicTipTerms, {})
+    // The same terms a signed-in reader's limits use, without an account.
+    const limits = (await as(t, s.readerId).query(api.balance.session, {}))!
+      .limits!
+    expect(terms).toEqual({
+      perTipCents: limits.perTipCents,
+      minTipCents: limits.minTipCents,
+      quickTipMaxCents: limits.quickTipMaxCents,
+      defaultTipCents: limits.defaultTipCents,
+      priceUsd: expect.any(Number),
+    })
+    expect(Object.keys(terms!)).not.toContain('availableCents')
+  })
+
   it('tells someone who never published or received a tip that they are not a writer', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)

@@ -17,6 +17,7 @@ import {
   balanceViewOf,
   earningsViewOf,
   pageState,
+  publicChoices,
   type ActivityEntry,
   type EarningsRead,
   type SessionRead,
@@ -265,5 +266,47 @@ describe('the fake runtime by role', () => {
     const offline = fakePayments('offline', NOW)
     expect(offline.balance.asOf).toBeLessThan(NOW)
     expect(offline.earnings.asOf).toBeLessThan(NOW)
+  })
+})
+
+describe('a signed-out visitor’s offer', () => {
+  it('comes from public terms only and never as a balance', () => {
+    const low = fakePayments('signed-out', NOW)
+    expect(low.balance).toMatchObject({
+      status: 'signed-out',
+      available: null,
+      exact: null,
+    })
+    expect(low.tip).toMatchObject({
+      unavailable: 'signed-out',
+      amount: null,
+      amounts: [],
+    })
+    expect(low.tip.signedOut!.amounts.map((a) => a.display)).toEqual([
+      '$0.10',
+      '$0.25',
+      '$0.50',
+    ])
+    expect(low.tip.signedOut!.amount.display).toBe('$0.10')
+    const high = fakePayments('signed-out-dollar', NOW)
+    expect(high.tip.signedOut!.amount.display).toBe('$1.00')
+    // Signed in, the offer is gone: the person's own amounts are the fields.
+    expect(fakePayments('ready', NOW).tip.signedOut).toBeNull()
+  })
+
+  it('offers the ladder within the public minimum and cap', () => {
+    const terms = (perTipCents: number, minTipCents: number | null) => ({
+      perTipCents,
+      minTipCents,
+      quickTipMaxCents: 500,
+      defaultTipCents: 100,
+      priceUsd: 0.127,
+    })
+    expect(publicChoices(terms(63, 4))).toEqual([10, 25, 50])
+    expect(publicChoices(terms(500, 4))).toEqual([100, 200, 300, 500])
+    expect(publicChoices(terms(5_000, 4))).toEqual([100, 200, 300, 500])
+    expect(publicChoices(terms(8, 4))).toEqual([])
+    expect(publicChoices(null)).toEqual([])
+    expect(publicChoices(undefined)).toEqual([])
   })
 })

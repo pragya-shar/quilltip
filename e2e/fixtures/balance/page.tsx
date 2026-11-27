@@ -62,7 +62,14 @@ function PassageTipLive({
   if (!tip.ready && !tip.warming) return null
   if (tip.unavailable && tip.unavailable !== 'not-loaded')
     return (
-      <p data-testid="tip-unavailable" style={{ position: 'fixed', bottom: 0 }}>
+      <p
+        data-testid="tip-unavailable"
+        data-amount={tip.signedOut?.amount.display ?? ''}
+        data-amounts={(tip.signedOut?.amounts ?? [])
+          .map((a) => a.display)
+          .join(' ')}
+        style={{ position: 'fixed', bottom: 0 }}
+      >
         Unavailable: {tip.unavailable}
       </p>
     )

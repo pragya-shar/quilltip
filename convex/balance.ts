@@ -272,3 +272,38 @@ export const acceptedRequests = query({
     return accepted
   },
 })
+
+/**
+ * The amounts a tip can take, from public data only (the minimum tip, the
+ * per-tip cap and the current price): what a signed-out visitor's tip
+ * button states. No balance, no daily remainder, no account. Null when
+ * tips are not set up or no price is cached.
+ */
+export const publicTipTerms = query({
+  args: {},
+  handler: async (ctx) => {
+    const chain = readChainEnv()
+    if (!chain.tabContractId) return null
+    const price = await cachedPrice(ctx)
+    if (!price) return null
+    const config = await ctx.db
+      .query('chainConfig')
+      .withIndex('by_network', (q) => q.eq('network', chain.network))
+      .first()
+    const minTip =
+      config && config.chainEpoch === chain.chainEpoch && config.minTip
+        ? BigInt(config.minTip)
+        : null
+    try {
+      return {
+        perTipCents: maxCentsWithin(tabLimits().tipMax, price.usd),
+        minTipCents: minTip ? minimumTipCents(minTip, price.usd) : null,
+        quickTipMaxCents: QUICK_TIP_MAX_CENTS,
+        defaultTipCents: DEFAULT_TIP_CENTS,
+        priceUsd: price.usd,
+      }
+    } catch {
+      return null
+    }
+  },
+})

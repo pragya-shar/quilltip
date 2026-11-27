@@ -31,7 +31,7 @@ afterEach(() => {
 })
 
 describe('fake scenarios follow the live rules', () => {
-  it('names the twelve scenarios a UI needs', () => {
+  it('names the scenarios a UI needs', () => {
     expect([...FAKE_SCENARIOS].sort()).toEqual(
       [
         'available',
@@ -45,6 +45,8 @@ describe('fake scenarios follow the live rules', () => {
         'ready',
         'sending',
         'sent',
+        'signed-out',
+        'signed-out-dollar',
         'unavailable',
       ].sort()
     )
@@ -78,8 +80,11 @@ describe('fake scenarios follow the live rules', () => {
           expect(i.status).not.toBe('sending')
         }
       }
+      // A tip button states its own amount only when it can tip; a
+      // signed-out offer is apart from it.
       const t = v.tip
       if (!t.ready || t.unavailable) expect(t.amount).toBeNull()
+      expect(t.signedOut === null).toBe(t.unavailable !== 'signed-out')
     })
   }
 

@@ -42,14 +42,14 @@ export function PaymentsShell() {
   useEffect(() => paymentsStore.attachShell(), [])
 
   useEffect(() => {
+    paymentsStore.onEngineWanted(() => setWanted(true))
+  }, [])
+
+  useEffect(() => {
     paymentsStore.setAuth(
       isLoading ? 'loading' : isAuthenticated ? 'signed-in' : 'signed-out'
     )
   }, [isLoading, isAuthenticated])
-
-  useEffect(() => {
-    paymentsStore.onEngineWanted(() => setWanted(true))
-  }, [])
 
   const signedIn = isAuthenticated && !isLoading
   const load = !Engine && (signedIn || wanted)
@@ -105,7 +105,7 @@ export function PaymentsShell() {
     retry()
   }, [pathname, failedAt, retry])
 
-  if (!Engine || failedAt !== null || !signedIn) return null
+  if (!Engine || failedAt !== null || !(signedIn || wanted)) return null
   return (
     <PaymentsBoundary key={attempt} onError={onError}>
       <Engine />

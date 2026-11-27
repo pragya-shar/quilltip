@@ -364,6 +364,15 @@ export function query(name: string, args: Record<string, unknown>): unknown {
       // Only the writer has published; readers have no earnings to show.
       value = user ? { ...earnings(), isWriter: user === 'w' } : null
       break
+    case 'balance:publicTipTerms':
+      value = {
+        perTipCents: 500,
+        minTipCents: 4,
+        quickTipMaxCents: 500,
+        defaultTipCents: 100,
+        priceUsd: state.price,
+      }
+      break
     case 'balance:acceptedRequests':
       value = user
         ? (args.requestIds as string[]).filter((id) =>

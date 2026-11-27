@@ -58,6 +58,14 @@ One control for an article or a passage. `target` names what is tipped;
 - `amount`: what the button states and sends ("Tip this line $0.10");
   `amounts`: the quick choices within every limit; `setAmount(cents)`.
 - `blocked`: `cap`, `daily`, `balance` or `choose`, with no token figure.
+- `signedOut`: for a signed-out visitor, `{ signedOut: true, amount,
+amounts }`: the default and the ladder from public data only (the minimum
+  tip, the per-tip cap and the current price; never a balance or a daily
+  remainder), so the button states an amount ("Tip Tomás $0.10") and opens
+  sign-in. `amount` and `amounts` stay null and empty while signed out.
+  `null` once signed in. A choice made while signed out carries into the
+  signed-in amounts and is never raised. Do not hard-code "$1": at today's
+  cap the offer is 10¢, 25¢ and 50¢.
 - `tip()`: sends at once, no wallet prompt. `state.phase` goes `sending`, then
   `sent` only after the server accepted (final: there is no Undo), or
   `failed` (nothing charged), `offline` (checked first, nothing sent),
@@ -147,8 +155,12 @@ import { fakeRuntime } from '@/lib/payments/fake'
 
 Scenarios (`FAKE_SCENARIOS`): `ready`, `sending`, `sent`, `pending`,
 `available`, `lagging`, `failed`, `partly-paid`, `empty`, `loading`,
-`unavailable`, `offline`. Each is a fixed snapshot; the hooks' actions do
+`unavailable`, `offline`, `signed-out`, `signed-out-dollar`. Each is a fixed snapshot; the hooks' actions do
 nothing. `fakePayments(name)` returns the raw views for tests.
+
+`signed-out` (an offer of 10¢, 25¢, 50¢, 10¢ by default) and
+`signed-out-dollar` ($1, $2, $3, $5, $1 by default) show the signed-out
+offer.
 
 `fakeRuntime(name, { role })`: `both` (default; tips sent to another writer
 on the reader side, tips received on the writer side), `reader` (earnings

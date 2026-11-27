@@ -61,6 +61,7 @@ import {
   effectiveChoice,
   readerItemsOf,
   pageState,
+  publicChoices,
   unansweredEntries,
   type ActivityEntry,
   type DeviceState,
@@ -80,6 +81,13 @@ let sharedOutbox: ReturnType<typeof createOutbox> | null = null
 function outboxStore() {
   sharedOutbox ??= createOutbox()
   return sharedOutbox
+}
+
+/** One key per tipped thing, stable across remounts of its control. */
+function targetKey(target: TipTarget): string {
+  return target.kind === 'passage'
+    ? `${target.articleId}:${target.passage.startOffset}:${target.passage.endOffset}`
+    : target.articleId
 }
 
 function subscribeOnline(listener: () => void) {
@@ -121,6 +129,11 @@ export function PaymentsEngine() {
     isAuthenticated ? {} : 'skip'
   )
   const hasBalance = !!rawSession && rawSession.status !== 'none'
+  // A signed-out visitor's tip button states an amount from public terms.
+  const publicTerms = useQuery(
+    api.balance.publicTipTerms,
+    !isLoading && !isAuthenticated ? {} : 'skip'
+  )
   const reader = usePaginatedQuery(
     api.activity.mine,
     isAuthenticated && hasBalance ? { role: 'reader' } : 'skip',
@@ -381,6 +394,7 @@ export function PaymentsEngine() {
       }),
     [isLoading, isAuthenticated, session, entries, device, online, now, asOf]
   )
+  const publicAmounts = useMemo(() => publicChoices(publicTerms), [publicTerms])
   const readerActivity = useMemo(
     () => ({
       status:
@@ -447,17 +461,24 @@ export function PaymentsEngine() {
   const phases = useRef<Record<string, TipPhase>>({})
   const balanceRef = useRef(balance)
   balanceRef.current = balance
+  const chosenByTarget = useRef<Record<string, Cents>>({})
 
   const controllers = useMemo(() => {
     const out: Record<string, TipController> = {}
     for (const [id, reg] of Object.entries(registrations)) {
       const context = contexts[reg.target.articleId]
+      const key = targetKey(reg.target)
+      // A choice made before signing in carries over (never raised).
       const t = tipState[id] ?? {
         phase: { phase: 'idle' } as TipPhase,
-        chosen: null,
+        chosen: chosenByTarget.current[key] ?? null,
       }
       phases.current[id] = t.phase
-      const offered = balance.amounts.map((a) => a.cents)
+      const signedOut = balance.status === 'signed-out'
+      // Signed out: the offer from public terms only, never a balance.
+      const offered = signedOut
+        ? publicAmounts
+        : balance.amounts.map((a) => a.cents)
       // Never above the reader's choice (views.ts, `effectiveChoice`).
       const cents = effectiveChoice(t.chosen, offered)
       const blocked =
@@ -470,11 +491,12 @@ export function PaymentsEngine() {
         balance.status === 'closing' ||
         balance.device === 'unavailable' ||
         balance.device === 'needs-setup'
-      const ready =
-        early ||
-        (balance.status === 'ready' &&
-          balance.device !== 'loading' &&
-          context !== undefined)
+      const ready = signedOut
+        ? publicTerms !== undefined
+        : early ||
+          (balance.status === 'ready' &&
+            balance.device !== 'loading' &&
+            context !== undefined)
       const unavailable = ready ? unavailableOf(balance, context) : null
       const setPhase = (phase: TipPhase) =>
         setTipState((all) => ({
@@ -512,10 +534,19 @@ export function PaymentsEngine() {
       }
       out[id] = {
         state: t.phase,
-        amount: cents === null ? null : money(cents),
-        blocked,
-        amounts: balance.amounts,
-        setAmount: (next) =>
+        amount: cents === null || signedOut ? null : money(cents),
+        blocked: signedOut ? null : blocked,
+        amounts: signedOut ? [] : balance.amounts,
+        signedOut:
+          signedOut && cents !== null
+            ? {
+                signedOut: true,
+                amount: money(cents),
+                amounts: offered.map(money),
+              }
+            : null,
+        setAmount: (next) => {
+          chosenByTarget.current[key] = next
           setTipState((all) => {
             const prev = all[id]?.phase ?? { phase: 'idle' as const }
             return {
@@ -525,7 +556,8 @@ export function PaymentsEngine() {
                 phase: prev.phase === 'sending' ? prev : { phase: 'idle' },
               },
             }
-          }),
+          })
+        },
         tip,
         reset: () =>
           setTipState((all) => {
@@ -540,7 +572,15 @@ export function PaymentsEngine() {
       }
     }
     return out
-  }, [registrations, contexts, tipState, balance, queuedTaps])
+  }, [
+    registrations,
+    contexts,
+    tipState,
+    balance,
+    queuedTaps,
+    publicAmounts,
+    publicTerms,
+  ])
 
   useEffect(() => {
     paymentsStore.set({ tips: controllers })

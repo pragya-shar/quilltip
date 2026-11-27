@@ -46,6 +46,8 @@ export const FAKE_SCENARIOS = [
   'loading',
   'unavailable',
   'offline',
+  'signed-out',
+  'signed-out-dollar',
 ] as const
 
 export type FakeScenario = (typeof FAKE_SCENARIOS)[number]
@@ -168,7 +170,33 @@ function tipControl(over: Partial<TipController> = {}): TipController {
     warming: false,
     queued: false,
     unavailable: null,
+    signedOut: null,
     ...over,
+  }
+}
+
+/** A signed-out visitor: no figures, an offer from public terms only. */
+function signedOutViews(offer: number[], fallback: number): FakePayments {
+  const amounts = offer.map(money)
+  const def = offer.includes(100) ? 100 : (offer[0] ?? fallback)
+  return {
+    balance: balance(
+      {
+        ...LOADING_BALANCE,
+        status: 'signed-out',
+        device: 'unavailable',
+      },
+      0
+    ),
+    tip: tipControl({
+      amount: null,
+      amounts: [],
+      unavailable: 'signed-out',
+      signedOut: { signedOut: true, amount: money(def), amounts },
+    }),
+    readerActivity: activity([], 'loading'),
+    writerActivity: activity([], 'loading'),
+    earnings: { ...NO_EARNINGS, status: 'signed-out' },
   }
 }
 
@@ -438,6 +466,12 @@ function scenario(name: FakeScenario, now: number): FakePayments {
         earnings: { ...NO_EARNINGS, status: 'unavailable' },
       }
     }
+    // Today's cap is about 64 cents: 10, 25 and 50 cents, 10 by default.
+    case 'signed-out':
+      return signedOutViews([10, 25, 50], 10)
+    // A cap of $5 or more: $1, $2, $3 and $5, $1 by default.
+    case 'signed-out-dollar':
+      return signedOutViews([100, 200, 300, 500], 100)
     case 'offline':
       // The last figures read, six minutes ago.
       return views(settled, {
