@@ -8,6 +8,8 @@ export default defineConfig({
     include: [
       'scripts/network/*.test.ts',
       'scripts/profile/*.test.ts',
+      // Protected-route auth gate (lib/auth/sessionConfirmation).
+      'scripts/auth/*.test.ts',
       'scripts/health/*.test.ts',
       'scripts/wallet/*.test.ts',
       'scripts/stellar/*.test.ts',
