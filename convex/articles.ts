@@ -92,7 +92,7 @@ function stripWriterNotes<T extends { writerNotes?: string }>(
 }
 
 // Validation helper for article input
-function validateArticleInput(args: {
+export function validateArticleInput(args: {
   title: string
   excerpt?: string
   tags?: string[]
@@ -124,7 +124,7 @@ function validateArticleInput(args: {
   }
 }
 
-function assertAuthorCanReceiveTips(user: Doc<'users'>) {
+export function assertAuthorCanReceiveTips(user: Doc<'users'>) {
   // Readers can tip only a wallet the writer proved control of.
   if (!verifiedStellarAddress(user)) {
     throw new Error(PUBLISH_RECEIVING_WALLET_ERROR)
@@ -1085,7 +1085,7 @@ export const updateArticle = mutation({
  * canonical hash (published before, then returned to draft) keeps its version
  * when the bytes are unchanged and moves to the next version otherwise.
  */
-async function publishContentAnchor(article: Doc<'articles'>) {
+export async function publishContentAnchor(article: Doc<'articles'>) {
   const fields = {
     articleId: article._id,
     authorId: article.authorId,
