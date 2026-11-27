@@ -13,6 +13,7 @@ import {
 } from '../../lib/stellar/network'
 import {
   ALLOWED_CONVEX_DEPLOYMENTS,
+  EXTRA_PRODUCTION_DEPLOYMENTS_ENV,
   LIVE_BACKEND_APPROVAL_ENV,
   LIVE_CONVEX_DEPLOYMENTS,
   LIVE_WINDOW_APPROVAL_ENV,
@@ -38,11 +39,14 @@ import {
   LIVE_WINDOW_MAX_HOURS,
   LIVE_WINDOW_OPERATIONS,
   appendLiveWindowLog,
+  checkoutChanges,
   envFilesAssigningApproval,
   evaluateLiveWindow,
   formatLiveWindowLogLine,
+  isAllowedUntrackedPath,
   liveWindowLogPath,
   parseLiveWindowApproval,
+  parseLiveWindowRequest,
   readLiveWindowFacts,
   sha256File,
   stageRestoreCopy,
@@ -2265,5 +2269,223 @@ describe('window log and local facts', () => {
     expect(
       readLiveWindowFacts(env, { checkoutRoot: repo, cwd: other }).cwdRoot
     ).toBeNull()
+  })
+})
+
+describe('window approval: the checkout is compared by content', () => {
+  const dirs: string[] = []
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  /** A repository with one committed function file. */
+  function releaseRepo() {
+    const repo = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'live-window-content-'))
+    )
+    dirs.push(repo)
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+    git('init', '-q')
+    fs.mkdirSync(path.join(repo, 'convex'))
+    fs.writeFileSync(
+      path.join(repo, 'convex', 'tips.ts'),
+      'export const a = 1\n'
+    )
+    fs.writeFileSync(path.join(repo, '.gitignore'), '.vercel\n.env*\n')
+    git('add', '.')
+    git(
+      '-c',
+      'user.name=Window Test',
+      '-c',
+      'user.email=window@example.test',
+      '-c',
+      'commit.gpgsign=false',
+      'commit',
+      '-q',
+      '-m',
+      'release'
+    )
+    const facts = () =>
+      readLiveWindowFacts(
+        { [LIVE_WINDOW_APPROVAL_ENV]: WINDOW_VALUE },
+        { checkoutRoot: repo, cwd: repo }
+      )
+    return { repo, git, facts }
+  }
+
+  it('is clean right after the commit', () => {
+    const { repo, facts } = releaseRepo()
+    expect(checkoutChanges(repo)).toEqual([])
+    expect(facts().dirty).toBe(false)
+  })
+
+  it.each(['--skip-worktree', '--assume-unchanged'])(
+    'sees a change to a file marked %s',
+    (flag) => {
+      const { repo, git, facts } = releaseRepo()
+      git('update-index', flag, 'convex/tips.ts')
+      fs.appendFileSync(
+        path.join(repo, 'convex', 'tips.ts'),
+        'export const b = 2\n'
+      )
+      expect(git('status', '--porcelain')).toBe('')
+      expect(facts()).toMatchObject({
+        dirty: true,
+        dirtyPaths: ['convex/tips.ts'],
+      })
+    }
+  )
+
+  it('sees a function file hidden by an ignore rule or an exclude file', () => {
+    const { repo, git, facts } = releaseRepo()
+    // An ignored dot folder: the Convex CLI bundles the files in it.
+    fs.mkdirSync(path.join(repo, 'convex', '.vercel'))
+    fs.writeFileSync(
+      path.join(repo, 'convex', '.vercel', 'extra.ts'),
+      'export const x = 1\n'
+    )
+    // A file excluded through the repository's own exclude file.
+    fs.appendFileSync(
+      path.join(repo, '.git', 'info', 'exclude'),
+      'convex/extra.ts\n'
+    )
+    fs.writeFileSync(
+      path.join(repo, 'convex', 'extra.ts'),
+      'export const y = 1\n'
+    )
+    expect(git('status', '--porcelain', '--untracked-files=all')).toBe('')
+    expect(facts()).toMatchObject({
+      dirty: true,
+      dirtyPaths: ['convex/.vercel/', 'convex/extra.ts'],
+    })
+  })
+
+  it('ignores GIT_* variables that point git at another repository or exclude file', () => {
+    const { repo, facts } = releaseRepo()
+    const clean = releaseRepo()
+    fs.writeFileSync(
+      path.join(repo, 'convex', 'extra.ts'),
+      'export const y = 1\n'
+    )
+    const exclude = path.join(clean.repo, 'exclude')
+    fs.writeFileSync(exclude, 'convex/extra.ts\n')
+    const saved = { ...process.env }
+    try {
+      process.env.GIT_DIR = path.join(clean.repo, '.git')
+      process.env.GIT_WORK_TREE = clean.repo
+      process.env.GIT_CONFIG_COUNT = '1'
+      process.env.GIT_CONFIG_KEY_0 = 'core.excludesFile'
+      process.env.GIT_CONFIG_VALUE_0 = exclude
+      expect(facts()).toMatchObject({ dirty: true, cwdRoot: repo })
+    } finally {
+      for (const name of Object.keys(process.env)) {
+        if (!(name in saved)) delete process.env[name]
+      }
+      Object.assign(process.env, saved)
+    }
+  })
+
+  it('allows only installed dependencies and build output as untracked paths', () => {
+    for (const allowed of [
+      'node_modules',
+      'node_modules/',
+      '.next/',
+      'next-env.d.ts',
+      'tsconfig.tsbuildinfo',
+      'convex/.DS_Store',
+    ]) {
+      expect(isAllowedUntrackedPath(allowed)).toBe(true)
+    }
+    for (const refused of [
+      '.env.local',
+      'convex/.vercel/',
+      'convex/extra.ts',
+      'lib/node_modules/',
+      'test-results/',
+    ]) {
+      expect(isAllowedUntrackedPath(refused)).toBe(false)
+    }
+    const { repo, facts } = releaseRepo()
+    fs.mkdirSync(path.join(repo, 'node_modules', 'convex'), {
+      recursive: true,
+    })
+    fs.writeFileSync(
+      path.join(repo, 'node_modules', 'convex', 'index.js'),
+      '\n'
+    )
+    expect(facts().dirty).toBe(false)
+    fs.writeFileSync(
+      path.join(repo, '.env.local'),
+      'CONVEX_DEPLOYMENT=dev:other\n'
+    )
+    expect(facts()).toMatchObject({ dirty: true, dirtyPaths: ['.env.local'] })
+  })
+})
+
+describe('window approval: review gaps', () => {
+  it('does not open a deployment added to the extra production list', () => {
+    const other = 'tacit-salmon-216'
+    expect(
+      windowCodes(['deploy'], {
+        [LIVE_WINDOW_APPROVAL_ENV]: `${other}@${RELEASE}@2026-12-15T02:00Z+3h`,
+        CONVEX_DEPLOY_KEY: `dev:${other}|key`,
+        [EXTRA_PRODUCTION_DEPLOYMENTS_ENV]: other,
+      })
+    ).toEqual(['LIVE_WINDOW_INVALID', 'LIVE_WINDOW_INVALID'])
+  })
+
+  it('refuses an hour count with a leading zero', () => {
+    expect(
+      parseLiveWindowApproval(`${LIVE}@${RELEASE}@2026-12-15T02:00Z+03h`)
+    ).toHaveProperty('refusal.code', 'LIVE_WINDOW_INVALID')
+  })
+
+  it('refuses an export path that reaches the repository through a link', () => {
+    const outside = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'live-window-link-'))
+    )
+    const checkout = fs.realpathSync(
+      fs.mkdtempSync(path.join(os.tmpdir(), 'live-window-checkout-'))
+    )
+    try {
+      fs.symlinkSync(checkout, path.join(outside, 'link'))
+      const result = parseLiveWindowRequest(
+        ['export', path.join(outside, 'link', 'snapshot.zip')],
+        checkout,
+        () => false
+      )
+      expect(result).toHaveProperty('refusals.0.code', 'LIVE_WINDOW_OPERATION')
+    } finally {
+      fs.rmSync(outside, { recursive: true, force: true })
+      fs.rmSync(checkout, { recursive: true, force: true })
+    }
+  })
+
+  it('checks the window again after the deploy dry run', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const spawned: string[][] = []
+    let calls = 0
+    const code = runLiveWindowCli(['run', 'deploy'], WINDOW_ENV, {
+      // Open for the first evaluation, ended after the dry run.
+      facts: () => ({
+        ...WINDOW_FACTS,
+        now: calls++ < 1 ? WINDOW_NOW : new Date('2026-12-15T05:00:00Z'),
+      }),
+      spawn: (args) => {
+        spawned.push(args)
+        return { status: 0, output: `https://${LIVE}.convex.cloud\n` }
+      },
+      log: () => {},
+      sha256: sha256File,
+      stage: stageRestoreCopy,
+    })
+    vi.restoreAllMocks()
+    expect(code).toBe(1)
+    expect(spawned).toEqual([['deploy', '--dry-run']])
   })
 })

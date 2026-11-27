@@ -26,12 +26,11 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 
 import {
+  LIVE_CONVEX_DEPLOYMENTS,
   LIVE_WINDOW_APPROVAL_ENV,
   NetworkGuardError,
   assertTestnetOnly,
   parseConvexDeploymentRef,
-  productionDeploymentDenylist,
-  EXTRA_PRODUCTION_DEPLOYMENTS_ENV,
   type NetworkGuardRefusal,
   type NetworkGuardResult,
 } from '../../convex/lib/networkGuard'
@@ -103,7 +102,7 @@ export const LIVE_WINDOW_FORMAT =
   '<deployment>@<40-character commit>@<YYYY-MM-DDTHH:MMZ>+<hours>h'
 
 const APPROVAL_PATTERN =
-  /^([a-z0-9]+(?:-[a-z0-9]+)*)@([0-9a-f]{40})@(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})Z\+(\d{1,2})h$/
+  /^([a-z0-9]+(?:-[a-z0-9]+)*)@([0-9a-f]{40})@(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})Z\+([1-9]\d?)h$/
 
 export type LiveWindowApproval = {
   deployment: string
@@ -349,7 +348,13 @@ export function parseLiveWindowRequest(
     case 'import': {
       const bad = arity(1)
       if (bad) return bad
-      const file = path.resolve(rest[0] as string)
+      // Resolve symbolic links in the folder, so a link cannot place the
+      // archive inside the repository.
+      const requested = path.resolve(rest[0] as string)
+      const file = path.join(
+        realpath(path.dirname(requested)),
+        path.basename(requested)
+      )
       if (!file.endsWith('.zip')) {
         return refuse(`${operation} needs a .zip file.`)
       }
@@ -486,6 +491,8 @@ export type LiveWindowFacts = {
   head: string | null
   /** True when the checkout has changes or untracked files; null if unknown. */
   dirty: boolean | null
+  /** Up to 10 paths that differ from HEAD or are untracked. */
+  dirtyPaths?: string[]
   /** The checkout that holds this guard (and the code that is pushed). */
   checkoutRoot: string
   /** Top level of the checkout the command runs from, or null. */
@@ -503,15 +510,109 @@ const ASSIGNMENT = new RegExp(
 /** A committed assignment with a real-looking value (not a placeholder). */
 const COMMITTED_ASSIGNMENT = `${LIVE_WINDOW_APPROVAL_ENV}=["']?[a-z0-9-]+@[0-9a-f]{40}`
 
-function git(root: string, args: string[]): string | null {
+/**
+ * The environment for git: the caller's environment without GIT_* variables,
+ * so GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE or GIT_CONFIG_* cannot point the
+ * checks at another repository or change how git reads this one.
+ */
+function gitEnv(): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))
+  ) as NodeJS.ProcessEnv
+}
+
+function git(root: string, args: string[], input?: string): string | null {
   try {
-    return execFileSync('git', ['-C', root, ...args], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-    })
+    return execFileSync(
+      'git',
+      [
+        '-c',
+        'core.fsmonitor=false',
+        '-c',
+        'core.untrackedCache=false',
+        '-C',
+        root,
+        ...args,
+      ],
+      {
+        encoding: 'utf8',
+        env: gitEnv(),
+        input,
+        maxBuffer: 64 * 1024 * 1024,
+        stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'ignore'],
+      }
+    )
   } catch {
     return null
   }
+}
+
+/**
+ * Untracked paths that cannot change the pushed code: the installed
+ * dependencies (installed with `bun install --frozen-lockfile`), Next.js build
+ * output, TypeScript build info and Finder metadata. Every other untracked
+ * path, ignored or not, makes the checkout dirty.
+ */
+export function isAllowedUntrackedPath(relative: string): boolean {
+  const trimmed = relative.replace(/\/$/, '')
+  if (trimmed === 'node_modules' || trimmed === '.next') return true
+  if (trimmed === 'next-env.d.ts') return true
+  const base = path.posix.basename(trimmed)
+  return base === '.DS_Store' || base.endsWith('.tsbuildinfo')
+}
+
+/**
+ * Paths where the checkout differs from HEAD, read from the files themselves:
+ * each tracked file is hashed without filters and compared with the HEAD tree,
+ * so the index flags `assume-unchanged` and `skip-worktree`, an fsmonitor,
+ * clean filters and exclude files cannot hide a change. Untracked paths are
+ * listed without any exclude rule. Returns null when git cannot read it.
+ */
+export function checkoutChanges(root: string): string[] | null {
+  const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', 'HEAD'])
+  const others = git(root, ['ls-files', '--others', '--directory', '-z'])
+  if (tree === null || others === null) return null
+  const changes: string[] = []
+  const regular: { path: string; sha: string }[] = []
+  for (const entry of tree.split('\0').filter(Boolean)) {
+    const tab = entry.indexOf('\t')
+    const [mode, , sha] = entry.slice(0, tab).split(' ')
+    const file = entry.slice(tab + 1)
+    if (
+      (mode !== '100644' && mode !== '100755') ||
+      !sha ||
+      file.includes('\n')
+    ) {
+      changes.push(file)
+      continue
+    }
+    let stat: fs.Stats
+    try {
+      stat = fs.lstatSync(path.join(root, file))
+    } catch {
+      changes.push(file)
+      continue
+    }
+    if (!stat.isFile()) changes.push(file)
+    else regular.push({ path: file, sha })
+  }
+  if (regular.length > 0) {
+    const hashes = git(
+      root,
+      ['hash-object', '--no-filters', '--stdin-paths'],
+      `${regular.map((r) => r.path).join('\n')}\n`
+    )
+    if (hashes === null) return null
+    const lines = hashes.split('\n').filter(Boolean)
+    if (lines.length !== regular.length) return null
+    regular.forEach((r, i) => {
+      if (lines[i] !== r.sha) changes.push(r.path)
+    })
+  }
+  for (const file of others.split('\0').filter(Boolean)) {
+    if (!isAllowedUntrackedPath(file)) changes.push(file)
+  }
+  return changes.sort()
 }
 
 function realpath(dir: string): string {
@@ -558,11 +659,7 @@ export function readLiveWindowFacts(
   const checkoutRoot = realpath(options.checkoutRoot ?? GUARD_CHECKOUT_ROOT)
   const cwd = options.cwd ?? process.cwd()
   const head = git(checkoutRoot, ['rev-parse', 'HEAD'])?.trim() || null
-  const status = git(checkoutRoot, [
-    'status',
-    '--porcelain',
-    '--untracked-files=all',
-  ])
+  const changes = checkoutChanges(checkoutRoot)
   const cwdTop = git(cwd, ['rev-parse', '--show-toplevel'])?.trim()
   const value = env[LIVE_WINDOW_APPROVAL_ENV]
   const committedHits = new Set<string>()
@@ -575,7 +672,10 @@ export function readLiveWindowFacts(
   return {
     now: options.now ?? new Date(),
     head,
-    dirty: status === null ? null : status.trim() !== '',
+    dirty: changes === null ? null : changes.length > 0,
+    ...(changes && changes.length > 0
+      ? { dirtyPaths: changes.slice(0, 10) }
+      : {}),
     checkoutRoot,
     cwdRoot: cwdTop ? realpath(cwdTop) : null,
     envFileHits: envFilesAssigningApproval([checkoutRoot, cwd]),
@@ -597,14 +697,12 @@ const OTHER_CLI_TARGETS = [
 
 function approvalRefusals(
   approval: LiveWindowApproval,
-  facts: LiveWindowFacts,
-  env: EnvLike
+  facts: LiveWindowFacts
 ): NetworkGuardRefusal[] {
   const refusals: NetworkGuardRefusal[] = []
-  const live = productionDeploymentDenylist(
-    env[EXTRA_PRODUCTION_DEPLOYMENTS_ENV]
-  )
-  if (!live.has(approval.deployment)) {
+  // Only the built-in live list. QUILLTIP_PRODUCTION_CONVEX_DEPLOYMENTS adds
+  // protection to more deployments; it must never open one to the window.
+  if (!LIVE_CONVEX_DEPLOYMENTS.includes(approval.deployment)) {
     refusals.push(
       refusal(
         'LIVE_WINDOW_INVALID',
@@ -643,7 +741,7 @@ function approvalRefusals(
         'LIVE_WINDOW_DIRTY',
         facts.dirty === null
           ? 'The checkout state cannot be read.'
-          : 'The checkout has changes or untracked files. Use a clean checkout of the release commit.'
+          : `The checkout has changes or untracked files${facts.dirtyPaths?.length ? ` (${facts.dirtyPaths.join(', ')})` : ''}. Use a clean checkout of the release commit.`
       )
     )
   }
@@ -796,7 +894,7 @@ export function evaluateLiveWindow(
     throw new NetworkGuardError(operation, [...refusals, parsed.refusal])
   }
   const { approval } = parsed
-  refusals.push(...approvalRefusals(approval, facts, env))
+  refusals.push(...approvalRefusals(approval, facts))
   refusals.push(...credentialRefusals(approval, env))
 
   let request: LiveWindowRequest | null = null

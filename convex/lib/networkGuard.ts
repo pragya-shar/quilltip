@@ -572,7 +572,9 @@ function collectConvexRefusals(
           'A maintenance-window approval applies to the listed deploy-kind window operations only, never to operational runs.',
       })
     }
-    if (!live.has(windowDeployment)) {
+    // The built-in live list only: the extra production list never opens a
+    // deployment to the window.
+    if (!LIVE_CONVEX_DEPLOYMENTS.includes(windowDeployment)) {
       refusals.push({
         code: 'LIVE_WINDOW_INVALID',
         message: `The maintenance-window approval names "${windowDeployment}", which is not a live deployment.`,
