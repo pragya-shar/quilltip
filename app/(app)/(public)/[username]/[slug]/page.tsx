@@ -11,10 +11,10 @@ import { toReadArticle } from '@/components/read/readModel'
 import { getPublishedArticle, movedPublicPath } from '@/lib/seo/publicContent'
 import {
   SITE_NAME,
-  articleMetaDescription,
+  toMetaDescription,
   articlePath,
 } from '@/lib/seo/siteMetadata'
-import { extractPlainTextFromTiptapJson } from '@/lib/tiptap/plainText'
+import { readingPlainText } from '@/lib/tiptap/readingPlainText'
 import { renderReadingHtml } from '@/lib/tiptap/renderReadingHtml'
 
 const reads = (
@@ -43,7 +43,10 @@ export async function generateMetadata({
   const article = load.article
 
   const authorName = article.author.name || article.author.username
-  const description = articleMetaDescription(article)
+  // From the excerpt, or the opening words within the reading limits.
+  const description = toMetaDescription(
+    article.excerpt?.trim() || readingPlainText(article.content)
+  )
   const url = articlePath(article.author.username, article.slug)
   const images = article.coverImage ? [{ url: article.coverImage }] : undefined
   return {
@@ -107,7 +110,21 @@ export default async function ArticlePage({
     )
   const article = load.article
 
-  const { html } = renderReadingHtml(article.content)
+  const { html, tooLarge } = renderReadingHtml(article.content)
+  // Past the reading limits the document is not rendered at all, and its
+  // text is not walked again for a fallback.
+  if (tooLarge)
+    return (
+      <PushedScreen>
+        <div className="qt-page" data-width="read">
+          <PushedHeader fallbackHref="/" backLabel="Back to Today" />
+          <ReadingUnavailable
+            what="This article"
+            retryHref={retryHrefFor(`/${username}/${slug}`, query)}
+          />
+        </div>
+      </PushedScreen>
+    )
   const readNext = await readNextFor(article._id)
   return (
     <ArticleView
@@ -116,7 +133,7 @@ export default async function ArticlePage({
       fallbackParagraphs={
         html
           ? undefined
-          : [extractPlainTextFromTiptapJson(article.content)].filter(Boolean)
+          : [readingPlainText(article.content, 200_000)].filter(Boolean)
       }
       readNext={readNext}
     />

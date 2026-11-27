@@ -121,7 +121,25 @@ export function answerFixtureQuery(
           totalPages: 1,
         },
       }
+    case 'articles:getReadNextArticles':
+      return { value: readNextFixture(args) }
     default:
       return undefined
   }
+}
+
+// --- The read package's answers (article view) -------------------------
+// Read next for the fixture article: the other fixture articles, in the
+// shape of `articles.getReadNextArticles`, so the article's server HTML
+// (and the no-script check) carries its Read more links.
+function readNextFixture(args: QueryArgs) {
+  return ARTICLES.filter((article) => article._id !== args.articleId)
+    .slice(0, 3)
+    .map((article) => ({
+      id: article._id,
+      title: article.title,
+      slug: article.slug,
+      username: FIXTURE_WRITER,
+      opening: PARAGRAPHS[0]!,
+    }))
 }

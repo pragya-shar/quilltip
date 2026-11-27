@@ -54,6 +54,28 @@ describe('the article route with no answer from the backend', () => {
     expect(metadata.robots).toEqual({ index: false })
   })
 
+  it('an oversized document shows the not-available state', async () => {
+    let node: object = {
+      type: 'paragraph',
+      content: [{ type: 'text', text: 'x' }],
+    }
+    for (let i = 0; i < 5_000; i++)
+      node = { type: 'blockquote', content: [node] }
+    reads.article.mockResolvedValue({
+      _id: 'a1',
+      slug: 'ledger',
+      title: 'Ledger',
+      content: { type: 'doc', content: [node] },
+      author: { name: 'Tomás Reyes', username: 'tomas' },
+    })
+    const html = renderToStaticMarkup(await ArticlePage(args))
+    expect(html).toContain('This article could not be loaded right now.')
+    expect(html).not.toContain('id="read-body"')
+    const metadata = await generateMetadata(args)
+    expect(metadata.title).toBe('Ledger')
+    expect(metadata.description ?? '').toBe('')
+  })
+
   it('a missing article is a 404, and a moved handle redirects', async () => {
     reads.article.mockResolvedValue(null)
     reads.moved.mockResolvedValue(null)

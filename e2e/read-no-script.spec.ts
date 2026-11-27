@@ -106,10 +106,8 @@ test('a paragraph anchor is in the HTML and lands with no script', async ({
   expect(top).toBeLessThan(120)
 })
 
-// Waits on the fixture backend (scripts/perf/convex-fixture.ts) answering
-// `articles:getReadNextArticles`; asked of its owner. Today it refuses the
-// query, so the page leaves Read next out, as it must when the read fails.
-test.fixme('Read next is in the first response, with plain links', async ({
+// Read next comes from `articles.getReadNextArticles` on the server.
+test('Read next is in the first response, with plain links', async ({
   request,
 }) => {
   const html = await (await request.get(FIXTURE_ARTICLE_PATH)).text()

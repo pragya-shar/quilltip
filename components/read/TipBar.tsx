@@ -53,7 +53,11 @@ const PRESS_GUARD_MS = 400
 /** How long the receipt peek stays above the bar. */
 const PEEK_MS = 6000
 
-/** When a sheet last closed (the shell's stack), for the press guard. */
+/**
+ * When a sheet last closed (the shell's stack), for the press guard.
+ * Temporary: the shell will stop a closing sheet from passing a press to
+ * what is under it; this hook and its check in `press` go when it does.
+ */
 function useRecentSheetClose() {
   const at = useRef(0)
   useEffect(() => {
