@@ -220,12 +220,33 @@ const openV1Actions = async (page: Page) => {
   await page.getByRole('tab', { name: 'Actions' }).click()
 }
 
+/** The section with no v2 NFT and no v1 panel to fall back to. */
+const NFT_OFFLINE = 'Article NFTs aren’t available on this site right now.'
+
 const SCENES: Scene[] = [
   {
     id: 'v2-disabled',
     query: 'state=v2-disabled',
     expect: 'NFT Status',
     wide: true,
+  },
+  {
+    // v2 on, no NFT contract: the v1 panel while the v1 code is deployed.
+    id: 'nft-unset',
+    query: 'state=nft-unset',
+    expect: 'NFT Status',
+  },
+  {
+    // The same state once the v1 code is removed: a note, not a blank space.
+    id: 'nft-unset-without-v1',
+    query: 'state=nft-unset&bare=1',
+    expect: NFT_OFFLINE,
+    wide: true,
+  },
+  {
+    id: 'v2-disabled-without-v1',
+    query: 'state=v2-disabled&bare=1',
+    expect: NFT_OFFLINE,
   },
   {
     id: 'v2-disabled-v1-paused-author',

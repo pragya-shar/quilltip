@@ -43,12 +43,12 @@ Tests cite these IDs ([section 8.1](08-testing-and-deployment.md#81-test-plan)).
 
 ### Application
 
-| ID   | Invariant                                                                                                                                                                                                                                                                    |
-| ---- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| I-21 | A payment record becomes `CONFIRMED` or `MISMATCH` only by the rule in [section 6.1](06-app-integration.md#61-transaction-lifecycle). Client input never sets either state.                                                                                                  |
-| I-22 | A tab receipt is `ACCEPTED` only when all of these hold: a valid session signature; the next `seq`; `cumulative == previous + amount`; `outstanding + amount ≤ confirmedBalance`; the amount fits within the key limit and the Convex limits; and the article has no splits. |
-| I-23 | Identifier, canonical article, voucher, acceptance and Merkle encodings match across Rust, Convex and the client for every shared test vector.                                                                                                                               |
-| I-24 | A record becomes `EXPIRED` only after the indexer has covered every ledger up to `maxTime`. A record whose transaction RPC reports as `SUCCESS` never becomes `FAILED`. The UI offers a retry only for `FAILED` and `EXPIRED`, never for `MISMATCH`.                         |
+| ID   | Invariant                                                                                                                                                                                                                                                                                       |
+| ---- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I-21 | A payment record becomes `CONFIRMED` or `MISMATCH` only by the rule in [section 6.1](06-app-integration.md#61-transaction-lifecycle). Client input never sets either state.                                                                                                                     |
+| I-22 | A tab receipt is `ACCEPTED` only when all of these hold: a valid session signature; the next `seq`; `cumulative == previous + amount`; `outstanding + settledUnindexed + amount ≤ confirmedBalance`; the amount fits within the key limit and the Convex limits; and the article has no splits. |
+| I-23 | Identifier, canonical article, voucher, acceptance and Merkle encodings match across Rust, Convex and the client for every shared test vector.                                                                                                                                                  |
+| I-24 | A record becomes `EXPIRED` only after the indexer has covered every ledger up to `maxTime`. A record whose transaction RPC reports as `SUCCESS` never becomes `FAILED`. The UI offers a retry only for `FAILED` and `EXPIRED`, never for `MISMATCH`.                                            |
 
 ### All contracts
 

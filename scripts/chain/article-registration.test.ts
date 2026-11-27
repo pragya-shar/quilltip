@@ -687,6 +687,20 @@ describe('registration verification', () => {
     expect(await query()).toEqual({ status: 'disabled' })
   })
 
+  it('is paused with v2 on and no Core contract, so no flow is offered', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    vi.stubEnv('CORE_CONTRACT_ID', '')
+    const query = () =>
+      t.query(api.chain.articles.getArticleTipAvailability, {
+        articleId: s.articleId,
+      })
+    expect(await query()).toEqual({ status: 'paused' })
+    // The v1 switch does not reopen a flow while v2 is on.
+    vi.stubEnv('CHAIN_V1_PREPARES_ENABLED', 'true')
+    expect(await query()).toEqual({ status: 'paused' })
+  })
+
   it.each([
     ['article ID', { articleKey: 'ee'.repeat(32) }, 'field:article_id'],
     ['content hash', { contentHash: 'ff'.repeat(32) }, 'field:content_hash'],

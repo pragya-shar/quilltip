@@ -1,9 +1,10 @@
 /**
- * Section 8.4, step 10: set the integration contract set's values on the
- * integration Convex deployment. Runs only for `--set integration` on
- * testnet, behind the deploy-kind Convex guard, which refuses the live
- * deployment. Values go to the Convex CLI on stdin, never as arguments, and
- * are never printed.
+ * Section 8.4, step 10: set a contract set's values on the Convex deployment
+ * that runs it (`SET_DEFAULTS[set].convexDeployment`: the integration or v3
+ * deployment). Runs only on testnet, for a set that has such a deployment,
+ * behind the deploy-kind Convex guard, which refuses the live deployment.
+ * Values go to the Convex CLI on stdin, never as arguments, and are never
+ * printed.
  */
 import { spawnSync } from 'child_process'
 
@@ -12,15 +13,23 @@ import {
   LIVE_CONVEX_DEPLOYMENTS,
 } from '../../../convex/lib/networkGuard'
 import { assertScriptConvexDeployAllowed } from '../../lib/network-guard'
-import { identityName } from './config'
+import { identityName, SET_DEFAULTS, type ContractSet } from './config'
 import { signer } from './keys'
 import type { CliContext } from './network'
 import type { DeployState } from './state'
 
 type EnvLike = Record<string, string | undefined>
 
-/** The one allowlisted non-live deployment, which runs the integration set. */
+/** The allowlisted non-live deployment that runs the integration set. */
 export const INTEGRATION_CONVEX_DEPLOYMENT = ALLOWED_CONVEX_DEPLOYMENTS[0]!
+
+/** The allowlisted Convex deployment for a set, or undefined (`live`). */
+export function convexDeploymentForSet(set: ContractSet): string | undefined {
+  const deployment = SET_DEFAULTS[set].convexDeployment
+  if (!deployment || !ALLOWED_CONVEX_DEPLOYMENTS.includes(deployment))
+    return undefined
+  return deployment
+}
 
 /** Variable names this step sets (06-app-integration.md, section 6.8). */
 export const CONVEX_ENV_NAMES = [
@@ -78,14 +87,16 @@ export async function stepConvexEnv(
   log: (line: string) => void,
   run: Run = runConvex
 ): Promise<string[]> {
-  if (state.set !== 'integration' || state.network !== 'TESTNET') {
-    throw new Error('convex-env runs only for the integration set on testnet.')
+  const deployment = convexDeploymentForSet(state.set)
+  if (!deployment || state.network !== 'TESTNET') {
+    throw new Error(
+      'convex-env runs only on testnet, for the integration or v3 set.'
+    )
   }
   const c = state.contracts
   if (!c?.core || !c.tab || !c.nft || !state.nativeSac || !state.verify?.ok) {
-    throw new Error('Deploy and verify the integration set before convex-env.')
+    throw new Error(`Deploy and verify the ${state.set} set before convex-env.`)
   }
-  const deployment = INTEGRATION_CONVEX_DEPLOYMENT
   const env = convexCliEnv(deployment, ctx.env)
 
   // The backend must already run on testnet before it receives keys.
