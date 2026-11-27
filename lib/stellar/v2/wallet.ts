@@ -695,7 +695,9 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
   async function assertSignedForNetwork(
     current: WalletConnection,
     signedTxXdr: string,
-    address: string
+    address: string,
+    /** The address the caller named as the signer, if it named one. */
+    linked?: string
   ) {
     if (current.networkReported || !options.verifySignature) return
     let check: SignatureCheck
@@ -721,7 +723,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       throw new WalletError(
         'wrong-account',
         'The wallet signed with a different account',
-        { walletId: current.walletId }
+        { walletId: current.walletId, expectedAddress: linked }
       )
     }
   }
@@ -890,14 +892,21 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
           walletId: current.walletId,
         })
       }
+      // Caught after the wallet answered; nothing is sent. The error names the
+      // caller's signer (the linked address) only when the caller gave one.
       if (result.signerAddress && result.signerAddress !== address) {
         throw new WalletError(
           'wrong-account',
           'The wallet signed with a different account',
-          { walletId: current.walletId }
+          { walletId: current.walletId, expectedAddress: opts.address }
         )
       }
-      await assertSignedForNetwork(current, result.signedTxXdr, address)
+      await assertSignedForNetwork(
+        current,
+        result.signedTxXdr,
+        address,
+        opts.address
+      )
       return {
         signedTxXdr: result.signedTxXdr,
         signerAddress: result.signerAddress ?? address,
