@@ -1877,6 +1877,24 @@ describe('window CLI', () => {
     ])
   })
 
+  it('never logs or prints a refused value', () => {
+    for (const argv of [
+      ['run', 'env-set', 'TAB_SETTLER_SECRET', 'SSECRETVALUE'],
+      ['run', 'env-set', 'CHAIN_V2_ENABLED', 'SSECRETVALUE'],
+      ['check', 'convex-run', 'SSECRETVALUE:run'],
+      ['run', 'SSECRETVALUE'],
+      ['run', 'import', '/backups/SSECRETVALUE.zip'],
+    ]) {
+      const result = cli(argv)
+      expect(result.code).toBe(1)
+      expect(result.out).not.toContain('SSECRETVALUE')
+      expect(JSON.stringify(result.logged)).not.toContain('SSECRETVALUE')
+    }
+    expect(cli(['run', 'env-set', 'TAB_SETTLER_SECRET', 'x']).logged).toEqual([
+      expect.objectContaining({ operation: 'env-set TAB_SETTLER_SECRET' }),
+    ])
+  })
+
   it('runs nothing when the log cannot be written', () => {
     const result = cli(['run', 'deploy'], { logFails: true })
     expect(result.code).toBe(1)

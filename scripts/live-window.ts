@@ -31,6 +31,7 @@ import {
   LIVE_WINDOW_OPERATIONS,
   appendLiveWindowLog,
   convexUrlsInOutput,
+  describeLiveWindowArgs,
   evaluateLiveWindow,
   liveWindowLogPath,
   liveWindowWarning,
@@ -139,7 +140,7 @@ function decide(
       deps.log(
         {
           event: 'refused',
-          operation: args?.join(' ').slice(0, 200) || 'check',
+          operation: describeLiveWindowArgs(args),
           ...approvalFields(env),
           codes: error.codes,
         },

@@ -269,7 +269,7 @@ export function parseLiveWindowRequest(
   })
   if (!name || !(LIVE_WINDOW_OPERATIONS as readonly string[]).includes(name)) {
     return refuse(
-      `"${name ?? ''}" is not a window operation. Allowed: ${LIVE_WINDOW_OPERATIONS.join(', ')}.`
+      `That is not a window operation. Allowed: ${LIVE_WINDOW_OPERATIONS.join(', ')}.`
     )
   }
   const operation = name as LiveWindowOperation
@@ -329,7 +329,7 @@ export function parseLiveWindowRequest(
       const check = LIVE_WINDOW_ENV_SET[variable]
       if (!check) {
         return refuse(
-          `env-set is not allowed for "${variable}". Allowed: ${Object.keys(LIVE_WINDOW_ENV_SET).join(', ')}. Set secrets in the Convex dashboard.`
+          `env-set is not allowed for "${safeVariableName(variable)}". Allowed: ${Object.keys(LIVE_WINDOW_ENV_SET).join(', ')}. Set secrets in the Convex dashboard.`
         )
       }
       const problem = check(value)
@@ -348,7 +348,7 @@ export function parseLiveWindowRequest(
       const variable = rest[0] as string
       if (!LIVE_WINDOW_ENV_REMOVE.includes(variable)) {
         return refuse(
-          `env-remove is not allowed for "${variable}". Allowed: ${LIVE_WINDOW_ENV_REMOVE.join(', ')}.`
+          `env-remove is not allowed for "${safeVariableName(variable)}". Allowed: ${LIVE_WINDOW_ENV_REMOVE.join(', ')}.`
         )
       }
       return {
@@ -368,7 +368,7 @@ export function parseLiveWindowRequest(
       const [fn, json] = rest as [string, string | undefined]
       if (!LIVE_WINDOW_FUNCTIONS.includes(fn)) {
         return refuse(
-          `convex-run is not allowed for "${fn}". Allowed: ${LIVE_WINDOW_FUNCTIONS.join(', ')}.`
+          `convex-run is not allowed for that function. Allowed: ${LIVE_WINDOW_FUNCTIONS.join(', ')}.`
         )
       }
       let argsJson = '{}'
@@ -393,6 +393,32 @@ export function parseLiveWindowRequest(
       }
     }
   }
+}
+
+/** The variable name when it looks like one; never echo a value. */
+function safeVariableName(name: string | undefined): string {
+  return /^[A-Z][A-Z0-9_]{0,63}$/.test(name ?? '')
+    ? (name as string)
+    : '<variable>'
+}
+
+/**
+ * Log-safe label for requested arguments, refused or not: the operation name
+ * and the variable or function name, never a value, path or JSON argument.
+ */
+export function describeLiveWindowArgs(args: readonly string[] | null): string {
+  if (!args || args.length === 0) return 'check'
+  const [name, target] = args
+  if (!(LIVE_WINDOW_OPERATIONS as readonly string[]).includes(name ?? '')) {
+    return '<unknown operation>'
+  }
+  if (name === 'env-set' || name === 'env-remove') {
+    return `${name} ${safeVariableName(target)}`
+  }
+  if (name === 'convex-run') {
+    return `${name} ${LIVE_WINDOW_FUNCTIONS.includes(target ?? '') ? target : '<function>'}`
+  }
+  return name as string
 }
 
 // ---------------------------------------------------------------------------
@@ -632,7 +658,7 @@ export function evaluateLiveWindow(
   facts: LiveWindowFacts,
   fileExists?: (file: string) => boolean
 ): LiveWindowDecision {
-  const operation = `live window: ${args?.join(' ') || 'check'}`
+  const operation = `live window: ${describeLiveWindowArgs(args)}`
   const value = env[LIVE_WINDOW_APPROVAL_ENV]
   if (!value) {
     // No approval: the deploy guard refuses a live target exactly as before.
