@@ -121,6 +121,8 @@ export async function proxy(request: NextRequest) {
           NEXT_PUBLIC_HORIZON_URL: process.env.NEXT_PUBLIC_HORIZON_URL,
           NEXT_PUBLIC_SOROBAN_RPC_URL: process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
           NEXT_PUBLIC_STELLAR_RPC_URL: process.env.NEXT_PUBLIC_STELLAR_RPC_URL,
+          NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID:
+            process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID,
           VERCEL_ENV: process.env.VERCEL_ENV,
         })
       : null

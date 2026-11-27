@@ -45,7 +45,9 @@ export function walletNetworkLabel(passphrase: string | undefined): string {
 
 /**
  * The gate state for a wallet failure, or `null` when the failure belongs in
- * the progress view instead (declined, timed out, wrong account).
+ * the progress view instead (declined, timed out, pop-up blocked, wrong
+ * account). A connection the wallet ended goes back to the gate, because
+ * the next step is to connect again.
  */
 export function gateFromWalletError(
   error: WalletFailureLike
@@ -60,6 +62,8 @@ export function gateFromWalletError(
         kind: 'wrong-network',
         walletNetwork: walletNetworkLabel(error.walletPassphrase),
       }
+    case 'disconnected':
+      return { kind: 'disconnected', ended: true }
     default:
       return null
   }
@@ -74,10 +78,9 @@ export function failureFromWalletError(
   error: WalletFailureLike
 ): PaymentFailure | null {
   if (error.kind === 'cancelled') return null
-  return (
-    WALLET_FAILURE_COPY[error.kind as keyof typeof WALLET_FAILURE_COPY] ??
-    WALLET_FAILURE_COPY.failed
-  )
+  // The map covers every kind at compile time; a value outside the type at
+  // run time still gets the generic copy.
+  return WALLET_FAILURE_COPY[error.kind] ?? WALLET_FAILURE_COPY.failed
 }
 
 // Contract ---------------------------------------------------------------------

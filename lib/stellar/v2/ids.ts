@@ -49,3 +49,21 @@ export function articleId(author: string, ref: Uint8Array): Uint8Array {
   preimage.set(ref, prefix.length)
   return sha256(preimage)
 }
+
+/**
+ * `highlight_id` for a passage: `sha256("{slug}:{start}:{end}:{text[0..50]}")`
+ * (01-architecture.md, section 1.4). `text` is cut at 50 UTF-16 code units,
+ * as the v1 highlight ID and `convex/lib/chain/tipPrepare.ts` do.
+ */
+export function highlightId(
+  articleSlug: string,
+  startOffset: number,
+  endOffset: number,
+  text: string
+): Uint8Array {
+  return sha256(
+    new TextEncoder().encode(
+      `${articleSlug}:${startOffset}:${endOffset}:${text.slice(0, 50)}`
+    )
+  )
+}

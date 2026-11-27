@@ -1,13 +1,11 @@
 import type { NextConfig } from 'next'
 import bundleAnalyzer from '@next/bundle-analyzer'
-import { assertWalletConnectNotConfigured } from './lib/stellar/v2/walletconnect-gate'
+import { walletConnectProjectId } from './lib/stellar/v2/walletconnect-gate'
 
-// WalletConnect is not supported yet (lib/stellar/v2/walletconnect-gate.ts):
-// with a project ID set, the build, the dev server and `next start` refuse to
-// run.
-assertWalletConnectNotConfigured(
-  process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID
-)
+// WalletConnect is on with a Reown project ID and off without one
+// (lib/stellar/v2/walletconnect-gate.ts). A malformed ID stops the build,
+// the dev server and `next start`.
+walletConnectProjectId(process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID)
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
