@@ -5,49 +5,55 @@ Each package is built by one session in its own worktree, branched from
 two packages. Where a package needs another package's file, it uses the
 interface named here and in [interfaces](interfaces.md), never an edit.
 
-## W1. Order
+## W1. Two tracks and the order
 
-**Slice first.** Before any package starts, the `tip-slice` build
-(branch `feat/balance-tip-journey`) implements one journey on the existing
-contracts and today's two-step accept: a signed-in reader with a funded
-balance tips a passage, reopens, and sees the tip once; the writer sees it
-once, with pending apart from available. Its spec is
-a separate slice specification. Its pull request is the first cut of
-P0, P3, P5 and P6, using the names of [interfaces](interfaces.md). When it
-lands, this document is revised so each package starts from that code, and
-the interfaces are corrected from the differences the slice records. The
-contract package (P1) starts after the slice's evidence is shown.
+The work runs on two tracks:
+
+- **The product rebuild** ([rebuild](rebuild.md)): a new application shell and every surface on it,
+  frontend packages F0 to F11 and the backend packages B0 to B8 that the product structure needs. The
+  rebuild owns everything a person sees.
+- **The payment backend** (this document, below): the contracts (P1), settlement (P2), verification and the
+  indexer (P4), integration on testnet (P7), and the later waves (A1 accounts, A2 assets, A3 agent
+  payments, S1 split legs, K1 counts).
+
+**Slice 1 landed first** (PR 561, branch `feat/balance-tip-journey`): one journey on the existing contracts
+and the two-step accept, exactly once on both sides, pending apart from available. It is the first cut of
+P0, P3, P5 and P6 and becomes the money layer of the rebuild: `hooks/payments`, `lib/payments`, the
+headless payments runtime and Convex `balance`, `activity`, `earnings`. Its three screens inside the old
+shell are provisional and are deleted by rebuild package F2. This document is revised against the slice's
+merged code; until then, where it and the slice differ, the slice's code wins.
+
+What changed for the packages below:
+
+| Package                 | Now                                                                                                                                                                                                              |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| P0 Interfaces and seams | Done by the slice (types, hooks, runtime, fake runtime in its fixtures). The shared-file registries are F0's ([rebuild 5.4](rebuild.md#54-shared-files-without-shared-ownership))                                |
+| P3 Tip pipeline         | The slice's tip machine, send queue and outbox are the pipeline; the hold (document 1, section 1.7) and the wallet route are added by F1 and F2. `lib/payments/**` and `hooks/payments/**` are owned by F2       |
+| P5 Balance ledger       | The slice's Convex modules are the ledger's first cut; the rest of P5 (one-mutation acceptance, segments, cent limits, withdrawal attestation) continues as written, in the money layer's Convex files           |
+| P6 Session runtime      | The new shell's providers are F0's; the wallet restore comes from `overhaul/v2`; P6 keeps only the wallet runtime modules (`lib/stellar/v2/wallet*`, `hooks/useStellarWallet.ts`, `hooks/useWalletOwnership.ts`) |
+| P8 Removal of v2 code   | Replaced by the rebuild's deletion rule (each surface deletes its old code) and F11                                                                                                                              |
+| UI track (W3)           | Replaced by the rebuild's frontend packages                                                                                                                                                                      |
 
 ```text
-Wave 0   P0 interfaces and seams ─────────────────────────────┐ (lands first, about a day)
-                                                              ▼
-Wave 1   P1 contracts ──┐   P2 settlement   P3 tip pipeline   P4 verification and indexer
-                        │   P5 balance ledger                 P6 session runtime
-                        │        (all build against P0 and this design; P5 and P2 test with
-                        │         the v3 encoder vectors from P1 as soon as they exist)
-                        ▼
-Wave 2   P7 integration: v3 testnet set, Convex integration backend, end-to-end
-                                                              │
-UI track (design sessions, parallel from wave 0, on the fake session) ──┤
-                                                              ▼
-Wave 3   P8 removal of v2 code (after the UI track replaces the v2 screens)
-
-Later    A1 accounts (passkeys)   A2 assets   A3 agent payments   S1 split legs
+Slice 1 (PR 561) ─┬─ Rebuild: F0 shell ─┬─ F1 Read · F2 Pocket · F3a Today opening  (the core journey)
+                  │  B0 schema registry ├─ F5 Write · F8 You · F9 Sign in · F10 Resources
+                  │  B1…B8 backend      ├─ F3b Today mix · F4 Shelf · F6 Writer page · F7 Search
+                  │                     └─ F11 final removal
+                  └─ Payment backend: P2 settlement (after the v2 ledger fixes) · P4 verification
+                                      P1 contracts (after the slice's evidence) → P7 integration
+                                      later: A1 · A2 · A3 · S1 · K1
 ```
-
-The user-visible core (one pipeline, instant state, fast settlement,
-persistent session) is P0 to P7. None of P0 to P7 depends on A1, A2 or A3.
-P0 to P7 use one Tab, for XLM. Further tokens are further Tab instances
-(A2) and need no contract change.
 
 ### Rules for every package
 
-1. **Keep the build green.** Until P8, every `api.*` function and module that
-   the v2 client imports keeps its export and type. A function whose meaning
-   v3 removes may throw `ConvexError({ code: 'V2_RETIRED' })` or return
-   `null`; it may not disappear.
-2. **No renames** of existing paths before P8. New code goes in the new paths
-   listed below.
+1. **Keep the build green.** Until the rebuild package that replaces a
+   surface deletes it, every `api.*` function and module that the surface
+   imports keeps its export and type. A function whose meaning v3 removes may
+   throw `ConvexError({ code: 'V2_RETIRED' })` or return `null`; it may not
+   disappear while something imports it.
+2. **No renames** of existing paths, except the rebuild's split of `app/` into
+   two route groups ([rebuild R1](rebuild.md#0-decisions-in-one-place)). New
+   code goes in the new paths listed below and in the rebuild.
 3. **Environment names** are listed in the package's report; P7 adds them to
    `.env.example` and `docs/SETUP.md`.
 4. Checks before each push: `bun run check` (application and tooling) and the
@@ -354,37 +360,23 @@ listed so the coordinator can sequence them.
   treats them as one tip.
 - **Depends on:** P5, P3. **Size:** S.
 
-## W3. The UI track
+## W3. The product surfaces
 
-Design sessions own `app/**`, `components/**` except
-`components/providers/**`, `lib/copy/**` and all CSS. They build against the
-hooks of [I2](interfaces.md#i2-headless-hooks) and the fake session of
-[I4](interfaces.md#i4-fake-session), and they never import `convex/_generated/api`,
-`lib/stellar/**` or the wallet kit for payment screens. Screens the core
-needs:
-
-| Screen or control                | Hooks                                                  |
-| -------------------------------- | ------------------------------------------------------ |
-| Tip control (article, passage)   | `useTip`, `useBalance`                                 |
-| Tip sheet (amounts, every route) | `useTip`, `useBalance`, `useAddFunds`, `useWalletLink` |
-| Balance screen                   | `useBalance`, `useActivity('reader')`, `useAddFunds`   |
-| Writer earnings screen           | `useEarnings`, `useActivity('writer')`                 |
-| Settings: devices, wallet        | `useDevices`, `useWalletLink`                          |
-
-When a screen needs data no hook returns, the design session asks for an
-interface change here; it does not read Convex directly.
+The UI is built by the rebuild's frontend packages on the new shell, one per surface, with exclusive
+directory ownership ([rebuild section 6](rebuild.md#6-work-packages)). They consume the money layer's
+hooks (`hooks/payments`) and the headless hooks that the rebuild extracts from the old components
+([rebuild section 2](rebuild.md#2-the-data-seam-per-area)); no screen reads Convex directly for money.
 
 ## W4. File ownership index
 
-| Path                                                                                                                                                                                                                                                                                         | Owner                                                          |
-| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- |
-| `contracts/**`, `lib/stellar/v2/bindings/**`, `scripts/contracts/**`                                                                                                                                                                                                                         | P1                                                             |
-| `convex/tabSettler.ts`, `convex/tabSettlement.ts`, `convex/crons.ts`, `convex/lib/chain/settler.ts`, `settlementStore.ts`, `settlementSubmitter.ts`, `settleSchedule.ts`, `settleSchema.ts`                                                                                                  | P2                                                             |
-| `lib/payments/route.ts`, `lib/payments/tip.ts`, `lib/payments/live/**`                                                                                                                                                                                                                       | P3                                                             |
-| `convex/chain/submissions.ts`, `convex/chain/indexer.ts`, `convex/tipsV2.ts`, `convex/tipEarnings.ts`, `convex/lib/chain/submissionStore.ts`, `indexerStore.ts`, `kickSchema.ts`, `tipPrepare.ts`, `coreEventHandlers.ts`, `convex/lib/v2Earnings.ts`                                        | P4                                                             |
-| `convex/balance.ts`, `activity.ts`, `earnings.ts`, `tabs.ts`, `tabActivity.ts`, `convex/schema.ts`, `convex/lib/chain/{tabLedger,voucher,tabEventHandlers,events,schema,env,settlementLedger,balanceErrors}.ts`, `convex/lib/{activity,earnings,authorEarnings}.ts`, `lib/stellar/v2/tab/**` | P5                                                             |
-| `components/providers/**` (not `ThemeProvider.tsx`), `lib/session/**`, `lib/wallet/**` (new files), `lib/stellar/v2/wallet*.ts`, `lib/stellar/v2/walletconnect-*.ts`, `hooks/useStellarWallet.ts`, `hooks/useWalletOwnership.ts`                                                             | P6                                                             |
-| `lib/payments/{types,money,runtime}.ts`, `lib/payments/fake/**`, `hooks/session/**`, `hooks/payments/**`, `scripts/unit.config.mts`                                                                                                                                                          | P0                                                             |
-| `scripts/integration/**`, `e2e/v3-*`, `.env.example`, `docs/SETUP.md`, `docs/DEPLOYMENT.md`                                                                                                                                                                                                  | P7                                                             |
-| `app/**`, `components/**` (rest), `lib/copy/**`, CSS                                                                                                                                                                                                                                         | UI track                                                       |
-| Everything else in the v2 payment client (`hooks/tab/**`, `lib/tab-ui/**`, `lib/tip/v2/**`, `components/tab/**`, `components/tipping/v2/**`, `components/payments/**`, `hooks/useTipV2Flow.ts`, `hooks/useTipBasket.ts`)                                                                     | Frozen until P8 deletes it; the UI track may stop rendering it |
+| Path                                                                                                                                                                                                                                                                                         | Owner                                                                       |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| `contracts/**`, `lib/stellar/v2/bindings/**`, `scripts/contracts/**`                                                                                                                                                                                                                         | P1                                                                          |
+| `convex/tabSettler.ts`, `convex/tabSettlement.ts`, `convex/crons.ts`, `convex/lib/chain/settler.ts`, `settlementStore.ts`, `settlementSubmitter.ts`, `settleSchedule.ts`, `settleSchema.ts`                                                                                                  | P2                                                                          |
+| `convex/chain/submissions.ts`, `convex/chain/indexer.ts`, `convex/tipsV2.ts`, `convex/tipEarnings.ts`, `convex/lib/chain/submissionStore.ts`, `indexerStore.ts`, `kickSchema.ts`, `tipPrepare.ts`, `coreEventHandlers.ts`, `convex/lib/v2Earnings.ts`                                        | P4                                                                          |
+| `convex/balance.ts`, `activity.ts`, `earnings.ts`, `tabs.ts`, `tabActivity.ts`, `convex/schema.ts`, `convex/lib/chain/{tabLedger,voucher,tabEventHandlers,events,schema,env,settlementLedger,balanceErrors}.ts`, `convex/lib/{activity,earnings,authorEarnings}.ts`, `lib/stellar/v2/tab/**` | P5                                                                          |
+| `lib/stellar/v2/wallet*.ts`, `lib/stellar/v2/walletconnect-*.ts`, `hooks/useStellarWallet.ts`, `hooks/useWalletOwnership.ts`                                                                                                                                                                 | P6                                                                          |
+| `lib/payments/**`, `hooks/payments/**`, the headless payments runtime components                                                                                                                                                                                                             | F2 (rebuild)                                                                |
+| `scripts/integration/**`, `e2e/v3-*`, `.env.example`, `docs/SETUP.md`, `docs/DEPLOYMENT.md`                                                                                                                                                                                                  | P7                                                                          |
+| `app/**`, `components/**` (rest), `lib/copy/**`, CSS: per surface                                                                                                                                                                                                                            | Rebuild packages F0 to F11 ([rebuild 6.1](rebuild.md#61-frontend-packages)) |
+| Everything else in the v2 payment client (`hooks/tab/**`, `lib/tab-ui/**`, `lib/tip/v2/**`, `components/tab/**`, `components/tipping/v2/**`, `components/payments/**`, `hooks/useTipV2Flow.ts`, `hooks/useTipBasket.ts`)                                                                     | Deleted by the rebuild package that replaces its surface                    |

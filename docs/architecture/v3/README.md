@@ -17,22 +17,24 @@ writer's payout run in the background within about a minute.
 
 ## Documents
 
-| #   | Document                                    | Covers                                                                     |
-| --- | ------------------------------------------- | -------------------------------------------------------------------------- |
-| 1   | [One tip pipeline](01-tip-pipeline.md)      | `tip()`, routing, the sheet state machine, limits, idempotency, the hold   |
-| 2   | [Instant state](02-instant-state.md)        | Acceptance-driven reads, reconciliation, shortfall                         |
-| 3   | [Fast settlement](03-settlement.md)         | Event-driven settler, batching, lease, cost, automatic payout, indexer     |
-| 4   | [Persistent session](04-session.md)         | Root session runtime, wallet restore, device key, cache, devices, sign-out |
-| 5   | [Accounts without a wallet](05-accounts.md) | Wallet provider seam, passkey accounts, fee sponsor, sign-in               |
-| 6   | [Assets](06-assets.md)                      | Token registry, prices, accepted tokens, project profiles                  |
-| 7   | [Agent payments](07-agent-payments.md)      | HTTP 402 article endpoint, crediting the writer                            |
-| 8   | [Removals](08-removals.md)                  | v2 code that this design makes dead                                        |
-| C   | [Contract changes](contracts.md)            | The v3 Tab and Core changes, one redeploy                                  |
-| I   | [Interfaces](interfaces.md)                 | View-model types, headless hooks, Convex functions, validators             |
-| W   | [Work packages](work-packages.md)           | Packages, file ownership, order, dependencies, tests                       |
+| #   | Document                                    | Covers                                                                                                                       |
+| --- | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| 1   | [One tip pipeline](01-tip-pipeline.md)      | `tip()`, routing, the sheet state machine, limits, idempotency, the hold                                                     |
+| 2   | [Instant state](02-instant-state.md)        | Acceptance-driven reads, reconciliation, shortfall                                                                           |
+| 3   | [Fast settlement](03-settlement.md)         | Event-driven settler, batching, lease, cost, automatic payout, indexer                                                       |
+| 4   | [Persistent session](04-session.md)         | Root session runtime, wallet restore, device key, cache, devices, sign-out                                                   |
+| 5   | [Accounts without a wallet](05-accounts.md) | Wallet provider seam, passkey accounts, fee sponsor, sign-in                                                                 |
+| 6   | [Assets](06-assets.md)                      | Token registry, prices, accepted tokens, project profiles                                                                    |
+| 7   | [Agent payments](07-agent-payments.md)      | HTTP 402 article endpoint, crediting the writer                                                                              |
+| 8   | [Removals](08-removals.md)                  | v2 code that this design makes dead                                                                                          |
+| C   | [Contract changes](contracts.md)            | The v3 Tab and Core changes, one redeploy                                                                                    |
+| I   | [Interfaces](interfaces.md)                 | View-model types, headless hooks, Convex functions, validators                                                               |
+| W   | [Work packages](work-packages.md)           | Packages, file ownership, order, dependencies, tests                                                                         |
+| R   | [Frontend rebuild](rebuild.md)              | Inventory, data seam, coexistence and removal, guard rails, the product structure mapped onto the code, the rebuild packages |
 
-Documents 5 to 7 are later waves: the core packages (P0 to P8) do not
-depend on them.
+Documents 5 to 7 are later waves. The product surfaces are rebuilt on a new
+application shell ([rebuild](rebuild.md)); the payment design in documents 1
+to 4 is the money layer they consume.
 
 ## Decisions
 
