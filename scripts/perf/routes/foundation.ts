@@ -11,7 +11,8 @@ export const routes: PerfRoutes = {
     {
       name: 'shell reading',
       path: '/system/reading',
-      budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
+      // CLS and LCP: the plan's public-route limits (4.1).
+      budget: { htmlKb: 44, cssKb: 28, fontKb: 101, cls: 0.05, lcpMs: 2000 },
     },
   ],
   // Source Serif 4 and its next/font fallback.

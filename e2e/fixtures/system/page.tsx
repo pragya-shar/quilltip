@@ -17,6 +17,7 @@ import PocketPage from '../../../app/(app)/(signed-in)/pocket/page'
 import { registerSheet } from '../../../shell/sheetRegistry'
 import { SIGN_IN_SHEET } from '../../../shell/signIn'
 import { DemoSignInSheet } from './DemoSignInSheet'
+import { SheetsPage } from './SheetsPage'
 
 // The design system gallery, the sample reading page and the shell's own
 // pages inside the real application shell, with no backend: what
@@ -45,6 +46,7 @@ const pages: Record<string, () => React.ReactNode> = {
   '/reading': () => <SampleReadingPage />,
   '/shelf': () => <ShelfPage />,
   '/pocket': () => <PocketPage />,
+  '/sheets': () => <SheetsPage />,
 }
 const Page = pages[location.pathname] ?? pages['/']!
 

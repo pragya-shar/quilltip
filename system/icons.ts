@@ -1,14 +1,17 @@
 /**
  * The icon vocabulary: Hugeicons stroke-rounded (the free set), one icon per
- * meaning. Surfaces use these names, not raw imports, so a meaning keeps one
- * icon everywhere. Add a meaning here before using a new icon.
+ * meaning, following the design's map (DESIGN-ZERO 3.2). Surfaces use these
+ * names, not raw imports, so a meaning keeps one icon everywhere. Add a
+ * meaning here before using a new icon.
  */
 export {
   HighlighterIcon as TipIcon,
   Wallet01Icon as BalanceIcon,
   Home01Icon as ReadIcon,
   Home01Icon as TodayIcon,
-  Bookshelf01Icon as ShelfIcon,
+  LibraryIcon as ShelfIcon,
+  Bookmark02Icon as KeepIcon,
+  BookmarkCheck02Icon as KeptIcon,
   PencilEdit02Icon as WriteIcon,
   Search01Icon as SearchIcon,
   UserCircleIcon as YouIcon,
@@ -24,7 +27,12 @@ export {
   AlertCircleIcon as FailIcon,
   InformationCircleIcon as InfoIcon,
   Clock01Icon as PendingIcon,
-  Wifi01Icon as OfflineIcon,
+  WifiOff01Icon as OfflineIcon,
+  RefreshIcon as RetryIcon,
+  Edit02Icon as EditIcon,
+  ViewIcon as ReadItIcon,
+  Globe02Icon as OpenInBrowserIcon,
+  Notification01Icon as NotificationsIcon,
   Settings01Icon as SettingsIcon,
   Cancel01Icon as CloseIcon,
   ArrowLeft01Icon as BackIcon,

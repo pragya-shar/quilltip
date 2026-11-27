@@ -48,7 +48,9 @@ describe('measured routes from scripts/perf/routes', () => {
         expect(kb).toBeGreaterThan(0)
   })
 
-  it('keeps the shell reading page measured', () => {
+  it('keeps the shell reading page measured, at the public limits', () => {
     expect(FIRST_LOAD_BUDGET_KB['/system/reading']).toBe(150)
+    const reading = SURFACE_PAGE_LOAD.find((e) => e.path === '/system/reading')
+    expect(reading?.budget).toMatchObject({ cls: 0.05, lcpMs: 2000 })
   })
 })
