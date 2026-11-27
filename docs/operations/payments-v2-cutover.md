@@ -107,8 +107,10 @@ stage 1.
    - `chain/articles:getArticleTipAvailability` returns `disabled`. The
      article tip area and the passage tip action show "Tips are paused for a
      short time while payments are updated." While the passage action's
-     availability query loads, its button can show for one round trip; a
-     press opens the dialog, which says that tips are not on.
+     availability query loads, its button can show; it stays disabled until
+     `tipsV2:getTipEligibility` answers. A press that gets through opens the
+     dialog, which says "Tips on Stellar testnet are not on here" and that
+     nothing was paid.
    - The article NFT section shows "Article NFTs aren’t available on this
      site right now."
    - The tab screens show "Tabs are not available on this site yet".
@@ -127,12 +129,14 @@ stage 1.
    a browser. A direct call to a gated function fails with "Tips and NFT
    actions are paused for a short time while payments are updated. Nothing
    was charged." and creates nothing.
-4. **Client behaviour while `CHAIN_V2_ENABLED=true`.** `TipButton` and
-   `HighlightTipButton` read `chain/config:getChainConfig` and render the v2
-   flows (`ArticleTipV2`, `HighlightTipV2`, through `tipsV2`).
-   `NFTIntegration` renders `ArticleNftV2` (the v2 NFT functions). On an
-   article that is not registered, the tip area shows the unregistered note,
-   not a tip button.
+4. **Client behaviour while `CHAIN_V2_ENABLED=true`.** The article tip area
+   and the passage tip action read `chain/articles:getArticleTipAvailability`
+   and `tipsV2:getTipEligibility`; `TipButton` and `HighlightTipButton` render
+   the v2 flows (`ArticleTipV2`, `HighlightTipV2`, through `tipsV2`).
+   `NFTIntegration` renders `ArticleNftV2` (the v2 NFT functions), which reads
+   `chain/config:getChainConfig`. On an article that is not registered, the
+   tip area shows "Tips aren’t on for this article yet." instead of a tip
+   button, and the passage tip action shows nothing.
    Both contract IDs must be set before stage 6. If one is missing:
    - No `CORE_CONTRACT_ID`: `chain/articles:getArticleTipAvailability`
      returns `paused`, and the article tip area and the passage tip action
@@ -530,17 +534,17 @@ The times below were measured in a rehearsal of every stage on a disposable
 local Convex backend with a new testnet contract set and a small data set.
 Live data is larger, so the snapshot, push and backfill steps can take longer.
 
-| Stage | Work                                                  | Measured                                                                                               |
-| ----- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| 0     | Tag, snapshot export                                  | Snapshot 2 s                                                                                           |
-| 1     | `--dry-run`, push, cron check, maintenance dry runs   | Dry run 19 s, push 32 s, cron check 2 min                                                              |
-| 2     | Site deploy and checks                                | Checks about 5 min, plus the Vercel build                                                              |
-| 3     | Contract set, TTL extension, variables, indexer check | Deploy 861 s, extension 28 s, variables 8 s, indexer `OK` within 70 s; config refresh up to 1 hour     |
-| 4     | Contract version backfill                             | 8 s                                                                                                    |
-| 5     | Freeze, 15-minute wait, drain                         | 15 min 17 s                                                                                            |
-| 5A    | Lifetime totals: dry run, switch, progress            | About ⌈N/20⌉ min for N rows; 300 synthetic writers: dry run 197 s, rebuild 999.5 s                     |
-| 6     | Backfill again, switch on v2, section 7.1             | Registration indexed in 17 s, direct tip confirmed in 35 s; about 15 min for the full 7.1 list         |
-| —     | Snapshot restore (section 6.2), if needed             | Paused 4 min 26 s and 5 min 31 s in two runs; pause to reopened payments 8 to 10 min (small data sets) |
+| Stage | Work                                                  | Measured                                                                                                                                                                        |
+| ----- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Tag, snapshot export                                  | Snapshot 2 s                                                                                                                                                                    |
+| 1     | `--dry-run`, push, cron check, maintenance dry runs   | Dry run 19 s, push 32 s, cron check 2 min                                                                                                                                       |
+| 2     | Site deploy and checks                                | Checks about 5 min, plus the Vercel build                                                                                                                                       |
+| 3     | Contract set, TTL extension, variables, indexer check | Deploy 861 s, extension 28 s, variables 8 s, indexer `OK` within 70 s; config refresh up to 1 hour                                                                              |
+| 4     | Contract version backfill                             | 8 s                                                                                                                                                                             |
+| 5     | Freeze, 15-minute wait, drain                         | 15 min 17 s                                                                                                                                                                     |
+| 5A    | Lifetime totals: dry run, switch, progress            | About ⌈N/20⌉ min for N rows; 300 synthetic writers: dry run 197 s, rebuild 999.5 s                                                                                              |
+| 6     | Backfill again, switch on v2, section 7.1             | Registration indexed in 17 s, direct tip confirmed in 35 s; about 15 min for the full 7.1 list                                                                                  |
+| —     | Snapshot restore (section 6.2), if needed             | Paused 4 min 26 s and 5 min 31 s locally (small data sets); 4 min 39 s on a cloud deployment at 57 MB, export 11 s, import 67 s; plus building the restore file (steps 3 and 4) |
 
 Plan about 1 hour 15 minutes from stage 0 to the end of stage 6, plus the
 Vercel hand-off steps. The site takes no tips from stage 2 until stage 6
@@ -854,8 +858,10 @@ one of two cases:
   longer land on chain. Nothing was paid.
 
 After the drain no stored transaction can create a payment. The release
-site cannot register a stored transaction, and it removes these entries the
-next time a tip button renders (`lib/tip/legacyTipStorage.ts`, #559).
+site cannot register a stored transaction. It removes these entries when an
+article tip button renders (`lib/tip/legacyTipStorage.ts`, #559), which
+happens only on a registered article with v2 on; until then they stay in the
+browser as inert data.
 
 The release site shows no v1 tip action from stage 2 on (section 1.2,
 item 2), so this freeze is for the previous site still open in a browser and
@@ -920,7 +926,9 @@ both sets of figures from the same final rows.
    The rebuild is finished when `rebuilt` equals `total`, `waiting` is 0, and
    `inProgress` and `failed` are empty. Do not use `complete` as the finished
    signal: it only says that the progress scan read every row (it stops at
-   10,000 `authorEarnings` rows and 10,000 settled tip rows).
+   10,000 `authorEarnings` rows and 10,000 settled tip rows). The counts
+   cover at most the first 10,000 `authorEarnings` rows: if `total` is
+   10,000, they do not show that every row is rebuilt.
    `settledTabRowsWithoutApplied` counts settled tab tips without
    `earningsAppliedAt`; the rebuild still counts them from their receipts.
 
@@ -1059,9 +1067,7 @@ Know what a restore costs, even when every step below succeeds:
 Measured on a disposable local backend with a small data set (5 users,
 3 articles, 5 tips, 1 file): the deployment was paused for 4 min 26 s,
 including a 2-minute wait to observe scheduled functions. Each command took
-under 10 s; the full path, with checks, took about 10 minutes. A cloud
-deployment with live data takes longer; the operator confirms the path on a
-development deployment first (section 1.4).
+under 10 s; the full path, with checks, took about 10 minutes.
 
 A second run added tab activity after the snapshot: a top-up, tab tips to two
 writers, a settlement with a skipped pair, a writer's own settlement, a claim,
@@ -1071,23 +1077,35 @@ pause to reopened payments took 8 min 18 s. After the resume the indexer
 applied the late settlement, and every tab, payment and earnings figure
 matched the chain.
 
+On a cloud development deployment with synthetic data (16,505 documents,
+37 MB, and 100 files, 20 MB), with the restore file built in advance: the
+deployment was paused for 4 min 39 s; the export took 11 s, the import 67 s,
+and an import refused for a type error 25 s. Steps 3 and 4 with live data
+take longer than the commands; the operator confirms the path on a
+development deployment first (section 1.4).
+
 Use the credential from section 5.0.2 for every command.
 
 #### Step 1. Stop every write
 
 Pause the deployment: Convex dashboard, **Settings → Pause deployment**. The
 deployment API offers the same call
-(`POST <deployment URL>/api/v1/pause_deployment`). While paused, the
+(`POST <deployment URL>/api/v1/pause_deployment`, header
+`Authorization: Convex <key>`, the credential from section 5.0.2). While
+paused, the
 deployment refuses every function call: queries, mutations, actions, HTTP
-actions (including uploads), sign-up and sign-in, and `convex run`. A call
-over an already open WebSocket connection gets no answer while paused; the
-client can send it again after resume, so it may run on the restored data
-(step 6 keeps payments off until step 7). Crons are skipped. Scheduled
+actions (including uploads), sign-up and sign-in, and `convex run`. An open
+tab gets an error at once: its queries fail and each mutation it sends is
+refused with the paused message. The Convex client does not send a refused
+call again, so nothing sent during the pause runs on the restored data. Its
+subscriptions answer again within a second of the resume; a page that showed
+an error may need a reload. Crons are skipped. Scheduled
 functions wait and run at resume. A maintenance page on the site alone is not
 enough: an open tab calls Convex directly.
 
 What still works while paused: `convex export`, `convex env set` and
-`env remove`, `convex import`, and `convex deploy`.
+`env remove`, `convex import`, `convex deploy`, `convex data` (also for
+`_scheduled_functions`), and **Cancel all** in the Schedules view.
 
 **Check:** a query from outside is refused:
 
@@ -1185,8 +1203,9 @@ writers with such tips. So:
   them for every row with `earningsTotalsBackfill:reset` and the rebuild.
   The rebuild takes the wallet part of a writer's figures from
   `earnedBaseUnits` (less the `earnedNet` of the writer's tab pairs), so it
-  runs after the corrections above and after any
-  `authorEarningsBackfill:run`.
+  runs after the corrections above. It does not read the cent totals that
+  `authorEarningsBackfill:run` writes; run it after that job anyway, as in
+  stage 5A, so that both come from the same final rows.
 
 If `chainEvents` or `chainCursor` was damaged, leave both out and rebuild
 them with a replay in step 6. The replay applies every event again. Most
@@ -1225,7 +1244,7 @@ back as written in the file. Push code now only if it changes
 
 Before resuming, review the `pending` entries in the dashboard **Schedules**
 view and cancel those that must not run on the restored data. **Cancel all**
-works while the deployment is paused; cancelling single entries while paused
+works while the deployment is paused. Cancelling single entries while paused
 is untested. The crons repeat their periodic work after resume.
 
 #### Step 6. Resume with payments frozen
@@ -1384,9 +1403,11 @@ passing `bun run check` and the Playwright fixture suites.
   history, receipts and earnings through the v1 read queries
   (`tips:getUserSentTips`, `tips:getUserReceivedTips`,
   `highlightTips:getByTipper`, `highlightTips:getByAuthor`,
-  `tips:getMyEarningsSummary`, `highlightTips:getArticleStats`) and the "v1
-  record" line of the NFT section through `nfts:getNFTByArticle`. They stay;
-  only unused ones are removed.
+  `tips:getMyEarningsSummary`, `highlightTips:getArticleStats`), the
+  profile NFT tab through `nfts:getNFTsByOwnerPaginated` and
+  `nfts:getUserMintedNFTsPaginated`, and the "v1 record" line of the NFT
+  section through `nfts:getNFTByArticle` (read only while v2 is on). They
+  stay; only unused ones are removed.
 - **Vercel variables.** The release site does not read
   `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`,
   `NEXT_PUBLIC_NFT_CONTRACT_ID` or `NEXT_PUBLIC_NFT_METADATA_URL`. Hand-off
@@ -1399,13 +1420,13 @@ passing `bun run check` and the Playwright fixture suites.
 The Horizon and earlier RPC names have readers outside the v1 code. The PR
 that removes them changes each of these:
 
-| Variable                      | Readers outside the v1 code                                                                                                                                                                        |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `NEXT_PUBLIC_HORIZON_URL`     | `lib/stellar/v2/config.ts` (checked against the network guard), `proxy.ts` and `lib/security/contentSecurityPolicy.ts` (`connect-src`), `scripts/lib/network-guard.ts`, `.github/workflows/ci.yml` |
-| `NEXT_PUBLIC_SOROBAN_RPC_URL` | The same files, and `convex/lib/stellarNetwork.ts`                                                                                                                                                 |
-| `HORIZON_URL`                 | `convex/lib/networkGuard.ts`, `scripts/lib/network-guard.ts`                                                                                                                                       |
-| `NEXT_PUBLIC_NFT_CONTRACT_ID` | `scripts/stellar/v2-nft-config.test.ts` (checks that the v2 client does not read it)                                                                                                               |
-| `TIPPING_CONTRACT_ID`         | `scripts/tips/v1-prepare-switch.test.ts` and `scripts/articles/tip-quote.test.ts` (tests of the v1 functions)                                                                                      |
+| Variable                      | Readers outside the v1 code                                                                                                                                                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_HORIZON_URL`     | `lib/stellar/v2/config.ts` (checked against the network guard), `lib/stellar/config.ts` (client network guard), `proxy.ts` and `lib/security/contentSecurityPolicy.ts` (`connect-src`), `scripts/lib/network-guard.ts`, `.github/workflows/ci.yml` |
+| `NEXT_PUBLIC_SOROBAN_RPC_URL` | The same files, and `convex/lib/stellarNetwork.ts`                                                                                                                                                                                                 |
+| `HORIZON_URL`                 | `convex/lib/networkGuard.ts`, `scripts/lib/network-guard.ts`                                                                                                                                                                                       |
+| `NEXT_PUBLIC_NFT_CONTRACT_ID` | `scripts/stellar/v2-nft-config.test.ts` (checks that the v2 client does not read it)                                                                                                                                                               |
+| `TIPPING_CONTRACT_ID`         | `scripts/tips/v1-prepare-switch.test.ts` and `scripts/articles/tip-quote.test.ts` (tests of the v1 functions)                                                                                                                                      |
 
 The tests that set these variables change in the same PR.
 
