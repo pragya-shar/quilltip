@@ -149,7 +149,8 @@ export function WalletPicker() {
       <DialogContent
         className="wallet-install-dialog wallet-picker"
         overlayClassName="wallet-install-overlay"
-        aria-busy={pending !== null}
+        // The pairing step is waiting on the reader, not loading.
+        aria-busy={pending !== null && !showPairing}
         onCloseAutoFocus={(event) => {
           const target = origin.current
           if (target?.isConnected && target !== document.body) {

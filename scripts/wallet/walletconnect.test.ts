@@ -23,6 +23,7 @@ import {
   type WalletErrorKind,
 } from '../../lib/stellar/v2/wallet-errors'
 import {
+  DEFAULT_SIGN_TIMEOUT_MS,
   createWalletAdapter,
   type KitBundle,
   type KitFacade,
@@ -465,6 +466,42 @@ describe('through the adapter', () => {
       address: ADDRESS,
       networkReported: false,
     })
+  })
+
+  test('a phone gets 5 minutes to sign, beyond the default sign timeout', async () => {
+    vi.useFakeTimers()
+    const fake = fakeClient()
+    const { module, pairing } = moduleFor(fake)
+    const wallet = kitWith(module)
+    const connecting = wallet.connect({ walletId: 'wallet_connect' })
+    await vi.waitFor(() => expect(pairing.show).toHaveBeenCalled())
+    fake.approve(session())
+    await connecting
+
+    const answer = (xdr: string) => {
+      const signed = TransactionBuilder.fromXDR(xdr, Networks.TESTNET)
+      signed.sign(KEY)
+      return { signedXDR: signed.toXDR() }
+    }
+    const later =
+      (ms: number) => async (params: { request: { params: unknown } }) => {
+        await new Promise((resolve) => setTimeout(resolve, ms))
+        return answer((params.request.params as { xdr: string }).xdr)
+      }
+
+    // Answers after the default timeout: still signed.
+    fake.client.request.mockImplementationOnce(
+      later(DEFAULT_SIGN_TIMEOUT_MS + 60_000)
+    )
+    const signing = wallet.signTransaction(tx().toXDR())
+    await vi.advanceTimersByTimeAsync(DEFAULT_SIGN_TIMEOUT_MS + 60_000)
+    await expect(signing).resolves.toBeTruthy()
+
+    // No answer within 5 minutes: timeout.
+    fake.client.request.mockImplementationOnce(later(6 * 60_000))
+    const slow = caught(wallet.signTransaction(tx().toXDR()))
+    await vi.advanceTimersByTimeAsync(5 * 60_000 + 1)
+    expect(((await slow) as { kind: string }).kind).toBe('timeout')
   })
 
   test('a phone that signs for mainnet is refused after signing', async () => {

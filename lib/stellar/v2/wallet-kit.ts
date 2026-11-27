@@ -72,7 +72,7 @@ export function walletConnectMetadata(origin: string): WcMetadata {
 }
 
 /** The sign client, loaded on first use; telemetry to WalletConnect is off. */
-async function loadSignClient(options: {
+export async function loadSignClient(options: {
   projectId: string
   metadata: WcMetadata
 }): Promise<WcSignClient> {

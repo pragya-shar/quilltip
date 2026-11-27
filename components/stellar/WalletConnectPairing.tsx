@@ -9,7 +9,7 @@ import { QrCode } from './QrCode'
 /** Phones and narrow windows open the wallet app; others scan a code. */
 const PHONE_QUERY = '(max-width: 639px), (pointer: coarse)'
 
-function usePhoneLayout() {
+export function usePhoneLayout() {
   const [phone, setPhone] = useState(false)
   useEffect(() => {
     const query = window.matchMedia(PHONE_QUERY)

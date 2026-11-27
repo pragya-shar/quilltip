@@ -1,5 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
+import QR from 'qrcode'
 import { test, expect, type Page } from './helpers/consoleGuard'
 
 /**
@@ -56,12 +57,16 @@ const signedXdr = (page: Page) =>
         .__walletFixture.signedXdr
   )
 
-async function choosePhone(page: Page) {
+const DESKTOP_NOTE =
+  'Scan a code with Varial, LOBSTR, Scopuly or another wallet'
+const PHONE_NOTE = 'Opens Varial, LOBSTR, Scopuly or another wallet app'
+
+async function choosePhone(page: Page, note = DESKTOP_NOTE) {
   await page.getByRole('button', { name: 'Connect Wallet' }).click()
   const phone = picker(page).getByRole('region', { name: 'On your phone' })
   await expect(
     phone.getByRole('button', { name: /^Mobile wallet/ })
-  ).toContainText('Scan a code with Varial, LOBSTR, Scopuly or another wallet')
+  ).toContainText(note)
   await phone.getByRole('button', { name: /^Mobile wallet/ }).click()
   await expect(
     picker(page).getByRole('heading', { name: 'Connect a mobile wallet' })
@@ -115,6 +120,8 @@ test('desktop: pairs by QR code, then signs a testnet tip on the phone', async (
   await expect(
     step.getByRole('link', { name: 'Open in your wallet app' })
   ).toHaveCount(0)
+  // Waiting for the reader to scan is not loading.
+  await expect(picker(page)).toHaveAttribute('aria-busy', 'false')
   // No relay connection before the reader chose a mobile wallet; one now.
   expect((await fake.state(page)).inits).toBe(1)
 
@@ -134,7 +141,7 @@ test('phone width: opens the wallet app by link; the code is one tap away', asyn
 }) => {
   await page.setViewportSize({ width: 375, height: 812 })
   await page.goto('/?wc=1')
-  await choosePhone(page)
+  await choosePhone(page, PHONE_NOTE)
   const step = picker(page).getByRole('region', {
     name: 'Connect a mobile wallet',
   })
@@ -181,16 +188,57 @@ test('back to wallets ends the pairing and keeps the picker open', async ({
   await expect.poll(async () => (await fake.state(page)).pairings).toBe(2)
 })
 
-test('closing the picker during a pairing is not an error', async ({
+test('closing the picker during a pairing ends it: a late approval does not connect', async ({
   page,
 }) => {
   await page.goto('/?wc=1')
   await choosePhone(page)
   await page.keyboard.press('Escape')
   await expect(picker(page)).toBeHidden()
+  // The phone approves after the reader closed the picker.
+  await fake.call(page, 'approve')
+  // A connection would show the account button within a few frames.
+  await page.waitForTimeout(500)
+  await expect(account(page)).toHaveCount(0)
   await expect(
     page.getByRole('button', { name: 'Connect Wallet' })
   ).toBeVisible()
+})
+
+test('the QR code encodes the pairing link', async ({ page }) => {
+  await page.goto('/?wc=1')
+  await choosePhone(page)
+  const svg = picker(page).getByRole('img', { name: /QR code/ })
+  await expect(svg).toBeVisible()
+  const uri = (await fake.state(page)).uri!
+  const expected = QR.create(uri, { errorCorrectionLevel: 'M' }).modules
+  expect(Number(await svg.getAttribute('data-modules'))).toBe(expected.size)
+  // Dark modules drawn, as "x,y" inside the four-module quiet zone.
+  const d = (await svg.locator('path').getAttribute('d')) ?? ''
+  const drawn = [...d.matchAll(/M(\d+) (\d+)/g)].map(
+    ([, x, y]) => `${Number(x) - 4},${Number(y) - 4}`
+  )
+  const dark: string[] = []
+  for (let i = 0; i < expected.size * expected.size; i++) {
+    if (expected.data[i]) {
+      dark.push(`${i % expected.size},${Math.floor(i / expected.size)}`)
+    }
+  }
+  expect(drawn).toEqual(dark)
+})
+
+test('the minutes left count down to 1 minute', async ({ page }) => {
+  await page.clock.install()
+  await page.goto('/?wc=1')
+  await choosePhone(page)
+  const step = picker(page).getByRole('region', {
+    name: 'Connect a mobile wallet',
+  })
+  await expect(step.getByText(/The code expires in 5 minutes\./)).toBeVisible()
+  await page.clock.runFor('02:01')
+  await expect(step.getByText(/The code expires in 3 minutes\./)).toBeVisible()
+  await page.clock.runFor('02:00')
+  await expect(step.getByText(/The code expires in 1 minute\./)).toBeVisible()
 })
 
 test('the phone declines the pairing', async ({ page }) => {
