@@ -83,6 +83,7 @@ import type * as lib_tipArticleSummary from "../lib/tipArticleSummary.js";
 import type * as lib_tipReads from "../lib/tipReads.js";
 import type * as lib_tiptapContent from "../lib/tiptapContent.js";
 import type * as lib_uploadReferences from "../lib/uploadReferences.js";
+import type * as lib_v1Prepares from "../lib/v1Prepares.js";
 import type * as lib_v2Earnings from "../lib/v2Earnings.js";
 import type * as lib_verifiedTips from "../lib/verifiedTips.js";
 import type * as lib_walletChallenge from "../lib/walletChallenge.js";
@@ -197,6 +198,7 @@ declare const fullApi: ApiFromModules<{
   "lib/tipReads": typeof lib_tipReads;
   "lib/tiptapContent": typeof lib_tiptapContent;
   "lib/uploadReferences": typeof lib_uploadReferences;
+  "lib/v1Prepares": typeof lib_v1Prepares;
   "lib/v2Earnings": typeof lib_v2Earnings;
   "lib/verifiedTips": typeof lib_verifiedTips;
   "lib/walletChallenge": typeof lib_walletChallenge;
