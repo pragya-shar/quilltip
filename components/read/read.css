@@ -157,6 +157,29 @@
     color: var(--qt-ink);
   }
 
+  /* The body is one keyboard stop; its ring shows only for the keyboard. */
+  .qt-read__prose:focus-visible {
+    outline: var(--qt-focus-width) solid var(--qt-focus);
+    outline-offset: var(--qt-space-2);
+    border-radius: var(--qt-radius-tag);
+  }
+  /* The keyboard's sentence cursor: an outline, not a choice. */
+  .qt-read__cursor {
+    background: none;
+    color: inherit;
+    border-radius: 0.2em;
+    outline: var(--qt-focus-width) solid var(--qt-focus);
+    outline-offset: 0.1em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  /* A paragraph a link points at (#s-p-0): a marker-ink tick beside it. */
+  .qt-read__prose p:target {
+    box-shadow:
+      calc(-1 * var(--qt-space-3)) 0 0 0 var(--qt-paper),
+      calc(-1 * var(--qt-space-3) - 3px) 0 0 0 var(--qt-marker-ink);
+  }
+
   /* Passage marks; none rests on colour alone.
    * Chosen: a 2px ink underline, and the margin tick. */
   ::highlight(qt-read-chosen) {
@@ -248,6 +271,30 @@
       calc(var(--qt-space-3) + var(--qt-safe-bottom));
     background: var(--qt-paper);
     box-shadow: 0 -1px 0 var(--qt-line);
+  }
+  /* The receipt peek after a tip: a quiet row above the bar. */
+  .qt-read__peek {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-2);
+    min-width: 0;
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-read__peek-tick {
+    display: inline-flex;
+    color: var(--qt-marker-ink);
+  }
+  .qt-read__peek-words {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .qt-read__dock-keys {
+    display: contents;
   }
   .qt-read__line-actions {
     display: flex;

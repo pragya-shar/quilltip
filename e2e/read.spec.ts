@@ -124,16 +124,10 @@ test('a tap on a line chooses that sentence, for free, and a second tap lets it 
   await tapLine(page, 'person next to')
   await expect(tipButton(page)).toHaveAccessibleName('Tip this line $1')
   await expect(chosenTick(page)).toBeVisible()
-  // Not colour alone: the chosen line is underlined (a highlight or a mark).
-  const painted = await page.evaluate(() => {
-    const css = CSS as unknown as {
-      highlights?: Map<string, { size?: number }>
-    }
-    return css.highlights
-      ? css.highlights.has('qt-read-chosen')
-      : document.querySelector('mark.qt-mark[data-state="chosen"]') !== null
-  })
-  expect(painted).toBe(true)
+  // Not colour alone: the chosen line is the system's underlined mark.
+  await expect(page.locator('mark.qt-mark[data-state="chosen"]')).toHaveText(
+    LINES.gate
+  )
   expect((await server(page)).requests).toBe(0)
 
   await tapLine(page, 'person next to')
@@ -447,15 +441,8 @@ test('Keep is a toggle that saves the chosen line privately, never a tip', async
   await expect(keep).toHaveAttribute('aria-pressed', 'true')
   await expect(keep).toContainText('Kept')
   await expect(tipButton(page)).toHaveAccessibleName('Tip this line $1')
-  const keptDrawn = () =>
-    page.evaluate(() => {
-      const css = CSS as unknown as {
-        highlights?: Map<string, { size: number }>
-      }
-      return css.highlights
-        ? (css.highlights.get('qt-read-kept')?.size ?? 0) > 0
-        : document.querySelector('mark.qt-mark[data-state="kept"]') !== null
-    })
+  const keptDrawn = async () =>
+    (await page.locator('mark.qt-mark[data-state="kept"]').count()) > 0
   expect(await keptDrawn()).toBe(true)
   await expect(page.getByText('Kept on your Shelf.')).toHaveCount(0)
   const mutations = async () =>
@@ -520,6 +507,27 @@ test('the reader comes back to their place, with a tick and nothing chosen', asy
     .poll(() => page.evaluate(() => window.scrollY))
     .toBeGreaterThan(before - 120)
   expect(await page.evaluate(() => window.scrollY)).toBeLessThan(before + 120)
+  // The saved sentence, not a share of the scroll, sits at the reading line.
+  const offFromLine = await page.evaluate(() => {
+    const [place] = JSON.parse(
+      localStorage.getItem('quilltip:reading-position:v2') ?? '[]'
+    )
+    const body = document.getElementById('read-body')!
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
+    let seen = 0
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const length = node.textContent!.length
+      if (seen + length > place.at) {
+        const range = document.createRange()
+        range.setStart(node, place.at - seen)
+        range.setEnd(node, place.at - seen + 1)
+        return Math.abs(range.getBoundingClientRect().top - innerHeight / 3)
+      }
+      seen += length
+    }
+    return Infinity
+  })
+  expect(offFromLine).toBeLessThan(60)
   await expect(page.locator('.qt-read__tick[data-kind="place"]')).toHaveCount(1)
   await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
 })
@@ -642,39 +650,191 @@ test('opening an article records it for Today in qt_opened', async ({
     .toBe('readfixturearticle00000000000001')
 })
 
-test('the confirmation toast sits above the tip bar and never takes its presses', async ({
+test('after a tip, the confirmation is a quiet row in the bar: one announcement, nothing covered', async ({
   page,
 }) => {
   await open(page)
   await tapLine(page, 'person next to')
   await press(page, tipButton(page))
-  const toast = page.getByText('You tipped Tomás')
-  await expect(toast).toBeVisible()
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  // The tip control's "Sent" holds focus; the peek is not a live region and
+  // no toast repeats it.
+  const peek = page.locator('.qt-read__peek')
+  await expect(peek).toContainText('You tipped Tomás')
+  expect(await peek.getAttribute('role')).toBeNull()
+  expect(await peek.getAttribute('aria-live')).toBeNull()
+  await expect(page.locator('.qt-toast')).toHaveCount(0)
+  // A new line chosen while the peek shows: Keep and the tip button are
+  // pressable, under nothing.
   await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
-  // A new line chosen while the toast still shows: Keep and the tip
-  // button are not under it.
   await tapLine(page, 'rarely remembers')
-  await expect(toast).toBeVisible()
   for (const control of [
     page.locator('.qt-read__dock .qt-keep'),
     tipButton(page),
   ]) {
     const box = (await control.boundingBox())!
-    const hit = await page.evaluate(
-      ([x, y]) => {
-        const el = document.elementFromPoint(x!, y!)
-        return el?.closest('.qt-read__dock') !== null
-      },
+    const inDock = await page.evaluate(
+      ([x, y]) =>
+        document.elementFromPoint(x!, y!)?.closest('.qt-read__dock') !== null,
       [box.x + box.width / 2, box.y + box.height / 2]
     )
-    expect(hit).toBe(true)
+    expect(inDock).toBe(true)
   }
-  // The dock grew with the line's row; the toast moves up with it.
-  await expect
-    .poll(async () => {
-      const toastBox = (await page.locator('.qt-toast').first().boundingBox())!
-      const dockBox = (await page.locator('.qt-read__dock').boundingBox())!
-      return toastBox.y + toastBox.height <= dockBox.y + 1
+})
+
+test('the line tipped is the line pressed, even if another is tapped while sending', async ({
+  page,
+}) => {
+  await open(page)
+  await page.request.post(`/api/hold?run=${run}`)
+  await tapLine(page, 'person next to')
+  await press(page, tipButton(page))
+  const status = page.locator('.qt-read__dock .qt-tip__button')
+  await expect(status).toContainText('Sending')
+  // A tap on another line while the tip is out changes nothing.
+  await tapLine(page, 'rarely remembers')
+  await expect(status).toContainText('Sending')
+  await page.request.post(`/api/release?run=${run}`)
+  await expect(status).toContainText('Sent')
+  const { accepted } = await server(page)
+  expect(accepted.map((tip) => tip.target.passage?.text)).toEqual([LINES.gate])
+  // The mark and the receipt name the line the server booked.
+  const mine = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('mark.qt-mark[data-state="mine"]'))
+      .map((m) => m.textContent)
+      .join('')
+  )
+  expect(mine).toBe(LINES.gate)
+  await press(page, page.getByRole('button', { name: 'Receipt' }))
+  await expect(page.getByRole('dialog', { name: 'Receipt' })).toContainText(
+    LINES.gate
+  )
+})
+
+test('a double press, held Enter or a double tap after a sheet sends one tip', async ({
+  page,
+}, info) => {
+  test.skip(
+    info.project.name !== 'chromium-1440',
+    'Mouse double click and key repeat through Chromium'
+  )
+  await open(page)
+  // A double click on Tip.
+  const box = (await tipButton(page).boundingBox())!
+  await page.mouse.dblclick(box.x + box.width / 2, box.y + box.height / 2)
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  await page.waitForTimeout(500)
+  expect((await server(page)).requests).toBe(1)
+
+  // Held Enter after Sent: the key repeats while focus comes back to Tip.
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
+  await tipButton(page).focus()
+  const cdp = await page.context().newCDPSession(page)
+  const key = {
+    key: 'Enter',
+    code: 'Enter',
+    windowsVirtualKeyCode: 13,
+    nativeVirtualKeyCode: 13,
+    text: '\r',
+  }
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyDown', ...key })
+  for (let i = 0; i < 30; i++) {
+    await page.waitForTimeout(80)
+    await cdp.send('Input.dispatchKeyEvent', {
+      type: 'keyDown',
+      autoRepeat: true,
+      ...key,
     })
-    .toBe(true)
+  }
+  await cdp.send('Input.dispatchKeyEvent', { type: 'keyUp', ...key })
+  await page.waitForTimeout(500)
+  expect((await server(page)).requests).toBe(2)
+})
+
+test('the second tap of a double tap on Keep reading never tips', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'chromium-390', 'Touch taps at 390')
+  await open(page)
+  await press(page, tipButton(page))
+  await press(page, page.getByRole('button', { name: 'Receipt' }))
+  const sheet = page.getByRole('dialog', { name: 'Receipt' })
+  const keep = sheet.getByRole('button', { name: 'Keep reading' })
+  await expect(keep).toBeVisible()
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
+  const box = (await keep.boundingBox())!
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+  await page.touchscreen.tap(x, y)
+  await page.waitForTimeout(120)
+  await page.touchscreen.tap(x, y)
+  await expect(sheet).toBeHidden()
+  await page.waitForTimeout(600)
+  expect((await server(page)).requests).toBe(1)
+})
+
+test('a tip by another reader moves no "updated" notice; a removed article leaves the page', async ({
+  page,
+}) => {
+  await open(page, '&live=tipped')
+  await page.waitForTimeout(400)
+  await expect(page.getByText('This article was updated.')).toHaveCount(0)
+
+  // Gone: the title leaves with the text, so no wait for it here.
+  await page.goto(`${ARTICLE_PATH}?run=${run}&live=gone`)
+  await expect(page.getByText('This article is not here')).toBeVisible()
+  await expect(page.locator('#read-body')).not.toContainText(LINES.opening)
+  await expect(page.locator('.qt-read__dock')).toHaveCount(0)
+})
+
+test('by keyboard: the arrows move between sentences, Enter chooses, Escape lets go', async ({
+  page,
+}) => {
+  test.skip(touch(page), 'Keyboard on the desktop projects')
+  await open(page)
+  await page.locator('#read-body').focus()
+  await page.keyboard.press('ArrowDown')
+  const cursor = page.locator('mark.qt-read__cursor')
+  await expect(cursor).toHaveText(LINES.opening)
+  await page.keyboard.press('ArrowDown')
+  await expect(cursor).toHaveText(LINES.green)
+  await page.keyboard.press('Enter')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip this line $1')
+  expect((await server(page)).requests).toBe(0)
+  await page.keyboard.press('Escape')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
+})
+
+test('kept lines come back on open, and ?highlight= lands on one with nothing chosen', async ({
+  page,
+}) => {
+  await open(page, '&kept=1&highlight=hk1')
+  const kept = page.locator('mark.qt-mark[data-state="kept"]')
+  await expect(kept).toHaveText(LINES.quote)
+  const top = await kept.evaluate((el) => el.getBoundingClientRect().top)
+  expect(top).toBeGreaterThan(0)
+  expect(top).toBeLessThan(page.viewportSize()!.height * 0.6)
+  await expect(page.locator('.qt-read__tick[data-kind="place"]')).toHaveCount(1)
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
+  // Choosing the kept line shows it as kept; Keep would not add it again.
+  await tapLine(page, 'rarely remembers')
+  await expect(page.locator('.qt-read__dock .qt-keep')).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
+})
+
+test('with no balance, the button names what it adds money for', async ({
+  page,
+}) => {
+  await open(page, '&pay=no-balance')
+  await expect(
+    page.locator('.qt-read__dock').getByRole('button', {
+      name: 'Add money to tip $1',
+    })
+  ).toBeVisible()
 })

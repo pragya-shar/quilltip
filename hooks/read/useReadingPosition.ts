@@ -6,7 +6,12 @@ import {
   saveReadingProgress,
   type ReadingPosition,
 } from '@/lib/articles/readingProgress'
-import { positionIn, scrollDeltaFor, shouldRestore } from './readingPosition'
+import {
+  READING_LINE,
+  positionIn,
+  scrollDeltaFor,
+  shouldRestore,
+} from './readingPosition'
 
 const IMAGE_LAYOUT_WAIT_MS = 2000
 const SCROLL_KEYS = new Set([
@@ -26,6 +31,11 @@ type Options = {
   onRestored?: () => void
   /** Called with each place saved, for stores beside this one. */
   onSave?: (position: ReadingPosition) => void
+  /**
+   * The saved sentence to return to, when there is one: the view puts it at
+   * the reading line. Without it, the saved scroll share is used.
+   */
+  sentence?: () => Range | null
 }
 
 /**
@@ -39,7 +49,7 @@ type Options = {
  */
 export function useReadingPosition(
   id: string,
-  { body, onRestored, onSave }: Options
+  { body, onRestored, onSave, sentence }: Options
 ) {
   useEffect(() => {
     const path = location.pathname
@@ -49,6 +59,7 @@ export function useReadingPosition(
     const position = shouldRestore({
       hash: location.hash,
       navigationType: navigation?.type,
+      aimed: new URLSearchParams(location.search).has('highlight'),
     })
       ? readReadingProgress().find((entry) => entry.id === id)
       : undefined
@@ -126,12 +137,13 @@ export function useReadingPosition(
         if (waiting && restoredWhileWaiting) return
         restoredWhileWaiting = waiting
         if (!waiting) stopObservingLayout()
-        window.scrollTo({
-          top:
-            window.scrollY +
-            scrollDeltaFor(position, bounds, window.innerHeight),
-          behavior: 'instant',
-        })
+        // To the saved sentence at the reading line when there is one; the
+        // saved share of the body otherwise.
+        const line = sentence?.()?.getBoundingClientRect()
+        const delta = line?.height
+          ? line.top - window.innerHeight * READING_LINE
+          : scrollDeltaFor(position, bounds, window.innerHeight)
+        window.scrollTo({ top: window.scrollY + delta, behavior: 'instant' })
         // Correct once more when the remaining eager images settle, unless
         // the reader starts scrolling first.
         if (!waiting)
@@ -166,7 +178,7 @@ export function useReadingPosition(
       window.removeEventListener('scroll', onScroll)
       window.removeEventListener('pagehide', save)
     }
-    // `body`, `onRestored` and `onSave` are read once per article.
+    // `body`, `onRestored`, `onSave` and `sentence` are read once per article.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 }

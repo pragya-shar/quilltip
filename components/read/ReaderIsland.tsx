@@ -3,7 +3,11 @@
 import type { Id } from '@/convex/_generated/dataModel'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { Button } from '@/system/components/Button'
+import { useBalanceReading } from '@/shell/balance'
 import { sheetStack } from '@/shell/sheetStack'
+import { useKeptLines } from '@/hooks/read/useKeptLines'
+import { EmptyState } from '@/system/components/EmptyState'
 import { showToast } from '@/system/toast'
 import { usePassageActions } from '@/hooks/passages/usePassageActions'
 import { parseReadAnchor, readAnchor } from '@/lib/tiptap/readAnchors'
@@ -16,7 +20,12 @@ import {
   sentenceAtLine,
   textNodes,
 } from '@/hooks/read/passageOffsets'
-import { FINISHED_AT, markOpened, savePlace } from '@/hooks/read/readingPlace'
+import {
+  FINISHED_AT,
+  markOpened,
+  readPlaces,
+  savePlace,
+} from '@/hooks/read/readingPlace'
 import { READING_LINE } from '@/hooks/read/readingPosition'
 import { useArticleView } from '@/hooks/read/useArticleView'
 import {
@@ -25,8 +34,6 @@ import {
 } from '@/hooks/read/usePassageSelection'
 import { useReadingPosition } from '@/hooks/read/useReadingPosition'
 import { paintPassages, type PaintedSpan } from './paintPassages'
-import { RECEIPT_SHEET, type ReceiptProps } from './receipt'
-import { preloadSheet } from '@/shell/sheets/loadSheet'
 import { READ_BODY_ID, READ_MARGIN_ID, type ReadArticle } from './readModel'
 import { TipBar, type SentTip } from './TipBar'
 
@@ -80,9 +87,16 @@ function blockAtReadingLine(root: HTMLElement): HTMLElement | null {
  */
 export function ReaderIsland({ article }: { article: ReadArticle }) {
   const [tipped, setTipped] = useState<PaintedSpan[]>([])
+  const signedIn = useBalanceReading().auth === 'signed-in'
+  const keptOnServer = useKeptLines(article.id, signedIn)
   const [kept, setKept] = useState<(PaintedSpan & { id: Id<'highlights'> })[]>(
     []
   )
+  // Kept lines come back from the server on every open; a Keep or a
+  // removal here shows at once and is confirmed when the server answers.
+  useEffect(() => {
+    if (keptOnServer) setKept(keptOnServer)
+  }, [keptOnServer])
   const [tick, setTick] = useState<Tick | null>(null)
   const [margin, setMargin] = useState<HTMLElement | null>(null)
 
@@ -90,7 +104,13 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
     // A tap leaves the page where it is; a line under the dock comes up.
     requestAnimationFrame(() => keepInView(chosen))
   }, [])
-  const { passage, clear, keep } = usePassageSelection(body, { onChoose })
+  // While a tip is held, queued or sending, no line can be chosen or let go.
+  const [locked, setLocked] = useState(false)
+  const [selecting, setSelecting] = useState(false)
+  const { passage, cursor, clear, keep } = usePassageSelection(body, {
+    onChoose,
+    enabled: !locked,
+  })
   // Keep is a toggle: its pressed state confirms; only failures are said.
   const actions = usePassageActions({ quiet: true })
 
@@ -134,7 +154,12 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   useEffect(() => {
     const root = body()
     if (!root) return
-    const cleanup = paintPassages(root, { chosen: passage, kept, tipped })
+    const cleanup = paintPassages(root, {
+      chosen: passage,
+      kept,
+      tipped,
+      cursor,
+    })
     const place = () => {
       const frame = document.getElementById(READ_MARGIN_ID)
       if (!passage || !frame) return
@@ -152,7 +177,44 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
       resize.disconnect()
       cleanup()
     }
-  }, [passage, kept, tipped])
+  }, [passage, kept, tipped, cursor, selecting])
+
+  // A native selection that settles leaves the marks to the highlights;
+  // once it collapses, the marks are drawn again in the text.
+  useEffect(() => {
+    const onChange = () => {
+      const selection = window.getSelection()
+      const root = body()
+      setSelecting(
+        Boolean(
+          selection &&
+          !selection.isCollapsed &&
+          root?.contains(selection.anchorNode)
+        )
+      )
+    }
+    document.addEventListener('selectionchange', onChange)
+    return () => document.removeEventListener('selectionchange', onChange)
+  }, [])
+
+  // The keyboard cursor stays in view, and is read once by its words.
+  useEffect(() => {
+    if (cursor) keepInView(cursor)
+  }, [cursor])
+
+  // Escape lets the chosen line go, from anywhere on the page, unless a
+  // sheet or menu is open (it closes first).
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || !passage) return
+      if (sheetStack.get().some((entry) => entry.open)) return
+      if ((event.target as Element | null)?.closest('dialog, [role="menu"]'))
+        return
+      clear()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [passage, clear])
 
   // Back at the reader's place: a quiet tick beside that paragraph, and
   // nothing chosen.
@@ -175,13 +237,15 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   const onSave = useCallback(
     (position: { ratio: number }) => {
       const root = body()
+      const line = root
+        ? sentenceAtLine(root, window.innerHeight * READING_LINE)
+        : null
       savePlace({
         articleId: article.id,
         href: article.href,
         title: article.title,
-        sentence: root
-          ? sentenceAtLine(root, window.innerHeight * READING_LINE)
-          : '',
+        sentence: line?.text ?? '',
+        ...(line ? { at: line.startOffset } : {}),
         percent: position.ratio,
         updatedAt: Date.now(),
         finished: position.ratio >= FINISHED_AT,
@@ -189,7 +253,43 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
     },
     [article.href, article.id, article.title]
   )
-  useReadingPosition(article.id, { body, onRestored, onSave })
+  // Back to the saved sentence, not a share of the scroll: the same line
+  // whatever the width, the font or the images above it.
+  const savedSentence = useCallback(() => {
+    const root = body()
+    const at = readPlaces().find((p) => p.articleId === article.id)?.at
+    if (!root || at === undefined) return null
+    const range = rangeAt(root, at, at + 1)
+    return root.contains(range.startContainer) ? range : null
+  }, [article.id])
+  useReadingPosition(article.id, {
+    body,
+    onRestored,
+    onSave,
+    sentence: savedSentence,
+  })
+
+  // `?highlight=<id>` (a kept line, from the Shelf): land on that line,
+  // with a quiet tick and nothing chosen.
+  const aimed = useRef(false)
+  useEffect(() => {
+    if (aimed.current || !keptOnServer) return
+    const id = new URLSearchParams(location.search).get('highlight')
+    const line = id ? keptOnServer.find((k) => k.id === id) : undefined
+    if (!line) return
+    aimed.current = true
+    const root = body()
+    const frame = document.getElementById(READ_MARGIN_ID)
+    if (!root || !frame) return
+    const range = rangeAt(root, line.startOffset, line.endOffset)
+    const rect = range.getBoundingClientRect()
+    window.scrollBy({
+      top: rect.top - window.innerHeight * READING_LINE,
+      behavior: 'instant',
+    })
+    const at = passagePlacement(range, frame)
+    if (at) setTick({ ...at, kind: 'place' })
+  }, [keptOnServer])
 
   // The text never waits for this: a note only if the article moved on.
   const status = useArticleView(article.writer.username, article.slug, {
@@ -198,21 +298,25 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   })
   const said = useRef(false)
   useEffect(() => {
-    if (said.current || (status !== 'changed' && status !== 'gone')) return
+    if (said.current || status !== 'changed') return
     said.current = true
-    showToast(
-      status === 'changed'
-        ? {
-            title: 'This article was updated.',
-            tone: 'info',
-            action: {
-              label: 'Reload',
-              onAction: () => window.location.reload(),
-            },
-          }
-        : { title: 'This article is no longer published.', tone: 'info' }
-    )
+    showToast({
+      title: 'This article was updated.',
+      tone: 'info',
+      action: { label: 'Reload', onAction: () => window.location.reload() },
+    })
   }, [status])
+  // Unpublished or deleted since the page was rendered: its text leaves the
+  // page at once (a cached server copy can be up to a minute old).
+  const gone = status === 'gone'
+  useEffect(() => {
+    if (!gone) return
+    body()?.replaceChildren()
+    for (const node of document.querySelectorAll<HTMLElement>(
+      '.qt-read__article, .qt-read__next'
+    ))
+      node.hidden = true
+  }, [gone])
 
   const onSent = useCallback(
     (sent: SentTip) => {
@@ -224,25 +328,9 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
         ])
         requestAnimationFrame(() => keepInView(span))
       }
-      const receipt: ReceiptProps = {
-        amount: sent.amount,
-        writerName: article.writer.name,
-        articleTitle: article.title,
-        line: span?.text ?? null,
-      }
       clear()
-      // The receipt's code loads now, so it is there by the press.
-      void preloadSheet(RECEIPT_SHEET)?.catch(() => {})
-      showToast({
-        title: `You tipped ${article.writer.firstName}`,
-        tone: 'done',
-        action: {
-          label: 'Receipt',
-          onAction: () => sheetStack.open(RECEIPT_SHEET, receipt),
-        },
-      })
     },
-    [article.title, article.writer.firstName, article.writer.name, clear]
+    [clear]
   )
 
   // Keep is a toggle on the chosen line (KeepButton). A kept line keeps
@@ -287,6 +375,19 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
     [actions, article.id, keep, keptHere]
   )
 
+  if (gone)
+    return (
+      <EmptyState
+        title="This article is not here"
+        body="It may have been unpublished or moved."
+        action={
+          <Button variant="primary" href="/">
+            Go to Today
+          </Button>
+        }
+      />
+    )
+
   return (
     <>
       {margin && tick
@@ -300,6 +401,9 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
             margin
           )
         : null}
+      <p className="qt-visually-hidden" aria-live="polite">
+        {cursor ? cursor.text : ''}
+      </p>
       <TipBar
         article={article}
         passage={passage}
@@ -307,6 +411,7 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
         kept={Boolean(keptHere)}
         keepPending={keepPending}
         onKeepChange={(next) => void onKeepChange(next)}
+        onLockChange={setLocked}
         onSent={onSent}
       />
     </>

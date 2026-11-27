@@ -1,11 +1,17 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { caretAt, choosePassage, type Passage } from './passageOffsets'
+import {
+  caretAt,
+  choosePassage,
+  lineSentences,
+  rangeAt,
+  type Passage,
+} from './passageOffsets'
 
 export type ChosenPassage = Passage & {
-  /** How it was chosen: a tap on the line, or a native selection. */
-  via: 'tap' | 'selection'
+  /** How it was chosen: a tap, a native selection, or the keyboard. */
+  via: 'tap' | 'selection' | 'keyboard'
 }
 
 const SELECTION_SETTLE_MS = 180
@@ -28,6 +34,11 @@ function samePassage(a: Passage | null, b: Passage | null) {
  * tap on the chosen line again, or `clear()`, unchooses it. Links, buttons
  * and captions keep their own taps. No swipe handler, no long press.
  *
+ * By keyboard, the body is one stop: the arrow keys (and Home, End) move a
+ * sentence cursor through the lines in reading order, Enter or Space
+ * chooses the sentence under it (again lets it go), and Escape lets the
+ * chosen line go. `cursor` is that sentence, for the view to draw.
+ *
  * `keep` saves the chosen line as the reader's own (from the legacy
  * reader's `handleCreateHighlight`); it is given by the caller so this hook
  * needs no backend.
@@ -40,6 +51,7 @@ export function usePassageSelection(
   }: { enabled?: boolean; onChoose?: (passage: ChosenPassage) => void } = {}
 ) {
   const [passage, setPassage] = useState<ChosenPassage | null>(null)
+  const [cursor, setCursor] = useState<Passage | null>(null)
   const current = useRef<ChosenPassage | null>(null)
   const onChooseRef = useRef(onChoose)
   useEffect(() => {
@@ -144,6 +156,78 @@ export function usePassageSelection(
     }
   }, [body, choose, enabled])
 
+  // The keyboard path: a sentence cursor while the body has focus.
+  useEffect(() => {
+    const root = body()
+    if (!root || !enabled) return
+    let list: Passage[] | null = null
+    let index = -1
+    const sentences = () => (list ??= lineSentences(root))
+    /** The first sentence on screen, where the cursor starts. */
+    const firstInView = (all: Passage[]) => {
+      const found = all.findIndex(
+        (p) =>
+          rangeAt(root, p.startOffset, p.endOffset).getBoundingClientRect()
+            .bottom > 0
+      )
+      return found === -1 ? 0 : found
+    }
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.target !== root || event.altKey || event.metaKey) return
+      const all = sentences()
+      if (all.length === 0) return
+      const chosen = current.current
+      switch (event.key) {
+        case 'ArrowDown':
+        case 'ArrowRight':
+          index =
+            index === -1
+              ? firstInView(all)
+              : Math.min(all.length - 1, index + 1)
+          break
+        case 'ArrowUp':
+        case 'ArrowLeft':
+          index = index === -1 ? firstInView(all) : Math.max(0, index - 1)
+          break
+        case 'Home':
+          index = 0
+          break
+        case 'End':
+          index = all.length - 1
+          break
+        case 'Enter':
+        case ' ': {
+          const at = all[index]
+          if (!at) return
+          event.preventDefault()
+          if (samePassage(at, chosen)) choose(null)
+          else choose({ ...at, via: 'keyboard' })
+          return
+        }
+        case 'Escape':
+          if (!chosen) return
+          event.preventDefault()
+          choose(null)
+          return
+        default:
+          return
+      }
+      event.preventDefault()
+      setCursor(all[index] ?? null)
+    }
+    const onBlur = () => {
+      index = -1
+      setCursor(null)
+    }
+    root.addEventListener('keydown', onKeyDown)
+    root.addEventListener('blur', onBlur)
+    return () => {
+      root.removeEventListener('keydown', onKeyDown)
+      root.removeEventListener('blur', onBlur)
+      setCursor(null)
+    }
+  }, [body, choose, enabled])
+
   /**
    * Saves the chosen line as the reader's own. With `clearAfter`, the line
    * is let go once saved; a Keep toggle leaves it chosen.
@@ -163,5 +247,5 @@ export function usePassageSelection(
     [clear]
   )
 
-  return { passage, clear, keep }
+  return { passage, cursor, clear, keep }
 }

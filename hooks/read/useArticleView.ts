@@ -27,10 +27,11 @@ export function articleViewStatus(
 ): ArticleViewStatus {
   if (live === undefined) return 'server'
   if (live === null || live._id !== server._id) return 'gone'
-  const edited =
-    (live.contentVersion ?? 0) !== (server.contentVersion ?? 0) ||
-    (live.updatedAt ?? 0) > (server.updatedAt ?? 0)
-  return edited ? 'changed' : 'current'
+  // Only the text's version: tips, storage status and collectibles also
+  // move `updatedAt`, and none of them changes what the reader is reading.
+  return (live.contentVersion ?? 0) !== (server.contentVersion ?? 0)
+    ? 'changed'
+    : 'current'
 }
 
 type HighlightTipStats = {

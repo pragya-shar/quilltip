@@ -15,7 +15,8 @@
  * the reader opened or finished). Written only by the article
  * view; Today reads and validates them. Both are first-party, hold article
  * ids only (each URI-encoded, comma-separated, newest first, at most 20),
- * and are set with `Path=/; Max-Age=31536000; SameSite=Lax`:
+ * and are set with `Path=/; Max-Age=31536000; SameSite=Lax`, and `Secure`
+ * on https:
  * - `qt_opened`: articles this browser opened, added on open;
  * - `qt_finished`: articles read to the end (98%), mirrored from the store.
  *
@@ -43,8 +44,15 @@ export type ReadingPlace = {
   sentence: string
   /** How much has been read, 0 to 1. */
   percent: number
+  /** The sentence's start in the body's text, where the view returns. */
+  at?: number
   updatedAt: number
   finished: boolean
+}
+
+/** A path on this site: `/…`, never `//host`, `/\host` or a scheme. */
+export function isSitePath(href: string): boolean {
+  return /^\/(?![/\\])[^\s]*$/.test(href) && !/[\u0000-\u001f]/.test(href)
 }
 
 /** One stored entry, or null. Missing `sentence` and `finished` (older or
@@ -58,8 +66,7 @@ function toPlace(value: unknown): ReadingPlace | null {
     typeof v.articleId !== 'string' ||
     !v.articleId ||
     typeof v.href !== 'string' ||
-    !v.href.startsWith('/') ||
-    v.href.startsWith('//') ||
+    !isSitePath(v.href) ||
     typeof v.title !== 'string' ||
     typeof v.percent !== 'number' ||
     !Number.isFinite(v.percent) ||
@@ -72,6 +79,9 @@ function toPlace(value: unknown): ReadingPlace | null {
     href: v.href,
     title: v.title,
     sentence: typeof v.sentence === 'string' ? v.sentence : '',
+    ...(Number.isSafeInteger(v.at) && (v.at as number) >= 0
+      ? { at: v.at }
+      : {}),
     percent: Math.max(0, Math.min(1, v.percent)),
     updatedAt: v.updatedAt,
     finished: v.finished === true,
@@ -169,9 +179,11 @@ export function withOpened(ids: string[], id: string): string[] {
 
 function writeCookie(name: string, ids: string[]) {
   const value = ids.map(encodeURIComponent).join(',')
+  // Secure wherever the page is served over https.
+  const secure = location.protocol === 'https:' ? '; Secure' : ''
   document.cookie = value
-    ? `${name}=${value}; ${COOKIE_ATTRIBUTES}`
-    : `${name}=; Path=/; Max-Age=0; SameSite=Lax`
+    ? `${name}=${value}; ${COOKIE_ATTRIBUTES}${secure}`
+    : `${name}=; Path=/; Max-Age=0; SameSite=Lax${secure}`
 }
 
 /** Saves a place and mirrors the finished ids. Storage may be blocked. */

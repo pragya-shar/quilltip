@@ -119,6 +119,6 @@ describe('the sentence at a line', () => {
     const { sentenceAtLine } = await import('@/hooks/read/passageOffsets')
     // happy-dom gives every box zero size: the first line block's first
     // sentence is at or below any line at 0.
-    expect(sentenceAtLine(root, 0)).toBe('She kept a ledger.')
+    expect(sentenceAtLine(root, 0)?.text).toBe('She kept a ledger.')
   })
 })

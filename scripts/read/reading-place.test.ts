@@ -59,6 +59,22 @@ describe('reading places for Today', () => {
     expect(parsePlaces('[{"articleId":1}]')).toEqual([])
   })
 
+  it('keeps only same-site paths as href', async () => {
+    const { isSitePath } = await import('@/hooks/read/readingPlace')
+    expect(isSitePath('/tomas/ledger')).toBe(true)
+    expect(isSitePath('/tomas/ledger?x=1')).toBe(true)
+    for (const bad of [
+      '//evil.example/x',
+      '/\\evil.example/x',
+      'https://evil.example/',
+      'javascript:alert(1)',
+      'tomas/ledger',
+      '/a b',
+      '',
+    ])
+      expect(isSitePath(bad), bad).toBe(false)
+  })
+
   it('tolerates older entries and drops only the bad ones', () => {
     const stored = JSON.stringify([
       { articleId: 'a', href: '/t/a', title: 'A', percent: 0.5, updatedAt: 2 },

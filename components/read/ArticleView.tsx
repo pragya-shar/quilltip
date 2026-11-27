@@ -82,6 +82,10 @@ export function ArticleView({
               <img src={article.coverImage} alt="" fetchPriority="high" />
             </figure>
           ) : null}
+          <p id="read-keys" className="qt-visually-hidden">
+            Use the arrow keys to move between sentences, Enter to choose a
+            line, and Escape to let it go.
+          </p>
           <div className="qt-read__body">
             <div
               id={READ_MARGIN_ID}
@@ -95,6 +99,12 @@ export function ArticleView({
                 className="qt-prose qt-read__prose"
                 data-variant="read"
                 data-lead-in=""
+                // One keyboard stop: the arrow keys move between sentences
+                // and Enter chooses a line (the island adds this).
+                // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- the body is the keyboard surface for choosing a line
+                tabIndex={0}
+                aria-label="Article text"
+                aria-describedby="read-keys"
                 dangerouslySetInnerHTML={{ __html: bodyHtml }}
               />
             ) : (

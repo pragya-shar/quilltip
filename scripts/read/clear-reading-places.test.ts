@@ -35,3 +35,15 @@ describe('reading places belong to the browser', () => {
     expect(cookieIds(document.cookie, 'qt_finished')).toEqual([])
   })
 })
+
+describe('sign-out clears the reading places', () => {
+  it('runs through the shell sign-out registry', async () => {
+    const { cleanups } = await import('@/shell/signOut/read')
+    markOpened('a1')
+    localStorage.setItem(READING_PLACE_KEY, '[]')
+    const cleanup = cleanups.find((c) => c.name === 'reading places')!
+    await cleanup.run()
+    expect(localStorage.getItem(READING_PLACE_KEY)).toBeNull()
+    expect(cookieIds(document.cookie, OPENED_COOKIE)).toEqual([])
+  })
+})

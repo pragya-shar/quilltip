@@ -10,6 +10,8 @@ export type PaintedLines = {
   kept: PaintedSpan[]
   /** Lines this reader tipped on this visit: full marker and a ✓. */
   tipped: PaintedSpan[]
+  /** The keyboard's sentence cursor: an outline, never a choice. */
+  cursor?: PaintedSpan | null
 }
 
 const CHOSEN = 'qt-read-chosen'
@@ -115,11 +117,12 @@ function markTipped(range: Range): HTMLElement[] {
 }
 
 /**
- * Draws the chosen, kept and tipped lines over the server text. The chosen
- * and kept lines use custom highlights where the engine has them (no change
- * to the text, so a native selection is never disturbed), and marks
- * otherwise, only while no selection is live. Tipped lines are marks, drawn
- * after acceptance, when the selection has been cleared. Returns the
+ * Draws the chosen, kept and tipped lines and the keyboard cursor over the
+ * server text, as the system's marks (`mark.qt-mark[data-state]`). While a
+ * native selection is live, changing the text would disturb it, so the
+ * chosen and kept lines then use custom highlights where the engine has
+ * them, and nothing otherwise until the selection settles. Tipped lines are
+ * drawn after acceptance, when the selection has been cleared. Returns the
  * cleanup.
  */
 export function paintPassages(
@@ -131,24 +134,31 @@ export function paintPassages(
   const added: HTMLElement[] = lines.tipped.flatMap((span) =>
     markTipped(toRange(span))
   )
+  const selection = window.getSelection()
+  const selecting =
+    selection !== null &&
+    !selection.isCollapsed &&
+    body.contains(selection.anchorNode)
   const api = registry()
-  if (api) {
-    api.highlights.set(KEPT, new api.Highlight(...lines.kept.map(toRange)))
-    if (lines.chosen)
-      api.highlights.set(CHOSEN, new api.Highlight(toRange(lines.chosen)))
-    else api.highlights.delete(CHOSEN)
+  if (selecting) {
+    if (api) {
+      api.highlights.set(KEPT, new api.Highlight(...lines.kept.map(toRange)))
+      if (lines.chosen)
+        api.highlights.set(CHOSEN, new api.Highlight(toRange(lines.chosen)))
+    }
     return () => {
-      api.highlights.delete(CHOSEN)
-      api.highlights.delete(KEPT)
+      api?.highlights.delete(CHOSEN)
+      api?.highlights.delete(KEPT)
       unwrap(added.reverse())
     }
   }
-  const selection = window.getSelection()
-  if (!selection || selection.isCollapsed) {
-    for (const span of lines.kept)
-      added.push(...wrap(toRange(span), passageMark('kept')))
-    if (lines.chosen)
-      added.push(...wrap(toRange(lines.chosen), passageMark('chosen')))
-  }
+  for (const span of lines.kept)
+    added.push(...wrap(toRange(span), passageMark('kept')))
+  if (lines.chosen)
+    added.push(...wrap(toRange(lines.chosen), passageMark('chosen')))
+  if (lines.cursor)
+    added.push(
+      ...wrap(toRange(lines.cursor), () => element('mark', 'qt-read__cursor'))
+    )
   return () => unwrap(added.reverse())
 }

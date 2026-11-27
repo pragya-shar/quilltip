@@ -172,7 +172,20 @@ function controller(target: TipTarget): TipController {
 
 let cached: { key: unknown; value: TipController } | null = null
 
-export const fakeRuntime: ReadPaymentsRuntime = {
+const NO_ACTIVITY = {
+  status: 'ready' as const,
+  items: [],
+  canLoadMore: false,
+  loadMore: () => {},
+}
+
+/** The money layer's full runtime shape (`PaymentsRuntime` of 561). */
+export const fakeRuntime: ReadPaymentsRuntime & {
+  useActivity(role: 'reader' | 'writer'): typeof NO_ACTIVITY
+  useEarnings(): { status: 'loading' }
+} = {
+  useActivity: () => NO_ACTIVITY,
+  useEarnings: () => ({ status: 'loading' }),
   useBalance(): BalanceView {
     const s = useSyncExternalStore(subscribe, () => state)
     return {

@@ -1,3 +1,4 @@
+import type { Id } from '@/convex/_generated/dataModel'
 import { firstName } from '@/system/money/tip'
 
 /**
@@ -5,7 +6,8 @@ import { firstName } from '@/system/money/tip'
  * page passes to the view, and the islands need no backend to read it.
  */
 export type ReadArticle = {
-  id: string
+  /** The article's Convex id (the server read's `_id`). */
+  id: Id<'articles'>
   slug: string
   title: string
   /** `/{username}/{slug}`: the canonical article URL. */
@@ -67,7 +69,7 @@ export function toReadArticle(
   const username = article.author.username
   const name = article.author.name?.trim() || username
   return {
-    id: article._id,
+    id: article._id as Id<'articles'>,
     slug: article.slug,
     title: article.title,
     href: `/${username}/${article.slug}`,

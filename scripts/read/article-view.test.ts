@@ -14,8 +14,10 @@ describe('the server copy against the live article', () => {
     expect(articleViewStatus(server, { ...server, contentVersion: 4 })).toBe(
       'changed'
     )
+  })
+  it('is current when only updatedAt moved (a tip, storage, a collectible)', () => {
     expect(articleViewStatus(server, { ...server, updatedAt: 200 })).toBe(
-      'changed'
+      'current'
     )
   })
   it('is gone when unpublished, deleted or replaced', () => {

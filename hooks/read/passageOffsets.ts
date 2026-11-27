@@ -216,7 +216,10 @@ export function choosePassage(
  * paragraph or list item whose last line is at or below it. Empty when no
  * line is there.
  */
-export function sentenceAtLine(root: Element, y: number): string {
+export function sentenceAtLine(
+  root: Element,
+  y: number
+): { text: string; startOffset: number } | null {
   const seen = new Set<Element>()
   for (const node of textNodes(root)) {
     const block = lineBlockOf(root, node)
@@ -230,10 +233,41 @@ export function sentenceAtLine(root: Element, y: number): string {
         start + span.start,
         start + span.end
       ).getBoundingClientRect()
-      if (rect.bottom >= y) return text.slice(span.start, span.end)
+      if (rect.bottom >= y)
+        return {
+          text: text.slice(span.start, span.end),
+          startOffset: start + span.start,
+        }
     }
   }
-  return ''
+  return null
+}
+
+/**
+ * Every sentence a reader can choose, in reading order: the sentences of
+ * each paragraph and list item, as passages. The keyboard walks this list.
+ */
+export function lineSentences(root: Element): Passage[] {
+  const out: Passage[] = []
+  const seen = new Set<Element>()
+  for (const node of textNodes(root)) {
+    const block = lineBlockOf(root, node)
+    if (!block || seen.has(block)) continue
+    seen.add(block)
+    const { start, text, gaps } = blockText(root, block)
+    for (const span of sentenceSpans(text, gaps)) {
+      const startOffset = start + span.start
+      const endOffset = start + span.end
+      out.push({
+        text: text.slice(span.start, span.end),
+        startOffset,
+        endOffset,
+        startContainerPath: `text.${startOffset}`,
+        endContainerPath: `text.${endOffset}`,
+      })
+    }
+  }
+  return out
 }
 
 /** The caret under a point, in engines with either API. */

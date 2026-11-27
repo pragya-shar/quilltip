@@ -14,9 +14,17 @@
  * Nothing here formats, rounds or adds money.
  */
 import { createContext, useContext } from 'react'
+import type { Id } from '@/convex/_generated/dataModel'
 
 export type Cents = number
-export type Money = { cents: Cents; display: string }
+export type Money = {
+  cents: Cents
+  display: string
+  /** Converted at today's price: the figure writes "≈" from this alone. */
+  converted?: boolean
+  /** The amount as a screen reader says it, when the layer gives one. */
+  spoken?: string
+}
 
 export type PassageRef = {
   text: string
@@ -27,8 +35,8 @@ export type PassageRef = {
 }
 
 export type TipTarget =
-  | { kind: 'article'; articleId: string }
-  | { kind: 'passage'; articleId: string; passage: PassageRef }
+  | { kind: 'article'; articleId: Id<'articles'> }
+  | { kind: 'passage'; articleId: Id<'articles'>; passage: PassageRef }
 
 export type TipMeta = {
   articleTitle: string
@@ -73,7 +81,7 @@ export type TipController = {
    * $1" before sign-in. Null when signed in. Asked of the money layer (pull
    * request 561); the name may change when it lands.
    */
-  signedOut: SignedOutOffer | null
+  signedOut?: SignedOutOffer | null
 }
 
 export type SignedOutOffer = {

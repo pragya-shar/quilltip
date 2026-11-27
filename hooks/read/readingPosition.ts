@@ -44,8 +44,10 @@ export function scrollDeltaFor(
 export function shouldRestore(input: {
   hash: string
   navigationType: string | undefined
+  /** The address names a line (`?highlight=`): that wins over the place. */
+  aimed?: boolean
 }): boolean {
-  if (input.hash) return false
+  if (input.hash || input.aimed) return false
   return input.navigationType !== 'back_forward'
 }
 

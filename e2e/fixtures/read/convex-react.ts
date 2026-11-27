@@ -8,12 +8,64 @@ const params = new URLSearchParams(location.search)
 const run = params.get('run') ?? 'default'
 const live = params.get('live') ?? 'current'
 
+const kept = params.get('kept') === '1'
+
+/** The reader's kept line in the fixture: the quote's last sentence. */
+export const KEPT_LINE = {
+  _id: 'hk1',
+  userId: 'u1',
+  text: 'It rarely remembers anyone.',
+}
+
+// Answers are stable objects, as the live client's are between updates.
+const LIVE_ARTICLE =
+  live === 'gone'
+    ? null
+    : live === 'changed'
+      ? { ...ARTICLE, contentVersion: 2 }
+      : // A tip by another reader moves updatedAt, not the text.
+        live === 'tipped'
+        ? { ...ARTICLE, updatedAt: ARTICLE.updatedAt + 1 }
+        : ARTICLE
+const ME = { _id: 'u1' }
+const NO_ROWS: unknown[] = []
+let keptRows: unknown[] | undefined
+
 export function useQuery(ref: FunctionReference<'query'>, args?: unknown) {
-  void args
-  if (getFunctionName(ref) !== 'articles:getArticleBySlug') return undefined
-  if (live === 'gone') return null
-  if (live === 'changed') return { ...ARTICLE, contentVersion: 2 }
-  return ARTICLE
+  if (args === 'skip') return undefined
+  switch (getFunctionName(ref)) {
+    case 'articles:getArticleBySlug':
+      return LIVE_ARTICLE
+    case 'users:getCurrentUser':
+      return ME
+    case 'highlights:getArticleHighlights':
+      if (!kept) return NO_ROWS
+      // Found in the rendered text once it is on the page.
+      if (!keptRows && document.getElementById('read-body'))
+        keptRows = [keptRow()]
+      return keptRows
+    default:
+      return undefined
+  }
+}
+
+/** The kept line's offsets, found in the rendered body's text. */
+function keptRow() {
+  const body = document.getElementById('read-body')
+  const walker = body && document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
+  let seen = 0
+  for (let node = walker?.nextNode(); node; node = walker!.nextNode()) {
+    if (node.parentElement?.closest('figcaption, [data-read-skip]')) continue
+    const at = node.textContent!.indexOf(KEPT_LINE.text)
+    if (at >= 0)
+      return {
+        ...KEPT_LINE,
+        startOffset: seen + at,
+        endOffset: seen + at + KEPT_LINE.text.length,
+      }
+    seen += node.textContent!.length
+  }
+  return { ...KEPT_LINE, startOffset: 0, endOffset: 0, removedAt: 1 }
 }
 
 export function useMutation(ref: FunctionReference<'mutation'>) {
