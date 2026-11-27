@@ -1,5 +1,13 @@
 'use client'
 
+/**
+ * The wallet fixture's connect, wallet-menu and Disconnect control: the entry
+ * point the wallet suites drive (wallet-connect, -coverage, -states,
+ * -verification, -restore). No app page renders it; readers connect from
+ * the wallet page, the tab page and the payment dialogs. It lives here as
+ * test harness and still uses the app's wallet provider, picker and copy.
+ */
+
 import { useId, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
