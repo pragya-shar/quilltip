@@ -2,9 +2,12 @@
  * Loads Stellar Wallets Kit 2.x and the modules QuillTip offers, on demand in
  * the browser. Only this file imports the kit at runtime.
  *
- * Modules: Varial (formerly Freighter), xBull, Albedo, LOBSTR, Rabet and
- * Hana. HOT Wallet is not offered: its module needs global and Buffer
- * polyfills.
+ * Modules: Varial (formerly Freighter), xBull (extension, or its web wallet
+ * in a new window), Rabet, Hana, Scopuly, D'CENT and Albedo, the order of
+ * `OFFERED_WALLETS` in `../wallet-catalog.ts`. `docs/wallets.md` lists the
+ * wallets that are not offered and why: LOBSTR's extension, HOT Wallet and
+ * MetaMask sign for Stellar mainnet only, Trezor cannot sign Soroban calls
+ * through the kit, and Ledger would sign a bare transaction hash.
  *
  * WalletConnect (mobile wallets) is not supported yet. The kit's WalletConnect
  * module depends on Reown AppKit, which this app runs on zod 4 through a
@@ -57,27 +60,31 @@ export async function loadWalletKitBundle(): Promise<KitBundle> {
     { KitEventType },
     { VarialModule },
     { xBullModule },
-    { AlbedoModule },
-    { LobstrModule },
     { RabetModule },
     { HanaModule },
+    { ScopulyModule },
+    { DcentModule },
+    { AlbedoModule },
   ] = await Promise.all([
     import('@creit.tech/stellar-wallets-kit/sdk'),
     import('@creit.tech/stellar-wallets-kit/types'),
     import('@creit.tech/stellar-wallets-kit/modules/varial'),
     import('@creit.tech/stellar-wallets-kit/modules/xbull'),
-    import('@creit.tech/stellar-wallets-kit/modules/albedo'),
-    import('@creit.tech/stellar-wallets-kit/modules/lobstr'),
     import('@creit.tech/stellar-wallets-kit/modules/rabet'),
     import('@creit.tech/stellar-wallets-kit/modules/hana'),
+    import('@creit.tech/stellar-wallets-kit/modules/scopuly'),
+    import('@creit.tech/stellar-wallets-kit/modules/dcent'),
+    import('@creit.tech/stellar-wallets-kit/modules/albedo'),
   ])
+  // In the order of OFFERED_WALLETS; the picker keeps the kit's order.
   const modules: ModuleInterface[] = [
     new VarialModule(),
     new xBullModule(),
-    new AlbedoModule(),
-    new LobstrModule(),
     new RabetModule(),
     new HanaModule(),
+    new ScopulyModule(),
+    new DcentModule(),
+    new AlbedoModule(),
   ]
   return {
     kit: StellarWalletsKit as unknown as KitBundle['kit'],
@@ -89,10 +96,23 @@ export async function loadWalletKitBundle(): Promise<KitBundle> {
   }
 }
 
+const loadSignatureChecks = () => import('./wallet-signature')
+
 /** The app's wallet adapter. Loads the kit on first use. */
 export const wallet = createWalletAdapter({
   loadKit: loadWalletKitBundle,
   networkPassphrase: STELLAR_CONFIG.NETWORK_PASSPHRASE,
   theme: QUILLTIP_WALLET_THEME,
   storage: typeof window === 'undefined' ? null : window.localStorage,
+  verifySignature: async (signedTxXdr, address, passphrase) =>
+    (await loadSignatureChecks()).checkSourceSignature(
+      signedTxXdr,
+      address,
+      passphrase
+    ),
+  describeEnvelope: async (xdr) =>
+    (await loadSignatureChecks()).describeEnvelope(
+      xdr,
+      STELLAR_CONFIG.NETWORK_PASSPHRASE
+    ),
 })
