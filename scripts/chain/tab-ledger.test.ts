@@ -2285,8 +2285,9 @@ describe('spendable balance across settler records and indexed events', () => {
       const chainPaid = new Map<string, bigint>()
       const queue: RawRpcEvent[] = []
       const indexed: RawRpcEvent[] = []
-      let record: { id: Id<'tabSettlements'>; outcomes: Outcome[] } | null =
-        null
+      type Recorded = { id: Id<'tabSettlements'>; outcomes: Outcome[] }
+      // Set inside `settle`: declared without an initial narrowing to null.
+      let record = null as Recorded | null
       const trace: string[] = []
 
       const check = async (step: string) => {
@@ -2379,10 +2380,7 @@ describe('spendable balance across settler records and indexed events', () => {
       }
 
       // Everything arrives: spendable is exactly deposits minus accepted.
-      if (record) {
-        const r = record as { id: Id<'tabSettlements'>; outcomes: Outcome[] }
-        await settlerRecord(t, r.id, r.outcomes)
-      }
+      if (record) await settlerRecord(t, record.id, record.outcomes)
       await ingest(t, ...queue.splice(0))
       await check('drain')
       const tab = await myTab(t, s)
