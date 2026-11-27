@@ -3,14 +3,16 @@
  * `convex/lib/chain/tabLedger.ts`. The tab tip check and the read models
  * call it, so the screen and the acceptance rule cannot disagree. This
  * source check fails when other code combines `confirmedBalance` and
- * `outstanding` in one expression to derive the figure on its own.
+ * `outstanding` in one expression to derive the figure on its own. It reads
+ * single expressions only: a value split over two statements or renamed by
+ * destructuring is not seen, so the ledger tests remain the real guard.
  */
 import { readdirSync, readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const ROOT = join(__dirname, '..', '..')
-const SCANNED = ['convex', 'lib', 'components', 'app']
+const SCANNED = ['convex', 'lib', 'components', 'app', 'hooks']
 const SKIPPED = new Set(['_generated', 'node_modules'])
 
 function sources(dir: string): string[] {
