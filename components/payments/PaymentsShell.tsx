@@ -39,6 +39,8 @@ export function PaymentsShell() {
   const [failedAt, setFailedAt] = useState<number | null>(null)
   const delay = useRef(FIRST_RETRY_MS)
 
+  useEffect(() => paymentsStore.attachShell(), [])
+
   useEffect(() => {
     paymentsStore.setAuth(
       isLoading ? 'loading' : isAuthenticated ? 'signed-in' : 'signed-out'

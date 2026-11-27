@@ -40,7 +40,7 @@ function useShellTip(target: TipTarget, meta: TipMeta) {
   return useStore((s) => {
     const computed = s.tips[id]
     if (computed) return computed
-    const key = `${s.auth}:${s.engine}:${id in s.queuedTaps}`
+    const key = `${s.shells > 0}:${s.auth}:${s.engine}:${id in s.queuedTaps}`
     const cached = shellControllers.get(id)
     if (cached && cached.key === key) return cached.value
     const value = shellController(id)

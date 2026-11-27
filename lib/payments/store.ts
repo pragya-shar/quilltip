@@ -44,6 +44,8 @@ export type PaymentsState = {
   /** Taps made before the engine was ready, by control id. */
   queuedTaps: Record<string, number>
   watches: { writer: number; earnings: number }
+  /** Mounted payments shells (the root layout mounts one). */
+  shells: number
 }
 
 const LOADING_BALANCE: BalanceView = {
@@ -89,6 +91,7 @@ let state: PaymentsState = {
   registrations: {},
   queuedTaps: {},
   watches: { writer: 0, earnings: 0 },
+  shells: 0,
 }
 
 const listeners = new Set<() => void>()
@@ -99,10 +102,15 @@ function set(patch: Partial<PaymentsState>) {
   for (const listener of listeners) listener()
 }
 
-/** The controller a control shows before the engine computed one. */
+/**
+ * The controller a control shows before the engine computed one. With no
+ * shell on the page nothing will answer, so the control says so at once
+ * (`absent`) and a host keeps its other tip path instead of waiting.
+ */
 export function shellController(id: string): TipController {
-  const signedOut = state.auth === 'signed-out'
-  const failed = state.engine === 'failed'
+  const absent = state.shells === 0
+  const signedOut = !absent && state.auth === 'signed-out'
+  const failed = !absent && state.engine === 'failed'
   return {
     state: { phase: 'idle' },
     amount: ONE,
@@ -110,16 +118,22 @@ export function shellController(id: string): TipController {
     amounts: [],
     setAmount: () => {},
     tip: async () => {
-      if (signedOut || failed) return
+      if (absent || signedOut || failed) return
       // Not lost: the engine acts on it once, when it is ready.
       set({ queuedTaps: { ...state.queuedTaps, [id]: Date.now() } })
       engineWanted?.()
     },
     reset: () => {},
-    ready: signedOut || failed,
-    warming: state.auth === 'signed-in' && !failed,
+    ready: absent || signedOut || failed,
+    warming: !absent && state.auth === 'signed-in' && !failed,
     queued: id in state.queuedTaps,
-    unavailable: signedOut ? 'signed-out' : failed ? 'not-loaded' : null,
+    unavailable: absent
+      ? 'absent'
+      : signedOut
+        ? 'signed-out'
+        : failed
+          ? 'not-loaded'
+          : null,
   }
 }
 
@@ -132,6 +146,11 @@ export const paymentsStore = {
     }
   },
   set,
+  /** Called by `PaymentsShell` on mount; returns the unmount call. */
+  attachShell() {
+    set({ shells: state.shells + 1 })
+    return () => set({ shells: state.shells - 1 })
+  },
   setAuth(auth: AuthState) {
     if (auth === state.auth) return
     // Nothing of one reader is shown to the next.

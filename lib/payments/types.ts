@@ -46,6 +46,8 @@ export type UnavailableReason =
   | 'settlement-off'
   /** The payments code could not load. Reading is unaffected. */
   | 'not-loaded'
+  /** No payments shell on this page: other tip paths stay as they are. */
+  | 'absent'
 
 export type TipPhase =
   | { phase: 'idle' }
