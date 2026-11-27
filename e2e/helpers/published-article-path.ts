@@ -8,7 +8,7 @@ export async function publishedArticlePath(page: Page): Promise<string | null> {
     .first()
   // Today (`/`): the opening's Read more, its empty state or its failure.
   const empty = page.getByText('Nothing to read yet.', { exact: true })
-  const failure = page.getByText('Today’s article did not load.', {
+  const failure = page.getByText('Today could not be loaded right now.', {
     exact: true,
   })
 

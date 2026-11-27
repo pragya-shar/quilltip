@@ -8,6 +8,7 @@ import {
 } from '@/components/today/finished'
 import { TodayView } from '@/components/today/TodayView'
 import { NONCE_HEADER } from '@/lib/security/contentSecurityPolicy'
+import { retryHrefFor } from '@/shell/public/boundedRead'
 import { SITE_NAME } from '@/lib/seo/siteMetadata'
 
 const DESCRIPTION =
@@ -35,11 +36,19 @@ export const metadata: Metadata = {
  * opening for at most the public read limit (D21), then renders the
  * unreachable state, and streams nothing that only a script reveals.
  */
-export default async function TodayPage() {
+export default async function TodayPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}) {
   const [cookieStore, headerList] = await Promise.all([cookies(), headers()])
   const finished = parseFinishedCookie(cookieStore.get(FINISHED_COOKIE)?.value)
   const data = await readToday(...todayReadKey(Date.now(), finished))
   return (
-    <TodayView data={data} nonce={headerList.get(NONCE_HEADER) ?? undefined} />
+    <TodayView
+      data={data}
+      nonce={headerList.get(NONCE_HEADER) ?? undefined}
+      retryHref={retryHrefFor('/', await searchParams)}
+    />
   )
 }

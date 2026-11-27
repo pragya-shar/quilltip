@@ -130,6 +130,16 @@ test.describe('first visit, signed out', () => {
     ).toEqual([false, false])
   })
 
+  test('landmarks: one main, no banner, one navigation named Main', async ({
+    page,
+  }) => {
+    await page.goto('/')
+    await expect(page.getByRole('main')).toHaveCount(1)
+    await expect(page.getByRole('banner')).toHaveCount(0)
+    await expect(page.getByRole('navigation')).toHaveCount(1)
+    await expect(page.getByRole('navigation', { name: 'Main' })).toBeVisible()
+  })
+
   test('nothing covers or animates the text before it is readable', async ({
     page,
   }) => {
@@ -213,7 +223,7 @@ test.describe('returning, signed in', () => {
       page.getByText('Writing you can tip, down to the sentence.')
     ).toBeHidden()
     await expect(
-      page.getByRole('navigation', { name: 'Pick up where you left off' })
+      page.getByRole('group', { name: 'Pick up where you left off' })
     ).toBeVisible()
   })
 
@@ -294,7 +304,12 @@ test('an empty catalogue says so and offers the one way to fill it', async ({
 
 test('a backend that does not answer still gives a page', async ({ page }) => {
   await page.goto('/?data=unreachable')
-  await expect(page.getByText('Today’s article did not load.')).toBeVisible()
+  await expect(
+    page.getByRole('heading', {
+      level: 1,
+      name: 'Today could not be loaded right now.',
+    })
+  ).toBeVisible()
   await expect(page.getByRole('link', { name: 'Try again' })).toHaveAttribute(
     'href',
     '/'

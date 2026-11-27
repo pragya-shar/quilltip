@@ -96,7 +96,8 @@ export function ResumeRows() {
   return (
     <div
       className="qt-today__resume"
-      role={any ? 'navigation' : undefined}
+      // A group, not a landmark: a place has one navigation, "Main".
+      role={any ? 'group' : undefined}
       aria-label={any ? 'Pick up where you left off' : undefined}
     >
       <div className="qt-today__slot" data-slot="place">

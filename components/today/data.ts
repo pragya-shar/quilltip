@@ -2,7 +2,7 @@ import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
-import { withinLimit } from './readLimit'
+import { withinReadLimit } from '@/shell/public/boundedRead'
 import type { TodayData, TodayResult } from './types'
 
 /**
@@ -34,7 +34,7 @@ export const readToday = cache(
   async (minute: number, excludeKey: string): Promise<TodayData> => {
     const exclude = excludeKey ? excludeKey.split('.') : []
     try {
-      const result = await withinLimit(
+      const result = await withinReadLimit(
         cachedOpening(minute * MINUTE_MS, exclude)
       )
       return { status: 'ready', result }

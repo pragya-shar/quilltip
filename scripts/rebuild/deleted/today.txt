@@ -62,3 +62,5 @@ lib/copy/nav-cta.ts
 lib/landing
 public/landing/hero-mobile-proof.svg
 public/landing/hero-mobile-proof.webp
+components/today/readLimit.ts
+components/today/TodayUnreachable.tsx

@@ -206,7 +206,7 @@ test.describe('a slow backend', () => {
     expect(elapsed).toBeLessThan(3500)
     expect(response.status()).toBe(200)
     const html = await response.text()
-    expect(html).toContain('Today’s article did not load.')
+    expect(html).toContain('Today could not be loaded right now.')
     expect(html).not.toContain(TODAY.text)
     expect(html).toMatch(/<meta name="robots" content="noindex"/)
     expect(response.headers()['cache-control']).toContain('no-store')
@@ -221,7 +221,9 @@ test.describe('a slow backend', () => {
       },
     ])
     await page.goto(TODAY.path)
-    await expect(page.getByText('Today’s article did not load.')).toBeVisible()
+    await expect(
+      page.getByText('Today could not be loaded right now.')
+    ).toBeVisible()
     await expect(page.getByRole('link', { name: 'Try again' })).toHaveAttribute(
       'href',
       '/'

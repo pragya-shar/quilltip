@@ -1,11 +1,11 @@
 import { Button } from '@/system/components/Button'
 import { EmptyState } from '@/system/components/EmptyState'
+import { ReadingUnavailable } from '@/system/components/ReadingUnavailable'
 import { TodayIcon } from '@/system/icons'
 import { MoreToday } from './MoreToday'
 import { OfflineNote } from './OfflineNote'
 import { ResumeRows } from './ResumeRows'
 import { TodayOpening } from './TodayOpening'
-import { TodayUnreachable } from './TodayUnreachable'
 import { READING_PLACE_KEY } from './readingPlace'
 import { reserveScript } from './rowsMemory'
 import type { TodayData } from './types'
@@ -20,10 +20,13 @@ const RESERVE_SCRIPT = reserveScript(READING_PLACE_KEY)
 export function TodayView({
   data,
   nonce,
+  retryHref = '/',
 }: {
   data: TodayData
   /** The CSP nonce for the inline reservation script. */
   nonce?: string
+  /** This page's URL with its query, for "Try again" (`retryHrefFor`). */
+  retryHref?: string
 }) {
   const result = data.status === 'ready' ? data.result : null
   return (
@@ -36,15 +39,16 @@ export function TodayView({
         dangerouslySetInnerHTML={{ __html: RESERVE_SCRIPT }}
       />
       <OfflineNote />
-      <header className="qt-today__head">
+      {/* Not a <header>: a public page has no banner landmark. */}
+      <div className="qt-today__head">
         <p className="qt-today__wordmark">Quilltip</p>
         <p className="qt-today__intro">
           Writing you can tip, down to the sentence.
         </p>
-      </header>
+      </div>
       <ResumeRows />
       {!result ? (
-        <TodayUnreachable />
+        <ReadingUnavailable what="Today" retryHref={retryHref} />
       ) : result.opening ? (
         <TodayOpening article={result.opening} />
       ) : (
