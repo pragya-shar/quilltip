@@ -22,7 +22,7 @@
   --account-muted: #5e535a;
   --account-rule: #cdb9b4;
   color: var(--account-ink);
-  font-family: 'Account Syne', 'Syne Fallback', sans-serif;
+  font-family: 'Account Syne', 'Syne 600 Fallback', sans-serif;
   font-size: 16px;
   font-synthesis: none;
   line-height: 1.55;
@@ -116,7 +116,7 @@
 .account-surface .logo-study span {
   font:
     700 38px/1 'Account Syne',
-    'Syne Fallback',
+    'Syne 600 Fallback',
     sans-serif;
   letter-spacing: -2.5px;
   margin-left: -8px;
@@ -209,7 +209,7 @@
   color: var(--account-muted);
   font:
     400 14px/1.45 'Account Syne',
-    'Syne Fallback',
+    'Syne 600 Fallback',
     sans-serif;
   letter-spacing: 0;
 }
@@ -474,7 +474,7 @@
   color: var(--account-paper);
   font:
     600 15px/1.5 'Account Syne',
-    'Syne Fallback',
+    'Syne 600 Fallback',
     sans-serif;
   border-radius: 2px;
   min-height: 46px;
@@ -619,7 +619,7 @@
 .account-tip-person h3 {
   font:
     500 17px/1.5 'Account Syne',
-    'Syne Fallback',
+    'Syne 600 Fallback',
     sans-serif;
 }
 .account-tip-person p {

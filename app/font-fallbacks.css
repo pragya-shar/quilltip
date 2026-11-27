@@ -19,26 +19,25 @@
  * before; perf:font-fallbacks runs on macOS for that reason.
  */
 
+/*
+ * Syne comes as three files (400, 600, 700), and the families that use it
+ * draw them in two ways, so each way has its own fallback family:
+ * - 'Syne Fallback' for families with one face per file (Landing Syne, and
+ *   Account Syne on the sign-in pages): 400 and 500 draw the 400 file, 600
+ *   the 600 file, 700 and 800 the 700 file.
+ * - 'Syne 600 Fallback' for families that draw the 600 file at every weight
+ *   (`font-weight: 400 800`): QuillTip Display, Reader, Reading Room, Library,
+ *   Writing and Wallet Syne, and Account Syne on the account pages.
+ */
 @font-face {
   font-family: 'Syne Fallback';
   src:
     local('Arial'), local('ArialMT'), local('Liberation Sans'),
     local('LiberationSans');
-  font-weight: 400;
+  font-weight: 400 500;
   size-adjust: 99.63%;
   ascent-override: 92.84%;
   descent-override: 27.6%;
-  line-gap-override: 0%;
-}
-@font-face {
-  font-family: 'Syne Fallback';
-  src:
-    local('Arial'), local('ArialMT'), local('Liberation Sans'),
-    local('LiberationSans');
-  font-weight: 500;
-  size-adjust: 115.45%;
-  ascent-override: 80.12%;
-  descent-override: 23.82%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -61,6 +60,28 @@
   size-adjust: 115.22%;
   ascent-override: 80.28%;
   descent-override: 23.87%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Syne 600 Fallback';
+  src:
+    local('Arial'), local('ArialMT'), local('Liberation Sans'),
+    local('LiberationSans');
+  font-weight: 400 500;
+  size-adjust: 115.45%;
+  ascent-override: 80.12%;
+  descent-override: 23.82%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Syne 600 Fallback';
+  src:
+    local('Arial Bold'), local('Arial-BoldMT'), local('Liberation Sans Bold'),
+    local('LiberationSans-Bold');
+  font-weight: 600 800;
+  size-adjust: 106.71%;
+  ascent-override: 86.69%;
+  descent-override: 25.77%;
   line-gap-override: 0%;
 }
 
