@@ -12,7 +12,7 @@
  */
 import { CircleDollarSign, Highlighter, X } from 'lucide-react'
 import type { Money, TipPhase } from '@/lib/payments/types'
-import './payments.css'
+import './balance.css'
 
 export type PassageTipBarProps = {
   phase: TipPhase

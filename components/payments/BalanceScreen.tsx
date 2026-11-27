@@ -7,7 +7,7 @@
  */
 import type { ActivityView, BalanceView } from '@/lib/payments/types'
 import { ActivityList } from './ActivityList'
-import './payments.css'
+import './balance.css'
 
 const ADD_MONEY_HREF = '/dashboard/tab'
 

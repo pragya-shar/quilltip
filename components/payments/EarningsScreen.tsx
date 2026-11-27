@@ -10,7 +10,7 @@ import { tipsCount } from '@/lib/payments/copy'
 import { formatTokenAmount } from '@/lib/payments/money'
 import type { ActivityView, EarningsView } from '@/lib/payments/types'
 import { ActivityList } from './ActivityList'
-import './payments.css'
+import './balance.css'
 
 export function EarningsScreen({
   earnings,
