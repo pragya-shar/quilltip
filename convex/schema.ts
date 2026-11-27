@@ -5,6 +5,7 @@ import { authTables } from '@convex-dev/auth/server'
 import { nftChainFields, nftTransferChainFields } from './lib/chain/nftSchema'
 import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
 import { lifetimeTotalsFields } from './lib/lifetimeTotalsFields'
+import { passagesTables } from './schema/passages'
 
 export default defineSchema({
   ...authTables,
@@ -849,4 +850,5 @@ export default defineSchema({
   // Payments v2 chain layer (docs/architecture/v2/06-app-integration.md, 6.2)
   ...chainTables,
   ...tabTables,
+  ...passagesTables,
 })

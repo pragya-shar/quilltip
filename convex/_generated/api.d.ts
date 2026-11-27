@@ -101,6 +101,8 @@ import type * as permanentStorage from "../permanentStorage.js";
 import type * as publicRoutes from "../publicRoutes.js";
 import type * as readingRoomIndex from "../readingRoomIndex.js";
 import type * as reconcileTips from "../reconcileTips.js";
+import type * as schema_passages from "../schema/passages.js";
+import type * as shares from "../shares.js";
 import type * as stellarVerify from "../stellarVerify.js";
 import type * as tabActivity from "../tabActivity.js";
 import type * as tabSettlement from "../tabSettlement.js";
@@ -220,6 +222,8 @@ declare const fullApi: ApiFromModules<{
   publicRoutes: typeof publicRoutes;
   readingRoomIndex: typeof readingRoomIndex;
   reconcileTips: typeof reconcileTips;
+  "schema/passages": typeof schema_passages;
+  shares: typeof shares;
   stellarVerify: typeof stellarVerify;
   tabActivity: typeof tabActivity;
   tabSettlement: typeof tabSettlement;
