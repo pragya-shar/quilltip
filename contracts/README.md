@@ -129,6 +129,15 @@ cargo test --workspace --locked
 stellar contract build --locked --optimize
 ```
 
+```bash
+cargo deny --locked check
+```
+
+`deny.toml` sets the dependency policy: RustSec advisories, licenses, duplicate
+versions, wildcards, and crates.io as the only source. CI runs it with
+cargo-deny 0.20.2 for this workspace and for `tab/fuzz` (`--manifest-path
+tab/fuzz/Cargo.toml --config deny.toml`). Each exception names its crate and reason.
+
 Commit any test snapshot that `cargo test` writes under `*/test_snapshots/`.
 CI fails when a test changes or adds a file under `contracts/`.
 

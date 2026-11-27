@@ -384,22 +384,22 @@ specification never need such an address, as step 4 of
 
 ## 6.8 Environment variables and network guard
 
-| Variable                                               | Where          | Value (testnet)                                                                                                                      |
-| ------------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `NEXT_PUBLIC_STELLAR_NETWORK`, `STELLAR_NETWORK`       | client, Convex | `TESTNET`                                                                                                                            |
-| `NEXT_PUBLIC_STELLAR_RPC_URL`, `STELLAR_RPC_URL`       | client, Convex | `https://soroban-testnet.stellar.org`                                                                                                |
-| `NEXT_PUBLIC_NETWORK_PASSPHRASE`, `NETWORK_PASSPHRASE` | client, Convex | `Test SDF Network ; September 2015`                                                                                                  |
-| `NEXT_PUBLIC_CORE_CONTRACT_ID`, `CORE_CONTRACT_ID`     | client, Convex | From the deployment evidence for this deployment's own contract set                                                                  |
-| `NEXT_PUBLIC_TAB_CONTRACT_ID`, `TAB_CONTRACT_ID`       | client, Convex | Same                                                                                                                                 |
-| `NEXT_PUBLIC_NFT_CONTRACT_ID`, `NFT_CONTRACT_ID`       | client, Convex | Same                                                                                                                                 |
-| `NEXT_PUBLIC_TOKEN_CONTRACT_ID`, `TOKEN_CONTRACT_ID`   | client, Convex | Native XLM SAC on testnet                                                                                                            |
-| `CHAIN_V2_ENABLED`                                     | Convex         | Gates v2 prepare functions. `false` until cutover.                                                                                   |
-| `CHAIN_V1_PREPARES_ENABLED`                            | Convex         | `true` until cutover step 4. Gates v1 prepare functions. Removed with the v1 code.                                                   |
-| `INDEXER_START_LEDGER`                                 | Convex         | Per deployment ([section 6.5](#65-event-indexer))                                                                                    |
-| `SETTLEMENT_ENABLED`                                   | Convex         | `true` on every deployment where `CHAIN_V2_ENABLED=true`                                                                             |
-| `TAB_SETTLER_SECRET`, `TAB_ACCEPTOR_SECRET`            | Convex         | Testnet keys. Read only after `assertBackendTestnet()`. Set on the live deployment by the owner at cutover. Never in `.env.example`. |
-| `TAB_DAILY_LIMIT`, `TAB_TIP_MAX`                       | Convex         | `200000000`, `50000000`                                                                                                              |
-| `OPS_USER_IDS`                                         | Convex         | Comma-separated Convex user IDs that may read the ops status                                                                         |
+| Variable                                                 | Where          | Value (testnet)                                                                                                                      |
+| -------------------------------------------------------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `NEXT_PUBLIC_STELLAR_NETWORK`, `STELLAR_NETWORK`         | client, Convex | `TESTNET`                                                                                                                            |
+| `NEXT_PUBLIC_STELLAR_RPC_URL`, `STELLAR_RPC_URL`         | client, Convex | `https://soroban-testnet.stellar.org`                                                                                                |
+| `NEXT_PUBLIC_NETWORK_PASSPHRASE`, `NETWORK_PASSPHRASE`   | client, Convex | `Test SDF Network ; September 2015`                                                                                                  |
+| `NEXT_PUBLIC_CORE_CONTRACT_ID`, `CORE_CONTRACT_ID`       | client, Convex | From the deployment evidence for this deployment's own contract set                                                                  |
+| `NEXT_PUBLIC_TAB_CONTRACT_ID`, `TAB_CONTRACT_ID`         | client, Convex | Same                                                                                                                                 |
+| `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`, `NFT_CONTRACT_ID` | client, Convex | Same. The client name differs from the v1 `NEXT_PUBLIC_NFT_CONTRACT_ID`.                                                             |
+| `NEXT_PUBLIC_TOKEN_CONTRACT_ID`, `TOKEN_CONTRACT_ID`     | client, Convex | Native XLM SAC on testnet                                                                                                            |
+| `CHAIN_V2_ENABLED`                                       | Convex         | Gates v2 prepare functions. `false` until cutover.                                                                                   |
+| `CHAIN_V1_PREPARES_ENABLED`                              | Convex         | `true` until cutover step 4. Gates v1 prepare functions. Removed with the v1 code.                                                   |
+| `INDEXER_START_LEDGER`                                   | Convex         | Per deployment ([section 6.5](#65-event-indexer))                                                                                    |
+| `SETTLEMENT_ENABLED`                                     | Convex         | `true` on every deployment where `CHAIN_V2_ENABLED=true`                                                                             |
+| `TAB_SETTLER_SECRET`, `TAB_ACCEPTOR_SECRET`              | Convex         | Testnet keys. Read only after `assertBackendTestnet()`. Set on the live deployment by the owner at cutover. Never in `.env.example`. |
+| `TAB_DAILY_LIMIT`, `TAB_TIP_MAX`                         | Convex         | `200000000`, `50000000`                                                                                                              |
+| `OPS_USER_IDS`                                           | Convex         | Comma-separated Convex user IDs that may read the ops status                                                                         |
 
 `.env.example` gets placeholders only. The removed variables are listed in
 [section 8.6](08-testing-and-deployment.md#86-removal-after-cutover).
