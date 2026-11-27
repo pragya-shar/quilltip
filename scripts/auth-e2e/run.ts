@@ -203,7 +203,7 @@ async function main(): Promise<number> {
           '--typecheck',
           'disable',
           '--tail-logs',
-          'disable',
+          'always',
         ],
         convexEnv,
         /Convex functions ready/,
@@ -216,8 +216,6 @@ async function main(): Promise<number> {
       fail('the local backend URL was not written to .env.local')
     }
 
-    const account = await createAccount(convexUrl!)
-
     const appPort = Number(process.env.AUTH_E2E_PORT) || (await freePort())
     const baseURL = `http://127.0.0.1:${appPort}`
     const { privateKey, jwks } = await signingKey()
@@ -228,6 +226,9 @@ async function main(): Promise<number> {
     ] as const) {
       runOrFail(['x', 'convex', 'env', 'set', name, '--', value], convexEnv)
     }
+
+    // After the key: signing up issues a token signed with it.
+    const account = await createAccount(convexUrl!)
 
     const appEnv: NodeJS.ProcessEnv = {
       ...process.env,
