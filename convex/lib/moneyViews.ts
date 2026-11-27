@@ -56,7 +56,7 @@ type EnvLike = Record<string, string | undefined>
 const STROOPS_PER_XLM = 10_000_000
 const ZERO = BigInt(0)
 
-/** The slice's settlement states of one tip (v3 `SettlementState`). */
+/** The settlement states of one balance tip (`SettlementState`). */
 export type MoneyState = 'accepted' | 'on-chain' | 'not-paid'
 
 /**

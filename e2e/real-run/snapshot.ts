@@ -1,5 +1,5 @@
 /**
- * Writes a ledger snapshot for the slice accounts to `--out` (JSON):
+ * Writes a ledger snapshot for the test accounts to `--out` (JSON):
  *   bun e2e/real-run/snapshot.ts --accounts <file> --out <file> --label before
  */
 import { writeFileSync } from 'node:fs'

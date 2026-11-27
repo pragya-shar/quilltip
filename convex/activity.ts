@@ -1,5 +1,5 @@
 /**
- * The signed-in user's tips, newest first (payments v3, slice 1).
+ * The signed-in user's tips, newest first.
  *
  * - `role: 'reader'`: the tips this reader sent from the balance.
  * - `role: 'writer'`: the tips this writer received, one entry per tip with

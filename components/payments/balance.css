@@ -1,6 +1,6 @@
 /*
- * Balance, tip and earnings screens (payments v3, slice 1). The "Marker"
- * tokens are scoped to `.qt-pay`, so nothing outside these screens changes;
+ * Balance, tip and earnings screens (provisional). Their tokens are scoped
+ * to `.qt-pay`, so nothing outside these screens changes;
  * the design pass replaces this file, not the logic. Lime (marker) is the
  * only money colour, always a fill under ink, never text on a light surface.
  */

@@ -1,5 +1,5 @@
 /**
- * The tip control's state machine (D3, D6, D7): one tap sends at once; the
+ * The tip control's state machine: one tap sends at once; the
  * control says "Sent" only after the server accepts; there is no Undo; a
  * second tap while a tip is in flight does nothing; offline and a low
  * balance are refused before anything is sent.

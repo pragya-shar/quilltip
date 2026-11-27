@@ -43,7 +43,7 @@ function entry(over: Partial<ActivityEntry>): ActivityEntry {
 const copyOf = (over: Partial<ActivityEntry>) =>
   statusCopy(activityItemOf(entry(over), NOW))
 
-describe('money text (N2)', () => {
+describe('money text', () => {
   it('writes amounts exactly: two to six decimals, nothing rounded', () => {
     expect(formatMoney(100)).toBe('$1.00')
     expect(formatMoney(195)).toBe('$1.95')
@@ -84,7 +84,7 @@ describe('money text (N2)', () => {
   })
 
   it('writes a converted figure by one style constant, either way', () => {
-    // D24: "≈" and two decimals by default; a conversion is floored to the
+    // "≈" and two decimals by default; a conversion is floored to the
     // cent, never written to six decimals.
     expect(CONVERTED_STYLE).toBe('approx')
     expect(formatMoney(254.656, { converted: true })).toBe('≈ $2.54')

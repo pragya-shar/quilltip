@@ -1,5 +1,5 @@
 /**
- * The reader's balance (payments v3, slice 1). One reactive query keyed by
+ * The reader's balance. One reactive query keyed by
  * the signed-in user, not by a connected wallet: the screens and the tip
  * control read the balance, its limits, this reader's registered devices and
  * the ledger clock from here, so nothing waits for a wallet to load.

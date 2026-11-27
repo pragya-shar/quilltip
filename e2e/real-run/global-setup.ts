@@ -10,7 +10,7 @@ export default function globalSetup() {
   const expect = process.env.REAL_RUN_EXPECT
   if (!expect) throw new Error('Set REAL_RUN_EXPECT to the expected env file.')
   if (!process.env.REAL_RUN_ACCOUNTS)
-    throw new Error('Set REAL_RUN_ACCOUNTS to the slice accounts file.')
+    throw new Error('Set REAL_RUN_ACCOUNTS to the test accounts file.')
   const root = path.resolve(__dirname, '../..')
   const out = spawnSync(
     'npx',

@@ -3,12 +3,13 @@
 /**
  * The passage tip bar (view only; `PassageTip` supplies the state). Docked
  * at the bottom so the chosen passage stays visible above it, and the
- * confirmation is a line inside the bar, never over the article (D7).
+ * confirmation is a line inside the bar, never over the article.
  *
  *   [x clear] [$ change amount] [ Tip this line $1 ]
  *   amount choices: a radio group, by tap or arrow keys
  *
- * The labelled button is the only control that sends (D3, D11).
+ * The labelled button is the only control that sends: a tap on the text or
+ * a drag across it never pays.
  */
 import { CircleDollarSign, Highlighter, X } from 'lucide-react'
 import type { Money, TipPhase } from '@/lib/payments/types'

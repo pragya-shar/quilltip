@@ -143,7 +143,7 @@ A tip can be accepted for a reader whose balance later empties (spent
 outside the app): until the payout is attempted it reads "on its way"
 (`pending`) on the writer's side; at the payout it moves to on hold.
 
-## Showing money (design rule N2)
+## Showing money
 
 One formatter, `formatMoney(cents, options)` in `money.ts`, writes every
 amount; a `Money`'s `display` is its output with the defaults.
@@ -180,8 +180,8 @@ amount; a `Money`'s `display` is its output with the defaults.
   price (the reader's spendable `available`) has `converted: true`; its
   price time is the view's `asOf` and its token amount the view's `exact`.
   Figures stored at tip time have `converted: false`. A converted figure is
-  written to the cent, floored (never more than it buys), with "≈" (decision
-  D24): `CONVERTED_STYLE` is `'approx'` ("≈ $2.54"); `'plain'` writes
+  written to the cent, floored (never more than it buys), with "≈" (the balance
+  is held in XLM, so its dollar figure moves with the price): `CONVERTED_STYLE` is `'approx'` ("≈ $2.54"); `'plain'` writes
   "$2.54". Change it there, not in a surface.
 - `null` means "not read yet": show a skeleton, never "$0.00".
 - `formatShort(cents)`: "$1" for whole dollars on a button label.

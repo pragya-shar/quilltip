@@ -1,5 +1,5 @@
 /**
- * The slice-1 phone journey against the v3 testnet backend, at 390 x 844
+ * The balance tip phone journey against the v3 testnet backend, at 390 x 844
  * (iPhone 13 profile in Chromium: touch, mobile viewport). Local and
  * guarded: the target preflight runs first and stops on any mismatch; CI
  * never runs this.
@@ -24,7 +24,7 @@
  *
  * Sign-in path: sign in, land on /articles, then open the article and the
  * money screens (a direct sign-in to a protected URL bounces to /login
- * before the session settles: issue 575, outside this slice).
+ * before the session settles: issue 575).
  */
 import path from 'node:path'
 import { arg, phone, preflight, readAccounts } from './lib'

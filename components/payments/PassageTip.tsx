@@ -4,8 +4,9 @@
  * The passage tip from the balance: state for `PassageTipBar`. Keeps the
  * chosen passage visible: it is marked in the article (CSS Custom Highlight
  * API, so the editor's DOM is untouched), scrolled above the bar when the
- * bar would cover it, and never moved after a tip (D7). A tip does nothing
- * else (D4): no follow, no public highlight.
+ * bar would cover it, and never moved after a tip, so the confirmation
+ * never hides what was tipped. A tip does nothing else: no follow, no
+ * public highlight.
  */
 import { useEffect, useRef, useState } from 'react'
 import { useBalance } from '@/hooks/payments/useBalance'

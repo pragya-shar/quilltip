@@ -1,5 +1,5 @@
 /**
- * The signed-in writer's earnings (payments v3, slice 1). Three disjoint
+ * The signed-in writer's earnings. Three disjoint
  * figures whose sum is the lifetime total of tips that did not fail:
  *
  * - `pending`: tab tips accepted by the server, not yet paid on chain

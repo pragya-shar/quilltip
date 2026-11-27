@@ -1,12 +1,12 @@
 /**
- * Slice account logins for the Playwright real-run cases (KEY=value lines in
- * the private accounts file). Kept apart from `lib.ts`, which is an ES
+ * Test account logins for the Playwright real-run cases (KEY=value lines in
+ * the local accounts file). Kept apart from `lib.ts`, which is an ES
  * module the Playwright loader cannot read.
  */
 import { readFileSync } from 'node:fs'
 import { expect, type Page } from '@playwright/test'
 
-export function sliceLogin(file: string, role: 'READER' | 'WRITER') {
+export function testLogin(file: string, role: 'READER' | 'WRITER') {
   const env: Record<string, string> = {}
   for (const line of readFileSync(file, 'utf8').split('\n')) {
     const match = /^([A-Z0-9_]+)=(.*)$/.exec(line.trim())

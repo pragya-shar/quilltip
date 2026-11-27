@@ -1,5 +1,5 @@
 /**
- * Money text (design rule N2) and the conversions the optimistic balance
+ * Money text and the conversions the optimistic balance
  * needs.
  *
  * Exact always: two decimals, and more only when the amount has fractions
@@ -14,7 +14,8 @@
  * price (the reader's spendable balance) carries `converted: true`; one
  * stored at tip time (a tip, a share, the earnings figures) carries
  * `converted: false`. A converted figure is written to the cent, floored,
- * with "≈" (decision D24); how is one decision, `CONVERTED_STYLE`, which
+ * with "≈", because the balance is held in XLM and its dollar figure moves
+ * with the price; how is one decision, `CONVERTED_STYLE`, which
  * every surface reads through `formatMoney`; views
  * never bake it into a string of their own.
  *
@@ -28,8 +29,8 @@ import type { Cents, Money } from './types'
 const STROOPS_PER_XLM = 10_000_000
 
 /**
- * How a converted figure is written: `approx` ("≈ $2.54", decision D24:
- * while the balance is held in XLM its dollar figure is a conversion) or
+ * How a converted figure is written: `approx` ("≈ $2.54": while the balance
+ * is held in XLM its dollar figure is a conversion) or
  * `plain` ("$2.54"). Either way a converted figure has two decimals, never
  * six. The one place this is decided.
  */
@@ -47,7 +48,7 @@ export type MoneyFormat = {
 
 const MINUS = '−'
 
-/** "$4.20", "$0.0975": exact, two to six decimals (N2). */
+/** "$4.20", "$0.0975": exact, two to six decimals. */
 export function formatMoney(cents: Cents, format: MoneyFormat = {}): string {
   // A conversion is written to the cent, floored: never more than it buys.
   const value = format.converted

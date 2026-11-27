@@ -34,8 +34,8 @@
  * changes nothing.
  *
  * Cents are on the 1/10,000-cent grid of `roundCents`, like
- * `totalEarnedCents`; screens floor them to whole cents. One token per row in
- * the slice: cents are not split by token.
+ * `totalEarnedCents`, and screens show them exactly. One token per row for
+ * now: cents are not split by token.
  */
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx } from '../../_generated/server'

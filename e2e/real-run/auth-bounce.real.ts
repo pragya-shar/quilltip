@@ -9,7 +9,7 @@
  * the `test.fail` line comes out.
  */
 import { expect, test } from '@playwright/test'
-import { sliceLogin } from './login'
+import { testLogin } from './login'
 
 test('a reader who signs in on the way to the balance screen stays on it', async ({
   browser,
@@ -19,7 +19,7 @@ test('a reader who signs in on the way to the balance screen stays on it', async
     'Issue 575: the sign-in redirect lands before the session settles.'
   )
   test.setTimeout(180_000)
-  const reader = sliceLogin(process.env.REAL_RUN_ACCOUNTS!, 'READER')
+  const reader = testLogin(process.env.REAL_RUN_ACCOUNTS!, 'READER')
   const stayed: boolean[] = []
   for (let attempt = 0; attempt < 3; attempt++) {
     const context = await browser.newContext(info.project.use)

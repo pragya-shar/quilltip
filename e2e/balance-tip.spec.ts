@@ -3,7 +3,7 @@
  * the real payments provider, hooks and views, over the balance fixture's
  * stand-in backend (`e2e/fixtures/balance/`). Every state at phone, tablet
  * and desktop width; the exactly-once cases (double tap, reload during send,
- * reopen, sign-out mid-send); and D11: a drag across prose never pays.
+ * reopen, sign-out mid-send); and that a drag across prose never pays.
  */
 import { expect, test, type Page } from '@playwright/test'
 
@@ -233,7 +233,7 @@ test.describe('passage tip from the balance', () => {
     expect((await backend(page)).receipts).toHaveLength(0)
   })
 
-  test('a drag across a paragraph sends nothing; the button then tips the line (D11)', async ({
+  test('a drag across a paragraph sends nothing; the button then tips the line', async ({
     page,
   }) => {
     await open(page, 'tip', 'reader-ready')

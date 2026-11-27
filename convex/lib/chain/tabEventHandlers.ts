@@ -422,7 +422,8 @@ const claimed: ChainEventHandler = async (ctx, event) => {
     collected: amount,
     now: event.now,
   })
-  // The collected cents follow the collected base units (D10).
+  // The collected cents follow the collected base units, so collected and
+  // ready stay exact at any history length.
   await syncCollectedCents(ctx, user._id, token, event.now)
   return 'done'
 }

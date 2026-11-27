@@ -1,6 +1,6 @@
 /**
- * View models for the balance, tip, activity and earnings screens (payments
- * v3 slice 1; `docs/architecture/v3/interfaces.md`, I1). Plain data: the UI
+ * View models for the balance, tip, activity and earnings screens. Plain
+ * data: the UI
  * reads these from the hooks in `hooks/payments/` and never imports Convex,
  * the wallet kit or `lib/stellar` directly. Type-only imports, so this file
  * adds nothing to a bundle.
@@ -37,7 +37,7 @@ export type TipTarget =
   | { kind: 'article'; articleId: Id<'articles'> }
   | { kind: 'passage'; articleId: Id<'articles'>; passage: PassageRef }
 
-/** Settlement of one tip, in the slice (no direct payout yet). */
+/** Settlement of one balance tip (no direct payout yet). */
 export type SettlementState = 'accepted' | 'on-chain' | 'not-paid'
 
 /**
@@ -62,9 +62,10 @@ export type UnavailableReason =
   | 'absent'
 
 /**
- * A tip's phases. The design's tip moment (N1) adds a 3-second `holding`
- * phase between `idle` and `sending`, owned by this controller; it is not
- * built yet, so surfaces should switch on `phase` with a default branch.
+ * A tip's phases. A short `holding` phase before sending (a few seconds in
+ * which the tip can still be cancelled) is planned between `idle` and
+ * `sending`, owned by this controller; it is not built yet, so surfaces
+ * should switch on `phase` with a default branch.
  */
 export type TipPhase =
   | { phase: 'idle' }

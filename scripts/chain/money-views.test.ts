@@ -746,7 +746,7 @@ describe('money states across settlement', () => {
   })
 })
 
-describe('totals at any history length and across collects (D10)', () => {
+describe('totals at any history length and across collects', () => {
   /**
    * 5,000 accepted tips over 20 pairs, written at the table level as
    * receipts accepted before the running figures existed, then brought in
@@ -1024,7 +1024,7 @@ describe('totals at any history length and across collects (D10)', () => {
 
   // The running fields as on a deployment that predates them: settled
   // receipts and indexed collects, with neither the lifetime totals nor
-  // this slice's figures yet.
+  // the running figures of the balance screens yet.
   async function clearRunningFigures(t: T) {
     await t.run(async (ctx) => {
       for (const row of await ctx.db.query('authorEarnings').collect())
