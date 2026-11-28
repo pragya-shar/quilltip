@@ -24,6 +24,9 @@ export const routes: PerfRoutes = {
         fontKb: 101,
         cls: 0.05,
         lcpMobileMs: 2500,
+        // Signed in from the browser's session: the server HTML holds the
+        // heading and the reserved space, not who is here or their figures.
+        lcpInServerHtml: false,
       },
     },
   ],

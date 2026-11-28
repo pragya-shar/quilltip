@@ -87,7 +87,7 @@ describe('measured routes from scripts/perf/routes', () => {
     }
     for (const entry of SURFACE_PAGE_LOAD)
       for (const kb of Object.values(entry.budget))
-        expect(kb).toBeGreaterThan(0)
+        if (typeof kb === 'number') expect(kb).toBeGreaterThan(0)
   })
 
   it('keeps the shell reading page measured, at the public limits', () => {
@@ -169,6 +169,31 @@ describe('every public route of the shell', () => {
       expect(publicRoutes, `unmeasured ${route}`).toContain(route)
       expect(reason.length, route).toBeGreaterThan(20)
     }
+  })
+
+  it('keeps the server-HTML rule for the largest paint on public routes', () => {
+    // Only a signed-in page drawn from the browser's session may report it
+    // instead of gating it: its path is a signed-in first-load route of the
+    // same package, and never a public one.
+    for (const [name, pkg] of Object.entries(PERF_ROUTE_PACKAGES)) {
+      const access = new Map(
+        (pkg.firstLoad ?? []).map((entry) => [entry.route, entry.access])
+      )
+      for (const entry of pkg.pageLoad ?? [])
+        if (entry.budget.lcpInServerHtml === false)
+          expect(access.get(entry.path), `${name} ${entry.path}`).toBe(
+            'signed-in'
+          )
+    }
+    // Every page under the check, the legacy ones included.
+    for (const entry of PAGE_LOAD_ROUTES)
+      if (entry.budget.lcpInServerHtml === false)
+        expect(
+          SURFACE_FIRST_LOAD.some(
+            (load) => load.route === entry.path && load.access === 'signed-in'
+          ),
+          entry.path
+        ).toBe(true)
   })
 
   it('budgets public routes as public', () => {

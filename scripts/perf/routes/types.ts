@@ -27,6 +27,16 @@ export type PageLoadBudget = {
    * throttled), in ms. Public routes: 2000. Without it LCP is
    * reported, not gated. The desktop profile is never gated. */
   lcpMobileMs?: number
+  /**
+   * `false` only on a signed-in route whose largest paint is drawn from the
+   * browser's session (the session lives in the browser, so the server HTML
+   * cannot hold who is here or their figures). The check then reports, and
+   * does not gate, "LCP element is not in the server HTML"; every other
+   * budget stays gated, and the server HTML must still hold the page's
+   * heading and reserve the space, so nothing moves when the session
+   * resolves (CLS stays gated). Public routes keep the rule.
+   */
+  lcpInServerHtml?: false
 }
 
 export type PageLoadRoute = {
