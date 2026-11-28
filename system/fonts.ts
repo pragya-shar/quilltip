@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
 import localFont from 'next/font/local'
+import { readingStack } from './readingStack'
 
 /**
  * The one web font: Literata for reading, display and money figures
@@ -81,18 +82,135 @@ const readingExtItalicFace = localFont({
   ],
 })
 
-/**
- * A family list: Literata's Latin face, its Latin Extended face, then the
- * metric-matched fallback (system/font-fallbacks.css), which covers every
- * letter and so comes after both.
+/*
+ * The same four files again under second family names, with font-display:
+ * swap. Nothing uses them until a document has the real faces loaded
+ * (system/readingFaceUpgrade.ts loads them, from the cache, when idle); the
+ * next change of page then puts them first in the family lists, so a reader
+ * whose first view stayed in the fallback reads the next page in Literata.
+ * Inside a page view nothing changes face. Same files, so no second
+ * download.
  */
-export function readingStack(
-  latin: string,
-  extended: string,
-  fallback: string
-): string {
-  return [latin, extended, `'${fallback}'`].join(', ')
+const readingFaceNext = localFont({
+  src: './fonts/literata-latin-normal.woff2',
+  weight: '400 700',
+  style: 'normal',
+  display: 'swap',
+  // next/font names a preloaded file apart: the same flag as readingFace
+  // keeps one file (and one preload link) for both names.
+  preload: true,
+  adjustFontFallback: false,
+  fallback: [],
+})
+
+const readingItalicFaceNext = localFont({
+  src: './fonts/literata-latin-italic.woff2',
+  weight: '400 700',
+  style: 'italic',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  fallback: [],
+})
+
+const readingExtFaceNext = localFont({
+  src: './fonts/literata-latin-ext-normal.woff2',
+  weight: '400 700',
+  style: 'normal',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  fallback: [],
+  // As readingExtFace above; next/font needs the literal here.
+  declarations: [
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF',
+    },
+  ],
+})
+
+const readingExtItalicFaceNext = localFont({
+  src: './fonts/literata-latin-ext-italic.woff2',
+  weight: '400 700',
+  style: 'italic',
+  display: 'swap',
+  preload: false,
+  adjustFontFallback: false,
+  fallback: [],
+  // As readingExtItalicFace above; next/font needs the literal here.
+  declarations: [
+    {
+      prop: 'unicode-range',
+      value:
+        'U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF',
+    },
+  ],
+})
+
+export { readingStack }
+
+/** One reading face and its second name: the family to check (it was
+ * asked for in this document), the one to load, and their style. */
+export type FacePair = { first: string; next: string; italic: boolean }
+
+const pair = (
+  first: { style: { fontFamily: string } },
+  next: { style: { fontFamily: string } },
+  italic: boolean
+): FacePair => ({
+  first: first.style.fontFamily,
+  next: next.style.fontFamily,
+  italic,
+})
+
+/** The four pairs: Latin and Latin Extended, roman and italic. */
+export const READING_FACE_PAIRS = {
+  latin: pair(readingFace, readingFaceNext, false),
+  latinItalic: pair(readingItalicFace, readingItalicFaceNext, true),
+  extended: pair(readingExtFace, readingExtFaceNext, false),
+  extendedItalic: pair(readingExtItalicFace, readingExtItalicFaceNext, true),
+} as const
+
+/**
+ * Each reading variable: its Latin pair, its Latin Extended pair and its
+ * metric fallback. A list leads with a pair's second name once that face
+ * is loaded (system/readingFaceUpgrade.ts).
+ */
+export const READING_FACE_LISTS = {
+  '--qt-face-read': ['latin', 'extended', 'Quilltip Read Fallback'],
+  '--qt-face-read-italic': [
+    'latinItalic',
+    'extendedItalic',
+    'Quilltip Read Italic Fallback',
+  ],
+  '--qt-face-display': ['latin', 'extended', 'Quilltip Display Fallback'],
+  '--qt-face-display-wide': [
+    'latin',
+    'extended',
+    'Quilltip Display Wide Fallback',
+  ],
+} as const satisfies Record<
+  string,
+  readonly [
+    keyof typeof READING_FACE_PAIRS,
+    keyof typeof READING_FACE_PAIRS,
+    string,
+  ]
+>
+
+/** What the client needs to upgrade the faces, written on <html> as
+ * `data-reading-faces`, so the client never imports next/font. */
+export type ReadingFaceUpgrade = {
+  pairs: Record<keyof typeof READING_FACE_PAIRS, FacePair>
+  lists: typeof READING_FACE_LISTS
 }
+
+export const readingFaceUpgradeData = JSON.stringify({
+  pairs: READING_FACE_PAIRS,
+  lists: READING_FACE_LISTS,
+} satisfies ReadingFaceUpgrade)
 
 /** The reading families for the root element, as custom properties. */
 export const readingFaceStyle = {

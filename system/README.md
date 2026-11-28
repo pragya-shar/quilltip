@@ -230,14 +230,21 @@ surface edits only its own file; it never edits `proxy.ts`,
 - Literata (roman, italic and their Latin Extended faces) loads with
   `font-display: optional`. A page view that starts painting before a face
   arrives (the block period is about 100 ms) stays in the metric-matched
-  fallback for the whole view, and through client navigations in the same
-  document: measured in Chromium and WebKit. The face shows from the next
-  full load that finds it in the cache, from the first frame.
+  fallback for the whole view: measured in Chromium and WebKit. A full load
+  that finds the face in the cache paints in it from the first frame.
+- The next page view upgrades (`system/readingFaceUpgrade.ts`). When the
+  page is idle, each reading face the document asked for loads again under
+  a second family name (`system/fonts.ts`, the same files, from the cache).
+  At the next change of page, before it paints, the reading variables on
+  `<html>` lead with those names, so that page reads in Literata, roman and
+  italic. Never inside a page view, and not at a change of page while a
+  sheet or the balance panel is up (the next change does it). The money
+  figure in the navigation changes face at that change of page too.
 - Only the roman Latin file (60 KB) is preloaded. On a first view, Chromium
   uses a face that was not preloaded only from the cache, so italic text
-  shows in the fallback italic beside the real roman for that view; WebKit
-  uses the italic when it arrives within the block period. Nothing moves
-  either way.
+  shows in the fallback italic beside the real roman for that view, and in
+  Literata from the next page; WebKit uses the italic when it arrives within
+  the block period. Nothing moves either way.
 - Do not preload more font files from a surface: the italic and the two Latin
   Extended files would add about 160 KB to every page that loads them.
 - Follow-up, not built: preloads a page asks for when its server-rendered
@@ -248,8 +255,9 @@ surface edits only its own file; it never edits `proxy.ts`,
   document) or the files at a stable path.
 - `bun run perf:font-fallbacks` holds every package's `fontFallback` route
   to 0 px of movement when the fonts arrive late, also with the roman on time
-  and the italic late, and reports each reading face's width against its
-  fallback (within 2.5 percent).
+  and the italic late, checks that the next page view reads in Literata, and
+  reports each reading face's width against its fallback (within 2.5
+  percent).
 
 ## Known bounds
 

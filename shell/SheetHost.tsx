@@ -1,9 +1,13 @@
 'use client'
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useLayoutEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sheet } from '@/system/components/Sheet'
 import { watchInputModality } from '@/system/inputModality'
+import {
+  prepareReadingFaces,
+  upgradeReadingFaces,
+} from '@/system/readingFaceUpgrade'
 import { appHistory } from './appHistory'
 import { firstPage } from './firstPage'
 import { PocketBody } from './pocket/PocketBody'
@@ -37,6 +41,16 @@ export function SheetHost() {
   const pathname = usePathname()
   const firstPath = useRef(pathname)
   const lastPath = useRef(pathname)
+  // The reading faces: loaded under their second names when idle, and put
+  // first at a change of page, before it paints, while no sheet or panel
+  // is on screen (system/readingFaceUpgrade.ts).
+  const sheetsOnScreen = useRef(entries.length > 0)
+  sheetsOnScreen.current = entries.length > 0
+  useLayoutEffect(() => {
+    if (pathname !== lastPath.current && !sheetsOnScreen.current)
+      upgradeReadingFaces()
+  }, [pathname])
+  useEffect(() => prepareReadingFaces(), [pathname])
   useEffect(() => {
     if (pathname !== firstPath.current) firstPage.markNavigated()
     appHistory.arrive(pathname, window.history.length)

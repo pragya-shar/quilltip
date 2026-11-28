@@ -98,6 +98,57 @@ test('the balance opens the Pocket over the page and gives focus back', async ({
   await expect(item).toHaveAttribute('aria-expanded', 'false')
 })
 
+/** The first family of the reading variable on <html>. */
+const readingLead = (page: Page) =>
+  page.evaluate(() =>
+    getComputedStyle(document.documentElement)
+      .getPropertyValue('--qt-face-read')
+      .split(',')[0]!
+      .trim()
+      .replace(/["']/g, '')
+  )
+
+/** A client change of path, as a link makes. */
+const goTo = (page: Page, path: string) =>
+  page.evaluate((to) => {
+    history.pushState({}, '', to)
+    dispatchEvent(new PopStateEvent('popstate'))
+  }, path)
+
+const secondNameLoaded = (page: Page) =>
+  expect(page.locator('html')).toHaveAttribute(
+    'data-reading-faces-loaded',
+    /\blatin\b/
+  )
+
+test('the next page reads in the loaded face under its second name', async ({
+  page,
+}) => {
+  await page.goto('/reading')
+  await secondNameLoaded(page)
+  // Inside the page view nothing changes.
+  expect(await readingLead(page)).toBe('Literata Fixture')
+  await goTo(page, '/shelf')
+  await expect.poll(() => readingLead(page)).toBe('Literata Fixture Next')
+})
+
+test('no face changes at a change of page while a sheet or panel is up', async ({
+  page,
+}) => {
+  test.skip(!wide(), 'The rail, with its balance item, shows from 1024 px')
+  await page.goto('/reading')
+  await secondNameLoaded(page)
+  await press(nav(page).getByRole('link', { name: /^Balance/ }))
+  const pocket = page.getByRole('complementary', { name: 'Balance' })
+  await expect(pocket).toBeVisible()
+  await goTo(page, '/shelf')
+  await expect(pocket).toBeHidden()
+  expect(await readingLead(page)).toBe('Literata Fixture')
+  // The next change, with nothing up.
+  await goTo(page, '/reading')
+  await expect.poll(() => readingLead(page)).toBe('Literata Fixture Next')
+})
+
 test('a change of path closes the sheets over the old page', async ({
   page,
 }) => {

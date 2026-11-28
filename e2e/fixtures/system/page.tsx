@@ -68,6 +68,41 @@ const pages: Record<string, () => React.ReactNode> = {
 }
 const Page = pages[location.pathname] ?? pages['/']!
 
+// What the root layout writes from system/fonts.ts, with the fixture's
+// family names (fixture.css).
+document.documentElement.dataset.readingFaces = JSON.stringify({
+  pairs: {
+    latin: {
+      first: "'Literata Fixture'",
+      next: "'Literata Fixture Next'",
+      italic: false,
+    },
+    latinItalic: {
+      first: "'Literata Fixture Italic'",
+      next: "'Literata Fixture Italic Next'",
+      italic: true,
+    },
+    extended: {
+      first: "'Literata Fixture Ext'",
+      next: "'Literata Fixture Ext Next'",
+      italic: false,
+    },
+    extendedItalic: {
+      first: "'Literata Fixture Ext Italic'",
+      next: "'Literata Fixture Ext Italic Next'",
+      italic: true,
+    },
+  },
+  lists: {
+    '--qt-face-read': ['latin', 'extended', 'Quilltip Read Fallback'],
+    '--qt-face-read-italic': [
+      'latinItalic',
+      'extendedItalic',
+      'Quilltip Read Italic Fallback',
+    ],
+  },
+})
+
 createRoot(document.getElementById('root')!).render(
   <BalanceSourceContext.Provider value={useFakeBalance}>
     <AppShell

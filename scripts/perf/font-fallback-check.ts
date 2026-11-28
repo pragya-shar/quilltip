@@ -25,6 +25,9 @@
 //   MAX_P90_MOVE_PX on the legacy routes, whose faces swap. Positions are
 //   layout positions (offsetTop), so transforms and animations do not count.
 //   Only the cases in MOVEMENT_EXEMPT, each with its reason, are not gated.
+// - The next page view, on the shell's routes: after the late first view,
+//   a client navigation away and back reads in the web fonts, at the widths
+//   of the cached view (system/readingFaceUpgrade.ts).
 // - The mixed case, on the shell's routes: the roman face on time and the
 //   italic faces late (a first view, where only the roman file is preloaded).
 //   It must move 0 px too.
@@ -194,8 +197,11 @@ async function lateView(
   browser: Browser,
   routePath: string,
   viewport: (typeof VIEWPORTS)[number],
-  held: RegExp
-): Promise<{ before: Snapshot; after: Snapshot }> {
+  held: RegExp,
+  /** A shell page to visit by client navigation and come back from, after
+   * the fonts arrive: the page then reads in the upgraded faces. */
+  roundTrip?: string
+): Promise<{ before: Snapshot; after: Snapshot; next?: Snapshot }> {
   const context = await browser.newContext({ viewport })
   try {
     const page = await context.newPage()
@@ -216,7 +222,25 @@ async function lateView(
     await page.evaluate(() => document.fonts.ready)
     await page.waitForTimeout(1000)
     const after = await capture(page)
-    return { before, after }
+    if (!roundTrip) return { before, after }
+    // The upgrade loads the faces under their second names when idle.
+    await page
+      .locator('html[data-reading-faces-loaded]')
+      .waitFor({ state: 'attached', timeout: 15_000 })
+    for (const to of [roundTrip, routePath]) {
+      await page.evaluate(
+        (path) =>
+          (
+            window as unknown as {
+              next: { router: { push: (path: string) => void } }
+            }
+          ).next.router.push(path),
+        to
+      )
+      await page.waitForURL((url) => url.pathname === to.split('?')[0])
+      await page.waitForTimeout(1000)
+    }
+    return { before, after, next: await capture(page) }
   } finally {
     await context.close()
   }
@@ -395,6 +419,38 @@ function checkFaces(
   return { failures, summary }
 }
 
+/**
+ * After a late first view and a client navigation away and back, the page
+ * reads in the web fonts: its reading text takes the widths of the cached
+ * view (system/readingFaceUpgrade.ts).
+ */
+function checkUpgrade(
+  label: string,
+  cached: Snapshot,
+  next: Snapshot | undefined
+): string[] {
+  const upgradeLabel = `${label} next page view`
+  if (!next) return [`${upgradeLabel}: not measured`]
+  const cachedRuns = new Map(cached.runs.map((run) => [run.key, run]))
+  let width = 0
+  let reference = 0
+  for (const run of next.runs) {
+    const other = cachedRuns.get(run.key)
+    if (!other || !READING_FALLBACK.test(run.family)) continue
+    width += run.width
+    reference += other.width
+  }
+  const ratio = reference > 0 ? width / reference : 0
+  console.log(
+    `${upgradeLabel.padEnd(30)} reading text ${ratio.toFixed(3)} times its width in the web fonts`
+  )
+  return Math.abs(ratio - 1) > 0.002
+    ? [
+        `${upgradeLabel}: after a late first view and a client navigation, reading text is ${ratio.toFixed(3)} times its width in the web fonts (not upgraded)`,
+      ]
+    : []
+}
+
 /** Movement within one page view, from before the fonts arrive to after. */
 function checkMovement(
   label: string,
@@ -481,13 +537,24 @@ async function main() {
               'cached'
             )
             const faces = checkFaces(label, blocked, cached)
-            const late = await lateView(browser, route.path, viewport, /./)
+            const late = await lateView(
+              browser,
+              route.path,
+              viewport,
+              /./,
+              shell
+                ? route.path === '/shelf'
+                  ? '/system/reading'
+                  : '/shelf'
+                : undefined
+            )
             const moved = checkMovement(label, viewport.height, late, gate)
             console.log(
               `${label.padEnd(30)} ${faces.summary}  ${moved.summary}`
             )
             failures.push(...faces.failures, ...moved.failures)
             if (!shell) continue
+            failures.push(...checkUpgrade(label, cached, late.next))
             // A first view: the roman face preloaded and on time, the italic
             // faces (not preloaded) late.
             const mixedLabel = `${label} roman on time, italic late`
