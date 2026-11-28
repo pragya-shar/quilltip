@@ -80,7 +80,12 @@ export const READING = {
    * A signed-in section and where it sends a signed-out reader. The redirect
    * runs in the browser, so this one load has scripts on.
    */
-  signedIn: { path: '/dashboard', signInPath: '/login' },
+  signedIn: {
+    // /dashboard is a package's landing (signedOutLanding); /dashboard/stats
+    // still ends at sign-in, so both kinds are checked.
+    paths: ['/dashboard', '/dashboard/stats'],
+    signInPath: '/login',
+  },
 }
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -249,35 +254,29 @@ async function main() {
       )
         failures.push(`${path}: the response names the unpublished article`)
     }
-    // Guard: a page a package lists ends on that package's page, which
-    // offers sign-in itself (signedOutLanding).
-    const landing = SIGNED_OUT_LANDING.find(
-      (entry) => entry.path === READING.signedIn.path
-    )
-    if (landing) {
+    // Guard: each signed-in section sends a signed-out reader to sign in,
+    // or, for a page a package lists, to that package's page, which offers
+    // sign-in itself (signedOutLanding).
+    for (const path of READING.signedIn.paths) {
+      const landing = SIGNED_OUT_LANDING.find((entry) => entry.path === path)
       const browser = await chromium.launch()
       try {
-        await checkLanding(browser, landing, failures)
-      } finally {
-        await browser.close()
-      }
-    }
-    // Guard: a signed-in section still sends a signed-out reader to sign in.
-    if (!landing) {
-      const browser = await chromium.launch()
-      try {
+        if (landing) {
+          await checkLanding(browser, landing, failures)
+          continue
+        }
         const page = await browser.newPage()
-        await page.goto(BASE_URL + READING.signedIn.path)
+        await page.goto(BASE_URL + path)
         await page
           .waitForURL((url) => url.pathname === READING.signedIn.signInPath, {
             timeout: 15_000,
           })
           .catch(() => {})
         const reached = new URL(page.url()).pathname
-        console.log(`signed out ${READING.signedIn.path} -> ${reached}`)
+        console.log(`signed out ${path} -> ${reached}`)
         if (reached !== READING.signedIn.signInPath)
           failures.push(
-            `${READING.signedIn.path}: signed out, ended at ${reached}, expected ${READING.signedIn.signInPath}`
+            `${path}: signed out, ended at ${reached}, expected ${READING.signedIn.signInPath}`
           )
       } finally {
         await browser.close()
