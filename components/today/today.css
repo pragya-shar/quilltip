@@ -156,8 +156,7 @@
   }
   /* When the article goes on, its next words fade into Read more, the way
    * a page continues under the button. Only that line fades: every line of
-   * the opening stays clear. It is one line, clipped, and clear of the band
-   * Read more overlaps, so no letter shows at the button's edge. */
+   * the opening stays clear. It is one line, clipped, above Read more. */
   .qt-today__peek {
     max-width: var(--qt-measure);
     margin: var(--qt-read-para-gap) 0 0;
@@ -177,7 +176,7 @@
     user-select: none;
   }
   .qt-today__text[data-continues] + .qt-today__onward {
-    margin-block-start: calc(-1 * var(--qt-space-6));
+    margin-block-start: var(--qt-space-2);
   }
   .qt-today__onward {
     display: flex;
