@@ -497,6 +497,23 @@ test.describe('landing reading link from the first paint', () => {
     await toArticles(page)
   })
 
+  test('focus elsewhere before the scripts run: the opening starts and "Skip opening" takes focus, as before', async ({
+    page,
+  }) => {
+    await recordConvexMessages(page)
+    const release = await holdPageScripts(page)
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await page
+      .getByRole('navigation', { name: 'Main navigation' })
+      .getByRole('link', { name: 'Articles', exact: true })
+      .focus()
+    release()
+    await expect(stage(page)).toBeAttached({ timeout: 15_000 })
+    await expect(
+      page.getByRole('button', { name: 'Skip opening' })
+    ).toBeFocused()
+  })
+
   test('through the opening, exactly one reading link can be reached', async ({
     page,
     browserName,
