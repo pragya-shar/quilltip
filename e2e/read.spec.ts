@@ -38,6 +38,8 @@ async function open(page: Page, query = '') {
  */
 async function press(page: Page, target: Locator) {
   await expect(target).toBeVisible()
+  // A tap lands where the target is once the page has stopped scrolling.
+  await settled(page)
   let box = await target.boundingBox()
   const viewport = page.viewportSize()!
   if (!box || box.y < 0 || box.y + box.height > viewport.height) {
