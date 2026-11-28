@@ -25,6 +25,20 @@ describe('closing tab balance note', () => {
     expect(note).not.toContain('Come back')
   })
 
+  it('after the estimate, says "soon" and never a past date (#671)', () => {
+    const note = TAB_BALANCE.closingFreeNote('Monday 30 November', false, true)
+    expect(note).toBe(
+      'Unlocks soon. Check back and choose Withdraw to move it to your wallet. Quick tips are off while your tab closes.'
+    )
+    expect(note).not.toContain('Monday 30 November')
+    expect(note).not.toContain('Come back then')
+    expect(TAB_CLOSE.unlocksSoon).toBe('Unlocks soon')
+    // Ready wins over overdue.
+    expect(TAB_BALANCE.closingFreeNote(null, true, true)).toBe(
+      'Unlocked. Choose Withdraw to move it to your wallet.'
+    )
+  })
+
   it('uses the same date wording as the close timeline', () => {
     expect(TAB_BALANCE.closingFreeNote('Friday 4 December', false)).toContain(
       TAB_CLOSE.unlocks('Friday 4 December')

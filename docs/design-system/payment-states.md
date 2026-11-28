@@ -602,8 +602,11 @@ Notes:
 13. These flows move no XLM from the wallet beyond the network fee, so the
     insufficient-balance notice uses its no-amount copy.
 14. The new-key flow is the action behind the session-key notices.
-15. Pass `unlocksAround`, and show the withdrawal-pending notice with the
-    same date. Show the before-closing notice beside "Close tab" first.
+15. Pass `unlocksAround` to the close result. On the tab page the balance
+    note and the timeline carry the date, so the withdrawal-pending notice
+    goes without it. Once the estimated moment has passed and the unlock
+    ledger has not, both say "Unlocks soon", never a past date (#671). Show
+    the before-closing notice beside "Close tab" first.
 16. A writer's receiving wallet must be verified; use `verifyHref` to the
     dashboard wallet page.
 17. Settle own is the action behind the writer's settlement-delayed notice.

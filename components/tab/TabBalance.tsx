@@ -12,7 +12,11 @@ export function TabBalance({
   closing = null,
 }: {
   balances: TabBalances
-  closing?: { unlocksAround: string | null; ready: boolean } | null
+  closing?: {
+    unlocksAround: string | null
+    ready: boolean
+    overdue: boolean
+  } | null
 }) {
   return (
     <section className="tab-section" aria-labelledby="tab-balance-title">
@@ -32,7 +36,8 @@ export function TabBalance({
               {closing
                 ? TAB_BALANCE.closingFreeNote(
                     closing.unlocksAround,
-                    closing.ready
+                    closing.ready,
+                    closing.overdue
                   )
                 : TAB_BALANCE.freeNote}
             </span>

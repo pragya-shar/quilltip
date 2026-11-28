@@ -50,7 +50,8 @@ const EXPECT: Record<string, string | RegExp> = {
   'home-settlement-off': 'Quick tips are paused on Stellar testnet',
   'home-settlement-off-none': 'Quick tips are paused on Stellar testnet',
   'home-settlement-off-open': 'Quick tips are paused on Stellar testnet',
-  'home-closing': /Your balance unlocks around/,
+  'home-closing': 'Your withdrawal is waiting to unlock',
+  'home-closing-overdue': 'Unlocks soon',
   'home-short': 'Your tab is short',
   'wallet-short': 'Waiting for balance',
   'wallet-funded': 'Settling',
@@ -762,7 +763,13 @@ test('while the tab is closing, the free balance is not offered for quick tips (
   page,
 }) => {
   await open(page, 'home-closing')
-  await expect(visibleText(page, /Your balance unlocks around/)).toBeVisible()
+  await expect(
+    visibleText(page, 'Your withdrawal is waiting to unlock')
+  ).toBeVisible()
+  // The date shows twice: beside the balance and in the timeline (#671).
+  await expect(
+    page.locator('.tab-ui').getByText(/Unlocks around /)
+  ).toHaveCount(2)
   const balance = page.getByRole('region', { name: 'Balance' })
   await expect(balance.getByText('Free to tip', { exact: true })).toHaveCount(0)
   await expect(
@@ -797,6 +804,27 @@ test('while the tab is closing, the free balance is not offered for quick tips (
     })
   ).toBeVisible()
   expect(await closeFirst()).toBe(false)
+})
+
+test('after the estimated day, a closing tab says "soon", never a past date (#671)', async ({
+  page,
+}) => {
+  await open(page, 'home-closing-overdue')
+  const balance = page.getByRole('region', { name: 'Balance' })
+  await expect(
+    balance.getByText(
+      'Unlocks soon. Check back and choose Withdraw to move it to your wallet. Quick tips are off while your tab closes.',
+      { exact: true }
+    )
+  ).toBeVisible()
+  const timeline = page.getByRole('list', { name: 'Withdrawal' })
+  await expect(
+    timeline.getByText('Unlocks soon', { exact: true })
+  ).toBeVisible()
+  await expect(page.locator('.tab-ui').getByText(/Unlocks around/)).toHaveCount(
+    0
+  )
+  await expect(page.getByRole('button', { name: /^Withdraw / })).toHaveCount(0)
 })
 
 test('once a closing tab unlocks, the balance note says so and names Withdraw (#671)', async ({

@@ -244,7 +244,11 @@ export function TabHome() {
           balances={balances}
           closing={
             status.kind === 'closing'
-              ? { unlocksAround: status.unlocksAround, ready: status.ready }
+              ? {
+                  unlocksAround: status.unlocksAround,
+                  ready: status.ready,
+                  overdue: status.overdue,
+                }
               : null
           }
         />

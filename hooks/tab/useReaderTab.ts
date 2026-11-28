@@ -31,7 +31,7 @@ export function useReaderTab(services: TabServices) {
     clock,
     clockFailed,
     device,
-    status: tabStatusView({ tab, chainConfig, clock }),
+    status: tabStatusView({ tab, chainConfig, clock, now: services.now() }),
     settlement: settlementHealth(activity, services.now(), tabSettlement),
     paused: tabPaused(chainConfig),
   }

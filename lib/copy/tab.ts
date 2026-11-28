@@ -24,10 +24,12 @@ export const TAB_BALANCE = {
    * Under the closing figure: when it unlocks and what the reader does then
    * (#671). The date is an estimate from ledger times.
    */
-  closingFreeNote: (date: string | null, ready: boolean) =>
+  closingFreeNote: (date: string | null, ready: boolean, overdue = false) =>
     ready
       ? 'Unlocked. Choose Withdraw to move it to your wallet.'
-      : `${TAB_CLOSE.unlocks(date)}. Come back then and choose Withdraw to move it to your wallet. Quick tips are off while your tab closes.`,
+      : overdue
+        ? `${TAB_CLOSE.unlocksSoon}. Check back and choose Withdraw to move it to your wallet. Quick tips are off while your tab closes.`
+        : `${TAB_CLOSE.unlocks(date)}. Come back then and choose Withdraw to move it to your wallet. Quick tips are off while your tab closes.`,
   settling: 'Settling',
   settlingNote: 'Tips sent, not settled on chain yet.',
   confirmed: 'Tab balance',
@@ -152,6 +154,8 @@ export const TAB_CLOSE = {
   started: 'Withdrawal started',
   unlocks: (date: string | null) =>
     date ? `Unlocks around ${date}` : 'Unlocks after about 3 days',
+  /** The estimated day has passed, the unlock ledger has not (#671). */
+  unlocksSoon: 'Unlocks soon',
   ready: 'Ready to withdraw',
   nothingLeft: 'Nothing is left to withdraw.',
 } as const

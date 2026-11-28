@@ -374,6 +374,20 @@ const S: Scenario[] = [
     },
   },
   {
+    // The estimated day has passed, the unlock ledger has not: the latest
+    // ledger read is two days old (#671).
+    id: 'home-closing-overdue',
+    title: 'Closing: the estimate has passed, the ledger has not',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      open(s, 12)
+      s.tab!.status = 'CLOSING'
+      s.tab!.withdrawUnlockLedger = LEDGER + 10
+      s.clockLagMs = 2 * 86_400_000
+    },
+  },
+  {
     id: 'home-withdraw-ready',
     title: 'Closing: withdrawal ready',
     view: 'home',
