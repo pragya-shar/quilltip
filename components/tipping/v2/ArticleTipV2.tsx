@@ -94,6 +94,7 @@ export function ArticleTipV2({
         </DialogTrigger>
         <DialogContent
           className="tip-dialog"
+          initialFocus="title"
           overlayClassName="tip-dialog-overlay"
           aria-busy={busy}
         >

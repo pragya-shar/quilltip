@@ -1,6 +1,14 @@
 'use client'
 
-import { useRef, useState } from 'react'
+/**
+ * The wallet fixture's connect, wallet-menu and Disconnect control: the entry
+ * point the wallet suites drive (wallet-connect, -coverage, -states,
+ * -verification, -restore). No app page renders it; readers connect from
+ * the wallet page, the tab page and the payment dialogs. It lives here as
+ * test harness and still uses the app's wallet provider, picker and copy.
+ */
+
+import { useId, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -55,6 +63,7 @@ export function WalletConnectButton({
   const [isConnecting, setIsConnecting] = useState(false)
   const [installDialogOpen, setInstallDialogOpen] = useState(false)
   const connectButtonRef = useRef<HTMLButtonElement>(null)
+  const lastUsedId = useId()
 
   const handleConnect = async () => {
     if (isConnecting) return
@@ -117,7 +126,7 @@ export function WalletConnectButton({
         aria-busy
         aria-label={isRestoring ? 'Checking your wallet' : 'Wallet loading'}
       >
-        <Loader2 className="w-4 h-4 animate-spin" />
+        <Loader2 className="w-4 h-4 motion-safe:animate-spin" />
       </Button>
     )
   }
@@ -204,13 +213,14 @@ export function WalletConnectButton({
         ref={connectButtonRef}
         onClick={handleConnect}
         aria-disabled={isConnecting || undefined}
+        aria-describedby={lastUsed ? lastUsedId : undefined}
         size={size}
         variant={variant}
         className={className}
       >
         {isConnecting ? (
           <>
-            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+            <Loader2 className="w-4 h-4 motion-safe:animate-spin mr-2" />
             Connecting...
           </>
         ) : (
@@ -221,7 +231,7 @@ export function WalletConnectButton({
         )}
       </Button>
       {lastUsed && (
-        <p className="mt-1 text-xs text-muted-foreground">
+        <p id={lastUsedId} className="mt-1 text-xs text-muted-foreground">
           Last used: {lastUsed.walletName},{' '}
           <span className="tabular-nums">
             {formatAddress(lastUsed.address)}

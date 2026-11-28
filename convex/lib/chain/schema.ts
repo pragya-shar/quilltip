@@ -204,6 +204,11 @@ export const tabTables = {
      * `confirmedBalance − outstanding − settledUnindexed`. Unset is zero.
      */
     settledUnindexed: v.optional(v.string()),
+    /**
+     * When `settledUnindexed` last rose above 0 (ms). Unset while it is 0.
+     * The operations check lists accounts where it stays set too long.
+     */
+    settledUnindexedSince: v.optional(v.number()),
     /** Accepted today (UTC), for `TAB_DAILY_LIMIT`. */
     acceptedToday: v.string(),
     /** `YYYY-MM-DD` (UTC) that `acceptedToday` counts. */
@@ -211,9 +216,28 @@ export const tabTables = {
     withdrawUnlockLedger: v.optional(v.number()),
     /** RPC id of the newest event that set the balance absolutely. */
     balanceEventId: v.optional(v.string()),
-    /** `TabSettled` debits applied after `balanceEventId`, for reordering. */
+    /**
+     * Ledger of that balance: an absolute balance event's ledger, or the
+     * ledger a reconciliation read the chain at. Unset on rows written
+     * before this field; such rows release no reserve by ledger order.
+     */
+    balanceLedger: v.optional(v.number()),
+    /**
+     * Rows written before `tabBalanceDebits`: `TabSettled` debits applied
+     * after `balanceEventId`. Read, never extended; the next absolute
+     * balance drops the entries it covers.
+     */
     settledSinceBalance: v.array(
       v.object({ eventId: v.string(), gross: v.string() })
+    ),
+    /**
+     * Set when an absolute balance arrived after more debits than one
+     * transaction may read (`debitsAfter`): its balance was not applied, and
+     * the account accepts no tab tip until a newer absolute balance or a
+     * reconciliation against the contract sets the balance.
+     */
+    reconcileRequired: v.optional(
+      v.object({ eventId: v.string(), ledger: v.number(), since: v.number() })
     ),
     /** RPC id of the newest event that set `status`. */
     statusEventId: v.optional(v.string()),
@@ -236,7 +260,9 @@ export const tabTables = {
   })
     .index('by_user', ['userId'])
     .index('by_reader', ['readerAddress'])
-    .index('by_status', ['status']),
+    .index('by_status', ['status'])
+    .index('by_unindexed_since', ['settledUnindexedSince'])
+    .index('by_reconcile_required', ['reconcileRequired.since']),
 
   tabSessionKeys: defineTable({
     network: chainNetworkValidator,
@@ -351,6 +377,14 @@ export const tabTables = {
     indexedPaid: v.optional(
       v.array(v.object({ from: v.string(), to: v.string() }))
     ),
+    /**
+     * While `paidOnChain` is above the indexed ranges: a ledger at or after
+     * every payment in that gap (the settler's transaction ledger, or the
+     * ledger of the event that raised `paidOnChain`). An absolute balance
+     * from a later ledger already includes those debits. Unset with a gap
+     * means unknown: only a reconciliation releases it.
+     */
+    paidLedger: v.optional(v.number()),
     /** True while `paidOnChain < cumulative` and the pair can still settle. */
     unsettled: v.boolean(),
     /** Acceptance time of the oldest receipt not yet settled. */
@@ -427,6 +461,91 @@ export const tabTables = {
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_status', ['status']),
+
+  /**
+   * Each `Claimed` event applied to a writer's collected earnings
+   * (`authorEarnings.collectedBaseUnits`), kept for good. The RPC event id
+   * is the ledger, transaction, operation and event index, so a restore, a
+   * backfill or rebuilt `chainEvents` rows give the same id; ids restart
+   * after a testnet reset, hence the epoch. An event with a record is not
+   * applied again.
+   */
+  tabClaims: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    /** RPC id of the `Claimed` event. */
+    eventId: v.string(),
+    txHash: v.string(),
+    ledger: v.number(),
+    recipient: v.string(),
+    userId: v.id('users'),
+    token: v.string(),
+    amount: v.string(),
+    /** `seeded`: recorded for an event applied before this table existed. */
+    source: v.union(v.literal('applied'), v.literal('seeded')),
+    createdAt: v.number(),
+  })
+    .index('by_epoch_event', ['chainEpoch', 'eventId'])
+    .index('by_user_token', ['userId', 'token']),
+
+  /** Corrections of `collectedBaseUnits` from the `tabClaims` records. */
+  tabClaimCorrections: defineTable({
+    userId: v.id('users'),
+    token: v.string(),
+    before: v.string(),
+    after: v.string(),
+    claims: v.number(),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index('by_user', ['userId', 'createdAt']),
+
+  /**
+   * `TabSettled` debits applied to a reader's `confirmedBalance` and not yet
+   * covered by an absolute balance: one row per event, so a re-dispatch or
+   * replay of the event finds its row and debits nothing, however many
+   * settlements came after it. An absolute balance that applies subtracts
+   * the rows after its event and deletes the rows before it.
+   */
+  tabBalanceDebits: defineTable({
+    tabAccountId: v.id('tabAccounts'),
+    /** RPC id of the `TabSettled` event. */
+    eventId: v.string(),
+    gross: v.string(),
+    createdAt: v.number(),
+  }).index('by_account_event', ['tabAccountId', 'eventId']),
+
+  /**
+   * Settlement reserves released without their `TabSettled` event: by a
+   * later absolute balance (`balance_event`) or by an operator
+   * reconciliation against the contract (`reconcile`). One row per release.
+   */
+  tabReserveReleases: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    tabAccountId: v.id('tabAccounts'),
+    source: v.union(v.literal('balance_event'), v.literal('reconcile')),
+    /** The absolute balance's ledger, or the ledger the chain was read at. */
+    ledger: v.number(),
+    eventId: v.optional(v.string()),
+    pairs: v.array(
+      v.object({
+        voucherId: v.id('tabVouchers'),
+        keyId: v.number(),
+        writerAddress: v.string(),
+        paidBefore: v.string(),
+        paidAfter: v.string(),
+        released: v.string(),
+      })
+    ),
+    balanceBefore: v.string(),
+    balanceAfter: v.string(),
+    settledUnindexedBefore: v.string(),
+    settledUnindexedAfter: v.string(),
+    spendableBefore: v.string(),
+    spendableAfter: v.string(),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index('by_account', ['tabAccountId', 'createdAt']),
 }
 
 export const chainTables = {

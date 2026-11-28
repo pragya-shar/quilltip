@@ -140,15 +140,8 @@
   border-bottom: 1px solid var(--account-rule);
   padding-bottom: 14px;
   font-size: 17px;
-  /* On a narrow phone the row scrolls inside itself; the page never does. */
-  min-width: 0;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: thin;
 }
 .account-nav a {
-  flex-shrink: 0;
-  white-space: nowrap;
   padding: 12px 0;
   min-height: 44px;
   text-decoration: none;
@@ -387,6 +380,17 @@
     font-size: 15px;
     gap: 24px;
     min-height: 68px;
+    /* Seven sections do not fit a phone: the row scrolls inside itself, so
+       the page never scrolls sideways. */
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .account-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .account-nav a {
+    flex: none;
   }
   .account-name {
     display: none;

@@ -90,6 +90,7 @@ export function TipBasketButton() {
         }}
       >
         <SheetContent
+          initialFocus="title"
           side={wide ? 'right' : 'bottom'}
           className="tip-basket-sheet"
           data-side={wide ? 'right' : 'bottom'}

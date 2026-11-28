@@ -622,6 +622,93 @@ fall in bands under 2000 ms (`<1000`, `1000-1499`, `1500-1999`), and 75
 percent of its CLS events in `<0.05` or `0.05-0.099`. The privacy page says
 that page-speed ratings are recorded with consent.
 
+## Public reading without scripts (#428)
+
+A reader whose scripts never run (JavaScript off, a script blocked, a
+connection that drops the script files) can find and read a public article.
+
+**Before:** the only loading boundary was `app/loading.tsx` at the root, around
+every page. React sends a boundary's content later as a hidden segment
+(`<div hidden id="S:…">`) when the page waits for data or when the content is
+larger than its chunk size (12,800 bytes), and an inline script reveals it in
+an animation frame. So `/`, `/articles` and a writer's page arrived as "Loading
+page…" plus hidden content:
+
+- with JavaScript off they never showed anything else;
+- in WebKit, which does not paint the near-empty fallback, the reveal waited
+  for the page's scripts.
+
+**Now:** the public reading pages (`/`, `/articles`, `/{username}`,
+`/{username}/{slug}`) have no loading boundary above them, so their content is
+in the first HTML. The signed-in sections keep the same loading state, from
+their own `loading.tsx` (`dashboard`, `write`, `drafts`, `library`,
+`settings`, `welcome`, `ops`, `profile`, all rendering
+`components/layout/RouteLoading.tsx`).
+
+What each public page waits for on the server before its first byte:
+
+| Page                 | Waits for                                                              |
+| -------------------- | ---------------------------------------------------------------------- |
+| `/`                  | nothing (the page does not fetch)                                      |
+| `/articles`          | the first page of the article list (cached 60 s)                       |
+| `/{username}`        | the proxy's route check, then the writer and their articles (together) |
+| `/{username}/{slug}` | the proxy's route check (reused 60 s), then the article (cached 60 s)  |
+
+Costs:
+
+- The first byte waits for these reads; on a cache miss that is one backend
+  round trip on `/articles` and an article, and two on a writer's page.
+- A client-side navigation into a public page, or into a small or auth page,
+  no longer shows "Loading page…": the current page stays, with no sign that
+  the press worked, until the next page arrives. Navigations into the
+  signed-in sections show it as before.
+
+Each of these reads has a time limit of 1.5 s, the same as the proxy's route
+check (`lib/seo/publicReadTimeout.ts`). A read that runs out of time, or fails,
+counts as unreachable, and the page shows a fallback that reads without
+scripts: the site header, "… could not be loaded right now." and a plain "Try
+again" link to the same URL. With scripts, the live query keeps trying and
+replaces the fallback. The worst-case first byte is 1.5 s on `/articles`, 3 s
+on a writer or article page (route check, then the page's reads), and 4.5 s for
+a missing writer or article whose moved-handle lookup also runs out. A timeout
+is never cached; a read that finishes after its page gave up still fills the
+cache for the next reader.
+
+The fallback answers 200, because a page cannot set its own status once it
+renders. It carries `<meta name="robots" content="noindex">`, and dynamic
+pages send `Cache-Control: no-store`, so neither search engines nor caches keep
+it. An existing article never answers 404 because the backend was slow.
+
+`bun run perf:no-script-reading` (`scripts/perf/no-script-reading.ts`) checks
+this in Chromium and WebKit, with JavaScript off and with `/_next/static`
+scripts blocked:
+
+- the home page links to the article list;
+- the list links to an article by its title, and following the link opens it;
+- the article shows its title as a heading and its prose;
+- the writer's page shows the writer and the article;
+- an unknown article and an unknown writer answer 404 without article text;
+- with scripts on, `/dashboard` sends a signed-out reader to `/login`;
+- `/reset-password`, `/login` and `/register` each show a form field;
+- an unpublished article of the fixture writer answers 404, and no public list
+  names it.
+
+`bun run perf:slow-backend-reading` (`scripts/perf/slow-backend-reading.ts`)
+checks `/articles`, a writer's page and an article with the fixture backend
+silent, slower than the limit, and failing: the first byte and the whole page
+arrive within the bound, the page answers 200 with `noindex` and `no-store`,
+and with JavaScript off, in Chromium and WebKit, it shows the fallback. Then,
+with the backend answering again, each page shows its content.
+
+The routes and texts are in one object (`READING`), and the assertions use
+roles and text only. The check runs in the Page-load Budget CI job, and fails
+with JavaScript off on a build that has the root `app/loading.tsx`.
+
+`scripts/perf/first-link.ts` measures the time to reading on a slow phone
+profile, for comparing builds on a quiet machine: TTFB, and the time until the
+first reading link (`/`, `/articles`, a writer) or the first paragraph of prose
+(an article) is on screen, with scripts delayed, blocked or off.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without
@@ -900,3 +987,63 @@ applied-throttling rows load the page on a slowed network and CPU.
   content instead of the loading placeholder, and the load event is later
   because the fonts load up front.
 - Re-measure production after deployment with the command in the notes above.
+
+## Presses before the page scripts run (#554)
+
+On a slow phone, the browser paints the server HTML seconds before React
+attaches its handlers. A press in that window used to be lost: the sign-in
+form posted natively and reloaded the page, and the mobile menu button did
+nothing. Both now answer from the first paint, without changing how Next.js
+loads its scripts.
+
+- **Auth forms** (`/login`, `/register`, `/forgot-password`,
+  `/reset-password`). An inline script at the start of the auth layout
+  (`components/auth/EarlySubmitScript.tsx`, `lib/auth/earlySubmit.ts`)
+  cancels a submit made before React attaches the form and marks the form as
+  holding it; CSS shows the busy label ("One moment…") from the next frame.
+  When React attaches the form, `useEarlySubmit` reports the values typed so
+  far to the form's handlers and sends the held submit once with
+  `requestSubmit()`, through the same validation, Convex Auth call, errors and
+  `returnTo` handling as a later press. Nothing is stored; the password stays
+  in the field and goes only over the Convex connection, as before. A hold
+  ends after 20 s without sending if the scripts never run. When React renders
+  the page again in the browser instead of attaching to the server HTML (it
+  sometimes does under CPU load, on `overhaul/v2` too), the new form takes over
+  the held submit and the values. `/waitlist` only
+  gained `method="post"`: the waitlist refuses forms sent faster than
+  `WAITLIST_MIN_FILL_MS`, so a held submit would be dropped there.
+- **Mobile menu.** The sheet is a native `<dialog>` in the server HTML. Before
+  the scripts run, the header button opens it as a popover
+  (`popovertarget`, action `show`); an inline script at the start of `<body>`
+  closes the popover when focus leaves it (`lib/navigation/earlyMenu.ts`). An
+  inline script in `<head>` instead changes when Chrome runs the page's
+  chunks: first paint about 0.9 s earlier and React about 0.9 s later on this
+  profile, the same trade-off as #538. Once the scripts run, the button opens
+  it with `showModal()` (focus moves in, the page is inert,
+  Escape closes it and focus returns to the button), and a popover the reader
+  opened earlier becomes the modal dialog in the same frame (also when React
+  renders the page again: the inline script records that the menu was open).
+  The sheet's
+  slide uses CSS transitions (`translate` and backdrop `opacity`, 200 ms in,
+  150 ms out) and none under reduced motion.
+
+### Measuring tap-to-visible-result
+
+`scripts/perf/tap-to-visible.ts` taps a control and records the first
+animation frame that shows its response, on the slow phone profile used in
+this document (375 × 812 touch screen; Slow 4G as Lighthouse applies it and 4×
+CPU in Chromium; the same latency and download rate by request interception
+in WebKit, without CPU slowdown). Usage and options are at the top of the
+script. To match the deployed site, build with immutable asset paths and serve
+through the HTTP/2 proxy, which also sends the deployed cache headers:
+
+```bash
+QUILLTIP_IMMUTABLE_ASSETS=1 NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
+bun run start -- -p 3104   # with the fixture backend on 3299 (scripts/perf/fixture-backend.ts)
+PROXY_KEY=key.pem PROXY_CERT=cert.pem bun scripts/perf/http2-proxy.ts
+bun scripts/perf/tap-to-visible.ts --browsers chromium --base-url https://127.0.0.1:3443 --label change --out chromium.json
+bun scripts/perf/tap-to-visible.ts --browsers webkit --base-url http://127.0.0.1:3104 --label change --out webkit.json
+```
+
+`bun run test:e2e:early-taps` checks the behaviour in Chromium and WebKit with
+the page scripts held back (`e2e/early-taps.spec.ts`).
