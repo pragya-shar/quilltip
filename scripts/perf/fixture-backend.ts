@@ -11,21 +11,52 @@ import { answerFixtureQuery } from './convex-fixture'
  * How the backend answers queries, for checks of a slow or failing backend:
  * - normal: at once;
  * - slow: after `delayMs`;
- * - silent: never (the request stays open until the server closes);
- * - error: at once, with a server error.
+ * - silent: never (the request stays open until its client gives up);
+ * - error: at once, with a server error (500);
+ * - wrong: at once, as a function that threw (Convex's 560), which the app
+ *   must not read as an outage (#609);
+ * - slow-once: the next query after `delayMs`, then all at once.
+ *
+ * `reads` counts the queries received and `open` the requests not yet
+ * answered or closed, so a check can prove that a late read was aborted.
  */
 export const fixtureBackendBehaviour: {
-  mode: 'normal' | 'slow' | 'silent' | 'error'
+  mode: 'normal' | 'slow' | 'silent' | 'error' | 'wrong' | 'slow-once'
   delayMs: number
   /** When set, only these query paths are slow; the rest answer at once. */
   slowPaths?: string[]
-} = { mode: 'normal', delayMs: 0 }
+  reads: number
+  open: number
+} = { mode: 'normal', delayMs: 0, reads: 0, open: 0 }
 
 export function startFixtureBackend(port: number): Server {
   const server = createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/query') {
       const { mode, delayMs, slowPaths } = fixtureBackendBehaviour
+      fixtureBackendBehaviour.reads += 1
+      fixtureBackendBehaviour.open += 1
+      let counted = true
+      const settle = () => {
+        if (counted) fixtureBackendBehaviour.open -= 1
+        counted = false
+      }
+      response.on('finish', settle)
+      response.on('close', settle)
       if (mode === 'silent') return
+      if (mode === 'wrong') {
+        response.writeHead(560, { 'content-type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            status: 'error',
+            errorMessage: 'Fixture function failed',
+          })
+        )
+        return
+      }
+      if (mode === 'slow-once') {
+        fixtureBackendBehaviour.mode = 'normal'
+        await new Promise((r) => setTimeout(r, delayMs))
+      }
       if (mode === 'error') {
         response.writeHead(500, { 'content-type': 'text/plain' })
         response.end('Fixture backend error')

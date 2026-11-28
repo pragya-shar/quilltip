@@ -1,43 +1,50 @@
-// Public reading with a slow, silent or failing backend (#428). Public pages
-// wait for their server reads before the first byte, so each read has a time
-// limit (lib/seo/publicReadTimeout.ts). Runs against the fixture build of
-// perf:budget, after perf:no-script-reading; needs no secrets.
+// Public reading with a slow, silent, failing or wrongly answering backend
+// (#428, #609). Runs against the fixture build of perf:budget, after
+// perf:no-script-reading; needs no secrets.
 //
 //   NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
 //   bun run perf:slow-backend-reading
 //
-// For the article list, a writer's page and an article, with the backend
-// silent (never answers), slower than the limit, and failing:
-// - the first byte and the whole page arrive within the limits of the reads
-//   in sequence, plus a margin;
-// - the page answers 200 (an existing article must not answer 404 because
-//   the backend was slow), with `noindex` and `no-store`;
-// - with JavaScript off, in Chromium and WebKit, at 375 px, the page shows a
-//   heading that it could not be loaded, a "Try again" link and the way home
-//   (READING.wayHome: today the header's wordmark link; the header's other
-//   links sit in its menu at this width).
-// Then, with the backend answering again, each page shows its content: a
-// timed-out read was not cached.
+// A reader sees one of three states: the page, the in-page readable fallback
+// (200, `noindex`), or the outage response (503, `Retry-After: 30`,
+// `no-store`). `/` stays 200 in all of them. With the backend:
+// - silent, slower than the limit, or failing (5xx): `/articles`, a writer
+//   page and an article answer 503 within two read limits plus a margin, and
+//   at once while the outage is remembered; with JavaScript off, in Chromium
+//   and WebKit, the 503 shows a heading, "Try again" and the way home; a HEAD
+//   request gets the same status; no request to the backend stays open;
+// - a writer page inside its 60 s "found" window answers its 200 fallback
+//   until a checked path has declared the outage, then 503;
+// - a link pressed on `/articles` during an outage ends, by a document load,
+//   on the readable 503, with no page error;
+// - with `/articles` open during an outage, prefetches cost at most one
+//   check (two reads) per 5 s;
+// - answering wrongly (a function that threw): no outage; the page renders
+//   and shows its readable 200 fallback;
+// - slow once (the first attempt runs out, the retry answers): the page;
+// - answering again: every page shows its content (nothing was cached from
+//   the outage).
 
-import { chromium, webkit, type Page } from '@playwright/test'
+import { chromium, webkit, type Browser, type Page } from '@playwright/test'
 import { rmSync } from 'fs'
 import { join } from 'path'
 import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
-import { fixtureArticlePath } from './convex-fixture'
 import { fixtureBackendBehaviour, startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
 import { READING, wayHomeOn } from './no-script-reading'
 
 /** Rendering and CI noise on top of the read limits. */
 const MARGIN_MS = 1000
+/** The outage bound: the proxy's check and its one retry. */
+const OUTAGE_BOUND_MS = 2 * PUBLIC_READ_TIMEOUT_MS + MARGIN_MS
+/** proxy.ts: how long one instance remembers a declared outage. */
+const OUTAGE_MEMORY_MS = 5000
 
-/** Each page, the reads it waits for in sequence, and what it shows. */
+/** The checked pages and what each shows when it reads. */
 const PAGES = [
-  { path: READING.list, readsInSequence: 1, content: READING.articleTitle },
-  // The proxy's route check, then the writer and their articles together.
-  { path: READING.writer, readsInSequence: 2, content: READING.writerName },
-  // The proxy's route check, then the article.
-  { path: READING.article, readsInSequence: 2, content: READING.prose },
+  { path: READING.list, content: READING.articleTitle },
+  { path: READING.writer, content: READING.writerName },
+  { path: READING.article, content: READING.prose },
 ]
 const FALLBACK_TEXT = 'could not be loaded right now'
 const RETRY_LINK = 'Try again'
@@ -49,34 +56,64 @@ const ENGINES = (process.env.PERF_READING_ENGINES ?? 'chromium,webkit').split(
   ','
 )
 
-type Behaviour = 'silent' | 'slow' | 'error'
+const failures: string[] = []
+const fail = (what: string) => failures.push(what)
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+const log = (label: string, detail: string) =>
+  console.log(`${label.padEnd(58)} ${detail}`)
 
-/**
- * A URL of the same page with its own cache entry, so each browser load reads
- * the backend: a slow read that finished after an earlier load gave up has
- * cached real content, as it should.
- */
-function coldPath(path: string, run: number) {
-  if (path === READING.list) return `${path}?tag=cold-${run}`
-  if (path === READING.article) return fixtureArticlePath(2 + run)
-  return path // The writer's reads are not cached.
-}
-
-const boundFor = (readsInSequence: number) =>
-  readsInSequence * PUBLIC_READ_TIMEOUT_MS + MARGIN_MS
-
-async function timedFetch(path: string, limitMs: number) {
+async function timedFetch(
+  path: string,
+  init: { method?: string; limitMs?: number } = {}
+) {
   const started = performance.now()
   const response = await fetch(BASE_URL + path, {
+    method: init.method ?? 'GET',
     redirect: 'manual',
-    signal: AbortSignal.timeout(limitMs + 5000),
+    signal: AbortSignal.timeout((init.limitMs ?? OUTAGE_BOUND_MS) + 5000),
   })
   const firstByte = performance.now() - started
   const body = await response.text()
   return { response, body, firstByte, whole: performance.now() - started }
 }
 
-async function readableWithoutScripts(page: Page) {
+/** Waits until the outage memory has expired and the backend answers. */
+async function recover() {
+  fixtureBackendBehaviour.mode = 'normal'
+  await sleep(OUTAGE_MEMORY_MS + 200)
+  const { response } = await timedFetch(READING.list)
+  if (response.status !== 200)
+    fail(`recovery: /articles answered ${response.status} after the memory`)
+}
+
+/** Checks a 503 outage response: status, headers, body, and its timing. */
+function expectOutage(
+  label: string,
+  result: Awaited<ReturnType<typeof timedFetch>>,
+  boundMs: number
+) {
+  const { response, body, firstByte, whole } = result
+  log(
+    label,
+    `${response.status}  first byte ${Math.round(firstByte)} ms  whole ${Math.round(whole)} ms  (bound ${boundMs} ms)`
+  )
+  if (response.status !== 503)
+    fail(`${label}: status ${response.status}, expected 503`)
+  if (response.headers.get('retry-after') !== '30')
+    fail(`${label}: Retry-After is "${response.headers.get('retry-after')}"`)
+  if (response.headers.get('cache-control') !== 'no-store')
+    fail(
+      `${label}: Cache-Control is "${response.headers.get('cache-control')}"`
+    )
+  if (firstByte > boundMs)
+    fail(`${label}: first byte after ${Math.round(firstByte)} ms`)
+  if (whole > boundMs)
+    fail(`${label}: whole page after ${Math.round(whole)} ms`)
+  if (!body.includes(FALLBACK_TEXT)) fail(`${label}: no outage message`)
+  if (/<script\b/i.test(body)) fail(`${label}: the outage body has a script`)
+}
+
+async function readable(page: Page): Promise<string[]> {
   const visible = (locator: ReturnType<Page['locator']>) =>
     locator
       .first()
@@ -93,6 +130,37 @@ async function readableWithoutScripts(page: Page) {
   return missing
 }
 
+/** With JavaScript off: each page loads and reads as the expected state. */
+async function readableWithoutScripts(
+  browser: Browser,
+  engine: string,
+  state: string,
+  expectedStatus: number,
+  /** A URL of the same page, for a cache key of its own. */
+  urlFor: (path: string) => string = (path) => path
+) {
+  for (const { path } of PAGES) {
+    const context = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+      javaScriptEnabled: false,
+    })
+    const page = await context.newPage()
+    const label = `${state}, ${engine}, javascript off, ${path}`
+    const response = await page
+      .goto(BASE_URL + urlFor(path), {
+        waitUntil: 'load',
+        timeout: OUTAGE_BOUND_MS + 5000,
+      })
+      .catch(() => null)
+    const missing = response ? await readable(page) : ['the page did not load']
+    if (response && response.status() !== expectedStatus)
+      missing.push(`status ${response.status()}, expected ${expectedStatus}`)
+    log(label, missing.length ? 'FAILS' : 'reads')
+    for (const what of missing) fail(`${label}: ${what}`)
+    await context.close()
+  }
+}
+
 async function main() {
   // Start from an empty data cache, so the pages really read the backend.
   rmSync(join(process.cwd(), '.next', 'cache', 'fetch-cache'), {
@@ -101,93 +169,207 @@ async function main() {
   })
   const backend = startFixtureBackend(CONVEX_PORT)
   const app = await startProductionApp(APP_PORT, BASE_URL)
-  const failures: string[] = []
+  const browsers = new Map<string, Browser>()
   try {
-    const behaviours: Behaviour[] = ['silent', 'error', 'slow']
-    let browserRun = 0
-    for (const behaviour of behaviours) {
-      fixtureBackendBehaviour.mode = behaviour
-      fixtureBackendBehaviour.delayMs = PUBLIC_READ_TIMEOUT_MS * 2
-      for (const { path, readsInSequence } of PAGES) {
-        const bound = boundFor(readsInSequence)
-        const label = `${behaviour} backend, ${path}`
-        const result = await timedFetch(path, bound).catch((error: unknown) => {
-          console.log(`${label.padEnd(56)} no answer`)
-          failures.push(`${label}: no answer (${String(error)})`)
-          return null
-        })
-        if (!result) continue
-        const { response, body, firstByte, whole } = result
-        console.log(
-          `${label.padEnd(56)} ${response.status}  first byte ${Math.round(firstByte)} ms  whole page ${Math.round(whole)} ms  (bound ${bound} ms)`
+    for (const engine of ENGINES)
+      browsers.set(
+        engine,
+        await (engine === 'webkit' ? webkit : chromium).launch()
+      )
+
+    // 1. A writer page found while the backend answers starts its 60 s
+    //    "found" window; inside it the page skips the check.
+    fixtureBackendBehaviour.mode = 'normal'
+    const found = await timedFetch(READING.writer)
+    if (found.response.status !== 200)
+      fail(`writer page while answering: status ${found.response.status}`)
+
+    // 2. Silent backend.
+    fixtureBackendBehaviour.mode = 'silent'
+    const gap = await timedFetch(READING.writer)
+    log(
+      'silent backend, writer page inside its found window',
+      `${gap.response.status}  ${gap.body.includes(FALLBACK_TEXT) ? 'fallback' : 'NO FALLBACK'}`
+    )
+    if (gap.response.status !== 200 || !gap.body.includes(FALLBACK_TEXT))
+      fail('writer page inside its found window: expected its 200 fallback')
+    expectOutage(
+      'silent backend, /articles (declares the outage)',
+      await timedFetch(READING.list),
+      OUTAGE_BOUND_MS
+    )
+    for (const { path } of PAGES)
+      expectOutage(
+        `silent backend, ${path} (remembered)`,
+        await timedFetch(path),
+        MARGIN_MS
+      )
+    const head = await timedFetch(READING.article, { method: 'HEAD' })
+    log('silent backend, HEAD article', `${head.response.status}`)
+    if (head.response.status !== 503 || head.body !== '')
+      fail(
+        `HEAD during an outage: ${head.response.status}, body "${head.body}"`
+      )
+    const home = await timedFetch(READING.home)
+    log('silent backend, /', `${home.response.status}`)
+    if (home.response.status !== 200 || !home.body.includes('href="/articles"'))
+      fail(`/ during an outage: status ${home.response.status}`)
+    for (const [engine, browser] of browsers)
+      await readableWithoutScripts(browser, engine, 'silent backend', 503)
+    await sleep(500)
+    log(
+      'silent backend, backend requests still open',
+      `${fixtureBackendBehaviour.open}`
+    )
+    if (fixtureBackendBehaviour.open !== 0)
+      fail(
+        `silent backend: ${fixtureBackendBehaviour.open} backend requests still open`
+      )
+    await recover()
+
+    // 3. A link pressed on /articles during an outage, and prefetches.
+    for (const [engine, browser] of browsers) {
+      const context = await browser.newContext({
+        viewport: { width: 1280, height: 900 },
+      })
+      const page = await context.newPage()
+      // Errors while the page is in use. Once the document load starts, the
+      // old page is torn down and WebKit reports its cancelled prefetches as
+      // errors ("access control checks"); those are logged, not failures.
+      const pageErrors: string[] = []
+      const unloadErrors: string[] = []
+      let documentLoads = 0
+      page.on('pageerror', (error) =>
+        (documentLoads > 0 ? unloadErrors : pageErrors).push(
+          String(error).slice(0, 160)
         )
-        if (behaviour !== 'error' && firstByte > bound)
-          failures.push(
-            `${label}: first byte after ${Math.round(firstByte)} ms`
-          )
-        if (behaviour !== 'error' && whole > bound)
-          failures.push(`${label}: whole page after ${Math.round(whole)} ms`)
-        if (response.status !== 200)
-          failures.push(`${label}: status ${response.status}, expected 200`)
-        if (!body.includes(FALLBACK_TEXT))
-          failures.push(`${label}: no fallback message`)
-        if (!/<meta name="robots" content="noindex"/.test(body))
-          failures.push(`${label}: the fallback is not marked noindex`)
-        if (!(response.headers.get('cache-control') ?? '').includes('no-store'))
-          failures.push(
-            `${label}: Cache-Control is "${response.headers.get('cache-control')}"`
-          )
-      }
-      if (behaviour === 'error') continue
-      for (const name of ENGINES) {
-        const run = browserRun++
-        const browser = await (name === 'webkit' ? webkit : chromium).launch()
-        try {
-          for (const { path } of PAGES) {
-            const context = await browser.newContext({
-              viewport: { width: 375, height: 812 },
-              javaScriptEnabled: false,
-            })
-            const page = await context.newPage()
-            const label = `${behaviour} backend, ${name}, javascript off, ${path}`
-            const loaded = await page
-              .goto(BASE_URL + coldPath(path, run), {
-                waitUntil: 'load',
-                timeout: boundFor(2) + 5000,
-              })
-              .then(
-                () => true,
-                () => false
-              )
-            const missing = loaded
-              ? await readableWithoutScripts(page)
-              : ['the page did not load']
-            console.log(
-              `${label.padEnd(56)} ${missing.length ? 'FAILS' : 'reads'}`
-            )
-            for (const what of missing) failures.push(`${label}: ${what}`)
-            await context.close()
-          }
-        } finally {
-          await browser.close()
-        }
-      }
+      )
+      await page.goto(BASE_URL + READING.list, { waitUntil: 'load' })
+      await sleep(1500) // hydration and viewport prefetches, backend answering
+      fixtureBackendBehaviour.mode = 'silent'
+      const readsBefore = fixtureBackendBehaviour.reads
+      // Prefetches with the links in view and the pointer over them.
+      const link = page
+        .getByRole('link', { name: READING.articleTitle })
+        .first()
+      await link.hover().catch(() => {})
+      await sleep(6000)
+      const prefetchReads = fixtureBackendBehaviour.reads - readsBefore
+      log(
+        `outage, ${engine}, backend reads by prefetches in 6 s`,
+        `${prefetchReads}`
+      )
+      // One check (two reads) per 5 s of memory: at most two windows here.
+      if (prefetchReads > 4)
+        fail(`${engine}: prefetches made ${prefetchReads} backend reads in 6 s`)
+      let documentStatus: number | null = null
+      page.on('request', (request) => {
+        if (
+          request.isNavigationRequest() &&
+          request.frame() === page.mainFrame()
+        )
+          documentLoads += 1
+      })
+      page.on('response', (response) => {
+        if (response.request().isNavigationRequest())
+          documentStatus = response.status()
+      })
+      await link.click()
+      await page
+        .waitForURL((url) => url.pathname === READING.article, {
+          timeout: OUTAGE_BOUND_MS + 5000,
+        })
+        .catch(() => {})
+      const missing = await readable(page)
+      if (documentStatus !== 503)
+        missing.push(`document status ${documentStatus}, expected 503`)
+      if (pageErrors.length)
+        missing.push(`a page error (${pageErrors.join(' | ')})`)
+      // One document load, the router's fall back to the 503: no loop.
+      await sleep(1500)
+      if (documentLoads !== 1)
+        missing.push(`${documentLoads} document loads, expected 1`)
+      if (unloadErrors.length)
+        log(
+          `outage, ${engine}, errors while the old page unloaded`,
+          `${unloadErrors.length} (cancelled prefetches)`
+        )
+      log(
+        `outage, ${engine}, link pressed on /articles`,
+        missing.length ? `FAILS (${missing.join('; ')})` : 'readable 503'
+      )
+      for (const what of missing) fail(`${engine}, link pressed: ${what}`)
+      await context.close()
+      await recover()
     }
 
-    // The backend answers again: no page may serve a cached fallback.
-    fixtureBackendBehaviour.mode = 'normal'
-    // Let reads that finished after their page gave up settle into the cache.
-    await new Promise((r) => setTimeout(r, PUBLIC_READ_TIMEOUT_MS))
-    for (const { path, content } of PAGES) {
-      const { response, body } = await timedFetch(path, 10_000)
-      const label = `answering backend, ${path}`
-      const ok = body.includes(content) && !body.includes(FALLBACK_TEXT)
-      console.log(
-        `${label.padEnd(56)} ${response.status}  ${ok ? 'content' : 'FALLBACK'}`
+    // 4. Failing (5xx) and slower than the limit.
+    for (const mode of ['error', 'slow'] as const) {
+      fixtureBackendBehaviour.mode = mode
+      fixtureBackendBehaviour.delayMs = 2 * PUBLIC_READ_TIMEOUT_MS
+      fixtureBackendBehaviour.slowPaths = undefined
+      const name = mode === 'error' ? 'failing' : 'slow'
+      expectOutage(
+        `${name} backend, /articles`,
+        await timedFetch(READING.list),
+        mode === 'error' ? MARGIN_MS : OUTAGE_BOUND_MS
       )
-      if (!ok) failures.push(`${label}: shows the fallback, not its content`)
+      await recover()
+    }
+
+    // 5. Answering wrongly: no outage, the page's readable 200 fallback. The
+    //    list uses a key of its own: recovery above cached the plain list.
+    fixtureBackendBehaviour.mode = 'wrong'
+    for (const { path } of PAGES) {
+      const { response, body } = await timedFetch(
+        path === READING.list ? `${path}?tag=wrong-answers` : path
+      )
+      const ok =
+        response.status === 200 &&
+        body.includes(FALLBACK_TEXT) &&
+        /<meta name="robots" content="noindex"/.test(body)
+      log(
+        `wrong answers, ${path}`,
+        `${response.status}  ${ok ? 'readable 200 fallback' : 'FAILS'}`
+      )
+      if (!ok)
+        fail(`wrong answers, ${path}: expected the readable 200 fallback`)
+    }
+    for (const [engine, browser] of browsers)
+      await readableWithoutScripts(
+        browser,
+        engine,
+        'wrong answers',
+        200,
+        (path) =>
+          path === READING.list ? `${path}?tag=wrong-answers-${engine}` : path
+      )
+    fixtureBackendBehaviour.mode = 'normal'
+
+    // 6. Slow once: the first attempt runs out, the retry answers.
+    fixtureBackendBehaviour.mode = 'slow-once'
+    fixtureBackendBehaviour.delayMs = 2 * PUBLIC_READ_TIMEOUT_MS
+    const once = await timedFetch(READING.article)
+    log(
+      'slow once, article',
+      `${once.response.status}  first byte ${Math.round(once.firstByte)} ms`
+    )
+    if (once.response.status !== 200 || !once.body.includes(READING.prose))
+      fail(`slow once: status ${once.response.status}, expected the article`)
+    fixtureBackendBehaviour.mode = 'normal'
+
+    // 7. Answering again: every page shows its content.
+    for (const { path, content } of PAGES) {
+      const { response, body } = await timedFetch(path, { limitMs: 10_000 })
+      const ok = body.includes(content) && !body.includes(FALLBACK_TEXT)
+      log(
+        `answering backend, ${path}`,
+        `${response.status}  ${ok ? 'content' : 'FAILS'}`
+      )
+      if (!ok) fail(`answering backend, ${path}: no content`)
     }
   } finally {
+    for (const browser of browsers.values()) await browser.close()
     app?.kill()
     backend.closeAllConnections()
     backend.close()
