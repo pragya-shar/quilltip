@@ -7,7 +7,8 @@ import { Toaster as Sonner } from 'sonner'
 type ToasterProps = React.ComponentProps<typeof Sonner>
 
 /**
- * While set as the Toaster's id, it shows no toast: sonner keeps every toast
+ * While set as the Toaster's id, it shows no toast (sonner 2.0.8; an upgrade
+ * must pass scripts/ui/toaster-region.test.ts): sonner keeps every toast
  * it receives (and replays those raised before it subscribed) but lists only
  * the ones for this id, which no caller uses.
  */

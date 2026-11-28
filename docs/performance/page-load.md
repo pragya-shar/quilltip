@@ -292,7 +292,11 @@ animation timing.
   message at least two frames later) and that Providers loads the Toaster with
   `next/dynamic` and no server render; e2e `account-navigation.spec.ts` checks
   that a saved profile's toast appears in the `aria-live` region. The empty
-  region is no longer in the server HTML; it appears after hydration.
+  region is no longer in the server HTML; it appears after hydration. The
+  hold relies on two sonner 2.0.8 behaviours (the Toaster's `id` only filters
+  which toasts it lists; toasts raised before it subscribed are replayed).
+  bun.lock pins 2.0.8 and CI installs with `--frozen-lockfile`, so an upgrade
+  comes as a lockfile change, which must pass `toaster-region.test.ts`.
 - **Site header:** the mobile navigation sheet (Radix dialog, focus trap,
   scroll lock) loads after the page has loaded and the browser is idle, on
   hover or focus of the menu button, or on the first press. The button is a

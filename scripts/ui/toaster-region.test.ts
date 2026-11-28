@@ -7,6 +7,12 @@
  * every toast until its empty region has existed for REGION_READY_FRAMES
  * frames, so a toast raised before it loaded, or in the same moment, goes into
  * a region that is already there.
+ *
+ * This leans on two behaviours of sonner 2.0.8, tested here against the real
+ * package: the Toaster's `id` only filters which toasts it lists, and toasts
+ * raised before it subscribed are replayed. bun.lock pins sonner@2.0.8 and CI
+ * installs with --frozen-lockfile, so a sonner upgrade comes as a lockfile
+ * change; it must pass this file before it lands.
  */
 import { readFileSync } from 'fs'
 import { act, createElement } from 'react'
