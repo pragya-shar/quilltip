@@ -243,8 +243,15 @@ surface edits only its own file; it never edits `proxy.ts`,
   At the next change of page, before it paints, the reading variables on
   `<html>` lead with those names, so that page reads in Literata, roman and
   italic. Never inside a page view, and not at a change of page while a
-  sheet or the balance panel is up (the next change does it). The money
-  figure in the navigation changes face at that change of page too.
+  sheet or the balance panel is up (the next change does it). The shell's
+  own reading-face text changes face at that change of page too: the
+  wordmark in the desktop rail and the balance figure in the navigation
+  (the figure sits in a fixed slot; measured in Chromium and WebKit, no
+  navigation item moves).
+- For surface authors: the switch happens at every change of path. A
+  `history.pushState` (or `router.replace`) to a new path inside one view,
+  such as a filter or a tab written into the path, would switch faces
+  where the reader is looking. Keep such state in the query or the hash.
 - Only the roman Latin file (60 KB) is preloaded. On a first view, Chromium
   uses a face that was not preloaded only from the cache, so italic text
   shows in the fallback italic beside the real roman for that view, and in
@@ -346,7 +353,11 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
      under it.
    - Never after a close by the keyboard (a key pressed in it after its
      last pointer press), and never after a close with no pointer press
-     inside it in the last second (a timer, a change of page).
+     inside it in the last second (a timer, a change of page). A close
+     with no key at all, such as Android's back gesture (a `cancel` event),
+     holds when a pointer press inside it was recent.
+   - A press counts from its end too (a pointer up or a click), so a long
+     press followed by a quick tap is held.
    - A modal that opens takes its own presses at once, also right after
      another closed.
    - Key presses (clicks with no pointer, `detail === 0`) always pass.
