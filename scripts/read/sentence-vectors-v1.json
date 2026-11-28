@@ -75,7 +75,7 @@
     },
     {
       "name": "abbreviations and times",
-      "note": "Mr is listed; dotted single letters (p.m.) do not end a sentence.",
+      "note": "Mr is listed; dotted letters (p.m.) before a lower-case word do not end a sentence.",
       "content": {
         "type": "doc",
         "content": [
@@ -519,7 +519,7 @@
     },
     {
       "name": "initials and dotted abbreviations",
-      "note": "A one-letter word before a stop is an initial; dotted single letters (U.S.) do not end a sentence.",
+      "note": "A one-letter word before a stop is an initial. Dotted letters (U.S.) end a sentence when a capital follows, so \"The U.S. Army\" splits: knowingly crude.",
       "content": {
         "type": "doc",
         "content": [
@@ -543,8 +543,13 @@
         },
         {
           "start": 27,
+          "end": 35,
+          "text": "The U.S."
+        },
+        {
+          "start": 36,
           "end": 49,
-          "text": "The U.S. Army read it."
+          "text": "Army read it."
         }
       ],
       "passages": [
@@ -558,25 +563,32 @@
         {
           "sentenceStart": 1,
           "sentenceEnd": 1,
-          "text": "The U.S. Army read it.",
-          "passageId": "f5bb67186be8a4f90f6270311505",
+          "text": "The U.S.",
+          "passageId": "a518d71c4b853cddf349ef3d5345",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "text": "Army read it.",
+          "passageId": "3b87c38778c06ce6c21160a548a7",
           "ambiguous": false
         },
         {
           "sentenceStart": 0,
           "sentenceEnd": 1,
-          "text": "J. R. R. Tolkien wrote it. The U.S. Army read it.",
-          "passageId": "279c1837d85636271833748877d1",
+          "text": "J. R. R. Tolkien wrote it. The U.S.",
+          "passageId": "6de274a557fc8ddf6ca473aef0f3",
           "ambiguous": false
         }
       ],
       "selections": [
         {
-          "start": 28,
-          "end": 28,
-          "sentenceStart": 1,
-          "sentenceEnd": 1,
-          "passageId": "f5bb67186be8a4f90f6270311505"
+          "start": 37,
+          "end": 37,
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "passageId": "3b87c38778c06ce6c21160a548a7"
         },
         {
           "start": 1,
@@ -2066,6 +2078,960 @@
           "sentenceStart": 0,
           "sentenceEnd": 0,
           "passageId": "71b02070d6c121db0a5af611eed4"
+        }
+      ]
+    },
+    {
+      "name": "no as a word ends a sentence",
+      "note": "\"no.\" keeps a sentence open only before a number.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "The answer was no. She left anyway."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "The answer was no. She left anyway.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 18,
+          "text": "The answer was no."
+        },
+        {
+          "start": 19,
+          "end": 35,
+          "text": "She left anyway."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "The answer was no.",
+          "passageId": "e44e0777623222161c84cce12c82",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "She left anyway.",
+          "passageId": "0275c1ca5ac01471279c9b63af91",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "The answer was no. She left anyway.",
+          "passageId": "60a43295ff03f67b2bab083bc00c",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 20,
+          "end": 20,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "0275c1ca5ac01471279c9b63af91"
+        },
+        {
+          "start": 1,
+          "end": 17,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "e44e0777623222161c84cce12c82"
+        }
+      ]
+    },
+    {
+      "name": "no. before a number",
+      "note": "\"no.\" before a digit is an abbreviation.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "See no. 5 on the list. Then go."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "See no. 5 on the list. Then go.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 22,
+          "text": "See no. 5 on the list."
+        },
+        {
+          "start": 23,
+          "end": 31,
+          "text": "Then go."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "See no. 5 on the list.",
+          "passageId": "ff7e9af7db399da1c313c299eb48",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Then go.",
+          "passageId": "44bdefa933f81249bf4e66a4ad5c",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "See no. 5 on the list. Then go.",
+          "passageId": "555d394aba301cae6924acfd3492",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 24,
+          "end": 24,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "44bdefa933f81249bf4e66a4ad5c"
+        },
+        {
+          "start": 1,
+          "end": 21,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "ff7e9af7db399da1c313c299eb48"
+        }
+      ]
+    },
+    {
+      "name": "fig as a word and before a number",
+      "note": "\"fig.\" keeps a sentence open only before a number.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "She ate a fig. It was ripe. See fig. 3 for more."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "She ate a fig. It was ripe. See fig. 3 for more.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 14,
+          "text": "She ate a fig."
+        },
+        {
+          "start": 15,
+          "end": 27,
+          "text": "It was ripe."
+        },
+        {
+          "start": 28,
+          "end": 48,
+          "text": "See fig. 3 for more."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "She ate a fig.",
+          "passageId": "029f22e354207e38b0f695c65f28",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "It was ripe.",
+          "passageId": "48df1f84d7549e4940a55fb2df5a",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "text": "See fig. 3 for more.",
+          "passageId": "949d5f371372613182a0973b69ba",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "She ate a fig. It was ripe.",
+          "passageId": "e218d99a0d1f53b6c6d782cd0bfb",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 29,
+          "end": 29,
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "passageId": "949d5f371372613182a0973b69ba"
+        },
+        {
+          "start": 1,
+          "end": 13,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "029f22e354207e38b0f695c65f28"
+        }
+      ]
+    },
+    {
+      "name": "p.m. before a capital",
+      "note": "Dotted letters end a sentence when a capital follows.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "We met at 5 p.m. She was late."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "We met at 5 p.m. She was late.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 16,
+          "text": "We met at 5 p.m."
+        },
+        {
+          "start": 17,
+          "end": 30,
+          "text": "She was late."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "We met at 5 p.m.",
+          "passageId": "35d42eb69fe48c6e599656fe5aa2",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "She was late.",
+          "passageId": "0e44840c3cbbb7376656d32d1d9b",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "We met at 5 p.m. She was late.",
+          "passageId": "3b8dc0aa7596391baa078ae20768",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 18,
+          "end": 18,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "0e44840c3cbbb7376656d32d1d9b"
+        },
+        {
+          "start": 1,
+          "end": 15,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "35d42eb69fe48c6e599656fe5aa2"
+        }
+      ]
+    },
+    {
+      "name": "U.S. before a capital",
+      "note": "Dotted letters end a sentence when a capital follows.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "He lives in the U.S. The weather is fine."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "He lives in the U.S. The weather is fine.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 20,
+          "text": "He lives in the U.S."
+        },
+        {
+          "start": 21,
+          "end": 41,
+          "text": "The weather is fine."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "He lives in the U.S.",
+          "passageId": "211d4b1dca586a0eb1d954a08688",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "The weather is fine.",
+          "passageId": "7fa2fa9822caa9e088ed634a0f66",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "He lives in the U.S. The weather is fine.",
+          "passageId": "7d2e300b8095729e497f97155a5e",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 22,
+          "end": 22,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "7fa2fa9822caa9e088ed634a0f66"
+        },
+        {
+          "start": 1,
+          "end": 19,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "211d4b1dca586a0eb1d954a08688"
+        }
+      ]
+    },
+    {
+      "name": "a punctuation-only run joins the sentence before it",
+      "note": "A piece with no letter or digit is not a sentence of its own.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Wait . . . ? ! Then go."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Wait . . . ? ! Then go.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 14,
+          "text": "Wait . . . ? !"
+        },
+        {
+          "start": 15,
+          "end": 23,
+          "text": "Then go."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Wait . . . ? !",
+          "passageId": "109726600a8f4886d869aa059e2d",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Then go.",
+          "passageId": "44bdefa933f81249bf4e66a4ad5c",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Wait . . . ? ! Then go.",
+          "passageId": "cb192f122ef64ae292aeff254b0b",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 16,
+          "end": 16,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "44bdefa933f81249bf4e66a4ad5c"
+        },
+        {
+          "start": 1,
+          "end": 13,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "109726600a8f4886d869aa059e2d"
+        }
+      ]
+    },
+    {
+      "name": "a block of punctuation only",
+      "note": "A block with no letter or digit at all is one sentence.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": ". . . ? !"
+              }
+            ]
+          }
+        ]
+      },
+      "text": ". . . ? !",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 9,
+          "text": ". . . ? !"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": ". . . ? !",
+          "passageId": "39635021f244d47ac2a2844d8b8c",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "39635021f244d47ac2a2844d8b8c"
+        },
+        {
+          "start": 1,
+          "end": 8,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "39635021f244d47ac2a2844d8b8c"
+        }
+      ]
+    },
+    {
+      "name": "an emoji-only paragraph",
+      "note": "A block with no letter or digit is still one sentence, so it can be tipped.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "🎉"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "🎉",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 2,
+          "text": "🎉"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "🎉",
+          "passageId": "fd7521b2c0e8466509763a765bad",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "fd7521b2c0e8466509763a765bad"
+        },
+        {
+          "start": 1,
+          "end": 2,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "fd7521b2c0e8466509763a765bad"
+        }
+      ]
+    },
+    {
+      "name": "Armenian full stop",
+      "note": "The Armenian full stop (U+0589) ends a sentence when a space follows.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Բարեւ։ Ինչպես ես։"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Բարեւ։ Ինչպես ես։",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 6,
+          "text": "Բարեւ։"
+        },
+        {
+          "start": 7,
+          "end": 17,
+          "text": "Ինչպես ես։"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Բարեւ։",
+          "passageId": "ec39edcea51314f5f82fa3243e7d",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Ինչպես ես։",
+          "passageId": "46ee5e27f461244435f9bd98edcd",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Բարեւ։ Ինչպես ես։",
+          "passageId": "d821add57d84de1babdb745dd14b",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 8,
+          "end": 8,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "46ee5e27f461244435f9bd98edcd"
+        },
+        {
+          "start": 1,
+          "end": 5,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "ec39edcea51314f5f82fa3243e7d"
+        }
+      ]
+    },
+    {
+      "name": "full-width and half-width stops",
+      "note": "U+FF0E and U+FF61 end a sentence with no space after them.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "一つ．二つ｡三つ"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "一つ．二つ｡三つ",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 3,
+          "text": "一つ．"
+        },
+        {
+          "start": 3,
+          "end": 6,
+          "text": "二つ｡"
+        },
+        {
+          "start": 6,
+          "end": 8,
+          "text": "三つ"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "一つ．",
+          "passageId": "a80a6c236f1104c4a38d535b16ab",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "二つ｡",
+          "passageId": "0a9ca4096bd33e76cf2561fc2596",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "text": "三つ",
+          "passageId": "6c0ab8ec18c98951ce344e82a03e",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "一つ．二つ｡",
+          "passageId": "57c8b768a9e1722fce926f7af81d",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 7,
+          "end": 7,
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "passageId": "6c0ab8ec18c98951ce344e82a03e"
+        },
+        {
+          "start": 1,
+          "end": 2,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "a80a6c236f1104c4a38d535b16ab"
+        }
+      ]
+    },
+    {
+      "name": "Greek question mark",
+      "note": "The Greek question mark (U+037E) ends a sentence; the id uses NFC, which maps it to U+003B.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Τι κάνεις; Καλά."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Τι κάνεις; Καλά.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 10,
+          "text": "Τι κάνεις;"
+        },
+        {
+          "start": 11,
+          "end": 16,
+          "text": "Καλά."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Τι κάνεις;",
+          "passageId": "36c6134b814183173c013dc7bd51",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Καλά.",
+          "passageId": "02dd78db01ae177d5b89c6e112b9",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Τι κάνεις; Καλά.",
+          "passageId": "64e863bc60b96798d19580f1968c",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 12,
+          "end": 12,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "02dd78db01ae177d5b89c6e112b9"
+        },
+        {
+          "start": 1,
+          "end": 9,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "36c6134b814183173c013dc7bd51"
+        }
+      ]
+    },
+    {
+      "name": "a hard break reads as a space",
+      "note": "A hard break inside a sentence gives one space in its text; offsets count no character for it.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Roses are red,"
+              },
+              {
+                "type": "hardBreak"
+              },
+              {
+                "type": "text",
+                "text": "violets are blue."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Roses are red,violets are blue.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 31,
+          "text": "Roses are red, violets are blue."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Roses are red, violets are blue.",
+          "passageId": "14ef37134b3b77c3397ec5828f5f",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "14ef37134b3b77c3397ec5828f5f"
+        },
+        {
+          "start": 1,
+          "end": 30,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "14ef37134b3b77c3397ec5828f5f"
+        }
+      ]
+    },
+    {
+      "name": "U+0085 is not whitespace",
+      "note": "NEL (U+0085) is kept as a character, never read as a space.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Lineone ends. Two."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Lineone ends. Two.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 14,
+          "text": "Lineone ends."
+        },
+        {
+          "start": 15,
+          "end": 19,
+          "text": "Two."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Lineone ends.",
+          "passageId": "cd5d9c3980a69dbd84d87409d5ea",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Two.",
+          "passageId": "ebb2408fe94131160657b88d7587",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Lineone ends. Two.",
+          "passageId": "2c23cb1d30850c8346bde6a7a708",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 16,
+          "end": 16,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "ebb2408fe94131160657b88d7587"
+        },
+        {
+          "start": 1,
+          "end": 13,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "cd5d9c3980a69dbd84d87409d5ea"
+        }
+      ]
+    },
+    {
+      "name": "U+200B is not whitespace",
+      "note": "ZERO WIDTH SPACE (U+200B) is kept as a character, never read as a space.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Zero​width here. Next."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Zero​width here. Next.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 16,
+          "text": "Zero​width here."
+        },
+        {
+          "start": 17,
+          "end": 22,
+          "text": "Next."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Zero​width here.",
+          "passageId": "0ffec727558035cc5955a9ce818d",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Next.",
+          "passageId": "e5997303beb9be952a021fdc3770",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Zero​width here. Next.",
+          "passageId": "ffc2547c92ebd0fcd7f3711d5e8f",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 18,
+          "end": 18,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "e5997303beb9be952a021fdc3770"
+        },
+        {
+          "start": 1,
+          "end": 15,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "0ffec727558035cc5955a9ce818d"
         }
       ]
     },

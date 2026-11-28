@@ -128,14 +128,27 @@ export function blockText(
   return { start, text, gaps }
 }
 
+/** Whether a hard break or an inline image sits between two text nodes. */
+function breakBetween(block: Element, before: Node, after: Node): boolean {
+  for (const mark of block.querySelectorAll('br, img'))
+    if (
+      before.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING &&
+      after.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_PRECEDING
+    )
+      return true
+  return false
+}
+
 /**
- * The words of `[start, end)`, with a space between blocks, as the editor's
- * `textBetween(from, to, ' ')` gives them.
+ * The words of `[start, end)` as the sentence rule writes a passage's text
+ * (`passageText` of the shared rule): one space at each hard break or
+ * inline image inside a block, and one space between blocks.
  */
 export function textBetween(root: Element, start: number, end: number): string {
   let seen = 0
   let out = ''
   let lastBlock: Element | null = null
+  let lastNode: Node | null = null
   for (const node of textNodes(root)) {
     const next = seen + node.length
     if (next > start && seen < end) {
@@ -143,11 +156,14 @@ export function textBetween(root: Element, start: number, end: number): string {
         node.parentElement?.closest('p, li, h1, h2, h3, h4, blockquote, pre') ??
         null
       if (out && lastBlock && block !== lastBlock) out += ' '
+      else if (out && block && lastNode && breakBetween(block, lastNode, node))
+        out += ' '
       out += node.data.slice(
         Math.max(0, start - seen),
         Math.min(node.length, end - seen)
       )
       lastBlock = block
+      lastNode = node
     }
     seen = next
     if (seen >= end) break
@@ -235,7 +251,7 @@ export function sentenceAtLine(
       ).getBoundingClientRect()
       if (rect.bottom >= y)
         return {
-          text: text.slice(span.start, span.end),
+          text: span.text,
           startOffset: start + span.start,
         }
     }
@@ -259,7 +275,7 @@ export function lineSentences(root: Element): Passage[] {
       const startOffset = start + span.start
       const endOffset = start + span.end
       out.push({
-        text: text.slice(span.start, span.end),
+        text: span.text,
         startOffset,
         endOffset,
         startContainerPath: `text.${startOffset}`,

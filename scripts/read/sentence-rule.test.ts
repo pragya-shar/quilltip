@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { canonicalText, sentencesOf } from '@/hooks/read/sentenceRule'
 import { sentenceSpans } from '@/hooks/read/sentences'
 
-// The shared sentence rule's own vectors (pull request 603,
+// The shared sentence rule's own vectors (pull request 603 at 29206235,
 // lib/passages/vectors/identity-v1.json, copied beside this test). Delete
 // both this copy and hooks/read/sentenceRule.ts when 603 merges.
 type Vector = {
@@ -43,7 +43,7 @@ describe('the copied sentence rule matches the shared vectors', () => {
       const text = canonical.text.slice(block.start, block.end)
       const gaps = block.gaps.map((g) => g - block.start)
       expect(
-        sentenceSpans(text, gaps).map((s) => text.slice(s.start, s.end)),
+        sentenceSpans(text, gaps).map((s) => s.text),
         vector.name
       ).toEqual(vector.sentences.map((s) => s.text))
     }

@@ -12,6 +12,9 @@
 import { sentenceRange, sentencesOf, type Sentence } from './sentenceRule'
 
 export type Span = { start: number; end: number }
+/** A sentence of a block: its offsets, and its text as the rule writes it
+ * (one space at each hard break inside). */
+export type SentenceSpan = Span & { text: string }
 
 function sentencesIn(text: string, gaps: readonly number[]): Sentence[] {
   return sentencesOf({
@@ -24,8 +27,12 @@ function sentencesIn(text: string, gaps: readonly number[]): Sentence[] {
 export function sentenceSpans(
   text: string,
   gaps: readonly number[] = []
-): Span[] {
-  return sentencesIn(text, gaps).map(({ start, end }) => ({ start, end }))
+): SentenceSpan[] {
+  return sentencesIn(text, gaps).map(({ start, end, text: line }) => ({
+    start,
+    end,
+    text: line,
+  }))
 }
 
 /**
