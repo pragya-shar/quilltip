@@ -1,0 +1,384 @@
+@layer components {
+  /* Scroll lock while a modal is open (useModal sets the attribute). */
+  html {
+    scrollbar-gutter: stable;
+  }
+  html[data-scroll-locked] {
+    overflow: hidden;
+  }
+
+  /* Sheet and dialog: a native modal <dialog> that fills the viewport; the
+   * panel inside is the visible surface, the rest is the scrim. */
+  .qt-modal {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    max-width: none;
+    height: 100dvh;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--qt-ink);
+    overflow: hidden;
+    overscroll-behavior: contain;
+  }
+  .qt-modal:not([open]) {
+    display: none;
+  }
+  .qt-modal[open] {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  .qt-modal::backdrop {
+    background: var(--qt-scrim);
+    animation: qt-fade var(--qt-dur-sheet) var(--qt-ease-out);
+  }
+  .qt-modal[data-closing]::backdrop {
+    opacity: 0;
+    transition: opacity var(--qt-dur-sheet-exit) var(--qt-ease-in);
+  }
+  .qt-modal__panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    max-height: calc(100dvh - var(--qt-safe-top) - var(--qt-space-8));
+    border: 1px solid transparent;
+    border-start-start-radius: var(--qt-radius-sheet);
+    border-start-end-radius: var(--qt-radius-sheet);
+    background: var(--qt-surface);
+    box-shadow: var(--qt-shadow-sheet);
+    padding-block-end: var(--qt-safe-bottom);
+    animation: qt-sheet-in var(--qt-dur-sheet) var(--qt-ease-sheet);
+    transition: transform var(--qt-dur-sheet) var(--qt-ease-sheet);
+  }
+  .qt-modal__panel[data-dragging] {
+    transition: none;
+    user-select: none;
+  }
+  .qt-modal[data-closing] .qt-modal__panel {
+    transform: translateY(100%);
+    transition: transform var(--qt-dur-sheet-exit) var(--qt-ease-in);
+  }
+  .qt-modal__head {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: var(--qt-space-3);
+    /* Room at the end for the close button, which sits in this corner. */
+    padding-block: var(--qt-space-6) var(--qt-space-2);
+    padding-inline: var(--qt-space-5) calc(var(--qt-hit) + var(--qt-space-4));
+    touch-action: none;
+  }
+  .qt-modal__grip {
+    position: absolute;
+    inset-block-start: var(--qt-space-2);
+    inset-inline-start: 50%;
+    width: 2.25rem;
+    height: 0.3125rem;
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-line-strong);
+    transform: translateX(-50%);
+  }
+  [dir='rtl'] .qt-modal__grip {
+    transform: translateX(50%);
+  }
+  .qt-modal__titles {
+    flex: 1;
+    min-width: 0;
+    padding-block-start: var(--qt-space-2);
+  }
+  .qt-modal__titles[data-hidden] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .qt-modal__title {
+    border-radius: var(--qt-radius-tag);
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-title);
+    line-height: var(--qt-lh-title);
+    font-weight: var(--qt-weight-title);
+  }
+  .qt-modal__description {
+    margin-block-start: var(--qt-space-2);
+    color: var(--qt-ink-2);
+  }
+  .qt-modal__close {
+    position: absolute;
+    inset-block-start: var(--qt-space-5);
+    inset-inline-end: var(--qt-space-3);
+    display: inline-grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: var(--qt-hit);
+    height: var(--qt-hit);
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-sunk);
+    color: var(--qt-ink);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-modal__close:hover {
+      background-image: linear-gradient(var(--qt-hover), var(--qt-hover));
+    }
+  }
+  .qt-modal__body {
+    flex: 1;
+    min-height: 0;
+    padding: var(--qt-space-2) var(--qt-space-5) var(--qt-space-4);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .qt-modal__actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-2);
+    padding: var(--qt-space-2) var(--qt-space-5) var(--qt-space-5);
+  }
+  .qt-modal__actions[data-layout='row'] {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+  .qt-modal__actions[data-layout='row'] > * {
+    flex: 1 1 8rem;
+  }
+
+  /* Dialog: centred, compact, on every width. */
+  .qt-modal[data-kind='dialog'][open] {
+    justify-content: center;
+    padding: var(--qt-gutter);
+  }
+  .qt-modal[data-kind='dialog'] .qt-modal__panel {
+    max-width: 24rem;
+    padding: var(--qt-space-6) 0 0;
+    border-radius: var(--qt-radius-card);
+    box-shadow: var(--qt-shadow-float);
+    animation: qt-pop var(--qt-dur-base) var(--qt-ease-out);
+  }
+  .qt-modal[data-kind='dialog'] .qt-modal__titles {
+    padding: 0 var(--qt-space-6);
+  }
+  .qt-modal[data-kind='dialog'] .qt-modal__title {
+    font-size: 1.375rem;
+  }
+  .qt-modal[data-kind='dialog'] .qt-modal__actions {
+    padding: var(--qt-space-6);
+  }
+  .qt-modal[data-kind='dialog'][data-closing] .qt-modal__panel {
+    opacity: 0;
+    transform: scale(0.97);
+    transition:
+      opacity var(--qt-dur-sheet-exit) var(--qt-ease-in),
+      transform var(--qt-dur-sheet-exit) var(--qt-ease-in);
+  }
+
+  /* From 40rem the sheet is a centred panel. */
+  @media (min-width: 40rem) {
+    .qt-modal[data-kind='sheet'][open] {
+      justify-content: center;
+      padding: var(--qt-space-8);
+    }
+    .qt-modal[data-kind='sheet'] .qt-modal__panel {
+      max-width: 28rem;
+      border-radius: var(--qt-radius-sheet);
+      box-shadow: var(--qt-shadow-float);
+      padding-block-end: 0;
+      animation: qt-pop var(--qt-dur-base) var(--qt-ease-out);
+    }
+    .qt-modal[data-kind='sheet'] .qt-modal__grip {
+      display: none;
+    }
+    .qt-modal[data-kind='sheet'] .qt-modal__head {
+      padding-block-start: var(--qt-space-5);
+      touch-action: auto;
+    }
+    .qt-modal[data-kind='sheet'] .qt-modal__close {
+      inset-block-start: var(--qt-space-4);
+    }
+    .qt-modal[data-kind='sheet'][data-closing] .qt-modal__panel {
+      opacity: 0;
+      transform: scale(0.97);
+      transition:
+        opacity var(--qt-dur-sheet-exit) var(--qt-ease-in),
+        transform var(--qt-dur-sheet-exit) var(--qt-ease-in);
+    }
+  }
+
+  @keyframes qt-sheet-in {
+    from {
+      transform: translateY(100%);
+    }
+  }
+  @keyframes qt-pop {
+    from {
+      opacity: 0;
+      transform: scale(0.97);
+    }
+  }
+  @keyframes qt-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  /* Toasts: always dark, above the phone navigation. */
+  /* Toasts sit above whatever is docked at the foot of the screen: the
+   * phone bar on a place, nothing on a pushed screen, a docked bar (the tip
+   * bar) when one reports its height (shell/Dock.tsx). */
+  .qt-toasts {
+    --qt-toast-lift: calc(var(--qt-nav-h) + var(--qt-space-5));
+    position: fixed;
+    inset-inline: 0;
+    inset-block-end: calc(
+      var(--qt-safe-bottom) + var(--qt-toast-lift) + var(--qt-space-3)
+    );
+    z-index: var(--qt-z-toast);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding-inline: var(--qt-gutter);
+    pointer-events: none;
+  }
+  .qt-toasts__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-2);
+    width: 100%;
+    max-width: 26rem;
+  }
+  .qt-toasts__list:not(:empty) + .qt-toasts__list:not(:empty) {
+    margin-block-start: var(--qt-space-2);
+  }
+  .qt-toast {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-3);
+    min-height: 3.5rem;
+    padding-block: var(--qt-space-3);
+    padding-inline: var(--qt-space-4) var(--qt-space-3);
+    border: 1px solid transparent;
+    border-radius: var(--qt-radius-toast);
+    background: var(--qt-toast-bg);
+    color: var(--qt-toast-ink);
+    box-shadow: var(--qt-shadow-float);
+    pointer-events: auto;
+    animation: qt-rise var(--qt-dur-base) var(--qt-ease-out);
+  }
+  .qt-toast__glyph {
+    display: inline-grid;
+    place-items: center;
+    color: var(--qt-toast-accent);
+  }
+  .qt-toast[data-tone='failure'] .qt-toast__glyph {
+    color: var(--qt-toast-danger);
+  }
+  .qt-toast[data-tone='info'] .qt-toast__glyph {
+    color: var(--qt-toast-ink-2);
+  }
+  .qt-toast__text {
+    flex: 1;
+    min-width: 0;
+  }
+  .qt-toast__title {
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-toast__description {
+    color: var(--qt-toast-ink-2);
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+  }
+  .qt-toast__action {
+    min-height: var(--qt-hit);
+    padding-inline: var(--qt-space-3);
+    border-radius: var(--qt-radius-pill);
+    color: var(--qt-toast-ink);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+  }
+  .qt-toast__action:focus-visible {
+    outline-color: var(--qt-toast-ink);
+  }
+  .qt-shell:has([data-shell-chrome='pushed']) .qt-toasts {
+    --qt-toast-lift: 0px;
+  }
+  /* --qt-dock-h already counts from the viewport's bottom edge. */
+  :root[data-docked] .qt-toasts {
+    --qt-toast-lift: calc(var(--qt-dock-h, 0px) - var(--qt-safe-bottom));
+  }
+  @media (min-width: 64rem) {
+    .qt-toasts {
+      --qt-toast-lift: var(--qt-space-5);
+      inset-inline-start: var(--qt-rail-w);
+    }
+    :root[data-docked] .qt-toasts {
+      --qt-toast-lift: calc(var(--qt-dock-h, 0px) - var(--qt-safe-bottom));
+    }
+  }
+
+  /* Menu */
+  .qt-menu {
+    position: relative;
+    display: inline-block;
+  }
+  .qt-menu__list {
+    position: absolute;
+    inset-inline-end: 0;
+    inset-block-start: calc(100% + var(--qt-space-1));
+    z-index: var(--qt-z-menu);
+    display: flex;
+    flex-direction: column;
+    min-width: 13rem;
+    max-width: calc(100vw - 2 * var(--qt-gutter));
+    padding: var(--qt-space-1);
+    border: 1px solid var(--qt-line);
+    border-radius: var(--qt-radius-control);
+    background: var(--qt-surface);
+    box-shadow: var(--qt-shadow-float);
+    animation: qt-pop var(--qt-dur-quick) var(--qt-ease-out);
+    transform-origin: top right;
+  }
+  [dir='rtl'] .qt-menu__list {
+    transform-origin: top left;
+  }
+  .qt-menu__list[data-side='top'] {
+    inset-block-start: auto;
+    inset-block-end: calc(100% + var(--qt-space-1));
+    transform-origin: bottom right;
+  }
+  [dir='rtl'] .qt-menu__list[data-side='top'] {
+    transform-origin: bottom left;
+  }
+  .qt-menu__item {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-3);
+    min-height: var(--qt-hit);
+    padding-inline: var(--qt-space-3);
+    border-radius: calc(var(--qt-radius-control) - var(--qt-space-1));
+    color: var(--qt-ink);
+    font-weight: var(--qt-weight-ui);
+    text-align: start;
+  }
+  .qt-menu__item[data-tone='danger'] {
+    color: var(--qt-danger);
+  }
+  .qt-menu__item:focus-visible {
+    outline-offset: -2px;
+  }
+  .qt-menu__item:focus-visible,
+  .qt-menu__item:active {
+    background: var(--qt-press);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-menu__item:hover {
+      background: var(--qt-hover);
+    }
+  }
+}

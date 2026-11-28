@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next'
 import bundleAnalyzer from '@next/bundle-analyzer'
+import { legacyRouteTree } from './lib/routing/legacyRouteTree'
 import { walletConnectProjectId } from './lib/stellar/v2/walletconnect-gate'
 
 // WalletConnect is on with a Reown project ID and off without one
@@ -23,6 +24,9 @@ const nextConfig: NextConfig = {
   ...(process.env.QUILLTIP_IMMUTABLE_ASSETS === '1' && {
     supportsImmutableAssets: true,
   }),
+  // The paths the legacy pages still serve: the shell's links to them never
+  // prefetch (lib/routing/legacyRoutes.ts).
+  env: { NEXT_PUBLIC_LEGACY_ROUTES: JSON.stringify(legacyRouteTree()) },
   // Put page metadata in <head> for every client, not only Next's built-in bot
   // list, so all crawlers and link previews see article titles and tags. Pages
   // that set metadata already await the same data, so nothing is delayed.

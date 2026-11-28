@@ -1,0 +1,210 @@
+/*
+ * Metric-matched fallback faces for Literata: text paints in Times New Roman
+ * (or Liberation Serif, with the same advance widths) until Literata
+ * arrives, at Literata's width and line metrics, so the swap moves nothing.
+ *
+ * One face per weight band, because Literata's weights differ in width;
+ * from 550 the source is the bold file, because WebKit and Chromium draw a
+ * regular local face at 600 differently (one picks the bold file, the other
+ * thickens the regular one), and only a bold source gives both the same
+ * glyphs. Values are computed the way next/font computes its own fallback
+ * (hhea ascent, descent and line gap, and the average advance of its
+ * letter-frequency string), from Literata instanced at the band's weight:
+ * optical size 18 below 550 (reading text), 28 from 550 (titles). The
+ * Latin Extended face sits before these in the family list
+ * (system/fonts.ts). Checked by scripts/perf/font-fallback-check.ts.
+ */
+@font-face {
+  font-family: 'Quilltip Read Fallback';
+  src:
+    local('Times New Roman'), local('TimesNewRomanPSMT'),
+    local('Liberation Serif'), local('LiberationSerif');
+  font-weight: 400 424;
+  font-style: normal;
+  size-adjust: 117.88%;
+  ascent-override: 99.84%;
+  descent-override: 26.13%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Fallback';
+  src:
+    local('Times New Roman'), local('TimesNewRomanPSMT'),
+    local('Liberation Serif'), local('LiberationSerif');
+  font-weight: 425 474;
+  font-style: normal;
+  size-adjust: 119.24%;
+  ascent-override: 98.71%;
+  descent-override: 25.83%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Fallback';
+  src:
+    local('Times New Roman'), local('TimesNewRomanPSMT'),
+    local('Liberation Serif'), local('LiberationSerif');
+  font-weight: 475 549;
+  font-style: normal;
+  size-adjust: 120.6%;
+  ascent-override: 97.6%;
+  descent-override: 25.54%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Fallback';
+  src:
+    local('Times New Roman Bold'), local('TimesNewRomanPS-BoldMT'),
+    local('Liberation Serif Bold'), local('LiberationSerif-Bold');
+  font-weight: 550 624;
+  font-style: normal;
+  size-adjust: 115.48%;
+  ascent-override: 101.92%;
+  descent-override: 26.67%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Fallback';
+  src:
+    local('Times New Roman Bold'), local('TimesNewRomanPS-BoldMT'),
+    local('Liberation Serif Bold'), local('LiberationSerif-Bold');
+  font-weight: 625 674;
+  font-style: normal;
+  size-adjust: 117.08%;
+  ascent-override: 100.53%;
+  descent-override: 26.31%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Fallback';
+  src:
+    local('Times New Roman Bold'), local('TimesNewRomanPS-BoldMT'),
+    local('Liberation Serif Bold'), local('LiberationSerif-Bold');
+  font-weight: 675 700;
+  font-style: normal;
+  size-adjust: 118.73%;
+  ascent-override: 99.13%;
+  descent-override: 25.94%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Italic Fallback';
+  src:
+    local('Times New Roman Italic'), local('TimesNewRomanPS-ItalicMT'),
+    local('Liberation Serif Italic'), local('LiberationSerif-Italic');
+  font-weight: 400 424;
+  font-style: italic;
+  size-adjust: 112.27%;
+  ascent-override: 104.84%;
+  descent-override: 27.43%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Italic Fallback';
+  src:
+    local('Times New Roman Italic'), local('TimesNewRomanPS-ItalicMT'),
+    local('Liberation Serif Italic'), local('LiberationSerif-Italic');
+  font-weight: 425 474;
+  font-style: italic;
+  size-adjust: 113.87%;
+  ascent-override: 103.36%;
+  descent-override: 27.05%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Italic Fallback';
+  src:
+    local('Times New Roman Italic'), local('TimesNewRomanPS-ItalicMT'),
+    local('Liberation Serif Italic'), local('LiberationSerif-Italic');
+  font-weight: 475 549;
+  font-style: italic;
+  size-adjust: 115.44%;
+  ascent-override: 101.96%;
+  descent-override: 26.68%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Italic Fallback';
+  src:
+    local('Times New Roman Bold Italic'), local('TimesNewRomanPS-BoldItalicMT'),
+    local('Liberation Serif Bold Italic'), local('LiberationSerif-BoldItalic');
+  font-weight: 550 624;
+  font-style: italic;
+  size-adjust: 115.24%;
+  ascent-override: 102.13%;
+  descent-override: 26.73%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Italic Fallback';
+  src:
+    local('Times New Roman Bold Italic'), local('TimesNewRomanPS-BoldItalicMT'),
+    local('Liberation Serif Bold Italic'), local('LiberationSerif-BoldItalic');
+  font-weight: 625 674;
+  font-style: italic;
+  size-adjust: 117.17%;
+  ascent-override: 100.45%;
+  descent-override: 26.29%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Italic Fallback';
+  src:
+    local('Times New Roman Bold Italic'), local('TimesNewRomanPS-BoldItalicMT'),
+    local('Liberation Serif Bold Italic'), local('LiberationSerif-BoldItalic');
+  font-weight: 675 700;
+  font-style: italic;
+  size-adjust: 119.11%;
+  ascent-override: 98.81%;
+  descent-override: 25.86%;
+  line-gap-override: 0%;
+}
+
+/*
+ * Two places draw Literata differently from running text, so they have a
+ * fallback of their own (system/fonts.ts sets each family list):
+ * - The display title (650, 32 px on a phone, 52 px from 64rem), where a
+ *   balanced title re-wraps on a two percent difference. Calibrated on
+ *   article titles with Literata's kerning, which the advance widths alone
+ *   miss by about 1.3 percent.
+ * - The lead-in line, drawn in capitals at 0.7 em: capitals differ in width
+ *   from the lowercase that size-adjust matches above. (Small caps would
+ *   differ by engine: WebKit draws Times New Roman's own, Chromium makes
+ *   them from capitals, and Literata's subset has none, so the lead-in is
+ *   capitals in every face.)
+ */
+@font-face {
+  font-family: 'Quilltip Display Fallback';
+  src:
+    local('Times New Roman Bold'), local('TimesNewRomanPS-BoldMT'),
+    local('Liberation Serif Bold'), local('LiberationSerif-Bold');
+  font-weight: 550 700;
+  font-style: normal;
+  size-adjust: 115.2%;
+  ascent-override: 102.18%;
+  descent-override: 26.74%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Display Wide Fallback';
+  src:
+    local('Times New Roman Bold'), local('TimesNewRomanPS-BoldMT'),
+    local('Liberation Serif Bold'), local('LiberationSerif-Bold');
+  font-weight: 550 700;
+  font-style: normal;
+  size-adjust: 114.2%;
+  ascent-override: 103.07%;
+  descent-override: 26.97%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Quilltip Read Caps Fallback';
+  src:
+    local('Times New Roman'), local('TimesNewRomanPSMT'),
+    local('Liberation Serif'), local('LiberationSerif');
+  font-weight: 400 549;
+  font-style: normal;
+  size-adjust: 106.17%;
+  ascent-override: 110.86%;
+  descent-override: 29.01%;
+  line-gap-override: 0%;
+}

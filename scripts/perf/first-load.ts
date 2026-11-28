@@ -8,6 +8,7 @@
 //   `next experimental-analyze --output`: which source modules each chunk
 //   holds. Used to refuse modules that must load only on demand.
 import { gzipSync } from 'zlib'
+import { SURFACE_FIRST_LOAD } from './routes'
 
 /** The routes whose first load is budgeted, as Next.js names them. */
 export const FIRST_LOAD_ROUTES = [
@@ -15,6 +16,8 @@ export const FIRST_LOAD_ROUTES = [
   '/login',
   '/articles',
   '/[username]/[slug]',
+  // The rebuilt routes, one file per package (scripts/perf/routes).
+  ...SURFACE_FIRST_LOAD.map((entry) => entry.route),
 ] as const
 export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
 
@@ -29,6 +32,9 @@ export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
   '/login': 202, // measured 199.4
   '/articles': 216, // measured 214.0
   '/[username]/[slug]': 219, // measured 216.9
+  ...Object.fromEntries(
+    SURFACE_FIRST_LOAD.map((entry) => [entry.route, entry.budgetKb])
+  ),
 }
 
 /**
@@ -40,6 +46,8 @@ export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
 export const FORBIDDEN_FIRST_LOAD_MODULES: {
   label: string
   pattern: RegExp
+  /** Routes that may load these modules (their own page). */
+  allowedOn?: readonly string[]
 }[] = [
   { label: 'Stellar SDK (@stellar/*)', pattern: pkg('@stellar/[^/]+') },
   {
@@ -63,6 +71,20 @@ export const FORBIDDEN_FIRST_LOAD_MODULES: {
   {
     label: 'editor (Tiptap, ProseMirror)',
     pattern: pkg('(?:@tiptap/[^/]+|prosemirror-[^/]+)'),
+  },
+  {
+    // The balance's content loads when its sheet or panel opens
+    // (shell/pocket/loadPocket.ts), never with a page.
+    label: 'the balance sheet (components/pocket)',
+    pattern: /\[project\]\/components\/pocket\//,
+    // The balance's own page loads it; it is measured against the
+    // signed-in budget there (scripts/perf/routes/pocket.ts).
+    allowedOn: ['/pocket'],
+  },
+  {
+    // Sheets declared in shell/sheets load when they open.
+    label: 'a lazily loaded sheet (components/<area>/sheets)',
+    pattern: /\[project\]\/components\/[^/]+\/sheets\//,
   },
   {
     label: 'v2 payment code (lib/stellar/v2: bindings, wallet kit)',
@@ -174,10 +196,14 @@ export function largestModules(
 }
 
 /** Forbidden modules found, as "label: module path" lines. */
-export function forbiddenModules(modules: Iterable<string>): string[] {
+export function forbiddenModules(
+  modules: Iterable<string>,
+  route?: string
+): string[] {
   const found: string[] = []
   for (const modulePath of modules) {
-    for (const { label, pattern } of FORBIDDEN_FIRST_LOAD_MODULES) {
+    for (const { label, pattern, allowedOn } of FORBIDDEN_FIRST_LOAD_MODULES) {
+      if (route !== undefined && allowedOn?.includes(route)) continue
       if (pattern.test(modulePath)) found.push(`${label}: ${modulePath}`)
     }
   }

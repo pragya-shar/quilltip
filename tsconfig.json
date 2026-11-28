@@ -28,7 +28,10 @@
       "@/hooks/*": ["./hooks/*"],
       "@/actions/*": ["./actions/*"],
       "@/contexts/*": ["./components/providers/*"],
-      "@/convex/*": ["./convex/*"]
+      "@/convex/*": ["./convex/*"],
+      "@/system/*": ["./system/*"],
+      "@/shell/*": ["./shell/*"],
+      "@/surfaces/*": ["./surfaces/*"]
     }
   },
   "include": [

@@ -1,0 +1,581 @@
+@layer components {
+  /* Money figure */
+  .qt-money {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--qt-space-1);
+    color: var(--qt-ink);
+  }
+  .qt-money__figure {
+    font-family: var(--qt-font-read);
+    font-weight: 600;
+    line-height: 1;
+    letter-spacing: var(--qt-track-money);
+    font-variant-numeric: tabular-nums lining-nums;
+    white-space: nowrap;
+    /* Figures read left to right in every language. */
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+  .qt-money[data-size='xl'] .qt-money__figure {
+    font-size: var(--qt-money-xl);
+  }
+  .qt-money[data-size='l'] .qt-money__figure {
+    font-size: var(--qt-money-l);
+  }
+  .qt-money[data-size='m'] .qt-money__figure {
+    font-size: var(--qt-money-m);
+  }
+  .qt-money[data-size='pending'] .qt-money__figure {
+    font-size: var(--qt-money-pending);
+  }
+  .qt-money[data-size='s'] .qt-money__figure {
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-money-s);
+    font-weight: var(--qt-weight-ui-strong);
+    letter-spacing: 0;
+  }
+  /* Serif figures draw cents raised, at half size, in the quieter ink. */
+  .qt-money:not([data-size='s']) .qt-money__fraction {
+    margin-inline-start: 0.05em;
+    font-size: var(--qt-money-cents-size);
+    color: var(--qt-ink-3);
+    letter-spacing: 0;
+    vertical-align: var(--qt-money-cents-raise);
+  }
+  /* "≈" and "→" come from one face, the platform's: Literata has
+   * neither. */
+  .qt-money__approx {
+    margin-inline-end: 0.08em;
+    font-family: var(--qt-font-ui);
+    font-weight: var(--qt-weight-ui);
+    font-size: 0.6em;
+    color: var(--qt-ink-2);
+    letter-spacing: 0;
+    vertical-align: 0.2em;
+  }
+  .qt-money[data-size='s'] .qt-money__approx {
+    font-size: 1em;
+    vertical-align: 0;
+  }
+  .qt-money__sign {
+    margin-inline-end: 0.06em;
+  }
+  .qt-money[data-tone='in'] .qt-money__digits {
+    color: var(--qt-marker-ink);
+  }
+  .qt-money[data-tone='muted'] .qt-money__digits {
+    color: var(--qt-ink-3);
+  }
+  .qt-money__label {
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+    font-weight: var(--qt-weight-ui);
+    color: var(--qt-ink-2);
+  }
+  .qt-money__placeholder {
+    display: inline-block;
+    width: 3.2em;
+    height: 0.82em;
+    border-radius: 0.12em;
+    background: var(--qt-sunk);
+    vertical-align: -0.05em;
+  }
+  .qt-money[data-size='s'] .qt-money__placeholder {
+    width: 3.5em;
+  }
+  .qt-money__unavailable {
+    display: inline-block;
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    font-weight: var(--qt-weight-ui);
+    letter-spacing: 0;
+    color: var(--qt-ink-3);
+  }
+  .qt-money:is([data-size='xl'], [data-size='l']) .qt-money__unavailable {
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-title);
+    line-height: var(--qt-lh-title);
+  }
+
+  /* Tip control */
+  .qt-tip {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: var(--qt-space-2);
+  }
+  .qt-tip__bar {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-2);
+  }
+  .qt-tip__round {
+    display: inline-grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: var(--qt-control-h);
+    height: var(--qt-control-h);
+    border: 1px solid transparent;
+    border-radius: var(--qt-radius-pill);
+    color: var(--qt-ink);
+    background: var(--qt-surface);
+    box-shadow: var(--qt-shadow-card);
+    transition: transform var(--qt-dur-press) var(--qt-ease-out);
+  }
+  .qt-tip__round[data-variant='action'] {
+    background: var(--qt-action-bg);
+    color: var(--qt-action-ink);
+    box-shadow: none;
+  }
+  .qt-tip__round[aria-expanded='true'] {
+    outline: 2px solid var(--qt-marker-ink);
+    outline-offset: 2px;
+  }
+  .qt-tip__round:disabled {
+    opacity: 0.4;
+  }
+  .qt-tip__button {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--qt-space-2);
+    min-height: var(--qt-control-h-l);
+    min-width: 7.5rem;
+    padding-inline: var(--qt-space-5) var(--qt-space-6);
+    border: 1px solid transparent;
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-action-bg);
+    color: var(--qt-action-ink);
+    font-size: var(--qt-text-ui-l);
+    font-weight: var(--qt-weight-ui-strong);
+    white-space: nowrap;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    font-variant-numeric: tabular-nums;
+    transition:
+      transform var(--qt-dur-press) var(--qt-ease-out),
+      background-color var(--qt-dur-quick) var(--qt-ease-out),
+      color var(--qt-dur-quick) var(--qt-ease-out),
+      border-color var(--qt-dur-quick) var(--qt-ease-out);
+  }
+  .qt-tip__nib {
+    display: inline-grid;
+    place-items: center;
+    color: var(--qt-action-icon);
+  }
+  .qt-tip__label {
+    display: inline-flex;
+    gap: 0.3em;
+    min-width: 0;
+  }
+  /* The words may be cut; the amount never is. */
+  .qt-tip__words {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .qt-tip__amount {
+    flex-shrink: 0;
+  }
+  .qt-tip__button {
+    max-width: 100%;
+  }
+  .qt-tip__button:not(button) {
+    cursor: default;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-tip:is([data-phase='idle'], [data-phase='failed'])
+      .qt-tip__button:hover {
+      background-color: var(--qt-action-hover);
+    }
+    .qt-tip[data-phase='failed'] .qt-tip__button:hover {
+      background-color: var(--qt-danger-soft);
+    }
+  }
+  .qt-tip__button:not([aria-disabled='true']):active,
+  .qt-tip__round:not(:disabled):active {
+    transform: scale(0.96);
+  }
+  .qt-tip[data-phase='sending'] .qt-tip__button {
+    cursor: progress;
+  }
+  .qt-tip[data-phase='sending'] .qt-tip__nib {
+    color: var(--qt-action-ink);
+  }
+  .qt-tip[data-phase='sent'] .qt-tip__button {
+    background: var(--qt-sent-bg);
+    color: var(--qt-sent-ink);
+    cursor: default;
+  }
+  .qt-tip[data-phase='sent'] .qt-tip__nib {
+    color: var(--qt-sent-ink);
+  }
+  .qt-tip[data-phase='failed'] .qt-tip__button {
+    background: var(--qt-danger-soft);
+    border-color: var(--qt-danger);
+    color: var(--qt-danger);
+  }
+  .qt-tip[data-phase='failed'] .qt-tip__nib {
+    color: var(--qt-danger);
+  }
+  .qt-tip:is([data-phase='offline'], [data-phase='unavailable'])
+    .qt-tip__button {
+    background: var(--qt-sunk);
+    border-color: var(--qt-line);
+    color: var(--qt-ink-2);
+  }
+  .qt-tip:is([data-phase='offline'], [data-phase='unavailable']) .qt-tip__nib {
+    color: var(--qt-ink-3);
+  }
+  .qt-tip[data-phase='unavailable'] .qt-tip__button {
+    cursor: not-allowed;
+  }
+  .qt-tip__note {
+    max-width: 18rem;
+    padding: var(--qt-space-2) var(--qt-space-3);
+    border-radius: var(--qt-radius-control);
+    background: var(--qt-toast-bg);
+    color: var(--qt-toast-ink);
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+  }
+
+  /* Amount tray */
+  .qt-tray {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--qt-space-2);
+    max-width: min(100%, 26rem);
+    padding: var(--qt-space-2);
+    border: 1px solid var(--qt-line);
+    border-radius: var(--qt-radius-card);
+    background: var(--qt-surface);
+    box-shadow: var(--qt-shadow-float);
+    animation: qt-rise var(--qt-dur-base) var(--qt-ease-out);
+  }
+  .qt-tray__amounts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--qt-space-2);
+  }
+  .qt-tray__amount {
+    min-width: var(--qt-control-h);
+    min-height: var(--qt-control-h);
+    padding-inline: var(--qt-space-3);
+    border: 1px solid transparent;
+    border-radius: var(--qt-radius-control);
+    background: var(--qt-sunk);
+    color: var(--qt-ink);
+    font-size: var(--qt-text-ui-l);
+    font-weight: var(--qt-weight-ui-strong);
+    font-variant-numeric: tabular-nums;
+    transition: transform var(--qt-dur-press) var(--qt-ease-out);
+  }
+  .qt-tray__amount[aria-checked='true'] {
+    background: var(--qt-action-bg);
+    color: var(--qt-action-ink);
+  }
+  .qt-tray__amount:active {
+    transform: scale(0.95);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-tray__amount[aria-checked='false']:hover {
+      background-image: linear-gradient(var(--qt-hover), var(--qt-hover));
+    }
+  }
+  .qt-tray__other {
+    position: relative;
+    display: flex;
+    flex: 1 1 7rem;
+    align-items: center;
+    min-height: var(--qt-control-h);
+    padding-inline: var(--qt-space-3);
+    border: 1px solid var(--qt-line-strong);
+    border-radius: var(--qt-radius-control);
+    background: var(--qt-surface);
+  }
+  .qt-tray__other:focus-within {
+    outline: var(--qt-focus-width) solid var(--qt-focus);
+    outline-offset: var(--qt-focus-offset);
+  }
+  .qt-tray__currency {
+    color: var(--qt-ink-2);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-tray__input {
+    width: 100%;
+    min-width: 0;
+    min-height: calc(var(--qt-control-h) - 2px);
+    padding-inline-start: var(--qt-space-1);
+    border: 0;
+    background: transparent;
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-tray__input:focus-visible {
+    outline: none;
+  }
+  .qt-tray__input::placeholder {
+    color: var(--qt-ink-3);
+    font-weight: var(--qt-weight-ui);
+  }
+  .qt-tray__set {
+    flex-shrink: 0;
+    min-width: var(--qt-hit);
+    min-height: var(--qt-hit);
+    margin-inline-end: calc(-1 * var(--qt-space-2));
+    padding-inline: var(--qt-space-3);
+    border-radius: calc(var(--qt-radius-control) - 2px);
+    background: var(--qt-action-bg);
+    color: var(--qt-action-ink);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-tray__error {
+    position: absolute;
+    inset-block-start: calc(100% + var(--qt-space-1));
+    inset-inline-start: 0;
+    font-size: var(--qt-text-ui-s);
+    color: var(--qt-danger);
+    white-space: nowrap;
+  }
+  .qt-tray:has(.qt-tray__error) {
+    padding-block-end: var(--qt-space-6);
+  }
+
+  @keyframes qt-rise {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+  }
+
+  /* Passage marks. The fill never carries meaning alone:
+   * every state has a cue in shape or words. No state has padding or
+   * margin, so a line changing state never moves a word or a line break:
+   * the fill bleeds past the text by a shadow, which takes no space. */
+  .qt-mark {
+    --qt-mark-fill: transparent;
+    --qt-mark-bleed: 0.14em;
+    padding: 0;
+    margin: 0;
+    border-radius: 0.18em;
+    background: var(--qt-mark-fill);
+    box-shadow: 0 0 0 var(--qt-mark-bleed) var(--qt-mark-fill);
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    color: inherit;
+    text-decoration-thickness: var(--qt-underline);
+    text-underline-offset: var(--qt-underline-offset);
+  }
+  .qt-mark[data-state='others-top'] {
+    --qt-mark-fill: var(--qt-marker-soft);
+  }
+  .qt-mark[data-state='others'] {
+    --qt-mark-fill: var(--qt-marker-faint);
+  }
+  .qt-mark[data-state='mine'] {
+    --qt-mark-fill: var(--qt-marker);
+    color: var(--qt-on-marker);
+  }
+  .qt-mark[data-state='kept'] {
+    text-decoration-line: underline;
+    text-decoration-color: var(--qt-marker-ink);
+  }
+  .qt-mark[data-state='chosen'] {
+    text-decoration-line: underline;
+    text-decoration-color: var(--qt-ink);
+  }
+  .qt-mark[data-state='share-line'] {
+    text-decoration-line: underline;
+    text-decoration-style: dashed;
+    text-decoration-color: var(--qt-marker-ink);
+  }
+  .qt-mark[data-fresh] {
+    background-image: linear-gradient(var(--qt-mark-fill), var(--qt-mark-fill));
+    background-color: transparent;
+    background-repeat: no-repeat;
+    animation: qt-stroke var(--qt-dur-stroke) var(--qt-ease-out) both;
+  }
+  /* The stroke draws, then the bleed joins it. */
+  @keyframes qt-stroke {
+    from {
+      background-size: 0% 100%;
+      box-shadow: 0 0 0 var(--qt-mark-bleed) transparent;
+    }
+    99% {
+      box-shadow: 0 0 0 var(--qt-mark-bleed) transparent;
+    }
+    to {
+      background-size: 100% 100%;
+      box-shadow: 0 0 0 var(--qt-mark-bleed) var(--qt-mark-fill);
+    }
+  }
+  .qt-mark__count {
+    margin-inline-start: 0.3em;
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui-xxs);
+    line-height: 1;
+    font-weight: var(--qt-weight-ui-strong);
+    color: var(--qt-marker-ink);
+    font-variant-numeric: tabular-nums;
+    vertical-align: 0.2em;
+  }
+  /* The check after your line takes no width: it sits raised over the
+   * space after the line, like a superscript, so tipping never rewraps. */
+  .qt-mark__check {
+    position: relative;
+    display: inline-block;
+    width: 0;
+    height: 0;
+    color: var(--qt-marker-ink);
+  }
+  .qt-mark__check > * {
+    position: absolute;
+    inset-inline-start: 0.12em;
+    inset-block-end: 0.55em;
+  }
+
+  /* Drawn outside the text: margin ticks and the hold's band. */
+  .qt-line-overlay {
+    position: static;
+  }
+  .qt-line-overlay__tick {
+    position: absolute;
+    inset-inline-start: calc(-1 * var(--qt-gutter-read) / 2);
+    width: var(--qt-tick-w);
+    border-radius: var(--qt-tick-w);
+    background: var(--qt-ink);
+    pointer-events: none;
+  }
+  .qt-line-overlay__tick[data-kind='place'] {
+    background: var(--qt-marker-ink);
+    animation: qt-tick-fade var(--qt-dur-tick-fade) var(--qt-ease-out) 2.4s
+      forwards;
+  }
+  @keyframes qt-tick-fade {
+    to {
+      opacity: 0.25;
+    }
+  }
+  .qt-line-overlay__band {
+    position: absolute;
+    z-index: -1;
+    background: var(--qt-marker);
+    clip-path: inset(calc(100% - var(--qt-hold-band)) 0 0 0);
+    transform: scaleX(0);
+    transform-origin: left center;
+    animation: qt-band calc(var(--qt-dur-hold) * var(--qt-band-share)) linear
+      calc(var(--qt-dur-hold) * var(--qt-band-delay)) forwards;
+    pointer-events: none;
+  }
+  [dir='rtl'] .qt-line-overlay__band {
+    transform-origin: right center;
+  }
+  @keyframes qt-band {
+    to {
+      transform: scaleX(1);
+    }
+  }
+  /* The hold is a rule: reduced motion keeps the band's timing. */
+  @media (prefers-reduced-motion: reduce) {
+    .qt-line-overlay__band {
+      animation-duration: calc(
+        var(--qt-dur-hold) * var(--qt-band-share)
+      ) !important;
+      animation-delay: calc(
+        var(--qt-dur-hold) * var(--qt-band-delay)
+      ) !important;
+    }
+  }
+  @media (forced-colors: active) {
+    .qt-mark[data-state='mine'],
+    .qt-mark[data-state='others-top'],
+    .qt-mark[data-state='others'] {
+      forced-color-adjust: none;
+      background: Highlight;
+      color: HighlightText;
+    }
+    .qt-line-overlay__tick,
+    .qt-line-overlay__band {
+      forced-color-adjust: none;
+      background: Highlight;
+    }
+  }
+}
+
+@layer components {
+  /* Text buttons beside the tip button: Cancel, +$1, Not now. */
+  .qt-tip__round:not(:has(svg)) {
+    width: auto;
+    min-width: var(--qt-control-h);
+    padding-inline: var(--qt-space-4);
+    font-weight: var(--qt-weight-ui-strong);
+    font-variant-numeric: tabular-nums;
+  }
+  .qt-tip[data-phase='offline'] .qt-tip__words {
+    white-space: normal;
+  }
+  .qt-tip__round[aria-disabled='true'] {
+    color: var(--qt-ink-3);
+    cursor: not-allowed;
+  }
+
+  /* The hold (the hold before sending): the status, the projected balance under it, and
+   * a band that fills across the pill over --qt-dur-hold, linear, restarted
+   * by +$1. The words carry the meaning; the band is the countdown. */
+  .qt-tip__button {
+    position: relative;
+    overflow: hidden;
+  }
+  .qt-tip[data-phase='holding'] .qt-tip__button {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: var(--qt-space-2);
+    align-items: center;
+    padding-block: var(--qt-space-1);
+  }
+  .qt-tip[data-phase='holding'] .qt-tip__nib {
+    grid-row: span 2;
+  }
+  .qt-tip__arrow {
+    font-family: var(--qt-font-ui);
+  }
+  .qt-tip__projected {
+    grid-column: 2;
+    font-size: var(--qt-text-ui-xs);
+    line-height: var(--qt-lh-ui-xs);
+    font-weight: var(--qt-weight-ui);
+    font-variant-numeric: tabular-nums;
+  }
+  .qt-tip__countdown {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+    height: 0.25rem;
+    background: var(--qt-countdown);
+    transform-origin: left center;
+    animation: qt-hold-fill var(--qt-dur-hold) linear both;
+  }
+  [dir='rtl'] .qt-tip__countdown {
+    transform-origin: right center;
+  }
+  @keyframes qt-hold-fill {
+    from {
+      transform: scaleX(0);
+    }
+    to {
+      transform: scaleX(1);
+    }
+  }
+  /* The hold is a rule, not an animation: reduced motion keeps its length. */
+  @media (prefers-reduced-motion: reduce) {
+    .qt-tip__countdown {
+      animation-duration: var(--qt-dur-hold) !important;
+    }
+  }
+}

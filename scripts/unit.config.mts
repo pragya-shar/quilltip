@@ -35,6 +35,12 @@ export default defineConfig({
       'scripts/ui/*.test.ts',
       // Convex default-runtime code bundled as Convex bundles it.
       'scripts/convex-runtime/*.test.ts',
+      // The design system: money figure layout, navigation config.
+      'scripts/system/*.test.ts',
+      // Files deleted by the rebuild stay deleted through merges.
+      'scripts/rebuild/*.test.ts',
+      // Production-build checks, one file per package.
+      'scripts/app-checks/*.test.ts',
     ],
   },
 })
