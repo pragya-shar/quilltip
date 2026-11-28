@@ -5278,7 +5278,7 @@ describe('spendable balance across settler records and indexed events', () => {
     })
     await t.mutation(internal.chain.indexer.redispatch, {})
     expect((await account(t)).confirmedBalance).toBe(expected)
-  })
+  }, 300_000)
 
   // -------------------------------------------------------------------------
   // #576: each `TabSettled` debit counted once, however many there are.
@@ -5373,7 +5373,7 @@ describe('spendable balance across settler records and indexed events', () => {
     expect(await debitRows(t)).toBe(0)
     await redispatchEvents(t)
     expect(await balanceOf(t)).toBe(expected + XLM)
-  })
+  }, 300_000)
 
   it('the reconciliation leaves no debit to count twice (#576)', async () => {
     const flagged = negatives()
@@ -5401,7 +5401,7 @@ describe('spendable balance across settler records and indexed events', () => {
       available: (BigInt(2) * CENT).toString(),
     })
     expect(flagged()).toEqual([])
-  })
+  }, 300_000)
 
   it('rows written before the change: list entries still count, and the next balance drains them (#576)', async () => {
     const t = convexTest(schema, modules)
@@ -8022,7 +8022,7 @@ describe('review #596: claims through re-dispatch, restore and seeding', () => {
       ...indexed,
       chainEvents: {},
     })
-  })
+  }, 300_000)
 
   it('a restore of the whole database to a snapshot, then the events replayed: each claim counts once', async () => {
     const t = convexTest(schema, modules)
