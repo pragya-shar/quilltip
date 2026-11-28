@@ -1,8 +1,9 @@
 /// <reference types="vite/client" />
 /**
  * Passage share links (`convex/shares.ts`): a removed or changed line is never
- * shown again through a shared link, a link whose line or article is gone is
- * indistinguishable from an unknown code, and a stale quote is not kept.
+ * shown again through a shared link, which lands on its article instead; a
+ * link whose article is unpublished or deleted, or whose row is gone, is
+ * indistinguishable from an unknown code; and a stale quote is not kept.
  */
 import { convexTest } from 'convex-test'
 import { ConvexError } from 'convex/values'
@@ -549,17 +550,18 @@ describe('resolve', () => {
       ),
     },
   ])(
-    'gone ($name): null, like an unknown code; the clean-up clears the quote',
+    'gone ($name): the article and no line; the clean-up clears the quote',
     async ({ content }) => {
       const { t, ids, reader } = await setup()
       const { code } = await shareTide(reader, ids.article)
       await edit(t, ids.article, content)
-      const unknown = await t.query(api.shares.resolve, {
-        code: 'zzzzzzzz',
-      })
       const answer = await t.query(api.shares.resolve, { code })
-      expect(answer).toBeNull()
-      expect(answer).toEqual(unknown)
+      expect(answer).toEqual({
+        status: 'changed',
+        article: expect.objectContaining({ id: ids.article }),
+        passage: null,
+      })
+      expect(JSON.stringify(answer)).not.toContain(SHARED)
       // The read wrote nothing: the row keeps its quote until the clean-up.
       expect((await shareRow(t, code))!.quote).toBe(SHARED)
       await t.mutation(internal.shares.reconcileArticle, {
@@ -573,7 +575,11 @@ describe('resolve', () => {
         sentenceEnd: null,
         clearedAt: expect.any(Number),
       })
-      expect(await t.query(api.shares.resolve, { code })).toBeNull()
+      // Cleared, inside its retention: still the article, still no line.
+      expect(await t.query(api.shares.resolve, { code })).toMatchObject({
+        status: 'changed',
+        passage: null,
+      })
     }
   )
 
@@ -606,7 +612,7 @@ describe('resolve', () => {
     })
   })
 
-  test('unknown, malformed, removed, unpublished and deleted all answer the same null', async () => {
+  test('unknown, malformed, unpublished and deleted all answer the same null; a removed line its article', async () => {
     const { t, ids, reader } = await setup()
     const removed = await shareTide(reader, ids.article)
     const hidden = await shareAt(reader, ids.article, PEOPLE_START)
@@ -622,16 +628,18 @@ describe('resolve', () => {
       await t.query(api.shares.resolve, { code: 'zzzzzzzz' }),
       await t.query(api.shares.resolve, { code: 'not a code!' }),
       await t.query(api.shares.resolve, { code: 'x'.repeat(10_000) }),
-      await t.query(api.shares.resolve, { code: removed.code }),
     ]
+    expect(
+      await t.query(api.shares.resolve, { code: removed.code })
+    ).toMatchObject({ status: 'changed', passage: null })
     await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
     answers.push(await t.query(api.shares.resolve, { code: hidden.code }))
     await t.run((ctx) => ctx.db.delete(ids.article))
     answers.push(await t.query(api.shares.resolve, { code: hidden.code }))
-    expect(answers).toEqual([null, null, null, null, null, null])
+    expect(answers).toEqual([null, null, null, null, null])
   })
 
-  test('a cleared row is read as an unknown code: no article work', async () => {
+  test('a cleared row inside its retention: its article, with no text searched', async () => {
     const { t, ids, reader } = await setup()
     const tide = await shareTide(reader, ids.article)
     const live = await shareAt(reader, ids.article, PEOPLE_START)
@@ -642,7 +650,9 @@ describe('resolve', () => {
     expect((await shareRow(t, tide.code))!.quote).toBeNull()
     const normalize = vi.spyOn(String.prototype, 'normalize')
     try {
-      expect(await t.query(api.shares.resolve, { code: tide.code })).toBeNull()
+      expect(
+        await t.query(api.shares.resolve, { code: tide.code })
+      ).toMatchObject({ status: 'changed', passage: null })
       expect(await t.query(api.shares.resolve, { code: 'zzzzzzzz' })).toBeNull()
       // Splitting sentences normalizes each one; neither call split any.
       expect(normalize).not.toHaveBeenCalled()
@@ -658,6 +668,9 @@ describe('resolve', () => {
         ctx.db.system.query('_scheduled_functions').collect()
       )
     ).toHaveLength(0)
+    // Unpublished: a cleared row answers null, like an unknown code.
+    await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
+    expect(await t.query(api.shares.resolve, { code: tide.code })).toBeNull()
   })
 
   test('the returned text is normalized and capped', async () => {
@@ -670,7 +683,7 @@ describe('resolve', () => {
 })
 
 describe('resolve writes nothing', () => {
-  test('a line edited a moment ago, before any clean-up: the current text only', async () => {
+  test('a line edited a moment ago, before any clean-up: the article, no stored words', async () => {
     const { t, ids, reader } = await setup()
     const { code } = await shareTide(reader, ids.article)
     // The line now occurs twice: changed, with no passage and no quote.
@@ -686,7 +699,8 @@ describe('resolve writes nothing', () => {
     const changed = await t.query(api.shares.resolve, { code })
     expect(changed).toMatchObject({ status: 'changed', passage: null })
     expect(await snapshot(t)).toEqual(before)
-    // The line is reworded: null, and the stored words appear nowhere.
+    // The line is reworded: the article only, and the stored words appear
+    // nowhere.
     await edit(
       t,
       ids.article,
@@ -694,7 +708,7 @@ describe('resolve writes nothing', () => {
     )
     before = await snapshot(t)
     const gone = await t.query(api.shares.resolve, { code })
-    expect(gone).toBeNull()
+    expect(gone).toMatchObject({ status: 'changed', passage: null })
     expect(await snapshot(t)).toEqual(before)
     expect((await shareRow(t, code))!.quote).toBe(SHARED)
     expect(JSON.stringify([changed, gone])).not.toContain(SHARED)
@@ -839,8 +853,12 @@ describe('reconcileArticle and the article paths', () => {
     await t.mutation(internal.articles.setAllArticlesToDraft, {})
     await t.finishAllScheduledFunctions(vi.runAllTimers)
     await t.run((ctx) => ctx.db.patch(ids.article, { published: true }))
+    // Cleared rows of a public article: the article, never the old line.
     for (const { code } of [old, anon])
-      expect(await t.query(api.shares.resolve, { code })).toBeNull()
+      expect(await t.query(api.shares.resolve, { code })).toMatchObject({
+        status: 'changed',
+        passage: null,
+      })
     const again = await shareTide(reader, ids.article)
     expect(again.code).not.toBe(old.code)
     const anonAgain = await shareTide(t, ids.article)
