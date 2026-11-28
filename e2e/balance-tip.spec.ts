@@ -359,7 +359,7 @@ test.describe('balance screen', () => {
         await expect(
           page.getByText('Did not complete', { exact: true })
         ).toBeVisible()
-        await expect(page.getByText('On hold')).toBeVisible()
+        await expect(page.getByText('Waiting for balance')).toBeVisible()
         await expect(
           page.getByText('Added to earnings', { exact: true })
         ).toBeVisible()
@@ -439,7 +439,7 @@ test.describe('earnings screen', () => {
       }
       if (name === 'failed') {
         await expect(page.getByTestId('earnings-on-hold')).toContainText(
-          '1 tip on hold'
+          "1 tip waiting for a reader's balance"
         )
         await expect(page.getByTestId('earnings-not-paid')).toContainText(
           '1 tip did not complete'
@@ -508,14 +508,14 @@ test.describe('states the ledger can reach', () => {
     )
   })
 
-  test('tips on hold for an empty reader balance are on hold, not on their way', async ({
+  test('tips waiting for an empty reader balance say so, not on their way', async ({
     page,
   }) => {
     await open(page, 'earnings', 'writer-held-reader-empty')
     await expect(page.getByTestId('earnings-pending')).toHaveText('$0.00')
     await expect(page.getByTestId('earnings-available')).toHaveText('$0.00')
     await expect(page.getByTestId('earnings-on-hold')).toContainText(
-      '2 tips on hold'
+      "2 tips waiting for a reader's balance"
     )
   })
 })

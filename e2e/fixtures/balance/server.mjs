@@ -13,7 +13,14 @@ const root = path.resolve(here, '../../..')
 const result = await Bun.build({
   entrypoints: [path.join(here, 'page.tsx')],
   target: 'browser',
-  define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
+  // A deployment URL, so the payments shell reads the session token under
+  // its key (lib/payments/store.ts); backend.ts writes that token.
+  define: {
+    'process.env.NODE_ENV': '"development"',
+    'process.env': JSON.stringify({
+      NEXT_PUBLIC_CONVEX_URL: 'https://balance-fixture.convex.cloud',
+    }),
+  },
   plugins: [
     {
       name: 'balance-collaborators',

@@ -31,4 +31,10 @@ export const routes: PerfRoutes = {
       },
     },
   ],
+  // /dashboard answers 308 to /pocket (lib/routing/redirects/pocket.ts).
+  // The server cannot know the session, so a signed-out reader stays on
+  // /pocket, which asks to sign in with a plain link back to it.
+  signedOutLanding: [
+    { path: '/dashboard', endsAt: '/pocket', signInLink: 'Sign in' },
+  ],
 }

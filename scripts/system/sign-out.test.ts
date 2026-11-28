@@ -60,6 +60,38 @@ describe('sign-out warnings', () => {
     expect(said).toEqual(['2 drafts are only on this device.'])
   })
 
+  it('gives every check who is signing out', async () => {
+    const seen: (string | null)[] = []
+    const said = await signOutWarnings(
+      [
+        {
+          name: 'drafts',
+          check: async ({ userId }) => {
+            seen.push(userId)
+            return userId === 'user-1'
+              ? 'A draft is only on this device.'
+              : null
+          },
+        },
+      ],
+      50,
+      { userId: 'user-1' }
+    )
+    expect(seen).toEqual(['user-1'])
+    expect(said).toEqual(['A draft is only on this device.'])
+    // Not known: the check is asked with null.
+    await signOutWarnings(
+      [
+        {
+          name: 'drafts',
+          check: async ({ userId }) => (seen.push(userId), null),
+        },
+      ],
+      50
+    )
+    expect(seen).toEqual(['user-1', null])
+  })
+
   it('has a warnings list in every package file', () => {
     expect(SIGN_OUT_WARNINGS).toEqual([])
   })

@@ -3,10 +3,10 @@ import { Button } from '@/system/components/Button'
 import { EmptyState } from '@/system/components/EmptyState'
 import { Heading } from '@/system/components/Heading'
 import { BalanceIcon } from '@/system/icons'
-import { POCKET } from '@/shell/navigation'
 import { PushedHeader } from '@/shell/PushedHeader'
 import { PushedScreen } from '@/shell/PushedScreen'
 import { PocketPageLoader } from '@/components/pocket/PocketPageLoader'
+import { SIGN_IN_BACK } from '@/components/pocket/signInBack'
 
 export const metadata: Metadata = {
   title: 'Balance',
@@ -19,7 +19,8 @@ export const metadata: Metadata = {
  * sheet (phone) or a right panel (desktop) instead, over the current page.
  * The title is in the server HTML, with the balance's reserved space when a
  * session token is held (its figures need the payments code) and a way to
- * sign in otherwise.
+ * sign in otherwise: a plain link that comes back here, which works with no
+ * script.
  */
 export default function PocketRoute() {
   return (
@@ -41,7 +42,7 @@ export default function PocketRoute() {
             icon={BalanceIcon}
             title="Sign in to tip and keep your lines."
             action={
-              <Button variant="primary" href={POCKET.signIn}>
+              <Button variant="primary" href={SIGN_IN_BACK}>
                 Sign in
               </Button>
             }

@@ -33,7 +33,10 @@ export function PocketActivityRow({
   // The money layer's spoken text first, the system's helper otherwise. A
   // tip that did not complete carries no direction, as on screen.
   const sign = words.status === 'failed' ? '' : reader ? '−' : '+'
-  const said = rowSpoken(amount, sign)
+  // A tip waiting for the reader's balance states no amount and no time,
+  // as the earlier tab pages did; its receipt has both.
+  const waiting = words.waitingForBalance === true
+  const said = waiting ? 'waiting for balance' : rowSpoken(amount, sign)
   const label = [name, said, 'open receipt'].filter(Boolean).join(', ')
   return (
     <ActivityRow
@@ -49,12 +52,12 @@ export function PocketActivityRow({
       name={name}
       label={label}
       about={item.passage ?? item.article.title}
-      amount={amount}
+      amount={waiting ? undefined : amount}
       direction={reader ? 'out' : 'in'}
       status={words.status}
       statusText={words.short}
       detail={reader ? undefined : `from a ${item.amount.display} tip`}
-      time={whenShort(item.at, now)}
+      time={waiting ? undefined : whenShort(item.at, now)}
       onPress={() => sheetStack.open(RECEIPT_SHEET, { item })}
     />
   )

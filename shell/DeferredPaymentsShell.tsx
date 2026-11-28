@@ -3,8 +3,56 @@
 import { useEffect, useState, type ComponentType } from 'react'
 import { paymentsStore } from '@/lib/payments/store'
 
-const FIRST_RETRY_MS = 5_000
-const MAX_RETRY_MS = 5 * 60_000
+export const FIRST_RETRY_MS = 5_000
+export const MAX_RETRY_MS = 5 * 60_000
+
+/**
+ * Runs `attempt` now and, after each failure, again after a delay that
+ * starts at `FIRST_RETRY_MS` and doubles up to `MAX_RETRY_MS`, for as long
+ * as the page is open: a backend that comes back is picked up with no
+ * reload. `now()` tries again at once and starts the delays over (Try
+ * again); `stop()` ends it, and nothing runs after.
+ */
+export function loadWithBackoff<T>(
+  attempt: () => Promise<T>,
+  onLoad: (value: T) => void,
+  onFail: () => void
+) {
+  let stopped = false
+  let delay = FIRST_RETRY_MS
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const run = () => {
+    clearTimeout(timer)
+    attempt().then(
+      (value) => {
+        if (!stopped) onLoad(value)
+      },
+      () => {
+        if (stopped) return
+        onFail()
+        timer = setTimeout(run, delay)
+        delay = Math.min(delay * 2, MAX_RETRY_MS)
+      }
+    )
+  }
+  run()
+  return {
+    now() {
+      if (stopped) return
+      delay = FIRST_RETRY_MS
+      run()
+    },
+    stop() {
+      stopped = true
+      clearTimeout(timer)
+    },
+  }
+}
+
+/** How the shell's code is loaded; a test replaces `load`. */
+export const shellImport = {
+  load: () => import('@/components/payments/PaymentsShell'),
+}
 
 /**
  * The money layer's payments shell (`components/payments/PaymentsShell`),
@@ -14,34 +62,19 @@ const MAX_RETRY_MS = 5 * 60_000
  * and the bar reads the store's balance (`shell/liveBalance.ts`); neither
  * waits on it. If its code cannot load, the figures read unavailable (the
  * balance says so, with Try again, `paymentsStore.retry`) and it tries
- * again after a delay that doubles up to five minutes. It is the only
- * payments shell on a page.
+ * again (`loadWithBackoff`). It is the only payments shell on a page.
  */
 export function DeferredPaymentsShell() {
   const [Shell, setShell] = useState<ComponentType | null>(null)
   useEffect(() => {
-    let alive = true
-    let delay = FIRST_RETRY_MS
-    let timer = 0
-    const load = () => {
-      window.clearTimeout(timer)
-      import('@/components/payments/PaymentsShell').then(
-        (m) => {
-          if (alive) setShell(() => m.PaymentsShell)
-        },
-        () => {
-          if (!alive) return
-          paymentsStore.fail()
-          timer = window.setTimeout(load, delay)
-          delay = Math.min(delay * 2, MAX_RETRY_MS)
-        }
-      )
-    }
-    const off = paymentsStore.onRetry(load)
-    load()
+    const loading = loadWithBackoff(
+      () => shellImport.load(),
+      (m) => setShell(() => m.PaymentsShell),
+      () => paymentsStore.fail()
+    )
+    const off = paymentsStore.onRetry(loading.now)
     return () => {
-      alive = false
-      window.clearTimeout(timer)
+      loading.stop()
       off()
     }
   }, [])

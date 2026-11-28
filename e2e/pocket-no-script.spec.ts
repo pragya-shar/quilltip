@@ -24,7 +24,7 @@ test('with no script, /pocket asks to sign in and shows no figures', async ({
   await expect(prompt).toContainText('Sign in to tip and keep your lines.')
   await expect(prompt.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
     'href',
-    '/login'
+    '/login?returnTo=%2Fpocket'
   )
   await expect(
     page.locator('main [data-session-switch] > [data-when="held"]')

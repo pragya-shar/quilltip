@@ -133,6 +133,7 @@ export function PassageTip({
       link: { href: ADD_MONEY_HREF, label: 'Add money' },
     }
   if (tip.queued) status = { text: 'Getting ready. Your tip goes in a moment.' }
+  else if (tip.missed) status = { text: 'Nothing sent. Tap to tip.' }
   else if (tip.unavailable === 'not-loaded')
     status = {
       text: 'Tipping is unavailable right now. Reading is not affected.',

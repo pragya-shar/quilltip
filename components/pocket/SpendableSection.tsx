@@ -4,8 +4,7 @@ import { Button } from '@/system/components/Button'
 import { Icon } from '@/system/components/Icon'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { Notice } from '@/system/components/Notice'
-import { TextLink } from '@/system/components/TextLink'
-import { AddIcon, PendingIcon } from '@/system/icons'
+import { AddIcon, ForwardIcon, PendingIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
 import { warmSheet } from '@/shell/sheets/preload'
 import { ADD_MONEY_PAGE, ADD_MONEY_SHEET, EXACT_AMOUNT_SHEET } from './sheetIds'
@@ -83,6 +82,11 @@ export function SpendableSection({
           onClick={() => sheetStack.open(EXACT_AMOUNT_SHEET)}
         >
           {figure}
+          {/* Seen on touch too, where no hover hints that it opens. */}
+          <span className="qt-pocket__figure-hint" aria-hidden="true">
+            Exact amount
+            <Icon icon={ForwardIcon} size={16} />
+          </span>
           <span className="qt-visually-hidden">. Show the exact amount</span>
         </button>
       ) : (
@@ -123,10 +127,16 @@ export function SpendableSection({
       ) : status === 'ready' ? (
         // How money arrives today, at a zero balance too: the current
         // balance page, until the money layer can add money here.
-        <p className="qt-pocket__fine">
-          Add testnet money from a Stellar wallet.{' '}
-          <TextLink href={ADD_MONEY_PAGE}>Add testnet money</TextLink>
-        </p>
+        // One sentence and one control at full height (44 px), not a
+        // sentence and an inline link that repeat each other.
+        <div className="qt-pocket__add">
+          <p className="qt-pocket__fine">
+            Money comes from a Stellar testnet wallet.
+          </p>
+          <Button variant="secondary" href={ADD_MONEY_PAGE}>
+            Add testnet money
+          </Button>
+        </div>
       ) : null}
       {addMoney && status === 'ready' ? <QuickTipsSection /> : null}
     </section>

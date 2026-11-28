@@ -4,15 +4,19 @@
  * sheet while earnings load or fail. Forgotten on sign-out and when the
  * signed-in account changes. No imports: the sign-out cleanup loads it alone.
  */
-let last: { owner: string | null; writer: boolean } | null = null
+let last: { account: string | null; writer: boolean } | null = null
+
+/** The account in the store's owner, `<userId>|<sessionId>`: whether
+ * someone writes does not change with the session. */
+const accountOf = (owner: string | null) => owner?.split('|')[0] ?? null
 
 export const writerMemory = {
   /** The last answer, for this account only. */
   get(owner: string | null): boolean | null {
-    return last && last.owner === owner ? last.writer : null
+    return last && last.account === accountOf(owner) ? last.writer : null
   },
   set(owner: string | null, writer: boolean) {
-    last = { owner, writer }
+    last = { account: accountOf(owner), writer }
   },
   forget() {
     last = null

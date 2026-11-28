@@ -171,7 +171,7 @@ const SCENARIOS: Record<string, Expect> = {
     rows: 6,
     texts: [
       'Held in Lumens. The dollar figure moves with the price.',
-      'Add testnet money from a Stellar wallet.',
+      'Money comes from a Stellar testnet wallet.',
       'You can withdraw in a later update. Until then, what has arrived stays here.',
       'These are your share. You keep 97.5% of every tip.',
       'Quilltip runs on Stellar testnet. Tips are practice money.',
@@ -224,10 +224,7 @@ const SCENARIOS: Record<string, Expect> = {
     spend: '≈$2.54',
     rows: 4,
     // Held and incomplete tips are told by their rows, with no notice.
-    texts: [
-      'Did not complete. You were not charged.',
-      'On hold until you add money',
-    ],
+    texts: ['Did not complete. You were not charged.', 'Waiting for balance'],
     absent: [/The reader kept that money/],
   },
   'partly-paid': {
@@ -296,7 +293,7 @@ test.describe('who is here', () => {
     await expect(root).toContainText('Sign in to tip and keep your lines.')
     await expect(root.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
       'href',
-      '/login'
+      '/login?returnTo=%2Fpocket'
     )
     expect(await root.textContent()).not.toMatch(/\$\s?\d/)
   })
@@ -311,7 +308,7 @@ test.describe('who is here', () => {
     await expect(root).toContainText(/Sign in to/)
     await expect(root.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
       'href',
-      '/login'
+      '/login?returnTo=%2Fpocket'
     )
     await expect(root).not.toContainText('Ready to tip')
     await expect(root).not.toContainText('Activity')
@@ -389,7 +386,7 @@ test.describe('every money scenario', () => {
       await page.goto(`/pocket?scenario=${scenario}`)
       const root = page.locator('.qt-pocket:visible')
       await expect(root).toContainText(
-        'Add testnet money from a Stellar wallet.'
+        'Money comes from a Stellar testnet wallet.'
       )
       await expect(
         root.getByRole('link', { name: 'Add testnet money' })
@@ -637,6 +634,25 @@ test.describe('receipts and money sheets', () => {
     await expect.poll(async () => (await focused(page)).text).toBe('Add money')
   })
 
+  test('a tip waiting for balance states no amount or time; its receipt offers to add money', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=failed&role=reader')
+    const row = page.locator('.qt-pocket:visible').locator('.qt-activity', {
+      has: page.getByRole('button', { name: /waiting for balance/ }),
+    })
+    await expect(row).toHaveCount(1)
+    await expect(row).toContainText('Waiting for balance')
+    await expect(row.locator('.qt-money')).toHaveCount(0)
+    await expect(row.locator('.qt-activity__time')).toHaveCount(0)
+    await press(row.getByRole('button', { name: /waiting for balance/ }))
+    const receipt = page.getByRole('dialog', { name: 'Receipt' })
+    await expect(receipt).toContainText('Add money and it goes through.')
+    await expect(
+      receipt.getByRole('link', { name: 'Add testnet money' })
+    ).toHaveAttribute('href', '/dashboard/tab')
+  })
+
   test('a double press that closes a sheet never presses the page under it; a press 500 ms later works', async ({
     page,
   }) => {
@@ -684,9 +700,23 @@ test.describe('receipts and money sheets', () => {
     const add = page.getByRole('button', { name: 'Add money' })
     await press(add)
     const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await press(sheet.getByRole('button', { name: 'Add $10' }))
+    // The act changes the sheet in place (its button becomes the status,
+    // then the result and Done below it): a double press on it starts it
+    // once, and the second press never reaches Done.
+    const act = (await sheet
+      .getByRole('button', { name: 'Add $10' })
+      .boundingBox())!
+    const actAt = () => {
+      const x = act.x + act.width / 2
+      const y = act.y + act.height / 2
+      return hasTouch() ? page.touchscreen.tap(x, y) : page.mouse.click(x, y)
+    }
+    await actAt()
+    await actAt()
     const done = sheet.getByRole('button', { name: 'Done' })
     await expect(done).toBeVisible()
+    await expect(sheet).toBeVisible()
+    await expect(sheet.getByText('$10 added to your balance')).toHaveCount(1)
     const beforeDone = await under()
     await twice(done, sheet)
     expect(await under()).toBe(beforeDone)

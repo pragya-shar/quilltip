@@ -11,6 +11,9 @@
 import { createSign } from 'crypto'
 import { test, expect, type BrowserContext, type Page } from '@playwright/test'
 
+import { ConvexHttpClient } from 'convex/browser'
+
+import { api } from '../convex/_generated/api'
 import { TOKEN_CONFIRMATION_TIMEOUT_MS } from '../lib/auth/sessionConfirmation'
 
 const CONVEX_URL = process.env.AUTH_E2E_CONVEX_URL
@@ -214,6 +217,42 @@ test('a sign-in the backend never answers ends on login at the bound', async ({
       () => (window as unknown as { __sawProtected?: boolean }).__sawProtected
     )
   ).toBe(false)
+})
+
+test('a signed-in reader’s token names the pair the server answers for, and the balance shows', async ({
+  page,
+}) => {
+  await page.goto(loginUrl('/pocket'))
+  await signIn(page)
+  await page.waitForURL((url) => url.pathname === '/pocket')
+
+  // The token Convex Auth issued, under this deployment's key.
+  const key = `__convexAuthJWT_${CONVEX_URL!.replace(/[^a-zA-Z0-9]/g, '')}`
+  const token = await page.evaluate((k) => localStorage.getItem(k), key)
+  expect(token, key).toBeTruthy()
+  const sub = (
+    JSON.parse(
+      Buffer.from(token!.split('.')[1]!, 'base64url').toString('utf8')
+    ) as { sub: unknown }
+  ).sub
+  // The pair the money layer binds figures to: the server's own answer.
+  const client = new ConvexHttpClient(CONVEX_URL!)
+  client.setAuth(token!)
+  const session = await client.query(api.balance.session, {})
+  expect(session?.sessionId).toBeTruthy()
+  expect(sub).toBe(`${session!.userId}|${session!.sessionId}`)
+
+  // A new account holds no balance: an exact zero, shown on /pocket.
+  const main = page.getByRole('main')
+  await expect(main.getByText('Ready to tip')).toBeVisible()
+  await expect(main.getByText('$0.00').first()).toBeVisible()
+  // On a page with the bar (/pocket is a pushed screen, with none), its
+  // item opens the balance: it states a figure for an open balance only,
+  // and never says "Sign in" to a signed-in reader.
+  await page.goto('/shelf')
+  await expect(
+    page.locator('[data-balance]:visible').first()
+  ).toHaveAccessibleName(/^Balance/)
 })
 
 test('a wrong password shows the error on the form', async ({ page }) => {

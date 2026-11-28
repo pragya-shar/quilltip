@@ -1212,6 +1212,100 @@ describe('totals at any history length and across collects', () => {
     ).toBe(true)
   })
 
+  /**
+   * The rehearsal's case: two pairs of 50 receipts from before the running
+   * figures (150 cents each) and the 1-cent anchor, 301 cents reserved.
+   * Pair 1 settles between the backfill's reader and writer steps. The
+   * truth is 151 cents, after the first run and after a second one.
+   */
+  async function settleBetweenSteps(
+    settle: (t: T, cumulative: bigint) => Promise<void>
+  ) {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const h = await longHistory(t, s, { keys: 3, perPair: 50 })
+    expect(h.reservedCents).toBe(301)
+    expect((h.keys - 1) * h.perPair + 1).toBeLessThan(RECOUNT_PAGE)
+    const pair1 = (await receipts(t))
+      .filter((r) => r.keyId === 1)
+      .sort((a, b) => a.seq - b.seq)
+    const cumulative = BigInt(pair1[pair1.length - 1]!.cumulativeAfter)
+    const reserved = () =>
+      t.run(
+        async (ctx) =>
+          (await ctx.db.query('tabAccounts').first())!.reservedCents
+      )
+
+    await t.mutation(internal.balanceBackfill.start, {})
+    // The reader step alone.
+    vi.runOnlyPendingTimers()
+    await t.finishInProgressScheduledFunctions()
+    expect(await reserved()).toBe(301)
+    // Pair 1 settles before the writer step.
+    await settle(t, cumulative)
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    expect(await reserved()).toBe(151)
+    expect((await views(t, s)).session.pendingCents).toBe(151)
+
+    // A retry of the backfill does not change a correct figure.
+    await t.mutation(internal.balanceBackfill.start, {})
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    expect(await reserved()).toBe(151)
+    expect((await views(t, s)).session.pendingCents).toBe(151)
+    const markers = (await receipts(t)).reduce(
+      (sum, r) => sum + (r.moneyReservedCents ?? 0),
+      0
+    )
+    expect(markers).toBe(151)
+  }
+
+  it('reserves 151 cents, not 301, when pair 1 of two pairs of 50 settles by event between the reader and writer steps, and again on a second backfill', async () => {
+    await settleBetweenSteps(async (t, cumulative) => {
+      await ingest(
+        t,
+        ev.tabSettled({
+          keyId: 1,
+          cumulative,
+          paidAfter: cumulative,
+          gross: cumulative,
+        })
+      )
+    })
+  }, 60_000)
+
+  it('reserves 151 cents, not 301, when pair 1 of two pairs of 50 settles by reconcile between the reader and writer steps, and again on a second backfill', async () => {
+    await settleBetweenSteps(async (t, cumulative) => {
+      const account = await t.run(
+        async (ctx) => (await ctx.db.query('tabAccounts').first())!
+      )
+      const ledger = account.balanceLedger + 10
+      await t.run(async (ctx) => {
+        const cursor = (await ctx.db.query('chainCursor').first())!
+        if (cursor.lastLedger < ledger)
+          await ctx.db.patch(cursor._id, { lastLedger: ledger })
+      })
+      const snap = await t.query(internal.chain.tabReconcile.snapshot, {
+        reader: READER,
+      })
+      if (!snap) throw new Error('no snapshot')
+      const result = await t.mutation(internal.chain.tabReconcile.reconcile, {
+        tabAccountId: snap.tabAccountId,
+        digest: snap.digest,
+        pairs: snap.pairs,
+        chain: {
+          ledger,
+          balance: (BigInt(account.confirmedBalance) - cumulative).toString(),
+          paid: snap.pairs.map((p) => ({
+            ...p,
+            paid: (p.keyId === 1 ? cumulative : BigInt(0)).toString(),
+          })),
+        },
+        apply: true,
+      })
+      expect(result).toMatchObject({ status: 'applied' })
+    })
+  }, 60_000)
+
   it('leaves no reserve behind when an on-hold receipt is partly paid between the reader and writer passes', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)

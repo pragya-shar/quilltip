@@ -15,6 +15,7 @@ import { createOutbox, type OutboxEntry } from '../../lib/payments/outbox'
 import { shellController, viewsOf } from '../../lib/payments/runtime'
 import { paymentsStore } from '../../lib/payments/store'
 import type { TipController, TipTarget } from '../../lib/payments/types'
+import { tokenNames } from './sessionToken'
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
@@ -36,6 +37,7 @@ const answers = vi.hoisted(() => {
   const cache = new Map<string, unknown>()
   const session = (user: string) => ({
     userId: user,
+    sessionId: `session-${user}`,
     accountAddress: 'GREADER',
     network: 'testnet',
     wallet: { address: 'GREADER', verifiedAt: 1 },
@@ -192,8 +194,13 @@ function start() {
   fake.user = `reader-${++users}`
   fake.sends.length = 0
   detach = paymentsStore.attachShell()
+  // The token names the pair the server answers for.
+  tokenNames(pairOfReader())
   paymentsStore.setAuth('signed-in')
 }
+
+/** The pair the stand-in server answers for the reader in this test. */
+const pairOfReader = () => `${fake.user}|session-${fake.user}`
 
 afterEach(async () => {
   await act(async () => root?.unmount())
@@ -201,6 +208,8 @@ afterEach(async () => {
   for (const id of Object.keys(paymentsStore.get().registrations))
     paymentsStore.unregister(id)
   paymentsStore.setAuth('loading')
+  window.localStorage.clear()
+  paymentsStore.setSession(null)
   answers.overrides.clear()
   answers.auth.isAuthenticated = true
   detach?.()
@@ -295,11 +304,10 @@ describe('whose figures the engine publishes', () => {
     await vi.waitFor(() =>
       expect(viewsOf(paymentsStore.get()).balance.status).toBe('ready')
     )
-    expect(paymentsStore.get().owner).toBe(fake.user)
+    expect(paymentsStore.get().owner).toBe(pairOfReader())
     // Another tab signs someone else in: nothing of this reader shows.
-    await act(async () => paymentsStore.setSession('someone-else'))
+    await act(async () => tokenNames('someone-else|session-x'))
     expect(viewsOf(paymentsStore.get()).balance.status).toBe('loading')
-    paymentsStore.setSession(null)
   })
 })
 

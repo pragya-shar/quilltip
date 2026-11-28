@@ -295,3 +295,47 @@ describe('publishing.registrationState: tips not available here', () => {
     expect(await read(w, 'other')).toBeNull()
   })
 })
+
+describe('publishing.registrationState: an article published without an address', () => {
+  test('write.publish publishes it; its author is told to confirm an address, everyone else gets null', async () => {
+    const w = await setup({ verified: false, published: false })
+    const d = await w.writer.mutation(api.write.saveDraft, {
+      title: 'First words',
+      content: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'Hello.' }] },
+        ],
+      },
+    })
+    await w.writer.mutation(api.write.publish, {
+      id: d.id,
+      baseUpdatedAt: d.updatedAt,
+    })
+    const state = (who?: 'writer' | 'other') =>
+      who
+        ? w[who].query(api.publishing.registrationState, { articleId: d.id })
+        : w.t.query(api.publishing.registrationState, { articleId: d.id })
+    expect(await state('writer')).toEqual({
+      state: 'not_registered',
+      published: true,
+      next: 'verify_wallet',
+    })
+    expect(await state('other')).toBeNull()
+    expect(await state()).toBeNull()
+
+    // Once the address is confirmed, the next step is to turn tips on.
+    await w.t.run((ctx) =>
+      ctx.db.patch(w.ids.writer, {
+        stellarAddress: WALLET,
+        stellarAddressVerifiedAt: 2,
+        stellarAddressVerifiedNetwork: TESTNET,
+      })
+    )
+    expect(await state('writer')).toEqual({
+      state: 'not_registered',
+      published: true,
+      next: 'turn_on',
+    })
+  })
+})

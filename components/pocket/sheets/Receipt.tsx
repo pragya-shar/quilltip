@@ -1,16 +1,17 @@
 'use client'
 
 import '../pocket.css'
+import { Button } from '@/system/components/Button'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TextLink } from '@/system/components/TextLink'
 import { sheetStack } from '@/shell/sheetStack'
 import type { SheetBodyProps } from '@/shell/sheets/types'
-import { notePress } from './notePress'
 import { usePocketSource } from '@/lib/pocket/source'
 import type { ActivityItem } from '@/lib/pocket/types'
 import { recordHref, rowWords, whenLong } from '../copy'
 import { ReceiptFact as Fact } from '../ReceiptFact'
 import { rowAmount } from '../rowAmount'
+import { ADD_MONEY_PAGE } from '../sheetIds'
 
 export type ReceiptProps = { item: ActivityItem }
 
@@ -38,7 +39,7 @@ export default function ReceiptBody({
   const accepted = item.status !== 'sending'
   const token = item.exact ? (reader ? item.exact.gross : item.exact.net) : null
   return (
-    <div className="qt-pocket__receipt" onPointerDownCapture={notePress}>
+    <div className="qt-pocket__receipt">
       <div className="qt-pocket__slip">
         <MoneyFigure
           value={rowAmount(item)}
@@ -95,7 +96,17 @@ export default function ReceiptBody({
           ) : null}
         </dl>
       </div>
-      <p className="qt-pocket__fine">{words.long}</p>
+      {reader && words.waitingForBalance ? (
+        // What to do, with the action beside it.
+        <div className="qt-pocket__add">
+          <p className="qt-pocket__fine">{words.long}</p>
+          <Button variant="secondary" href={ADD_MONEY_PAGE}>
+            Add testnet money
+          </Button>
+        </div>
+      ) : (
+        <p className="qt-pocket__fine">{words.long}</p>
+      )}
       {item.article.href ? (
         // Leaving for the article closes this receipt and the balance under
         // it, so nothing stays open over the next page.
