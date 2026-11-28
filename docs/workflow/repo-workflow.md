@@ -68,10 +68,13 @@ cargo check --locked --target wasm32v1-none --manifest-path contracts/tipping/Ca
 cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nft/Cargo.toml
 ```
 
-[CI](../../.github/workflows/ci.yml) runs on pushes to `main` and PRs into `main`.
-`Required` aggregates quality, build, and dependency audit. The audit is a required
-job; its severity/exception rules are defined in the
-[audit policy](../../security/dependency-review.md). PR hygiene runs on PRs.
+[CI](../../.github/workflows/ci.yml) runs on pushes to `main` and the overhaul
+branches and on PRs into them. On a PR it runs only the jobs the changed files
+can affect, and pushes run everything; [how CI decides](ci-pipeline.md).
+`Required` aggregates every job and fails when one did not pass or was skipped
+without a plan to skip it. The audit is a required job; its severity/exception
+rules are defined in the [audit policy](../../security/dependency-review.md).
+PR hygiene runs on PRs. `bun scripts/ci/local.ts` runs the same steps locally.
 Local success does not establish remote CI or deployment success.
 
 ## Using Codex and Claude Code

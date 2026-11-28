@@ -3,21 +3,17 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { FIXTURES, SURFACES_GROUP, selectFixtures } from '../fixture-suites'
 import { SURFACE_SUITES } from '../../e2e/suites'
+import { SHARDS } from './shards'
 
 const workflow = readFileSync(
   path.join(__dirname, '../../.github/workflows/ci.yml'),
   'utf8'
 )
 
-/** The `suites:` values of the e2e-fixtures matrix, one entry per shard. */
+/** The suites of each shard in scripts/ci/shards.ts, one entry per shard. */
 function shardSuites(): string[][] {
-  const job = workflow.slice(
-    workflow.indexOf('\n  e2e-fixtures:'),
-    workflow.indexOf('\n  contracts-integration:')
-  )
-  return [...job.matchAll(/^\s+suites: (.+)$/gm)].map((m) =>
-    m[1]!
-      .replace(/^'|'$/g, '')
+  return SHARDS.map((shard) =>
+    shard.suites
       .split(',')
       .map((name) => name.trim())
       .flatMap((name) =>
@@ -44,11 +40,22 @@ describe('fixture shards in CI', () => {
     expect(required).toContain('if: always()')
     expect(workflow).toMatch(/e2e-fixtures:[\s\S]*?fail-fast: false/)
   })
+
+  it('take their matrix from What changed', () => {
+    const job = workflow.slice(
+      workflow.indexOf('\n  e2e-fixtures:'),
+      workflow.indexOf('\n  contracts-integration:')
+    )
+    expect(job).toContain(
+      'include: ${{ fromJSON(needs.changes.outputs.fixtures) }}'
+    )
+    expect(new Set(SHARDS.map((s) => s.shard)).size).toBe(SHARDS.length)
+  })
 })
 
 describe('suites from e2e/suites/', () => {
   it('run in the one surfaces shard', () => {
-    expect(workflow).toContain(`suites: '${SURFACES_GROUP}'`)
+    expect(SHARDS.filter((s) => s.suites === SURFACES_GROUP)).toHaveLength(1)
   })
 
   it('keep names and ports unique across every suite', () => {
