@@ -1428,6 +1428,7 @@ describe('window approval: the allowed operations', () => {
       'legacyTipCleanup:run',
       'authorEarningsBackfill:run',
       'chain/config:getChainConfig',
+      'articleImageHosts:countImageHosts',
       'chain/config:refreshChainConfig',
       'chain/indexer:redispatch',
       'chain/backfill:setContractVersionV1',
@@ -1482,6 +1483,9 @@ describe('window approval: every runbook command', () => {
     ['authorEarningsBackfill:run', '{"dryRun":true}'],
     ['authorEarningsBackfill:run', '{"dryRun":false}'],
     ['chain/config:getChainConfig', undefined],
+    // Stage 1, step 4 (read-only image host count).
+    ['articleImageHosts:countImageHosts', undefined],
+    ['articleImageHosts:countImageHosts', '{}'],
     // Stage 3.
     ['chain/config:refreshChainConfig', undefined],
     ['chain/indexer:redispatch', undefined],
@@ -1627,6 +1631,7 @@ describe('window approval: every runbook command', () => {
     ['earningsTotalsBackfill:dryRun', '{"limit":51}', 'from 1 to 50'],
     ['earningsTotalsBackfill:dryRun', '{"cursor":42}', 'page cursor'],
     ['earningsTotalsBackfill:progress', '{"all":true}', 'allowed: none'],
+    ['articleImageHosts:countImageHosts', '{"cursor":null}', 'allowed: none'],
     [
       'earningsTotalsBackfill:retryFailed',
       '{"id":42}',
@@ -1874,6 +1879,7 @@ describe('window approval: refusals', () => {
     [['deploy-dry-run', '--url', 'https://example.convex.cloud']],
     [['convex-run', 'testAccounts:setTestAccount', '{}']],
     [['convex-run', 'earningsTotalsBackfill:run']],
+    [['convex-run', 'articleImageHosts:imageHostPage', '{"cursor":null}']],
     [['convex-run', 'chain/backfill:setContractVersionV1', '[1]']],
     [['convex-run', 'chain/backfill:setContractVersionV1', '{bad']],
     [['env-set', 'TAB_SETTLER_SECRET', 'S...']],
