@@ -550,6 +550,96 @@ Use the same key for the stage 0 export, the stage 1 and stage 4
 reaches the same deployment. Unset `CONVEX_DEPLOY_KEY` at the end of the
 window.
 
+#### 5.0.3 Live window approval
+
+The network guard refuses every deploy-kind command on the live deployment.
+For this window only, `bun scripts/live-window.ts` runs the Convex steps of
+stages 0, 1, 4 to 6 and section 6.2 under an operator approval. It builds each
+Convex CLI command itself, so no flag can select another deployment.
+
+**What a run pushes.** Each `run` builds its code from the approved commit, not
+from the checkout. It exports the commit into a new private folder under
+`~/.quilltip/live-window/builds/` from git's objects, checks every object and
+the exported folder against the commit's ids, installs the dependencies there
+with `bun install --frozen-lockfile --ignore-scripts`, and runs the Convex CLI
+there with system Node and an environment that holds only `CONVEX_DEPLOY_KEY`.
+The checkout's files, index and git settings, its `node_modules` and the
+shell's other variables cannot change what is pushed. The first run of a
+window downloads the packages (about 10 seconds and 1.5 GB); later runs use the
+window's private package cache. The checks of the checkout below stay as a
+second check.
+
+Run the tool with Bun directly, not with `bun run`, which puts the checkout's
+`node_modules/.bin` first in `PATH`. Use the Bun version the release pins:
+`npx bun@1.4.4 scripts/live-window.ts …` when the installed Bun differs. Node
+20 or later and git must be in `/usr/bin`, `/bin`, `/usr/local/bin` or
+`/opt/homebrew/bin`; the tool does not look them up in `PATH`.
+
+The approval is one variable, set in the shell (never in a file):
+`QUILLTIP_LIVE_WINDOW_APPROVAL=<deployment>@<release commit>@<UTC start>+<hours>h`.
+The commit is the full 40-character SHA; the start is `YYYY-MM-DDTHH:MMZ`;
+the window lasts 1 to 4 hours. The tool refuses if the checkout is not at that
+commit or has any change or untracked file, if the window has not started or
+has ended, if the value is malformed, if a `.env*` file or a committed file
+holds it, if another Convex target is set, or if `CONVEX_DEPLOY_KEY` is not a
+development deploy key for that deployment. Mainnet is refused as always.
+
+1. Set it, in the clean checkout of the tag, after `bun install --frozen-lockfile`:
+
+   ```bash
+   unset CONVEX_DEPLOYMENT CONVEX_DEPLOYMENT_TOKEN CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY
+   export QUILLTIP_NETWORK_GUARD_OPT_IN=testnet NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
+   read -rs CONVEX_DEPLOY_KEY && export CONVEX_DEPLOY_KEY
+   export QUILLTIP_LIVE_WINDOW_APPROVAL="upbeat-mockingbird-579@$(git rev-parse 'payments-v2-cutover.1^{commit}')@<YYYY-MM-DDTHH:MMZ>+3h"
+   ```
+
+2. Verify it (dry mode: local checks only, nothing is sent):
+   `bun scripts/live-window.ts check` lists the allowed operations, and
+   `bun scripts/live-window.ts check <operation> <args>` checks one command.
+3. Run each step as `bun scripts/live-window.ts run <operation> <args>`. Each
+   run builds its code as described above, prints the deployment, commit,
+   operation and expiry, and appends lines (including the checked tree) to
+   `~/.quilltip/live-window.log` (`QUILLTIP_LIVE_WINDOW_LOG` to change it; it
+   must be outside the repository). The log holds no key or secret.
+
+   | Runbook command                                      | Window operation                                                                                |
+   | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+   | `convex deploy --dry-run`                            | `deploy-dry-run`                                                                                |
+   | `convex deploy`                                      | `deploy` (runs the dry run first; pushes only if it names the approved deployment and no other) |
+   | `convex export --include-file-storage --path <file>` | `export <file>.zip` (outside the repository, new file)                                          |
+   | `convex import --replace-all -y <file>`              | `import <file>.zip` (section 6.2 only; needs the restore binding below)                         |
+   | `convex env set <NAME> <value>`                      | `env-set <NAME> <value>` (non-secret variables of section 3.1; values checked)                  |
+   | `convex env remove <NAME>`                           | `env-remove <NAME>` (contract IDs, `INDEXER_START_LEDGER`)                                      |
+   | `convex run <function> '<json>'`                     | `convex-run <function> '<json>'` (functions named in this runbook, with their argument names)   |
+   | Dashboard pause or resume (section 6.2)              | `pause`, `resume` (recorded only; do it in the dashboard)                                       |
+
+   `export` prints the SHA-256 of the file it wrote and logs it.
+
+   **Restore binding.** A section 6.2 import also needs
+   `QUILLTIP_LIVE_WINDOW_RESTORE=<deployment>@sha256:<64 hex digits>` for the
+   reviewed restore file. The restore file is rebuilt from the stage 0
+   snapshot and the second export, so its digest differs from both: take it
+   from the reviewed file (`shasum -a 256 <restore-file>.zip`), not from an
+   export line in the log. The tool refuses another file, another deployment
+   or a malformed value. It copies the file to a private directory, checks the
+   copy's digest again, imports the copy, and logs the digest.
+
+4. Clear it at the end of the window, and check that the tool now refuses:
+
+   ```bash
+   unset QUILLTIP_LIVE_WINDOW_APPROVAL QUILLTIP_LIVE_WINDOW_RESTORE CONVEX_DEPLOY_KEY
+   bun scripts/live-window.ts check
+   rm -rf ~/.quilltip/live-window/builds
+   ```
+
+Outside the approval: the secrets `TAB_ACCEPTOR_SECRET`, `TAB_SETTLER_SECRET`
+and `ARWEAVE_WALLET_KEY` (dashboard only), `ARWEAVE_ENABLED`, reading the
+deployment's variables, the dashboard **Data** and **Schedules** views, the
+Vercel settings and promotion of stage 2, and the contract steps of stage 3
+and 7. Contract tools refuse to run while the approval is set: unset it first,
+and set it again for the next Convex step. Maintenance functions that call
+`assertNonProductionBackend` stay refused on the live deployment.
+
 ### Stage 0. Freeze and tag
 
 1. Stop merges to `overhaul/v2` except cutover fixes.
