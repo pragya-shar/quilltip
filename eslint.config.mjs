@@ -77,8 +77,18 @@ export default [
       'shell/**/*.{ts,tsx}',
       'components/{read,pocket,today,shelf,write,writer,search,you,signin,resources,ops}/**/*.{ts,tsx}',
     ],
-    ignores: ['system/components/AppLink.tsx'],
+    ignores: ['system/components/AppLink.tsx', 'system/components/Avatar.tsx'],
     rules: {
+      // A person's image goes through Avatar, which accepts only this
+      // deployment's storage or a same-site path and sends no referrer.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.name='img']",
+          message:
+            "Draw a person's image with Avatar from '@/system/components/Avatar' (allowed sources, no referrer). Other images need their own reviewed component.",
+        },
+      ],
       'no-restricted-imports': [
         'error',
         {
@@ -86,6 +96,11 @@ export default [
             {
               name: 'zod',
               message: "Import { z } from '@/lib/zod' (CSP-safe settings).",
+            },
+            {
+              name: 'next/image',
+              message:
+                "Draw a person's image with Avatar from '@/system/components/Avatar' (allowed sources, no referrer).",
             },
             {
               name: 'next/link',

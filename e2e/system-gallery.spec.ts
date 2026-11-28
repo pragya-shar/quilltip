@@ -1171,3 +1171,21 @@ test('a control can be unavailable and still focusable, with its reason', async 
   await page.waitForTimeout(300)
   await expect(page.getByText('Pressed (should not be)')).toHaveCount(0)
 })
+
+test("a person's image comes only from allowed sources, and sends no referrer", async ({
+  page,
+}) => {
+  await open(page)
+  const row = page.locator('[data-avatar-sources]')
+  const same = row.getByRole('img', { name: 'Same Site' })
+  const image = same.locator('img')
+  await expect(image).toHaveAttribute('src', '/images/quilltip-logo.png')
+  await expect(image).toHaveAttribute('referrerpolicy', 'no-referrer')
+  await expect(image).toHaveAttribute('loading', 'lazy')
+  await expect(image).toHaveAttribute('decoding', 'async')
+  // Another host: initials, and no request to it.
+  const other = row.getByRole('img', { name: 'Other Host' })
+  await expect(other.locator('img')).toHaveCount(0)
+  await expect(other).toHaveText('OH')
+  await expect(row.getByRole('img', { name: 'No Image' })).toHaveText('NI')
+})
