@@ -385,6 +385,13 @@ export type WalletGateState =
   | { kind: 'wrong-network'; walletNetwork?: string }
   /** Connected, but the address is not proven to belong to this account. */
   | { kind: 'unverified'; address?: string }
+  /**
+   * The account has a verified linked address, and the wallet is on another
+   * account (`address`). Payments are signed by `linked`, so the reader
+   * switches accounts; linking the other account is not offered here, since
+   * that would hide a tab held under the linked address (#582).
+   */
+  | { kind: 'other-account'; linked: string; address: string }
 
 export type WalletGateKind = WalletGateState['kind']
 

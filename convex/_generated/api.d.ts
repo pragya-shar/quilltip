@@ -24,6 +24,8 @@ import type * as chain_config from "../chain/config.js";
 import type * as chain_indexer from "../chain/indexer.js";
 import type * as chain_review from "../chain/review.js";
 import type * as chain_submissions from "../chain/submissions.js";
+import type * as chain_tabClaims from "../chain/tabClaims.js";
+import type * as chain_tabReconcile from "../chain/tabReconcile.js";
 import type * as crons from "../crons.js";
 import type * as earnings from "../earnings.js";
 import type * as earningsTotalsBackfill from "../earningsTotalsBackfill.js";
@@ -153,6 +155,8 @@ declare const fullApi: ApiFromModules<{
   "chain/indexer": typeof chain_indexer;
   "chain/review": typeof chain_review;
   "chain/submissions": typeof chain_submissions;
+  "chain/tabClaims": typeof chain_tabClaims;
+  "chain/tabReconcile": typeof chain_tabReconcile;
   crons: typeof crons;
   earnings: typeof earnings;
   earningsTotalsBackfill: typeof earningsTotalsBackfill;

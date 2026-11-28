@@ -6,6 +6,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import { AccountSurface } from '@/components/account/AccountSurface'
 import { FlaggedTipsReview } from './FlaggedTipsReview'
+import { StaleReservesReview } from './StaleReservesReview'
 
 function formatTime(seconds: number | null | undefined): string {
   if (!seconds) return '—'
@@ -123,6 +124,7 @@ export function ChainIndexerStatusPage() {
               <dd>{status.cursor?.lastError ?? 'None'}</dd>
             </dl>
             <FlaggedTipsReview />
+            <StaleReservesReview />
           </>
         )}
       </section>
