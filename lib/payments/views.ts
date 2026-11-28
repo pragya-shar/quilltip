@@ -96,6 +96,21 @@ export function effectiveChoice(
 }
 
 /**
+ * Why the tip control cannot send, given the amount it would send (null
+ * when none fits), the amounts offered and the balance's own reason:
+ * the balance's reason when it has one (`price`, `cap`, `daily`,
+ * `balance`), else `choose` when amounts are offered but none is chosen.
+ */
+export function tipBlocked(
+  cents: number | null,
+  offered: readonly number[],
+  reason: NoAmountReason | null
+): NoAmountReason | 'choose' | null {
+  if (cents !== null) return null
+  return reason ?? (offered.length ? 'choose' : null)
+}
+
+/**
  * A tip intent carried through sign-in: its `amount` is a ceiling. Against
  * the reader's own ladder it is never raised: the amount if offered, else
  * the largest offered amount below it, else none. (`setAmount` applies the
@@ -222,11 +237,12 @@ export function balanceViewOf(input: {
     })
     amounts = choices.amounts.map(money)
     noAmountReason = choices.reason
-    // No price: no dollar figure, so no amount is known to fit.
-    if (!read) {
-      amounts = []
-      noAmountReason = 'price'
-    }
+  }
+  // No price: no dollar figure, so no amount is known to fit. The server
+  // sends no limits then either, so this is decided outside them.
+  if (!read) {
+    amounts = []
+    noAmountReason = 'price'
   }
   return {
     ...base,

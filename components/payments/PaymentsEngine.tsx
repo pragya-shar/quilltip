@@ -59,6 +59,7 @@ import {
   TIP_LADDER,
   balanceViewOf,
   effectiveChoice,
+  tipBlocked,
   readerItemsOf,
   pageState,
   publicChoices,
@@ -481,10 +482,7 @@ export function PaymentsEngine() {
         : balance.amounts.map((a) => a.cents)
       // Never above the reader's choice (views.ts, `effectiveChoice`).
       const cents = effectiveChoice(t.chosen, offered)
-      const blocked =
-        cents !== null
-          ? null
-          : (balance.noAmountReason ?? (offered.length ? 'choose' : null))
+      const blocked = tipBlocked(cents, offered, balance.noAmountReason)
       const early =
         balance.status === 'signed-out' ||
         balance.status === 'none' ||

@@ -33,6 +33,8 @@ import {
   type ActivityEntry,
   type EarningsRead,
   type SessionRead,
+  effectiveChoice,
+  tipBlocked,
 } from '../../lib/payments/views'
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -450,6 +452,22 @@ describe('the spoken form and the conversion price', () => {
       // Tip-time figures need no price.
       expect(v.pending).toMatchObject({ cents: 0, display: '$0.00' })
     }
+  })
+
+  it('says no price as the server sends it: with no limits', () => {
+    // With no price the server has no limits to convert either.
+    const v = balance({ ...session(), prices: [], limits: null })
+    expect(v.status).toBe('ready')
+    expect(v.available).toBeNull()
+    expect(v.limits).toBeNull()
+    expect(v.amounts).toEqual([])
+    expect(v.noAmountReason).toBe('price')
+    // The tip control in the same state: blocked for the price, not
+    // "choose", and no amount to send.
+    const offered = v.amounts.map((a) => a.cents)
+    const cents = effectiveChoice(null, offered)
+    expect(cents).toBeNull()
+    expect(tipBlocked(cents, offered, v.noAmountReason)).toBe('price')
   })
 })
 
