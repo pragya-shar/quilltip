@@ -61,15 +61,15 @@ for (const viewport of [
             !process.env.PLAYWRIGHT_QA_PASSWORD,
           'Requires a disposable development QA account.'
         )
-        await page.goto('/login')
+        await page.goto('/signin')
         await page
           .getByLabel('Email', { exact: true })
           .fill(process.env.PLAYWRIGHT_QA_EMAIL!)
         await page
           .getByLabel('Password', { exact: true })
           .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
-        await page.getByRole('button', { name: 'Log in', exact: true }).click()
-        await page.waitForURL((url) => url.pathname !== '/login')
+        await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+        await page.waitForURL((url) => url.pathname !== '/signin')
         await page.goto('/write')
         const trigger = page.getByRole('button', {
           name: 'Appearance',

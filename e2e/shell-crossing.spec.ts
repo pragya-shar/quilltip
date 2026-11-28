@@ -147,29 +147,36 @@ test('the first tap after a full page load is never lost', async ({ page }) => {
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
     })
     const at = (await box.jsonValue())!
-    const started = page
+    // Before the scripts run the press follows the link to sign in; after,
+    // it opens the sign-in sheet over the page. Either way it reached the
+    // item.
+    const navigated = page
       .waitForRequest(
         (request) =>
           request.isNavigationRequest() &&
           /\/(login|signin)/.test(request.url()),
         { timeout: 5000 }
       )
-      .then(
-        () => true,
-        () => false
-      )
+      .then(() => 'page' as const)
+    const sheet = page
+      .getByRole('dialog', { name: 'Sign in to Quilltip' })
+      .waitFor({ timeout: 5000 })
+      .then(() => 'sheet' as const)
+    const started = Promise.any([navigated, sheet]).catch(() => null)
     await page.mouse.click(at.x, at.y)
-    if (!(await started)) {
+    const reached = await started
+    if (!reached) {
       const clicked = await page.evaluate(() =>
         sessionStorage.getItem('balance-click')
       )
       throw new Error(
-        `run ${run + 1}: the press was lost: no navigation to sign in started (click on the item: ${clicked ?? 'none'})`
+        `run ${run + 1}: the press was lost: no navigation to sign in started and no sign-in sheet opened (click on the item: ${clicked ?? 'none'})`
       )
     }
-    await expect(page, `run ${run + 1}: the sign-in page arrives`).toHaveURL(
-      /\/(login|signin)/,
-      { timeout: 15_000 }
-    )
+    if (reached === 'page')
+      await expect(page, `run ${run + 1}: the sign-in page arrives`).toHaveURL(
+        /\/(login|signin)/,
+        { timeout: 15_000 }
+      )
   }
 })

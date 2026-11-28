@@ -13,7 +13,15 @@ export const routes: PerfRoutes = {
     // segment registry, the press guard, the app history and the focus
     // watchers, it measured 184.6 KB on a local production build: that
     // plus 2, rounded up.
-    { route: '/system/reading', budgetKb: 187, access: 'public' },
+    //
+    // What each package adds to every page's first load, one line each,
+    // so the budget has an account and not only a limit:
+    // - base with the balance page: about 186.9 KB.
+    // - signin: 0.4 KB, the sign-in sheet's declaration with its title
+    //   reader (the title says the act, drawn before the sheet loads),
+    //   openSignIn and signInHref; the intent rules (1.4 KB) load with the
+    //   sheet. Measured 187.3 KB: budget 189.
+    { route: '/system/reading', budgetKb: 189, access: 'public' },
     // The placeholder until the Shelf package's page replaces it: the same
     // shell as the reading sample, so the same budget until its first
     // measurement (then that plus 2). It drops out when

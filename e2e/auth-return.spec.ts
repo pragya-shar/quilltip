@@ -4,9 +4,12 @@
  * (scripts/auth-e2e/run.ts), which starts the backend and the app.
  *
  * Convex Auth's `signIn` resolves before the backend confirms the new token.
- * A slow confirmation sent the reader back to /login. `slowAuthConfirmation`
+ * A slow confirmation sent the reader back to sign in. `slowAuthConfirmation`
  * holds the backend's messages after the client authenticates, so every run
  * meets that window instead of only some.
+ *
+ * Sign-in is /signin; the older pages' guards still link to /login, which
+ * redirects there with only a safe `returnTo`.
  */
 import { createSign } from 'crypto'
 import { test, expect, type BrowserContext, type Page } from '@playwright/test'
@@ -15,6 +18,7 @@ import { ConvexHttpClient } from 'convex/browser'
 
 import { api } from '../convex/_generated/api'
 import { TOKEN_CONFIRMATION_TIMEOUT_MS } from '../lib/auth/sessionConfirmation'
+import { CONFIRM_MS } from '../lib/auth/session'
 
 const CONVEX_URL = process.env.AUTH_E2E_CONVEX_URL
 /** How long the backend's answer is held after the client authenticates. */
@@ -90,10 +94,13 @@ async function watchProtectedContent(page: Page) {
 async function signIn(page: Page, password = account.password) {
   await page.getByLabel('Email').fill(account.email)
   await page.getByLabel('Password', { exact: true }).fill(password)
-  await page.getByRole('button', { name: 'Log in' }).click()
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
 }
 
-const loginUrl = (path: string) => `/login?returnTo=${encodeURIComponent(path)}`
+const loginUrl = (path: string) =>
+  `/signin?returnTo=${encodeURIComponent(path)}`
+const signInButton = (page: Page) =>
+  page.getByRole('button', { name: 'Sign in', exact: true })
 
 /** Stays on the path for the whole interval. */
 async function staysOn(page: Page, path: string, ms: number) {
@@ -143,13 +150,13 @@ for (const route of PROTECTED) {
   })
 }
 
-test('a signed-out reader is sent to login and sees no dashboard', async ({
+test('a signed-out reader is sent to sign in and sees no dashboard', async ({
   page,
 }) => {
   await watchProtectedContent(page)
   await page.goto('/dashboard/stats')
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
-  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+  await expect(signInButton(page)).toBeVisible()
   expect(
     await page.evaluate(
       () => (window as unknown as { __sawProtected?: boolean }).__sawProtected
@@ -241,29 +248,27 @@ test('on Today, a stored token the backend rejects ends as the sign-in link', as
   ).toBe(false)
 })
 
-test('a sign-in the backend never answers ends on login at the bound', async ({
+test('a sign-in the backend never answers says so on the sign-in page', async ({
   page,
 }) => {
-  test.setTimeout(TOKEN_CONFIRMATION_TIMEOUT_MS + 45_000)
+  test.setTimeout(CONFIRM_MS * 2 + 45_000)
   await slowAuthConfirmation(page, 'never')
   await watchProtectedContent(page)
   await page.goto(loginUrl('/dashboard/stats'))
   await signIn(page)
-  await expect(page).toHaveURL('/dashboard/stats')
-  const landed = Date.now()
-  // Waits for the answer: no redirect well before the bound.
-  await staysOn(page, '/dashboard/stats', TOKEN_CONFIRMATION_TIMEOUT_MS - 3_000)
-  // Then treats the reader as signed out.
-  await expect(page).toHaveURL(loginUrl('/dashboard/stats'), {
-    timeout: 10_000,
-  })
-  expect(Date.now() - landed).toBeLessThan(
-    TOKEN_CONFIRMATION_TIMEOUT_MS + 8_000
-  )
-  // A second sign-in stores a new token, which gets its own wait.
+  // Waits for the backend on the sign-in page, saying so, and never goes on
+  // to the protected page with a token nobody confirmed.
+  await expect(page.getByText('Signing you in…')).toBeVisible()
+  const started = Date.now()
+  await expect(
+    page.getByText('Signing in is taking longer than usual.', { exact: false })
+  ).toBeVisible({ timeout: CONFIRM_MS + 10_000 })
+  expect(Date.now() - started).toBeGreaterThan(CONFIRM_MS - 3_000)
+  await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
+  // A second sign-in gets its own wait.
   await signIn(page)
-  await expect(page).toHaveURL('/dashboard/stats')
-  await staysOn(page, '/dashboard/stats', 5_000)
+  await expect(page.getByText('Signing you in…')).toBeVisible()
+  await staysOn(page, loginUrl('/dashboard/stats'), 3_000)
   expect(
     await page.evaluate(
       () => (window as unknown as { __sawProtected?: boolean }).__sawProtected
@@ -312,8 +317,9 @@ test('a wrong password shows the error on the form', async ({ page }) => {
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
   await signIn(page, `${account.password}x`)
   await expect(
-    page.getByRole('alert').filter({ hasText: 'Invalid email or password' })
-  ).toHaveText('Invalid email or password. Please try again.')
+    page.getByText('That email and password do not match.')
+  ).toBeVisible()
+  await expect(page.getByLabel('Password', { exact: true })).toBeFocused()
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
 })
 
@@ -348,7 +354,7 @@ const walletKeys = (page: Page) =>
       .sort()
   )
 
-test('signing out from the dashboard lands on login and stays', async ({
+test('signing out from the dashboard lands on sign in and stays', async ({
   page,
 }) => {
   await page.goto(loginUrl('/dashboard/stats'))
@@ -377,9 +383,9 @@ test('signing out from the dashboard lands on login and stays', async ({
     .getByRole('dialog', { name: 'Find your way' })
     .getByRole('button', { name: 'Sign out', exact: true })
     .click()
-  await expect(page).toHaveURL('/login')
-  await staysOn(page, '/login', 2_000)
-  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+  await expect(page).toHaveURL('/signin')
+  await staysOn(page, '/signin', 2_000)
+  await expect(signInButton(page)).toBeVisible()
   // Signed out, the browser keeps no wallet choice.
   await expect.poll(() => walletKeys(page)).toEqual([])
 })
@@ -573,10 +579,11 @@ test.describe('a returning reader with an expired token', () => {
   })
 })
 
-/** How long the sign-out's own navigation to /login is held (#608). */
+/** How long the sign-out's own navigation to /login (which redirects to
+ * /signin) is held (#608). */
 const SIGN_OUT_NAVIGATION_HOLD_MS = 3_000
 
-test('a sign-out whose navigation is slow still lands on login without a return path', async ({
+test('a sign-out whose navigation is slow still lands on sign in without a return path', async ({
   page,
 }) => {
   await page.goto(loginUrl('/dashboard/stats'))
@@ -604,12 +611,12 @@ test('a sign-out whose navigation is slow still lands on login without a return 
     .getByRole('dialog', { name: 'Find your way' })
     .getByRole('button', { name: 'Sign out', exact: true })
     .click()
-  await expect(page).toHaveURL('/login', {
+  await expect(page).toHaveURL('/signin', {
     timeout: SIGN_OUT_NAVIGATION_HOLD_MS + 10_000,
   })
-  await staysOn(page, '/login', 2_000)
+  await staysOn(page, '/signin', 2_000)
   expect(held).toBeGreaterThan(0)
-  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+  await expect(signInButton(page)).toBeVisible()
 })
 
 test('a session ended in another tab keeps the return path', async ({
@@ -627,8 +634,168 @@ test('a session ended in another tab keeps the return path', async ({
     .getByRole('dialog', { name: 'Find your way' })
     .getByRole('button', { name: 'Sign out', exact: true })
     .click()
-  await expect(other).toHaveURL('/login')
+  await expect(other).toHaveURL('/signin')
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'), {
     timeout: PROMPT_MS,
+  })
+})
+
+test('someone signed in who opens sign-in goes straight back', async ({
+  page,
+}) => {
+  await page.goto(loginUrl('/shelf'))
+  await signIn(page)
+  await page.waitForURL((url) => url.pathname === '/shelf')
+  await page.goto(loginUrl('/pocket'))
+  await page.waitForURL((url) => url.pathname === '/pocket', {
+    timeout: PROMPT_MS,
+  })
+  // Replaced: Back goes to the page before, not to the sign-in page.
+  await page.goBack()
+  await expect(page).toHaveURL('/shelf')
+})
+
+test('a sign-in in another tab is picked up without a reload', async ({
+  context,
+}) => {
+  const page = await context.newPage()
+  await page.goto('/shelf')
+  const item = page.locator('[data-balance]:visible').first()
+  await expect(item).toHaveAccessibleName(/Sign in/)
+  const other = await context.newPage()
+  await other.goto(loginUrl('/shelf'))
+  await signIn(other)
+  await other.waitForURL((url) => url.pathname === '/shelf')
+  await expect(item).toHaveAccessibleName(/^Balance/, { timeout: PROMPT_MS })
+})
+
+test('on the sign-in page, a stored token the backend rejects shows the form', async ({
+  page,
+}) => {
+  const namespace = CONVEX_URL!.replace(/[^a-zA-Z0-9]/g, '')
+  await page.addInitScript((key) => {
+    localStorage.setItem(key, 'not-a-token-this-backend-issued')
+  }, `__convexAuthJWT_${namespace}`)
+  await page.goto(loginUrl('/pocket'))
+  await expect(page.getByLabel('Email')).toBeVisible({ timeout: PROMPT_MS })
+  await expect(page).toHaveURL(loginUrl('/pocket'))
+})
+
+test.describe('no page ever asks "Leave page?"', () => {
+  /** Fails the test on any dialog: "Leave page?" is a dialog too. */
+  const noDialogs = (page: Page) => {
+    const seen: string[] = []
+    page.on('dialog', (dialog) => {
+      seen.push(`${dialog.type()}: ${dialog.message()}`)
+      void dialog.dismiss().catch(() => {})
+    })
+    return seen
+  }
+
+  test('signing in on /signin and going back, five times', async ({
+    browser,
+  }) => {
+    // Also measures how long /signin waits between the sign-in's answer
+    // reaching the page and its own navigation (a bound of 2 s; logged).
+    const waits: number[] = []
+    for (let run = 0; run < 5; run++) {
+      const context = await browser.newContext()
+      const page = await context.newPage()
+      const seen = noDialogs(page)
+      let answered = 0
+      // What the page asks of the backend after the sign-in's answer and
+      // before it leaves, by name: writes over the socket, and the auth
+      // library's token refresh (an HTTP action), with its start and end.
+      const after: string[] = []
+      const at = () => (answered ? `${Date.now() - answered} ms` : 'before')
+      page.on('websocket', (socket) => {
+        socket.on('framereceived', ({ payload }) => {
+          if (
+            !answered &&
+            typeof payload === 'string' &&
+            payload.includes('"ActionResponse"') &&
+            payload.includes('"success":true')
+          )
+            answered = Date.now()
+        })
+        socket.on('framesent', ({ payload }) => {
+          if (!answered || typeof payload !== 'string') return
+          const write = /"type":"(Mutation|Action)".*?"udfPath":"([^"]+)"/.exec(
+            payload
+          )
+          if (write) after.push(`${write[1]} ${write[2]} at ${at()}`)
+        })
+      })
+      const isRefresh = (request: {
+        url(): string
+        postData(): string | null
+      }) =>
+        request.url().includes('/api/action') &&
+        (request.postData() ?? '').includes('refreshToken')
+      page.on('request', (request) => {
+        if (answered && isRefresh(request))
+          after.push(`token refresh started at ${at()}`)
+      })
+      page.on('requestfinished', (request) => {
+        if (answered && isRefresh(request))
+          after.push(`token refresh ended at ${at()}`)
+      })
+      let left = 0
+      page.on('request', (request) => {
+        if (
+          !left &&
+          request.isNavigationRequest() &&
+          new URL(request.url()).pathname === '/pocket'
+        ) {
+          left = Date.now()
+          after.push(`navigation at ${at()}`)
+        }
+      })
+      await page.goto(loginUrl('/pocket'))
+      await signIn(page)
+      await page.waitForURL((url) => url.pathname === '/pocket')
+      await page.waitForTimeout(1_000)
+      expect(seen).toEqual([])
+      if (answered && left) waits.push(left - answered)
+      console.log(
+        `${test.info().project.name} run ${run + 1}: ${after.join('; ')}`
+      )
+      await context.close()
+    }
+    const sorted = [...waits].sort((a, b) => a - b)
+    console.log(
+      `sign-in answer to navigation (ms), ${test.info().project.name}: ${sorted.join(', ')}; median ${sorted[Math.floor(sorted.length / 2)]}, worst ${sorted.at(-1)}`
+    )
+    expect(waits.length).toBe(5)
+  })
+
+  test('creating an account on /signin and going back', async ({ page }) => {
+    const seen = noDialogs(page)
+    await page.goto(
+      `/signin?mode=create&returnTo=${encodeURIComponent('/pocket')}`
+    )
+    await page
+      .getByLabel('Email')
+      .fill(`new-${Date.now().toString(36)}@example.test`)
+    await page
+      .getByLabel('Password', { exact: true })
+      .fill('a new passphrase for this run')
+    await page.getByRole('button', { name: 'Create account' }).click()
+    await page.waitForURL((url) => url.pathname === '/pocket')
+    await page.waitForTimeout(1_000)
+    expect(seen).toEqual([])
+  })
+
+  test('asking for a reset code and leaving the reset page', async ({
+    page,
+  }) => {
+    const seen = noDialogs(page)
+    await page.goto('/signin/reset')
+    await page.getByLabel('Email', { exact: true }).fill(account.email)
+    await page.getByRole('button', { name: 'Send a code' }).click()
+    await page.waitForTimeout(500)
+    await page.goto('/signin')
+    await page.waitForTimeout(500)
+    expect(seen).toEqual([])
   })
 })

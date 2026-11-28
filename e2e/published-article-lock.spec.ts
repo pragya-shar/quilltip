@@ -19,11 +19,11 @@ for (const viewport of [
     )
 
     test.beforeEach(async ({ page }) => {
-      await page.goto('/login')
+      await page.goto('/signin')
       await page.getByLabel('Email', { exact: true }).fill(email!)
       await page.getByLabel('Password', { exact: true }).fill(password!)
-      await page.getByRole('button', { name: 'Log in', exact: true }).click()
-      await page.waitForURL((url) => url.pathname !== '/login')
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click()
+      await page.waitForURL((url) => url.pathname !== '/signin')
     })
 
     test('the writing desk offers no edit link for published articles', async ({

@@ -115,7 +115,7 @@ describe('measured routes from scripts/perf/routes', () => {
   })
 
   it('keeps the shell reading page measured, at the public limits', () => {
-    expect(FIRST_LOAD_BUDGET_KB['/system/reading']).toBe(187)
+    expect(FIRST_LOAD_BUDGET_KB['/system/reading']).toBe(189)
     const reading = SURFACE_PAGE_LOAD.find((e) => e.path === '/system/reading')
     expect(reading?.budget).toMatchObject({ cls: 0.05, lcpMobileMs: 2000 })
   })
@@ -136,7 +136,7 @@ describe('payments code in a first load', () => {
     expect(forbiddenModules([engine], '/system/reading')).toHaveLength(1)
     expect(forbiddenModules([shell], '/system/reading')).toHaveLength(1)
     // The legacy layout mounts the payments shell itself.
-    expect(forbiddenModules([shell], '/login')).toEqual([])
+    expect(forbiddenModules([shell], '/[username]/[slug]')).toEqual([])
   })
 })
 

@@ -39,7 +39,7 @@ describe('reserved first path segments (lib/routing/segments)', () => {
 
   it('finds the routes it guards', () => {
     expect(routes).toEqual(
-      expect.arrayContaining(['login', 'pocket', 'shelf', 'system'])
+      expect.arrayContaining(['signin', 'pocket', 'shelf', 'system'])
     )
   })
 

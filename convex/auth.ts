@@ -6,10 +6,7 @@ import type { MutationCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { markWaitlistJoined } from './waitlist'
 import { classifyNewAccount } from './lib/internalAccounts'
-import {
-  PASSWORD_MIN_LENGTH,
-  PASSWORD_REGEX,
-} from '../lib/validations/password-rules'
+import { passwordMeetsRule } from '../lib/validations/password-rules'
 import {
   RESET_UNAVAILABLE,
   ResendPasswordReset,
@@ -38,11 +35,7 @@ const password = Password({
   },
   // Same rules the sign-up and reset forms show.
   validatePasswordRequirements(value) {
-    if (
-      !value ||
-      value.length < PASSWORD_MIN_LENGTH ||
-      !PASSWORD_REGEX.test(value)
-    ) {
+    if (typeof value !== 'string' || !passwordMeetsRule(value)) {
       throw new ConvexError('INVALID_PASSWORD')
     }
   },

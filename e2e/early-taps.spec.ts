@@ -2,8 +2,8 @@ import { expect, test, type Page, type Request } from '@playwright/test'
 
 /**
  * A press made right after the first paint, before the page scripts run, is
- * answered: the sign-in form holds the submit and sends it once the scripts
- * run; the mobile menu opens as a popover and becomes the modal dialog.
+ * answered: the sign-in form (/signin) holds the submit and sends it once
+ * the scripts run; the mobile menu opens as a popover and becomes the modal dialog.
  *
  * The page's script chunks are held back until the test releases them, so
  * every press here happens before React attaches its handlers. Run against a
@@ -64,6 +64,9 @@ const reactAttached = (page: Page, selector: string) =>
     )
 
 test.describe('sign-in before the page scripts run', () => {
+  const form = (page: Page) => page.locator('form[data-early-submit]')
+  const submit = (page: Page) => form(page).locator('button[type="submit"]')
+
   test('a submit is held with visible feedback, then sent once', async ({
     page,
   }) => {
@@ -71,23 +74,23 @@ test.describe('sign-in before the page scripts run', () => {
     page.on('request', (request) => requests.push(request))
     const sent = await recordConvexMessages(page)
     const release = await holdPageScripts(page)
-    await page.goto('/login', { waitUntil: 'domcontentloaded' })
+    await page.goto('/signin?returnTo=%2Fshelf', {
+      waitUntil: 'domcontentloaded',
+    })
 
-    const form = page.locator('form[data-early-submit]')
-    const submit = form.locator('button[type="submit"]')
-    await expect(submit).toHaveText(/Log in/, { useInnerText: true })
+    await expect(submit(page)).toHaveText('Sign in', { useInnerText: true })
     expect(await reactAttached(page, 'form[data-early-submit]')).toBe(false)
 
     await page.getByLabel('Email', { exact: true }).fill(EMAIL)
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
-    await submit.click()
+    await submit(page).click()
 
     // Answered in the next frame, while the scripts are still held.
-    await expect(submit).toHaveText('One moment…', {
+    await expect(submit(page)).toHaveText('One moment…', {
       timeout: 1000,
       useInnerText: true,
     })
-    await expect(form).toHaveAttribute('data-held-submit', '')
+    await expect(form(page)).toHaveAttribute('data-held-submit', '')
     await page.waitForTimeout(500)
     expect(await reactAttached(page, 'form[data-early-submit]')).toBe(false)
     expect(signInMessages(sent)).toEqual([])
@@ -99,15 +102,15 @@ test.describe('sign-in before the page scripts run', () => {
     const [message] = signInMessages(sent)
     expect(message).toContain(EMAIL)
     // Still pending: the local stand-in never answers. Nothing is sent twice.
-    await expect(submit).toHaveText('One moment…', { useInnerText: true })
-    await expect(submit).toBeDisabled()
-    await expect(form).not.toHaveAttribute('data-held-submit')
+    await expect(submit(page)).toHaveAttribute('aria-busy', 'true')
+    await expect(submit(page)).toBeDisabled()
+    await expect(form(page)).not.toHaveAttribute('data-held-submit')
     await page.waitForTimeout(1500)
     expect(signInMessages(sent)).toHaveLength(1)
 
     // No native form post, and the password never reached a URL or an HTTP
     // request: it went only over the Convex connection.
-    expect(page.url()).toMatch(/\/login$/)
+    expect(new URL(page.url()).pathname).toBe('/signin')
     for (const request of requests) {
       expect(request.url()).not.toContain(PASSWORD)
       expect(request.postData() ?? '').not.toContain(PASSWORD)
@@ -121,29 +124,23 @@ test.describe('sign-in before the page scripts run', () => {
   }) => {
     const sent = await recordConvexMessages(page)
     const release = await holdPageScripts(page)
-    await page.goto('/login', { waitUntil: 'domcontentloaded' })
+    await page.goto('/signin', { waitUntil: 'domcontentloaded' })
     await page.getByLabel('Email', { exact: true }).fill(EMAIL)
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
-    const submit = page.locator('form[data-early-submit] button[type="submit"]')
-    await submit.click()
-    await expect(submit).toHaveText('One moment…', {
+    await submit(page).click()
+    await expect(submit(page)).toHaveText('One moment…', {
       timeout: 1000,
       useInnerText: true,
     })
     // React renders the page again when the server HTML does not match, as
     // it sometimes does under load. Taking the held form out forces that.
-    await page
-      .locator('form[data-early-submit]')
-      .evaluate((form) => form.remove())
+    await form(page).evaluate((element) => element.remove())
 
     release()
     await expect
       .poll(() => signInMessages(sent).length, { timeout: 15_000 })
       .toBe(1)
     expect(signInMessages(sent)[0]).toContain(EMAIL)
-    await expect(
-      page.locator('form[data-early-submit] button[type="submit"]')
-    ).toHaveText('One moment…', { useInnerText: true })
     await page.waitForTimeout(1500)
     expect(signInMessages(sent)).toHaveLength(1)
   })
@@ -153,10 +150,9 @@ test.describe('sign-in before the page scripts run', () => {
   }) => {
     const sent = await recordConvexMessages(page)
     const release = await holdPageScripts(page)
-    await page.goto('/login', { waitUntil: 'domcontentloaded' })
-    const submit = page.locator('form[data-early-submit] button[type="submit"]')
-    await submit.click()
-    await expect(submit).toHaveText('One moment…', {
+    await page.goto('/signin', { waitUntil: 'domcontentloaded' })
+    await submit(page).click()
+    await expect(submit(page)).toHaveText('One moment…', {
       timeout: 1000,
       useInnerText: true,
     })
@@ -166,24 +162,22 @@ test.describe('sign-in before the page scripts run', () => {
       'aria-invalid',
       'true'
     )
-    await expect(submit).toHaveText(/Log in/, { useInnerText: true })
+    await expect(submit(page)).toHaveText('Sign in', { useInnerText: true })
     expect(signInMessages(sent)).toEqual([])
   })
 
-  test('a register submit keeps the password out of the URL', async ({
+  test('a create-account submit keeps the password out of the URL', async ({
     page,
   }) => {
     const requests: Request[] = []
     page.on('request', (request) => requests.push(request))
     const sent = await recordConvexMessages(page)
     const release = await holdPageScripts(page)
-    await page.goto('/register', { waitUntil: 'domcontentloaded' })
-    const submit = page.locator('form[data-early-submit] button[type="submit"]')
-    await page.getByLabel('Your name', { exact: true }).fill('Early Tap')
+    await page.goto('/signin?mode=create', { waitUntil: 'domcontentloaded' })
     await page.getByLabel('Email', { exact: true }).fill(EMAIL)
     await page.getByLabel('Password', { exact: true }).fill(PASSWORD)
-    await submit.click()
-    await expect(submit).toHaveText('One moment…', {
+    await submit(page).click()
+    await expect(submit(page)).toHaveText('One moment…', {
       timeout: 1000,
       useInnerText: true,
     })
@@ -193,41 +187,11 @@ test.describe('sign-in before the page scripts run', () => {
       .poll(() => signInMessages(sent).length, { timeout: 15_000 })
       .toBe(1)
     expect(signInMessages(sent)[0]).toContain('"signUp"')
-    expect(page.url()).toMatch(/\/register$/)
+    expect(new URL(page.url()).pathname).toBe('/signin')
     for (const request of requests) {
       expect(request.url()).not.toContain(PASSWORD)
       expect(request.postData() ?? '').not.toContain(PASSWORD)
     }
-  })
-
-  test('a reset submit sends the values typed before the scripts ran', async ({
-    page,
-  }) => {
-    const sent = await recordConvexMessages(page)
-    const release = await holdPageScripts(page)
-    await page.goto('/reset-password', { waitUntil: 'domcontentloaded' })
-    const submit = page.locator('form[data-early-submit] button[type="submit"]')
-    await page.getByLabel('Email', { exact: true }).fill(EMAIL)
-    await page.getByLabel('Reset code', { exact: true }).fill('12345678')
-    await page.getByLabel('New password', { exact: true }).fill(PASSWORD)
-    await page
-      .getByLabel('Confirm new password', { exact: true })
-      .fill(PASSWORD)
-    await submit.click()
-    await expect(submit).toHaveText('Updating…', {
-      timeout: 1000,
-      useInnerText: true,
-    })
-
-    release()
-    await expect
-      .poll(() => signInMessages(sent).length, { timeout: 15_000 })
-      .toBe(1)
-    const [message] = signInMessages(sent)
-    expect(message).toContain(EMAIL)
-    expect(message).toContain('"12345678"')
-    expect(message).toContain('"reset-verification"')
-    expect(page.url()).toMatch(/\/reset-password$/)
   })
 })
 

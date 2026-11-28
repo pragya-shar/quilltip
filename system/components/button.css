@@ -72,7 +72,11 @@
       background-image: none;
     }
   }
-  .qt-button:not(:disabled, [aria-disabled='true']):active {
+  /* Pressed, and while a sheet it opened waits for its code (shell). */
+  .qt-button:not(:disabled, [aria-disabled='true']):is(
+      :active,
+      [data-opening]
+    ) {
     transform: scale(0.97);
   }
   /* Unavailable but focusable: quieter, and no press feedback. */

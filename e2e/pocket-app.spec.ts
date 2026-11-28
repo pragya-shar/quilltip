@@ -18,7 +18,7 @@ test('the first response of /pocket holds its title, a sign-in prompt and no mon
   // "$1" is a reference, not money).
   const html = (await response.text()).replace(/<script[\s\S]*?<\/script>/g, '')
   expect(html).toContain('Sign in to tip and keep your lines.')
-  expect(html).toContain('href="/login?returnTo=%2Fpocket"')
+  expect(html).toContain('href="/signin?returnTo=%2Fpocket"')
   // The balance's place, for a held session, with no figure in it yet.
   expect(html).toContain('data-when="held"')
   expect(html).not.toContain('Ready to tip')
@@ -39,7 +39,7 @@ test('with no script, /pocket shows its title and Sign in, and no figures', asyn
   await expect(prompt).toBeVisible()
   await expect(prompt.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
     'href',
-    '/login?returnTo=%2Fpocket'
+    '/signin?returnTo=%2Fpocket'
   )
   await expect(
     page.locator('main [data-session-switch] > [data-when="held"]')

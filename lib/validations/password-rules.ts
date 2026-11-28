@@ -1,52 +1,30 @@
+/**
+ * The password rule, the same on the server (convex/auth.ts) and in the
+ * forms: at least PASSWORD_MIN_LENGTH characters, any characters, spaces
+ * included. Length is what makes a password hard to guess; a rule about
+ * letter kinds makes it harder to remember, not to guess. The upper bound
+ * only keeps hashing bounded: a passphrase of many words fits easily.
+ */
 export const PASSWORD_MIN_LENGTH = 8
+export const PASSWORD_MAX_LENGTH = 256
 
-export const PASSWORD_REGEX = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/
-
-export type PasswordRuleId = 'minLength' | 'uppercase' | 'lowercase' | 'digit'
-
-export type PasswordRuleStatus = {
-  id: PasswordRuleId
-  label: string
-  met: boolean
+/** Whether a new password meets the rule. */
+export function passwordMeetsRule(password: string): boolean {
+  return (
+    password.length >= PASSWORD_MIN_LENGTH &&
+    password.length <= PASSWORD_MAX_LENGTH
+  )
 }
 
-const PASSWORD_RULES: {
-  id: PasswordRuleId
-  label: string
-  test: (password: string) => boolean
-}[] = [
-  {
-    id: 'minLength',
-    label: `At least ${PASSWORD_MIN_LENGTH} characters`,
-    test: (password) => password.length >= PASSWORD_MIN_LENGTH,
-  },
-  {
-    id: 'uppercase',
-    label: 'One uppercase letter',
-    test: (password) => /[A-Z]/.test(password),
-  },
-  {
-    id: 'lowercase',
-    label: 'One lowercase letter',
-    test: (password) => /[a-z]/.test(password),
-  },
-  {
-    id: 'digit',
-    label: 'One number',
-    test: (password) => /\d/.test(password),
-  },
-]
-
-export function getPasswordRuleStatuses(
-  password: string
-): PasswordRuleStatus[] {
-  return PASSWORD_RULES.map(({ id, label, test }) => ({
-    id,
-    label,
-    met: test(password),
-  }))
+/** What is wrong with a new password, in the forms' words; null when it
+ * meets the rule. */
+export function passwordRuleMessage(password: string): string | null {
+  if (password.length < PASSWORD_MIN_LENGTH)
+    return `Use at least ${PASSWORD_MIN_LENGTH} characters.`
+  if (password.length > PASSWORD_MAX_LENGTH)
+    return `Use at most ${PASSWORD_MAX_LENGTH} characters.`
+  return null
 }
 
-export function allPasswordRulesMet(password: string): boolean {
-  return getPasswordRuleStatuses(password).every((rule) => rule.met)
-}
+/** For password managers that generate one: the same rule. */
+export const PASSWORD_RULES_ATTRIBUTE = `minlength: ${PASSWORD_MIN_LENGTH}; maxlength: ${PASSWORD_MAX_LENGTH};`

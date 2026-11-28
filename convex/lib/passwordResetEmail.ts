@@ -32,7 +32,7 @@ export function resetLink(code: string): string {
   )
   // The link carries only the code, in the fragment so it never reaches
   // server or proxy logs; the email address is never in a URL.
-  return `${origin}/reset-password#code=${encodeURIComponent(code)}`
+  return `${origin}/signin/reset#code=${encodeURIComponent(code)}`
 }
 
 export function resetEmailText(code: string): string {

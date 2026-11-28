@@ -26,11 +26,11 @@ export async function signInViaArticles(
   page: Page,
   login: { email: string; password: string }
 ) {
-  await page.goto('/login')
+  await page.goto('/signin')
   await page.getByLabel('Email', { exact: true }).fill(login.email)
   await page.getByLabel('Password', { exact: true }).fill(login.password)
   await page.getByRole('button', { name: /^(Log in|Sign in)$/ }).tap()
-  await page.waitForURL((u) => !u.pathname.startsWith('/login'), {
+  await page.waitForURL((u) => !u.pathname.startsWith('/signin'), {
     timeout: 30_000,
   })
   await page.goto('/articles')
