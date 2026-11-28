@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { MoneyFigure } from '../components/MoneyFigure'
 import { TestnetNote } from '../components/TestnetNote'
 import { TipControl } from '../components/TipControl'
+import { showToast } from '../toast'
 import { GallerySection } from './GallerySection'
 import { PressCount } from './PressCount'
 import { Specimen } from './Specimen'
@@ -111,6 +112,8 @@ export function MoneySection() {
             onTip={demo.tip}
             onNotNow={() => demo.setCents(demo.amount.cents)}
             recipient="Tomás Reyes"
+            balance={{ ...money.balance, converted: true }}
+            onOpenBalance={() => showToast({ title: 'The balance opens here' })}
           />
         </div>
       </Specimen>
@@ -140,6 +143,28 @@ export function MoneySection() {
           amounts={amounts}
           onAmountChange={noop}
           onTip={noop}
+          recipient="Tomás"
+        />
+      </Specimen>
+      <Specimen name="Amount control with its word">
+        <TipControl
+          state={{ phase: 'idle' }}
+          amount={money.one}
+          amounts={amounts}
+          onAmountChange={noop}
+          onTip={noop}
+          recipient="Tomás"
+          amountControl="labelled"
+        />
+      </Specimen>
+      <Specimen name="Refused, then another amount chosen">
+        <TipControl
+          state={{ phase: 'failed', amount: money.three }}
+          amount={money.one}
+          amounts={amounts}
+          onAmountChange={noop}
+          onTip={noop}
+          onNotNow={noop}
           recipient="Tomás"
         />
       </Specimen>

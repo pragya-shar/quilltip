@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
+import { AppLink as Link } from '@/system/components/AppLink'
 import { usePathname } from 'next/navigation'
 import { Icon } from '@/system/components/Icon'
 import { BalanceItem } from './BalanceItem'
@@ -23,7 +22,6 @@ export function NavBar() {
           <li key={place.id}>
             <Link
               href={place.href}
-              prefetch={prefetchFor(place.href)}
               className="qt-navbar__item"
               aria-current={isActive(place, pathname) ? 'page' : undefined}
             >

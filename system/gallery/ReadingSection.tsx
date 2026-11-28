@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
+import { AppLink as Link } from '../components/AppLink'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { Heading } from '../components/Heading'
@@ -8,11 +7,18 @@ import { Prose } from '../components/Prose'
 import { ReadingUnavailable } from '../components/ReadingUnavailable'
 import { Skeleton } from '../components/Skeleton'
 import { Text } from '../components/Text'
+import { TextLink } from '../components/TextLink'
 import { BalanceIcon } from '../icons'
 import { GallerySection } from './GallerySection'
 import { Specimen } from './Specimen'
 
-const STEADY_STATES = ['chosen', 'holding', 'mine'] as const
+const STEADY_STATES = [
+  { key: 'chosen', state: 'chosen', count: undefined },
+  { key: 'holding', state: 'holding', count: undefined },
+  { key: 'mine', state: 'mine', count: undefined },
+  { key: 'others-top', state: 'others-top', count: 12 },
+  { key: 'others-top-chosen', state: ['others-top', 'chosen'], count: 12 },
+] as const
 
 /** Reading typography, passage marks, skeletons and empty states. */
 export function ReadingSection() {
@@ -56,7 +62,6 @@ export function ReadingSection() {
               <Link
                 className="qt-fn-ref"
                 href="/system/reading#fn-1"
-                prefetch={prefetchFor('/system/reading')}
                 id="fnref-1"
               >
                 1
@@ -75,7 +80,6 @@ export function ReadingSection() {
                 The ledger is now in a shoebox in my mother’s closet.{' '}
                 <Link
                   href="/system/reading#fnref-1"
-                  prefetch={prefetchFor('/system/reading')}
                   aria-label="Back to the text"
                 >
                   ↩
@@ -87,11 +91,11 @@ export function ReadingSection() {
       </Specimen>
       <Specimen name="A line changing state keeps every line break" wide>
         <div className="qt-gallery__steady">
-          {STEADY_STATES.map((state) => (
-            <Prose key={state}>
-              <p data-steady={state}>
+          {STEADY_STATES.map(({ key, state, count }) => (
+            <Prose key={key}>
+              <p data-steady={key}>
                 She wrote down{' '}
-                <PassageMark state={state}>
+                <PassageMark state={state} count={count}>
                   every coin she gave away, and to whom, and why it mattered to
                   her that week
                 </PassageMark>{' '}
@@ -139,6 +143,39 @@ export function ReadingSection() {
           title="Your tips show up here."
           action={<Button variant="primary">Add money</Button>}
         />
+      </Specimen>
+      <Specimen name="Empty state as a section heading">
+        <EmptyState
+          headingLevel={2}
+          title="Nothing on your shelf yet."
+          body="Keep an article and it waits here."
+        />
+      </Specimen>
+      <Specimen name="Links to articles, prefetched on intent" wide>
+        <ul className="qt-gallery__stack" data-article-links="">
+          {['ledger', 'lamp', 'river', 'kitchen'].map((slug) => (
+            <li key={slug}>
+              <TextLink href={`/tomas/${slug}`} variant="standalone">
+                Read more
+              </TextLink>
+            </li>
+          ))}
+        </ul>
+      </Specimen>
+      <Specimen name="Lines in two states at once" wide>
+        <Prose>
+          <p>
+            <PassageMark state={['others-top', 'chosen']} count={12}>
+              A chosen line keeps other readers’ fill.
+            </PassageMark>{' '}
+            <PassageMark state={['mine', 'kept']}>
+              A line you kept and tipped.
+            </PassageMark>{' '}
+            <PassageMark state={['others', 'kept']} count={2}>
+              Kept, and tipped by others.
+            </PassageMark>
+          </p>
+        </Prose>
       </Specimen>
     </GallerySection>
   )
