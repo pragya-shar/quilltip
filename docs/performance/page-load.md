@@ -1054,6 +1054,16 @@ in. Payment
 code belongs behind `import()`, `next/dynamic` or `React.lazy`, loaded on the
 reader's action.
 
+**Not-found files and route groups.** A `not-found.tsx` wraps every route
+below its folder, and its client code loads with each of them, shown or not.
+`app/[username]/` has no layout, so a not-found file there wrapped the article
+route too: every article page loaded the writer-not-found screen as a second
+client entry, with its own copy of the site header (about 9.5 KB). The writer
+page and its not-found file therefore sit in the route group
+`app/[username]/(writer)/`; the article route has only its own
+`[slug]/not-found.tsx` and the root's. `scripts/perf/article-route-boundaries.test.ts`
+keeps it so.
+
 ## Re-run
 
 Measure over HTTP/2 (`scripts/perf/http2-proxy.ts` describes the setup), as
