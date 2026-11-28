@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { prefetchFor } from '@/lib/routing/legacyRoutes'
 import { useContext, useEffect, useLayoutEffect, useState } from 'react'
 import { Icon } from '@/system/components/Icon'
 import { PendingIcon, WriteIcon } from '@/system/icons'
@@ -95,6 +96,9 @@ export function ResumeRows() {
   const showPlace = Boolean(reserved?.place && place)
   const showDraft = Boolean(reserved?.draft && draft)
   const any = showPlace || showDraft
+  const draftHref = draft
+    ? `/write?id=${encodeURIComponent(draft.id)}`
+    : '/write'
 
   return (
     <div
@@ -107,6 +111,7 @@ export function ResumeRows() {
         {showPlace && place ? (
           <Link
             href={place.href}
+            prefetch={prefetchFor(place.href)}
             className="qt-today__row"
             aria-label={`Your place: ${place.title}, ${Math.round(place.percent * 100)}% read`}
           >
@@ -122,7 +127,8 @@ export function ResumeRows() {
       <div className="qt-today__slot" data-slot="draft">
         {showDraft && draft ? (
           <Link
-            href={`/write?id=${encodeURIComponent(draft.id)}`}
+            href={draftHref}
+            prefetch={prefetchFor(draftHref)}
             className="qt-today__row"
             aria-label={`Your draft: ${draft.title}, ${draft.words} ${draft.words === 1 ? 'word' : 'words'}`}
           >

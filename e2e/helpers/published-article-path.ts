@@ -23,7 +23,8 @@ export async function publishedArticlePath(page: Page): Promise<string | null> {
   if (await empty.isVisible()) return null
 
   await expect(articleLink).toBeVisible()
-  const href = await articleLink.getAttribute('href')
+  // Today's Read more carries the paragraph to continue at (`#s-7-0`).
+  const href = (await articleLink.getAttribute('href'))?.split('#')[0] ?? null
   expect(href, 'Published article must link to a local reader route').toMatch(
     /^\/[^/?#]+\/[^/?#]+\/?$/
   )

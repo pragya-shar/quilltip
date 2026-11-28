@@ -98,6 +98,28 @@ test.describe('with script', () => {
     test.skip(noScript(info.project.name), 'Runs with JavaScript on')
   })
 
+  test('no prefetch of a page the old layout serves (articles, writers)', async ({
+    page,
+  }) => {
+    const prefetched: string[] = []
+    page.on('request', (request) => {
+      if (request.headers()['next-router-prefetch'])
+        prefetched.push(new URL(request.url()).pathname)
+    })
+    await page.goto(TODAY.path, { waitUntil: 'load' })
+    // Links prefetch when they enter the viewport and when the browser is
+    // idle: bring every link into view, then give it time.
+    for (const link of await page.locator('main a[href^="/"]').all())
+      await link.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(1500)
+    const legacy = prefetched.filter(
+      (pathname) =>
+        pathname !== '/' &&
+        !/^\/(shelf|search|pocket|you|signin|system)\b/.test(pathname)
+    )
+    expect(legacy).toEqual([])
+  })
+
   test('a first visit: the balance item reads Sign in, no rows', async ({
     page,
   }) => {
