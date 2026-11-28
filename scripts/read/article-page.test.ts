@@ -24,6 +24,7 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/tomas/ledger',
 }))
 vi.mock('@/components/read/read.css', () => ({}))
+vi.mock('@/components/read/balanceCaption.css', () => ({}))
 // The islands render on the server with no backend: no answers yet.
 vi.mock('convex/react', () => ({
   useQuery: () => undefined,
