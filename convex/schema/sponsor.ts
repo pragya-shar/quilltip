@@ -31,12 +31,14 @@ export const sponsorTables = {
     /**
      * `reserved`: limits passed, not simulated yet. `prepared`: the auth
      * entries below are what the passkey must sign. `submitting`: claimed by
-     * one submit. `sent` and `failed` are final.
+     * one submit. `pending`: sent, hash stored, result not known yet (the
+     * reconciler finishes it). `sent` and `failed` are final.
      */
     status: v.union(
       v.literal('reserved'),
       v.literal('prepared'),
       v.literal('submitting'),
+      v.literal('pending'),
       v.literal('sent'),
       v.literal('failed')
     ),
@@ -44,16 +46,22 @@ export const sponsorTables = {
     entries: v.array(v.string()),
     /** The latest ledger a signature may name as its expiry. */
     maxExpiration: v.number(),
-    /** Resource fee at prepare, then the fee charged once sent. */
+    /**
+     * Committed then paid, in stroops: the prepared fee, then the signed
+     * envelope's fee once sent, then the fee charged once the result is known.
+     */
     feeStroops: v.string(),
     txHash: v.optional(v.string()),
     error: v.optional(v.string()),
+    /** The UTC day (`YYYY-MM-DD`) whose budget the request counts against. */
+    day: v.string(),
     expiresAt: v.number(),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_request', ['requestId'])
-    .index('by_user_created', ['userId', 'createdAt']),
+    .index('by_user_created', ['userId', 'createdAt'])
+    .index('by_day_status', ['day', 'status']),
 
   /** Fees the sponsor paid per UTC day, for the global budget. */
   sponsorDays: defineTable({

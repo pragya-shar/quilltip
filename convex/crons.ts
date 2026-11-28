@@ -128,4 +128,14 @@ crons.interval(
   {}
 )
 
+// Fee sponsor: close requests whose transaction was sent but whose result was
+// not seen (convex/sponsor.ts reconcile). Returns at once while the sponsor
+// is off or nothing is pending.
+crons.interval(
+  'reconcile sponsored calls',
+  { minutes: 2 },
+  internal.sponsor.reconcile,
+  {}
+)
+
 export default crons

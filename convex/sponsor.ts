@@ -9,15 +9,20 @@
  *   returns the entries the passkey signs as a `PreparedBalanceCall`
  *   (`lib/balance/signer.ts`).
  * - `submit` (signed in): the signed entries must be the prepared ones; it
- *   re-simulates with the real signatures, checks the fee cap, signs the
- *   envelope as source and sends it.
+ *   re-simulates with the real signatures, checks the fee cap on the
+ *   envelope it signs, signs as source and sends.
  * - `deployAccount` (internal): a passkey account's birth through the
  *   allowlisted deployer and WASM; called after a verified registration.
+ * - `reconcile` (internal, cron): settles requests whose transaction was sent
+ *   but whose result was not seen.
  *
  * Order of checks: sign-in, then `sponsorConfig` (testnet guard,
  * `SPONSOR_ENABLED`, contracts), then the per-user and global limits, and
- * only then is `SPONSOR_SECRET` read. The checks themselves live in
+ * only then is `SPONSOR_SECRET` read. The checks live in
  * `lib/sponsor/policy.ts`, the network steps in `lib/sponsor/run.ts`.
+ *
+ * Errors reach the client as a code and a fixed sentence; RPC and guard text
+ * stays in the server log.
  */
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { Keypair, rpc } from '@stellar/stellar-sdk'
@@ -37,7 +42,9 @@ import {
   type SponsoredCall,
 } from './lib/sponsor/policy'
 import {
+  SUBMIT_TIME_BOUND_S,
   SUGGESTED_EXPIRY_LEDGERS,
+  lookupSent,
   runDeploy,
   runPrepare,
   runSubmit,
@@ -46,35 +53,61 @@ import {
 
 type SponsorErrorData = { code: string; message: string }
 
+/** The sentence a client sees for a code that is not a refusal of ours. */
+const GENERIC = 'That did not go through. Nothing was sent.'
+
 function toConvexError(error: unknown): ConvexError<SponsorErrorData> {
-  if (error instanceof ConvexError)
+  if (error instanceof ConvexError) {
     return error as ConvexError<SponsorErrorData>
+  }
   if (error instanceof SponsorRefusal) {
+    // Refusals carrying RPC text (simulation, send, pending) keep it in the log.
+    if (
+      error.code === 'SPONSOR_SIMULATION_FAILED' ||
+      error.code === 'SPONSOR_SEND_REFUSED' ||
+      error.code === 'SPONSOR_TX_FAILED' ||
+      error.code === 'SPONSOR_PENDING'
+    ) {
+      console.error(`[sponsor] ${error.code}: ${error.message}`)
+      return new ConvexError({ code: error.code, message: GENERIC })
+    }
     return new ConvexError({ code: error.code, message: error.message })
   }
-  const message = (
-    error instanceof Error ? error.message : String(error)
-  ).slice(0, 500)
-  return new ConvexError({ code: 'SPONSOR_FAILED', message })
+  console.error(
+    `[sponsor] unclassified: ${(error instanceof Error ? error.message : String(error)).slice(0, 500)}`
+  )
+  return new ConvexError({ code: 'SPONSOR_FAILED', message: GENERIC })
 }
 
 async function requireUser(ctx: ActionCtx): Promise<Id<'users'>> {
   const userId = await getAuthUserId(ctx)
-  if (!userId)
+  if (!userId) {
     throw new ConvexError({ code: 'NOT_SIGNED_IN', message: 'Sign in first.' })
+  }
   return userId
 }
 
-/** Reads the guarded settings, then the key. Throws `ConvexError`s. */
-function deps(): SponsorDeps {
+type Settings = { cfg: SponsorConfig; passphrase: string; rpcUrl: string }
+
+/** The guarded settings, without the secret. */
+function settings(): Settings {
   try {
     const cfg = sponsorConfig()
     const chain = readChainEnv()
+    return { cfg, passphrase: chain.passphrase, rpcUrl: chain.rpcUrl }
+  } catch (error) {
+    throw toConvexError(error)
+  }
+}
+
+/** Reads the key, after the settings and the limits passed. */
+function deps(s: Settings): SponsorDeps {
+  try {
     return {
-      cfg,
-      passphrase: chain.passphrase,
-      server: new rpc.Server(chain.rpcUrl, {
-        allowHttp: chain.rpcUrl.startsWith('http://'),
+      cfg: s.cfg,
+      passphrase: s.passphrase,
+      server: new rpc.Server(s.rpcUrl, {
+        allowHttp: s.rpcUrl.startsWith('http://'),
       }),
       sponsor: Keypair.fromSecret(sponsorSecret()),
     }
@@ -99,8 +132,9 @@ const callArg = v.union(
 )
 
 function stroops(s: string): bigint {
-  if (!/^(0|[1-9][0-9]{0,30})$/.test(s))
+  if (!/^(0|[1-9][0-9]{0,30})$/.test(s)) {
     refuse('SPONSOR_INVALID', 'Invalid amount.')
+  }
   return BigInt(s)
 }
 
@@ -135,7 +169,7 @@ export const prepare = action({
   },
   handler: async (ctx, args): Promise<PreparedBalanceCall> => {
     const userId = await requireUser(ctx)
-    const d = deps()
+    const s = settings()
     const now = Date.now()
     const { requestId, reader } = await ctx.runMutation(
       internal.sponsorStore.reserve,
@@ -145,25 +179,27 @@ export const prepare = action({
         amount: args.amount,
         key: args.key,
         keyId: args.keyId,
-        passphrase: d.passphrase,
-        dailyBudgetStroops: d.cfg.dailyBudgetStroops.toString(),
+        passphrase: s.passphrase,
+        dailyBudgetStroops: s.cfg.dailyBudgetStroops.toString(),
         now,
       }
     )
     try {
-      const spec = specFor(d.cfg, reader, args)
+      const d = deps(s)
+      const spec = specFor(s.cfg, reader, args)
       const p = await runPrepare(d, spec, now)
       await ctx.runMutation(internal.sponsorStore.recordPrepared, {
         requestId,
         entries: p.entries,
         maxExpiration: p.maxExpiration,
         feeStroops: p.feeStroops.toString(),
+        dailyBudgetStroops: s.cfg.dailyBudgetStroops.toString(),
         now: Date.now(),
       })
       return {
         requestId,
         call: spec.call,
-        contractId: d.cfg.tabContractId,
+        contractId: s.cfg.tabContractId,
         amount: spec.amount.toString(),
         key: args.key,
         clock: { sequence: p.latestLedger, closedAt: Math.floor(now / 1000) },
@@ -195,23 +231,36 @@ export const submit = action({
   args: { requestId: v.string(), signedEntries: v.array(v.string()) },
   handler: async (ctx, args): Promise<{ txHash: string; ledger: number }> => {
     const userId = await requireUser(ctx)
-    const d = deps()
+    const s = settings()
     const row = await ctx.runMutation(internal.sponsorStore.claim, {
       requestId: args.requestId,
       userId,
       now: Date.now(),
     })
+    let sentHash: string | null = null
     let fee: string | undefined
     try {
-      const spec = specFor(d.cfg, row.reader, row)
+      const d = deps(s)
+      const spec = specFor(s.cfg, row.reader, row)
       const result = await runSubmit(
         d,
         spec,
         row.entries,
         args.signedEntries,
         row.maxExpiration,
-        (f) => {
-          fee = f
+        {
+          onSent: async (hash, envelopeFee) => {
+            sentHash = hash
+            await ctx.runMutation(internal.sponsorStore.markSent, {
+              requestId: args.requestId,
+              txHash: hash,
+              envelopeFee,
+              now: Date.now(),
+            })
+          },
+          onFee: (f) => {
+            fee = f
+          },
         }
       )
       await ctx.runMutation(internal.sponsorStore.finish, {
@@ -225,12 +274,23 @@ export const submit = action({
       return { txHash: result.hash, ledger: result.ledger }
     } catch (error) {
       const e = toConvexError(error)
+      // A transaction that reached the network is never closed here: a
+      // FAILED result is closed with its fee; anything else stays pending
+      // for the reconciler (`fail` ignores pending rows without `force`).
       await ctx.runMutation(internal.sponsorStore.fail, {
         requestId: args.requestId,
         error: e.data.code,
-        feeStroops: fee && fee !== '0' ? fee : undefined,
+        ...(e.data.code === 'SPONSOR_TX_FAILED' && fee
+          ? { feeStroops: fee, force: true }
+          : {}),
         now: Date.now(),
       })
+      if (sentHash && e.data.code !== 'SPONSOR_TX_FAILED') {
+        throw new ConvexError({
+          code: 'SPONSOR_PENDING',
+          message: 'Sent. Waiting for Stellar testnet to confirm it.',
+        })
+      }
       throw e
     }
   },
@@ -243,15 +303,17 @@ export const submit = action({
 export const deployAccount = internalAction({
   args: { func: v.string(), auth: v.array(v.string()), contractId: v.string() },
   handler: async (ctx, args): Promise<{ txHash: string; ledger: number }> => {
-    const d = deps()
+    const s = settings()
     await ctx.runMutation(internal.sponsorStore.checkBudget, {
-      dailyBudgetStroops: d.cfg.dailyBudgetStroops.toString(),
+      dailyBudgetStroops: s.cfg.dailyBudgetStroops.toString(),
       now: Date.now(),
     })
     let fee: string | undefined
     try {
-      const result = await runDeploy(d, args, (f) => {
-        fee = f
+      const result = await runDeploy(deps(s), args, {
+        onFee: (f) => {
+          fee = f
+        },
       })
       return { txHash: result.hash, ledger: result.ledger }
     } catch (error) {
@@ -264,5 +326,62 @@ export const deployAccount = internalAction({
         })
       }
     }
+  },
+})
+
+/**
+ * Closes pending requests: the network's answer when there is one, failed
+ * with no fee once the transaction's time bound has passed with no answer.
+ */
+export const reconcile = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ checked: number }> => {
+    let s: Settings
+    try {
+      s = settings()
+    } catch {
+      return { checked: 0 }
+    }
+    const now = Date.now()
+    const stale = await ctx.runQuery(internal.sponsorStore.stalePending, {
+      now,
+      olderThanMs: 30_000,
+    })
+    if (stale.length === 0) return { checked: 0 }
+    const server = new rpc.Server(s.rpcUrl, {
+      allowHttp: s.rpcUrl.startsWith('http://'),
+    })
+    for (const p of stale) {
+      let r: Awaited<ReturnType<typeof lookupSent>>
+      try {
+        r = await lookupSent(server, p.txHash)
+      } catch {
+        continue
+      }
+      if (r.status === 'SUCCESS') {
+        await ctx.runMutation(internal.sponsorStore.finish, {
+          requestId: p.requestId,
+          txHash: p.txHash,
+          feeStroops: r.fee,
+          now: Date.now(),
+        })
+      } else if (r.status === 'FAILED') {
+        await ctx.runMutation(internal.sponsorStore.fail, {
+          requestId: p.requestId,
+          error: 'SPONSOR_TX_FAILED',
+          feeStroops: r.fee,
+          force: true,
+          now: Date.now(),
+        })
+      } else if (now - p.updatedAt > (SUBMIT_TIME_BOUND_S + 60) * 1000) {
+        await ctx.runMutation(internal.sponsorStore.fail, {
+          requestId: p.requestId,
+          error: 'SPONSOR_EXPIRED_UNSEEN',
+          force: true,
+          now: Date.now(),
+        })
+      }
+    }
+    return { checked: stale.length }
   },
 })
