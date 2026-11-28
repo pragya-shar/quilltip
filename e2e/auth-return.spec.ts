@@ -651,7 +651,12 @@ test.describe('no page ever asks "Leave page?"', () => {
       const page = await context.newPage()
       const seen = noDialogs(page)
       let answered = 0
-      page.on('websocket', (socket) =>
+      // What the page asks of the backend after the sign-in's answer and
+      // before it leaves, by name: writes over the socket, and the auth
+      // library's token refresh (an HTTP action), with its start and end.
+      const after: string[] = []
+      const at = () => (answered ? `${Date.now() - answered} ms` : 'before')
+      page.on('websocket', (socket) => {
         socket.on('framereceived', ({ payload }) => {
           if (
             !answered &&
@@ -661,15 +666,38 @@ test.describe('no page ever asks "Leave page?"', () => {
           )
             answered = Date.now()
         })
-      )
+        socket.on('framesent', ({ payload }) => {
+          if (!answered || typeof payload !== 'string') return
+          const write = /"type":"(Mutation|Action)".*?"udfPath":"([^"]+)"/.exec(
+            payload
+          )
+          if (write) after.push(`${write[1]} ${write[2]} at ${at()}`)
+        })
+      })
+      const isRefresh = (request: {
+        url(): string
+        postData(): string | null
+      }) =>
+        request.url().includes('/api/action') &&
+        (request.postData() ?? '').includes('refreshToken')
+      page.on('request', (request) => {
+        if (answered && isRefresh(request))
+          after.push(`token refresh started at ${at()}`)
+      })
+      page.on('requestfinished', (request) => {
+        if (answered && isRefresh(request))
+          after.push(`token refresh ended at ${at()}`)
+      })
       let left = 0
       page.on('request', (request) => {
         if (
           !left &&
           request.isNavigationRequest() &&
           new URL(request.url()).pathname === '/pocket'
-        )
+        ) {
           left = Date.now()
+          after.push(`navigation at ${at()}`)
+        }
       })
       await page.goto(loginUrl('/pocket'))
       await signIn(page)
@@ -677,6 +705,9 @@ test.describe('no page ever asks "Leave page?"', () => {
       await page.waitForTimeout(1_000)
       expect(seen).toEqual([])
       if (answered && left) waits.push(left - answered)
+      console.log(
+        `${test.info().project.name} run ${run + 1}: ${after.join('; ')}`
+      )
       await context.close()
     }
     const sorted = [...waits].sort((a, b) => a - b)
