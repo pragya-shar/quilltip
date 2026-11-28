@@ -134,8 +134,8 @@ yours at once (`['mine', 'kept']`):
 Fills and underlines render with no script; the margin ticks and the band
 need it. No state moves the text: marks have no padding or margin (the fill
 bleeds by a shadow) and the check takes no width, so a line going from
-chosen to holding to yours keeps every line break. `Prose leadIn` sets the first line in
-small caps; figures run edge to edge on a phone (`figure` with
+chosen to holding to yours keeps every line break. `Prose leadIn` sets the first line a
+little smaller and tracked, the same in every engine; figures run edge to edge on a phone (`figure` with
 `figcaption`); a footnote reference is `a.qt-fn-ref` linking to the full
 path with `#fn-N`, and the notes a `.qt-footnotes` list.
 
@@ -171,6 +171,11 @@ for a missing token, component or state.
   component is extracted into `hooks/<area>/` or `lib/<area>/` first (rebuild
   first), then imported.
 - No new UI library, no Tailwind utility classes, no inline colors.
+- Images: a person's image only through `Avatar` (this deployment's storage,
+  or a file under `/images/`; no referrer). Lint refuses the common ways to
+  draw an image from an address under the shell and the surfaces; it is a
+  prompt, not the enforcement, which is the page policy's `img-src`
+  (`lib/security/contentSecurityPolicy.ts`).
 
 ## Shared lists: add your own file, never edit another's
 
