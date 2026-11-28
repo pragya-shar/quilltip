@@ -527,7 +527,7 @@ export async function checkTabTip(
   const acceptedTodayCents = !sameDay
     ? 0
     : (account.acceptedTodayCents ??
-      Math.floor((Number(acceptedToday) * args.priceUsd * 100) / 1e7))
+      centsFromBaseUnits(acceptedToday, args.priceUsd))
   if (
     acceptedTodayCents + args.amountCents > dailyCents ||
     // The XLM guard only: the dollar limit is the line above.
@@ -605,6 +605,12 @@ function validRequestId(requestId: string): boolean {
     requestId.length <= 100 &&
     /^[A-Za-z0-9_-]+$/.test(requestId)
   )
+}
+
+/** US cents a base-unit amount is worth at `priceUsd` per XLM, floored. */
+export function centsFromBaseUnits(base: bigint, priceUsd: number): number {
+  if (base <= ZERO || !(priceUsd > 0) || !Number.isFinite(priceUsd)) return 0
+  return Math.floor((Number(base) * priceUsd * 100) / STROOPS_PER_XLM)
 }
 
 /** Base units for a USD cent amount at `priceUsd` per XLM (rounded down). */

@@ -150,6 +150,29 @@ describe('limits a reader feels are in dollars, at any price', () => {
     )
   })
 
+  it('reads an account from before the cents total at the tip price, then counts in cents', async () => {
+    const { t, s } = await at(0.12)
+    // $18 accepted today, recorded only in base units (150 XLM at $0.12).
+    await t.run(async (ctx) => {
+      const account = await ctx.db.query('tabAccounts').first()
+      await ctx.db.patch(account!._id, {
+        acceptedDay: new Date().toISOString().slice(0, 10),
+        acceptedToday: (BigInt(150) * XLM).toString(),
+        acceptedTodayCents: undefined,
+      })
+    })
+    expect(
+      (await as(t, s.readerId).query(api.balance.session, {}))?.limits
+    ).toMatchObject({ acceptedTodayCents: 1800 })
+    expect(await errorCode(prepare(t, s, { cents: 500 }))).toBe(
+      'TAB_DAILY_LIMIT'
+    )
+    await tip(t, s, { cents: 200 })
+    const account = await t.run((ctx) => ctx.db.query('tabAccounts').first())
+    expect(account?.acceptedTodayCents).toBe(2000)
+    expect(await errorCode(prepare(t, s, { cents: 1 }))).toBe('TAB_DAILY_LIMIT')
+  })
+
   it('starts each UTC day at zero, in cents as in base units', async () => {
     vi.setSystemTime(Date.UTC(2026, 11, 2, 23, 50))
     const { t, s } = await at(0.12)

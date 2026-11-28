@@ -48,13 +48,18 @@ import type { TabReceiptStatus } from './chain/schema'
 import { settleAfterAcceptMs } from './chain/settleSchedule'
 import { dueRuleFromEnv } from './chain/settler'
 import { tabShareCents } from './authorEarnings'
-import { centsToStroops, receiptNet } from './chain/tabLedger'
+import {
+  centsFromBaseUnits,
+  centsToStroops,
+  receiptNet,
+} from './chain/tabLedger'
 import { verifiedStellarAddress } from './walletVerification'
 
 type EnvLike = Record<string, string | undefined>
 
+export { centsFromBaseUnits }
+
 const STROOPS_PER_XLM = 10_000_000
-const ZERO = BigInt(0)
 
 /** The settlement states of one balance tip (`SettlementState`). */
 export type MoneyState = 'accepted' | 'on-chain' | 'not-paid'
@@ -93,12 +98,6 @@ export function receiptShareCents(
   amountCents: number
 ): number {
   return tabShareCents(amountCents, receiptNet(receipt), BigInt(receipt.amount))
-}
-
-/** US cents a base-unit amount is worth at `priceUsd` per XLM, floored. */
-export function centsFromBaseUnits(base: bigint, priceUsd: number): number {
-  if (base <= ZERO || !(priceUsd > 0) || !Number.isFinite(priceUsd)) return 0
-  return Math.floor((Number(base) * priceUsd * 100) / STROOPS_PER_XLM)
 }
 
 /** The smallest whole-cent tip whose base units reach `minTip`. */
