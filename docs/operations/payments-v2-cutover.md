@@ -422,7 +422,7 @@ in the repository.
 | 11    | `TAB_DAILY_LIMIT`, `TAB_TIP_MAX`                                              | Optional. Defaults `200000000`, `50000000`                     | 3     |                                                                                             |
 | 12    | `SETTLEMENT_ENABLED`                                                          | `true`                                                         | 3     | The settler cron runs and tab tips can be accepted. Nothing is due until a tab tip exists.  |
 | 13    | `INTERNAL_ACCOUNT_EMAIL_DOMAINS`                                              | Optional. Staff email domains                                  | 3     | New accounts on those domains are flagged as internal. Not a payment setting.               |
-| 14    | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY`                                       | Unchanged                                                      | —     | See section 3.3.                                                                            |
+| 14    | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY`                                       | `ARWEAVE_ENABLED` not `true`                                   | —     | Off until the v1 backend removal ships. See section 3.3.                                    |
 | 15    | `CHAIN_V1_PREPARES_ENABLED`                                                   | `false`                                                        | 5     | New v1 records are refused. Submits and verification continue.                              |
 | 16    | `CHAIN_V2_ENABLED`                                                            | `true`                                                         | 6     | v2 prepare functions accept new records.                                                    |
 | 17    | `RECONCILE_TIPS_ENABLED`, `TIPPING_CONTRACT_ID`, `HORIZON_URL`                | Unchanged                                                      | —     | v1 verification needs them until a later backend PR removes the v1 functions (section 8).   |
@@ -469,8 +469,15 @@ mint or transfer (section 1.2, item 4).
 
 ### 3.3 Arweave
 
-Leave `ARWEAVE_ENABLED` as it is on the live deployment. The release uploads the
-canonical article bytes, and registration passes the Arweave ID on chain only
+Keep Arweave off on the live deployment (`ARWEAVE_ENABLED` not `true`) until
+the v1 backend removal (section 8) has shipped. The retired v1 mint metadata
+action (`nftMetadataUpload:uploadNftMetadataForMint`) is the last path that
+stores a writer-supplied image address permanently. It refuses while
+Arweave is off, and from stage 5 also while v1 prepares are off. Before
+stage 0, read the value in the dashboard; if it is `true`, set it to
+`false` there (it is outside the window approval, section 5.0.3).
+
+With Arweave on, the release uploads the canonical article bytes, and registration passes the Arweave ID on chain only
 when the uploaded body reproduces the article's content hash
 (`arweaveContentHash` equals `contentHash`). An article uploaded before the
 release has a legacy hash and registers without an Arweave ID. Arweave uploads
@@ -1636,7 +1643,11 @@ passing `bun run check` and the Playwright fixture suites.
   the freeze, and `CHAIN_V1_PREPARES_ENABLED=false` refuses new v1 records.
   Deploy that PR only after the release site is live and the stage 5 drain
   is complete, so that no open browser tab calls a removed function in
-  flight.
+  flight. It also removes the v1 mint metadata path:
+  `nftMetadataUpload:uploadNftMetadataForMint`, `nfts:generateNFTMetadata`,
+  and `convex/lib/nftMetadata.ts` if nothing else uses it, with their tests
+  and `docs/tipping-contract-testnet-deploy.md`. Arweave stays off until it
+  ships (section 3.3).
 - **v1 data.** v1 rows are kept and stay labelled. The v1 tables
   `articleTipIntents` and `highlightTipIntents` are kept read-only as an
   audit trail: existing tip rows refer to them. The release site reads v1
