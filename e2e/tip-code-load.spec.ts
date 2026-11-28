@@ -132,18 +132,20 @@ async function blockedAtLoad(page: Page) {
     address: UNUSED,
   })
   const keep = await staticChunks(page)
-  await page.route('**/chunk-*.js', (route) =>
-    keep.has(new URL(route.request().url()).pathname)
-      ? route.continue()
-      : route.abort('internetdisconnected')
-  )
+  const aborted: string[] = []
+  await page.route('**/chunk-*.js', (route) => {
+    const path = new URL(route.request().url()).pathname
+    if (keep.has(path)) return route.continue()
+    aborted.push(path)
+    return route.abort('internetdisconnected')
+  })
   await page.goto('/')
   await expect(page.locator('h1')).toBeVisible()
   const notices = page
     .getByRole('alert')
     .filter({ hasText: 'Tips couldn’t load.' })
   await expect(notices.first()).toBeVisible()
-  return notices
+  return { notices, aborted }
 }
 
 test('keyboard: a retry that succeeds moves focus to the restored control', async ({
@@ -151,7 +153,7 @@ test('keyboard: a retry that succeeds moves focus to the restored control', asyn
   browserName,
 }) => {
   test.skip(browserName === 'webkit', 'Fixture-only: see the note above.')
-  const notices = await blockedAtLoad(page)
+  const { notices } = await blockedAtLoad(page)
   const before = await notices.count()
   await page.unroute('**/chunk-*.js')
   await notices.first().getByRole('button', { name: 'Try again' }).focus()
@@ -164,9 +166,12 @@ test('keyboard: a retry that succeeds moves focus to the restored control', asyn
 test('keyboard: a retry that fails again moves focus to the new Try again', async ({
   page,
 }) => {
-  const notices = await blockedAtLoad(page)
+  const { notices, aborted } = await blockedAtLoad(page)
+  const requestsBefore = aborted.length
   await notices.first().getByRole('button', { name: 'Try again' }).focus()
   await page.keyboard.press('Enter')
+  // The retry ran: the code was requested again, and failed again.
+  await expect.poll(() => aborted.length).toBeGreaterThan(requestsBefore)
   await expect.poll(() => focused(page)).toBe('Try again')
 })
 
@@ -175,7 +180,7 @@ test('keyboard: focus stays where the reader moved it while the retry loads', as
   browserName,
 }) => {
   test.skip(browserName === 'webkit', 'Fixture-only: see the note above.')
-  const notices = await blockedAtLoad(page)
+  const { notices } = await blockedAtLoad(page)
   await page.unroute('**/chunk-*.js')
   let release!: () => void
   const held = new Promise<void>((resolve) => (release = resolve))
@@ -217,9 +222,9 @@ test('keyboard: a retry in the tip dialog keeps focus in the dialog', async ({
   await dialog.getByRole('button', { name: 'Try again' }).focus()
   await page.keyboard.press('Enter')
   await expect(dialog.getByLabel('Other amount')).toBeVisible()
+  // The dialog's focus trap takes focus to the dialog itself when the pressed
+  // Try again unmounts, so the boundary leaves it there.
   expect(
-    await page.evaluate(
-      () => !!document.activeElement?.closest('[role="dialog"]')
-    )
-  ).toBe(true)
+    await page.evaluate(() => document.activeElement?.getAttribute('role'))
+  ).toBe('dialog')
 })
