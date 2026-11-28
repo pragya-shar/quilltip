@@ -13,7 +13,9 @@ import {
  * into published articles and drafts, and into allowed and refused
  * addresses (`lib/security/imageSources.ts`). Each address is judged on its
  * own, so one host can have both (`img.youtube.com` outside `/vi/`, `http`
- * against `https`). No address, article text, title, author or id.
+ * against `https`). Profile photos are counted the same way, allowed and
+ * refused per host (#633). No address, article text, title, author, name or
+ * id.
  *
  *   npx convex run articleImageHosts:countImageHosts
  *
@@ -85,6 +87,41 @@ function rows(tally: Tally): Row[] {
     .sort((a, b) => total(b) - total(a))
 }
 
+const avatarCounts = v.array(
+  v.object({ host: v.string(), allowed: v.number(), refused: v.number() })
+)
+type AvatarRow = { host: string; allowed: number; refused: number }
+
+/** One page of users' profile photos, counted. Called by `countImageHosts`. */
+export const avatarHostPage = internalQuery({
+  args: { cursor: v.union(v.string(), v.null()) },
+  returns: v.object({
+    avatars: avatarCounts,
+    continueCursor: v.string(),
+    isDone: v.boolean(),
+  }),
+  handler: async (ctx, { cursor }) => {
+    const page = await ctx.db.query('users').paginate({ cursor, numItems: 100 })
+    const tally = new Map<string, { allowed: number; refused: number }>()
+    for (const user of page.page) {
+      if (!user.avatar?.trim()) continue
+      const host = hostOf(user.avatar)
+      const row = tally.get(host) ?? { allowed: 0, refused: 0 }
+      if (
+        isAllowedImageSource(user.avatar.trim(), process.env.CONVEX_CLOUD_URL)
+      )
+        row.allowed += 1
+      else row.refused += 1
+      tally.set(host, row)
+    }
+    return {
+      avatars: [...tally.entries()].map(([host, row]) => ({ host, ...row })),
+      continueCursor: page.continueCursor,
+      isDone: page.isDone,
+    }
+  },
+})
+
 /** One page of articles, counted. Called by `countImageHosts`. */
 export const imageHostPage = internalQuery({
   args: { cursor: v.union(v.string(), v.null()) },
@@ -143,6 +180,7 @@ export const countImageHosts = internalAction({
     articles: v.object({ published: v.number(), draft: v.number() }),
     images: counts,
     covers: counts,
+    avatars: avatarCounts,
   }),
   handler: async (ctx) => {
     const images: Tally = new Map()
@@ -168,6 +206,26 @@ export const countImageHosts = internalAction({
       if (page.isDone) break
       cursor = page.continueCursor
     }
+    const avatars = new Map<string, { allowed: number; refused: number }>()
+    cursor = null
+    for (;;) {
+      const page: {
+        avatars: AvatarRow[]
+        continueCursor: string
+        isDone: boolean
+      } = await ctx.runQuery(internal.articleImageHosts.avatarHostPage, {
+        cursor,
+      })
+      for (const { host, allowed, refused } of page.avatars) {
+        const sum = avatars.get(host) ?? { allowed: 0, refused: 0 }
+        avatars.set(host, {
+          allowed: sum.allowed + allowed,
+          refused: sum.refused + refused,
+        })
+      }
+      if (page.isDone) break
+      cursor = page.continueCursor
+    }
     const own = ownImageSource(process.env.CONVEX_CLOUD_URL)
     return {
       storageOrigin: own
@@ -176,6 +234,9 @@ export const countImageHosts = internalAction({
       articles: { published, draft },
       images: rows(images),
       covers: rows(covers),
+      avatars: [...avatars.entries()]
+        .map(([host, row]) => ({ host, ...row }))
+        .sort((a, b) => b.allowed + b.refused - (a.allowed + a.refused)),
     }
   },
 })

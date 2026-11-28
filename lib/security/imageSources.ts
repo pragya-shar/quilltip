@@ -143,3 +143,9 @@ export function imageSourceRefusal(src: unknown): string {
   const shown = src.length > 120 ? `${src.slice(0, 117)}...` : src
   return `This image cannot be used: ${shown}. Images must be uploaded, or come from ${listedImageHostsText()}.`
 }
+
+/** The refusal for a profile photo from another host (#633). */
+export function avatarSourceRefusal(src: string): string {
+  const shown = src.length > 120 ? `${src.slice(0, 117)}...` : src
+  return `This photo cannot be used: ${shown}. Profile photos must be uploaded, or come from ${listedImageHostsText()}.`
+}

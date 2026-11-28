@@ -7,6 +7,10 @@ import { isArticleListingReady } from './lib/articleListingReady'
 import { syncAvatarUploadReference } from './lib/uploadReferences'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import { profileBioError, profileNameError } from '../lib/profile/profileRules'
+import {
+  avatarSourceRefusal,
+  isAllowedImageSource,
+} from '../lib/security/imageSources'
 
 // Get the current authenticated user
 export const getCurrentUser = query({
@@ -80,6 +84,14 @@ export const updateProfile = mutation({
     if (bio !== undefined) {
       const message = profileBioError(bio)
       if (message) throw new ConvexError(message)
+    }
+    // A photo address only from this deployment's storage or the listed hosts
+    // (lib/security/imageSources.ts, #633). An empty address removes it.
+    if (
+      args.avatar?.trim() &&
+      !isAllowedImageSource(args.avatar.trim(), process.env.CONVEX_CLOUD_URL)
+    ) {
+      throw new ConvexError(avatarSourceRefusal(args.avatar.trim()))
     }
 
     const updates: {

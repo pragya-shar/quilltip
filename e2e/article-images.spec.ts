@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { expect, test, type Page } from '@playwright/test'
 import {
+  AVATARS,
   OTHER_CONVEX_IMAGE,
   OWN_IMAGE,
   OWN_ORIGIN,
@@ -242,6 +243,65 @@ for (const width of [375, 1440]) {
         )
         .toBe(true)
       expect(seen.otherRequests).toEqual([OTHER_CONVEX_IMAGE])
+    })
+
+    // Profile photos (#633): the same two layers, through UserAvatar.
+    const photo = (page: Page, kind: string) =>
+      page.locator(`[data-avatar="${kind}"] img`)
+
+    test('profile photos: uploaded and Unsplash show, the other shows initials in the same box', async ({
+      page,
+    }) => {
+      const seen = await watch(page)
+      await page.goto('/')
+      await expect(photo(page, 'own')).toHaveCount(1)
+      await expect(photo(page, 'unsplash')).toHaveCount(1)
+      await expect(photo(page, 'other')).toHaveCount(0)
+      await expect(page.locator('[data-avatar="other"]')).toHaveText('W')
+      const box = (kind: string) =>
+        page.locator(`[data-avatar="${kind}"] > span`).boundingBox()
+      const [own, other] = [await box('own'), await box('other')]
+      expect(other?.width).toBe(own?.width)
+      expect(other?.height).toBe(own?.height)
+      expect(seen.otherRequests).toEqual([])
+      expect(seen.policyErrors).toEqual([])
+    })
+
+    test('profile photos without the policy header: the other is neither shown nor requested', async ({
+      page,
+    }) => {
+      const seen = await watch(page)
+      await page.goto('/?csp=0')
+      await expect(photo(page, 'own')).toHaveCount(1)
+      await expect(photo(page, 'other')).toHaveCount(0)
+      await expect(page.locator('[data-avatar="other"]')).toHaveText('W')
+      expect(seen.otherRequests).toEqual([])
+    })
+
+    test('profile photos with the renderer check off: the policy header alone blocks the other', async ({
+      page,
+    }) => {
+      const seen = await watch(page)
+      await page.goto('/?renderer=off')
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () => (window as unknown as { __violations: string[] }).__violations
+          )
+        )
+        .toContain(`img-src ${AVATARS.other}`)
+      await expect(photo(page, 'other')).toHaveCount(0)
+      await expect(page.locator('[data-avatar="other"]')).toHaveText('W')
+      expect(seen.otherRequests).toEqual([])
+    })
+
+    test('control: with both layers off, the other profile photo loads', async ({
+      page,
+    }) => {
+      const seen = await watch(page)
+      await page.goto('/?renderer=off&csp=0')
+      await expect(photo(page, 'other')).toHaveCount(1)
+      expect(seen.otherRequests).toContain(AVATARS.other)
     })
 
     test('the image dialog refuses an outside address and names what is allowed', async ({

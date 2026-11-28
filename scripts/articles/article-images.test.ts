@@ -248,6 +248,7 @@ test('countImageHosts counts allowed and refused addresses per host, by publishe
       row('own-deployment-123.convex.cloud', 1, 0, 0, 0),
       row('someone-else-456.convex.cloud', 0, 1, 0, 0),
     ],
+    avatars: [],
   })
   // No address, title, text, author or id in the answer.
   const text = JSON.stringify(report)

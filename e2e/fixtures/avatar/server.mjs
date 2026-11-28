@@ -8,7 +8,12 @@ const root = path.resolve(import.meta.dirname, '../../..')
 const result = await Bun.build({
   entrypoints: [path.join(import.meta.dirname, 'page.tsx')],
   target: 'browser',
-  define: { 'process.env.NODE_ENV': '"production"' },
+  define: {
+    'process.env.NODE_ENV': '"production"',
+    // This fixture's own origin stands in for the deployment's file storage:
+    // profile photos are its /api/storage/ addresses (#633).
+    'process.env.NEXT_PUBLIC_CONVEX_URL': '"http://127.0.0.1:4176"',
+  },
   plugins: [
     {
       name: 'avatar-convex-boundary',

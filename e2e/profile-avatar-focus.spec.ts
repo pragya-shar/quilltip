@@ -1,4 +1,10 @@
 import { test, expect, type Page } from '@playwright/test'
+import { avatarSourceRefusal } from '../lib/security/imageSources'
+
+// The fixture's origin stands in for the deployment's file storage (#633).
+const ORIGINAL = 'http://127.0.0.1:4176/api/storage/original.svg'
+const NEW_PHOTO = 'http://127.0.0.1:4176/api/storage/new.svg'
+const OUTSIDE = 'https://someone-else-456.convex.cloud/api/storage/photo.svg'
 
 async function openUrlDialog(page: Page) {
   await page
@@ -42,11 +48,9 @@ test.describe('profile avatar focus during a URL save', () => {
         const avatar = page
           .getByRole('img', { name: 'QA Writer' })
           .locator('img')
-        await expect(avatar).toHaveAttribute('src', '/original.svg')
+        await expect(avatar).toHaveAttribute('src', ORIGINAL)
         await openUrlDialog(page)
-        await page
-          .getByLabel('Image URL', { exact: true })
-          .fill(new URL('/new.svg', page.url()).href)
+        await page.getByLabel('Image URL', { exact: true }).fill(NEW_PHOTO)
         await page.getByRole('button', { name: 'Save photo' }).click()
         await expect(trigger).toHaveAttribute('aria-busy', 'true')
         await dismiss(page, method)
@@ -75,9 +79,7 @@ test.describe('profile avatar focus during a URL save', () => {
         expect(saves).toBe(1)
         await expect(avatar).toHaveAttribute(
           'src',
-          outcome === 'success'
-            ? new URL('/new.svg', page.url()).href
-            : '/original.svg'
+          outcome === 'success' ? NEW_PHOTO : ORIGINAL
         )
         await page.keyboard.press('Shift+Tab')
         await expect(trigger).toBeFocused()
@@ -99,11 +101,33 @@ test.describe('profile avatar focus during a URL save', () => {
       await expect(trigger).toBeFocused()
     }
     await openUrlDialog(page)
-    await page
-      .getByLabel('Image URL', { exact: true })
-      .fill(new URL('/new.svg', page.url()).href)
+    await page.getByLabel('Image URL', { exact: true }).fill(NEW_PHOTO)
     await page.getByRole('button', { name: 'Save photo' }).click()
     await expect(page.getByRole('dialog')).toBeHidden()
     await expect(trigger).toBeFocused()
+  })
+
+  test('a photo address from another host is refused before saving (#633)', async ({
+    page,
+  }) => {
+    let saves = 0
+    await page.route('**/save', async (route) => {
+      saves++
+      await route.fulfill({ status: 200 })
+    })
+    await page.goto('/')
+    const avatar = page.getByRole('img', { name: 'QA Writer' }).locator('img')
+    await expect(avatar).toHaveAttribute('src', ORIGINAL)
+    await openUrlDialog(page)
+    await page.getByLabel('Image URL', { exact: true }).fill(OUTSIDE)
+    await page.getByRole('button', { name: 'Save photo' }).click()
+    await expect(page.getByText(avatarSourceRefusal(OUTSIDE))).toBeVisible()
+    // The dialog stays open with the address, for the writer to change it.
+    await expect(page.getByLabel('Image URL', { exact: true })).toHaveValue(
+      OUTSIDE
+    )
+    await dismiss(page, 'Escape')
+    expect(saves).toBe(0)
+    await expect(avatar).toHaveAttribute('src', ORIGINAL)
   })
 })

@@ -9,9 +9,10 @@ import { ResizableImage } from '../../../components/editor/extensions/ResizableI
 import { WritingImage } from '../../../components/editor/WritingImage'
 import { WritingMedia } from '../../../components/editor/WritingMedia'
 import { getArticleAppearance } from '../../../lib/editor/articleAppearance'
+import { UserAvatar } from '../../../components/ui/user-avatar'
 import '../../../components/articles/reader.css'
 import '../../../components/editor/writing-workspace.css'
-import { article } from './article'
+import { AVATARS, article } from './article'
 
 function Fixture() {
   // The highlight view's image node (HighlightableArticle), read-only.
@@ -41,6 +42,21 @@ function Fixture() {
   }
   return (
     <>
+      <section data-reader="avatars">
+        <h2>Profile photos</h2>
+        <div style={{ display: 'flex', gap: 16 }}>
+          {Object.entries(AVATARS).map(([kind, src]) => (
+            <span key={kind} data-avatar={kind}>
+              <UserAvatar
+                src={src}
+                alt={`Writer ${kind}`}
+                name={`Writer ${kind}`}
+                className="size-12"
+              />
+            </span>
+          ))}
+        </div>
+      </section>
       <section data-reader="client" className="article-content">
         <h2>Client body</h2>
         <ArticleReadOnlyBody content={article} />

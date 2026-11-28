@@ -59,7 +59,8 @@ custom domain on one side hides every uploaded image. For each release, run
 `bunx convex run articleImageHosts:countImageHosts` against the target backend
 and check that its `storageOrigin` equals the origin of the frontend's
 `NEXT_PUBLIC_CONVEX_URL`. The same report counts, per host, the images readers
-no longer see (`publishedRefused`).
+no longer see (`publishedRefused`) and the profile photos shown as initials
+(`avatars`, `refused`).
 
 ## Soroban contracts
 

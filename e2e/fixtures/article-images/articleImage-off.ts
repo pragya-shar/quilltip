@@ -7,3 +7,11 @@ export { HIDDEN_ARTICLE_IMAGE } from '../../../lib/tiptap/articleImage'
 export function isArticleImageShown(): boolean {
   return true
 }
+
+export function shownCoverImage(cover: string | null | undefined) {
+  return cover || undefined
+}
+
+export function shownAvatar(src: string | null | undefined) {
+  return src?.trim() || undefined
+}

@@ -11,6 +11,14 @@ export const UNSPLASH_IMAGE = 'https://images.unsplash.com/photo-fixture?w=800'
 export const OTHER_CONVEX_IMAGE =
   'https://someone-else-456.convex.cloud/api/storage/fixture-other-image'
 
+/** Profile photos (#633): uploaded, Unsplash, and on another deployment. */
+export const AVATARS = {
+  own: `${OWN_ORIGIN}/api/storage/fixture-own-photo`,
+  unsplash: 'https://images.unsplash.com/photo-avatar?w=96',
+  other:
+    'https://someone-else-456.convex.cloud/api/storage/fixture-other-photo',
+} as const
+
 const paragraph = (text: string): JSONContent => ({
   type: 'paragraph',
   content: [{ type: 'text', text }],

@@ -26,6 +26,8 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { api } from '@/convex/_generated/api'
 import { compressImage, uploadAvatarFile } from '@/lib/upload'
+import { avatarSourceRefusal } from '@/lib/security/imageSources'
+import { shownAvatar } from '@/lib/tiptap/articleImage'
 
 function isValidHttpUrl(value: string): boolean {
   try {
@@ -111,6 +113,11 @@ export function ProfileAvatarEditor({
         return
       }
 
+      // The same list the save and every avatar use (#633).
+      if (!shownAvatar(avatarUrl)) {
+        toast.error(avatarSourceRefusal(avatarUrl))
+        return
+      }
       await updateProfile({ avatar: avatarUrl })
       toast.success('Profile photo updated')
       setUrlDialogOpen(false)
