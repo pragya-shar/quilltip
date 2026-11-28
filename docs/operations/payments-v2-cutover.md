@@ -62,8 +62,11 @@ later work.
    site variable.
 8. Before the window closes, `SETTLEMENT_ENABLED` is `true` on the live
    deployment and the `settle due tab vouchers` cron has run in the last 10
-   minutes (Convex dashboard, **Schedules**, cron jobs), with no
-   `TAB_SETTLER_RUN_FAILED` in the logs. The settler must run at least once
+   minutes (Convex dashboard, **Schedules**, cron jobs). A healthy settler
+   run is recorded (stage 3, **Check**: `nothing_due` with `rejected` 0, or a
+   verified `confirmed` settlement), and the acceptor check returned
+   `listed` (stage 3, **Check**). The logs show no `TAB_SETTLER_UNAVAILABLE`,
+   no `TAB_SETTLER_RUN_FAILED` and no `TAB_ACCEPTOR_UNAVAILABLE`. The settler must run at least once
    within the 3-day withdrawal delay (51,840 ledgers): a reader who starts a
    withdrawal can withdraw after it, and receipts not settled by then stay
    unpaid. The settler settles every pair of a closing tab first.
@@ -412,7 +415,7 @@ does not read that name. Remove it from Vercel after stage 2 passes
 
 Set by the operator, in this order. Secrets go in the Convex dashboard
 (**Settings → Environment Variables**), never on a command line or in a file
-in the repository.
+in the repository, and are never printed (stage 3, step 3, **Tab secrets**).
 
 | Order | Variable                                                                      | Value                                                          | Stage | Effect when set                                                                             |
 | ----- | ----------------------------------------------------------------------------- | -------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------- |
@@ -955,7 +958,40 @@ payments off if needed (section 6).
    ```
 
 3. The operator sets variables 2 to 12 of section 3.1 on the live
-   deployment, in that order, with `CHAIN_V2_ENABLED=false`.
+   deployment, in that order, with `CHAIN_V2_ENABLED=false`. The owner sets
+   the two secrets (variables 9 and 10) in the dashboard, as below, before
+   `SETTLEMENT_ENABLED=true`.
+
+   **Tab secrets.** Never run a command that prints the secret of a real
+   identity (`live` or `integration`): not `stellar keys secret` (or the
+   older `stellar keys show`) without a pipe, and not `cat` of an identity
+   file. A
+   printed secret ends up in terminal history, logs or a session transcript,
+   and the key must then be rotated. Copy each secret straight to the
+   clipboard instead, paste it into the dashboard, then clear the clipboard
+   with `pbcopy < /dev/null`:
+
+   ```bash
+   stellar keys secret qt-v2-live-acceptor --config-dir <dir>/live | tr -d '\n' | pbcopy
+   stellar keys secret <settler identity> --config-dir <dir>/live | tr -d '\n' | pbcopy
+   ```
+
+   `<settler identity>` is `qt-v2-live-settler`, or the identity of a
+   rotated settler key.
+
+   Field check, by the owner, on the live deployment's dashboard
+   (**Settings → Environment Variables**), for `TAB_ACCEPTOR_SECRET` and
+   `TAB_SETTLER_SECRET`: the variable is on that deployment, and its value is
+   56 characters long, starts with `S`, and has no quotes, spaces or line
+   breaks. The settler trims white space around the value and refuses
+   anything that is not then a valid Stellar secret seed with
+   `TAB_SETTLER_UNAVAILABLE` (`StrKey.isValidEd25519SecretSeed`,
+   `convex/tabSettler.ts`). The acceptor accepts the same seed, or 64 hex
+   characters (`parseAcceptorSeed`, `convex/lib/chain/voucher.ts`); the `live`
+   set uses `S…` seeds. A valid seed of the wrong identity (for example the
+   acceptor seed in the settler variable) passes both checks, so copy each
+   secret from the identity named above.
+
 4. Hand-off to the Vercel owner: set the Vercel contract IDs from section 3.2
    and redeploy the site if stage 2 already ran. Check: the Vercel owner
    reports the four contract IDs (they are public); the operator compares
@@ -982,8 +1018,67 @@ payments off if needed (section 6).
   it at once, run the internal action `chain/config:refreshChainConfig` from
   the dashboard. Do not start stage 6 before this check passes: until the
   config is loaded, v2 tips refuse with `CHAIN_CONFIG_MISSING`.
-- The Convex logs show no `TAB_ACCEPTOR_MISMATCH` and no
-  `TAB_SETTLER_RUN_FAILED`.
+- The Convex logs show no `TAB_ACCEPTOR_MISMATCH`, no
+  `TAB_SETTLER_UNAVAILABLE` and no `TAB_SETTLER_RUN_FAILED`.
+- One healthy settler run after the settler is enabled. After
+  `SETTLEMENT_ENABLED=true` is set, and again after any change to
+  `TAB_SETTLER_SECRET`, the operator runs `tabSettler:settleDue` once from
+  the Convex dashboard (**Functions**; it is an internal action with no
+  arguments) and reads the value it returns. A successful run writes no log
+  line, so the logs alone cannot show it.
+  The function takes the same lease as the `settle due tab vouchers` cron,
+  so it cannot overlap a cron run. The run is healthy only with one of these
+  results:
+  - `"status": "nothing_due"` with `"rejected": 0`;
+  - `"status": "confirmed"` with a `settlementId`, whose `tabSettlements`
+    row is `CONFIRMED` with a transaction hash that the testnet RPC or
+    Horizon reports as successful.
+
+  Before stage 6 no tab holds receipts, so the result is `nothing_due`. That
+  proves that the settler secret is a valid seed and that the cycle reached
+  the RPC and the database. It does not sign anything, so it does not prove
+  that the key holds the Tab's settler role or that its account is funded.
+  Only a `confirmed` settlement proves that: the first one after the tab tip
+  of section 7.1 (section 7.3).
+
+  `"busy"` or `"pending"` proves nothing: run it again after the open
+  settlement resolves (within 10 minutes). Stop on `"failed"`, `"expired"`,
+  `"rejected"` above 0, `"status": "disabled"`, or an error. Record the time
+  and the result of the healthy run. A missing or malformed settler secret
+  fails the run with `TAB_SETTLER_UNAVAILABLE` before the settlement cycle
+  starts, so that run logs no `TAB_SETTLER_RUN_FAILED`: a scan for
+  `TAB_SETTLER_RUN_FAILED` alone does not find it. Do not start stage 6 until
+  a healthy run is recorded.
+
+- The acceptor, before stage 6. After `TAB_ACCEPTOR_SECRET` is saved, and
+  again after any change to it, the operator runs the internal action
+  `chain/config:checkAcceptor` once from the Convex dashboard (**Functions**,
+  no arguments) and reads the value it returns. It derives the public key of
+  the exact saved value as acceptance does (`parseAcceptorSeed`), reads the
+  Tab contract's `acceptor_keys` at that moment, and compares them. It
+  returns the public key and the listed keys only, never the secret, and
+  writes nothing. It works with settlement on or off.
+  - `"status": "listed"` with `"whitespace": false`: ready. Record the time
+    and the public key.
+  - `"malformed"` or `"unset"`: the first tab tip would refuse with
+    `TAB_ACCEPTOR_UNAVAILABLE`. Save the secret again (step 3, **Tab
+    secrets**) and run the check again.
+  - `"not_listed"`: a valid seed of another key, for example the settler
+    seed in the acceptor variable. The tip would refuse with
+    `TAB_ACCEPTOR_MISMATCH`. Save the acceptor identity's secret.
+  - `"keys_unread"`: no Tab contract is set, or the view failed (`error`).
+    Fix that and run the check again.
+  - `"whitespace": true`: acceptance trims it, but the field check does not
+    allow it. Save the value again without it.
+
+  Do not start stage 6 until the check returns `listed`. The config refresh
+  (`chain/config:refreshChainConfig`, hourly) also logs
+  `TAB_ACCEPTOR_UNAVAILABLE` for a missing or malformed acceptor secret while
+  `SETTLEMENT_ENABLED=true`, and adds it to `chainConfig.lastError`. Before
+  #684 it treated such a secret as acceptance being off and logged nothing.
+  Both changes reach a deployment with its next backend push. On a backend
+  without them, the field check in step 3 is the only check of the format,
+  and the tab tip of section 7.1 is the first proof.
 
 **Rollback:** set `SETTLEMENT_ENABLED=false` and remove the contract IDs and
 `INDEXER_START_LEDGER`. Nothing user-facing uses the set while
@@ -1008,7 +1103,7 @@ with `"cursor"` set to the returned `continueCursor`. Repeat for
 these with the credential from section 5.0.2.
 
 v1 rows confirmed after this stage (tips in flight at the freeze) have no
-`contractVersion`. Stage 6, step 1 runs this backfill once more after the
+`contractVersion`. Stage 6, step 2 runs this backfill once more after the
 drain.
 
 **Claim records (#596).** The release records each applied `Claimed` event of
@@ -1200,15 +1295,34 @@ row again.
 
 ### Stage 6. Switch on v2
 
-1. Run the stage 4 backfill again for the three tables (dry run, apply, dry
+1. Confirm that the healthy settler run and the `listed` acceptor check of
+   stage 3 (**Check**) are recorded, with their times and results. If
+   `TAB_SETTLER_SECRET` or `TAB_ACCEPTOR_SECRET` changed after them, record
+   a new run or check first.
+2. Run the stage 4 backfill again for the three tables (dry run, apply, dry
    run), so that the v1 rows confirmed during the drain carry
    `contractVersion: 'v1'`.
-2. Set `CHAIN_V2_ENABLED=true` on the live deployment. Record the time.
-3. Run the post-cutover verification (section 7) at once.
+3. Set `CHAIN_V2_ENABLED=true` on the live deployment. Record the time.
+4. Run the post-cutover verification (section 7) at once.
 
 **Check:** the backfill's final dry runs report `"toUpdate": 0`, and
 section 7.1 passes.
 **Rollback:** payments off (section 6, row D), then fix forward.
+
+**Tab readiness first (#692).** Immediately before `CHAIN_V2_ENABLED=true`
+in this stage, refresh the chain config and read `tabReady`:
+
+```bash
+bunx convex run chain/config:refreshChainConfig '{}'
+bunx convex run chain/tabReadiness:read '{}'
+```
+
+Go on only when it reports `"ready": true` and `"causes": []`. Otherwise
+fix each cause first ([chain runbook, tab tips not ready](chain-runbook.md#tab-tips-not-ready))
+and read it again. The switch cannot turn tab tips on while it is false:
+opening, top-ups and tab tips stay off and readers see "Quick tips are
+unavailable right now". Wallet tips are not affected. After the switch,
+`/api/health` and `chain/config:getChainConfig` report `"tabReady": true`.
 
 ## 6. Rollback plan
 
@@ -1521,8 +1635,9 @@ earlier figures.
 
 #### Step 7. Reopen payments
 
-Set `CHAIN_V2_ENABLED=true` only when all of these are true. Leave
-`CHAIN_V1_PREPARES_ENABLED=false`:
+Set `CHAIN_V2_ENABLED=true` only when all of these are true, and
+`chain/tabReadiness:read` reports `"ready": true` (stage 6, **Tab readiness
+first**). Leave `CHAIN_V1_PREPARES_ENABLED=false`:
 
 1. Every transaction from step 3 that creates an app record has one: tips
    and registrations (`tips`, `highlightTips`, `chainSubmissions`), NFT mints
@@ -1621,7 +1736,8 @@ stay at the front. If `checked` equals the limit, run again with
 
 After the tab tip in 7.1, the next `settle due tab vouchers` run (every 10
 minutes) submits a settlement. Check the Convex logs for the cron: no
-`TAB_SETTLER_RUN_FAILED`, `TAB_SETTLER_REJECTED` or `TAB_SETTLER_BALANCE_LOW`.
+`TAB_SETTLER_UNAVAILABLE`, `TAB_SETTLER_RUN_FAILED`, `TAB_SETTLER_REJECTED` or
+`TAB_SETTLER_BALANCE_LOW`.
 The settler account holds more than 50 testnet XLM.
 
 A settled amount stays held back from the reader's free balance until the
@@ -1703,19 +1819,19 @@ the variables are gone.
 
 ## 9. Maintenance schedule
 
-| Task                                 | When                                                                                           | Command or place                                                                                                                                                                                          |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                                                                                                                                        |
-| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                                                                                                                                       |
-| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3); any tab under "Waiting for a reconciliation" (chain runbook)                                                    |
-| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                                                                                                                                 |
-| Settler runs                         | Daily; never 3 days without a run (go/no-go item 8)                                            | `SETTLEMENT_ENABLED=true`; the `settle due tab vouchers` cron has a recent run (dashboard cron jobs list)                                                                                                 |
-| Tab reconciliation                   | Daily                                                                                          | [Chain runbook](chain-runbook.md#stale-settlement-reserves): a dry run for each tab listed, from the Convex dashboard (see the note below the table). The command waits up to 2.5 minutes for the indexer |
-| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                                                                                                                                  |
-| Live deployment snapshot             | Weekly, and before the v1 backend removal PR is deployed                                       | Convex dashboard snapshot export                                                                                                                                                                          |
-| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                                                                                                                                            |
-| v1 backend removal PR                | After the release site is live and the stage 5 drain is complete                               | Section 8                                                                                                                                                                                                 |
-| Writers' lifetime totals             | After a restore or an `earningsTotalsBackfill:reset`, and when `progress.failed` lists a row   | `bunx convex run earningsTotalsBackfill:progress`; `retryFailed` for a failed row (stage 5A)                                                                                                              |
+| Task                                 | When                                                                                           | Command or place                                                                                                                                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                                                                                                                                                            |
+| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                                                                                                                                                           |
+| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3); any tab under "Waiting for a reconciliation" (chain runbook); no open record under "Tab activity not accepted here" (chain runbook) |
+| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                                                                                                                                                     |
+| Settler runs                         | Daily; never 3 days without a run (go/no-go item 8)                                            | `SETTLEMENT_ENABLED=true`; the `settle due tab vouchers` cron has a recent run (dashboard cron jobs list); `/ops/chain` "Last settler run" under 30 min (chain runbook, settler not running)                                  |
+| Tab reconciliation                   | Daily                                                                                          | [Chain runbook](chain-runbook.md#stale-settlement-reserves): a dry run for each tab listed, from the Convex dashboard (see the note below the table). The command waits up to 2.5 minutes for the indexer                     |
+| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                                                                                                                                                      |
+| Live deployment snapshot             | Weekly, and before the v1 backend removal PR is deployed                                       | Convex dashboard snapshot export                                                                                                                                                                                              |
+| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                                                                                                                                                                |
+| v1 backend removal PR                | After the release site is live and the stage 5 drain is complete                               | Section 8                                                                                                                                                                                                                     |
+| Writers' lifetime totals             | After a restore or an `earningsTotalsBackfill:reset`, and when `progress.failed` lists a row   | `bunx convex run earningsTotalsBackfill:progress`; `retryFailed` for a failed row (stage 5A)                                                                                                                                  |
 
 **Tab reconciliation on the live deployment.** Outside a window, the network
 guard has no approval that allows the reconciliation dry run and refuses an

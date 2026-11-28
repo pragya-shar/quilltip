@@ -1430,6 +1430,7 @@ describe('window approval: the allowed operations', () => {
       'chain/config:getChainConfig',
       'articleImageHosts:countImageHosts',
       'chain/config:refreshChainConfig',
+      'chain/tabReadiness:read',
       'chain/indexer:redispatch',
       'chain/backfill:setContractVersionV1',
       'chain/tabClaims:seedClaimRecords',
@@ -1488,6 +1489,9 @@ describe('window approval: every runbook command', () => {
     ['articleImageHosts:countImageHosts', '{}'],
     // Stage 3.
     ['chain/config:refreshChainConfig', undefined],
+    // Stage 6, before the switch-on (#692).
+    ['chain/tabReadiness:read', undefined],
+    ['chain/tabReadiness:read', '{}'],
     ['chain/indexer:redispatch', undefined],
     ['chain/indexer:redispatch', '{"limit":500}'],
     // Stage 4.
@@ -1632,6 +1636,7 @@ describe('window approval: every runbook command', () => {
     ['earningsTotalsBackfill:dryRun', '{"cursor":42}', 'page cursor'],
     ['earningsTotalsBackfill:progress', '{"all":true}', 'allowed: none'],
     ['articleImageHosts:countImageHosts', '{"cursor":null}', 'allowed: none'],
+    ['chain/tabReadiness:read', '{"verbose":true}', 'allowed: none'],
     [
       'earningsTotalsBackfill:retryFailed',
       '{"id":42}',
@@ -1880,6 +1885,7 @@ describe('window approval: refusals', () => {
     [['convex-run', 'testAccounts:setTestAccount', '{}']],
     [['convex-run', 'earningsTotalsBackfill:run']],
     [['convex-run', 'articleImageHosts:imageHostPage', '{"cursor":null}']],
+    [['convex-run', 'chain/tabReadiness:getTabReadiness', '{}']],
     [['convex-run', 'chain/backfill:setContractVersionV1', '[1]']],
     [['convex-run', 'chain/backfill:setContractVersionV1', '{bad']],
     [['env-set', 'TAB_SETTLER_SECRET', 'S...']],

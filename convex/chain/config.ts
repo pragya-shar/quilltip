@@ -6,21 +6,27 @@
  * state. `refreshChainConfig` reads the contract views through RPC simulation
  * and caches them in `chainConfig` (hourly cron).
  */
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import {
   Account,
   Address,
   Contract,
   TransactionBuilder,
+  nativeToScVal,
   scValToNative,
   xdr,
 } from '@stellar/stellar-sdk'
 import { internal } from '../_generated/api'
+import {
+  evaluateTabReadiness,
+  readinessLogCode,
+} from '../lib/chain/tabReadiness'
 import { internalAction, internalMutation, query } from '../_generated/server'
 import { readChainEnv, type ChainEnv } from '../lib/chain/env'
 import { createBackendRpcClient, type RpcClient } from '../lib/chain/rpc'
 import { bytesToHex } from '../lib/chain/ids'
-import { loadAcceptor } from '../lib/chain/voucher'
+import { acceptorPublicKeyHex, loadAcceptor } from '../lib/chain/voucher'
+import { assertBackendTestnet } from '../lib/networkGuard'
 
 /** Any valid account works as the source of a view simulation. */
 const VIEW_SOURCE = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
@@ -50,6 +56,9 @@ export const getChainConfig = query({
       nftThreshold: cached?.nftThreshold ?? null,
       paused: cached?.paused ?? {},
       refreshedAt: cached?.refreshedAt ?? null,
+      // Keys and settlement ready (`tabReadiness.ts`). One boolean: which
+      // check failed is for operators only (`chain/tabReadiness`).
+      tabReady: evaluateTabReadiness(process.env, cached).ready,
     }
   },
 })
@@ -67,6 +76,8 @@ export const storeChainConfig = internalMutation({
     nftThreshold: v.optional(v.string()),
     nftThresholdToken: v.optional(v.string()),
     tabAcceptorKeys: v.optional(v.array(v.string())),
+    tabSettlers: v.optional(v.array(v.string())),
+    tabStateReadAt: v.optional(v.number()),
     paused: v.object({
       core: v.optional(v.boolean()),
       tab: v.optional(v.boolean()),
@@ -84,9 +95,11 @@ export const storeChainConfig = internalMutation({
       await ctx.db.insert('chainConfig', row)
     } else if (
       existing.coreContractId !== args.coreContractId ||
+      existing.tabContractId !== args.tabContractId ||
       existing.chainEpoch !== args.chainEpoch
     ) {
-      // A new contract set: drop values read from the previous one.
+      // A new contract set, or a new Tab: drop values read from the previous
+      // one, so another Tab's keys or role holders never count.
       await ctx.db.replace(existing._id, row)
     } else {
       // Same set: a view that failed this time keeps its previous value.
@@ -98,6 +111,34 @@ export const storeChainConfig = internalMutation({
     }
   },
 })
+
+/** Holders of an OpenZeppelin role, by `get_role_member_count` and index. */
+async function readRoleMembers(
+  rpc: RpcClient,
+  chain: Pick<ChainEnv, 'passphrase'>,
+  contractId: string,
+  role: string
+): Promise<string[]> {
+  const symbol = xdr.ScVal.scvSymbol(role)
+  const count = Number(
+    await readView(rpc, chain, contractId, 'get_role_member_count', [symbol])
+  )
+  if (!Number.isInteger(count) || count < 0 || count > 50) {
+    throw new Error(`get_role_member_count: ${count}`)
+  }
+  const members: string[] = []
+  for (let i = 0; i < count; i++) {
+    members.push(
+      String(
+        await readView(rpc, chain, contractId, 'get_role_member', [
+          symbol,
+          nativeToScVal(i, { type: 'u32' }),
+        ])
+      )
+    )
+  }
+  return members
+}
 
 /** Simulates a read-only call and returns the native return value. */
 export async function readView(
@@ -177,6 +218,12 @@ export const refreshChainConfig = internalAction({
           }
         : {}),
     }
+    // Tab tip readiness compares TAB_SETTLER_SECRET with these.
+    const tabSettlers = chain.tabContractId
+      ? await attempt(() =>
+          readRoleMembers(rpc, chain, chain.tabContractId!, 'settler')
+        )
+      : undefined
     const threshold = chain.nftContractId
       ? await attempt(async () => {
           const value = await readView(
@@ -194,31 +241,34 @@ export const refreshChainConfig = internalAction({
     const nftThresholdToken = threshold?.token
 
     const tabAcceptorKeys = chain.tabContractId
-      ? await attempt(async () => {
-          const config = (await readView(
-            rpc,
-            chain,
-            chain.tabContractId!,
-            'config'
-          )) as { acceptor_keys?: unknown }
-          if (!Array.isArray(config.acceptor_keys)) {
-            throw new Error('config: acceptor_keys is not a list')
-          }
-          return config.acceptor_keys.map((key) => {
-            if (!(key instanceof Uint8Array) || key.length !== 32) {
-              throw new Error('config: acceptor key is not 32 bytes')
-            }
-            return bytesToHex(key)
-          })
-        })
+      ? await attempt(() =>
+          readTabAcceptorKeys(rpc, chain, chain.tabContractId!)
+        )
       : undefined
+    // Every part of the Tab's state that readiness uses was read now.
+    const tabStateReadAt =
+      tabAcceptorKeys !== undefined &&
+      tabSettlers !== undefined &&
+      paused.tab !== undefined
+        ? Date.now()
+        : undefined
     // Acceptance refuses on a mismatch (tabs.submitTip); this makes it visible.
     if (tabAcceptorKeys) {
       let acceptor: string | null = null
       try {
         acceptor = loadAcceptor().publicKey
-      } catch {
-        // Acceptance is off on this deployment.
+      } catch (error) {
+        // With settlement off, acceptance is off and there is nothing to
+        // check. With it on, a missing or malformed secret refuses every tab
+        // tip (TAB_ACCEPTOR_UNAVAILABLE), so report it here too. The message
+        // is fixed text: it never holds the secret.
+        if (process.env.SETTLEMENT_ENABLED?.trim() === 'true') {
+          const message = acceptorErrorMessage(error)
+          console.error(
+            JSON.stringify({ code: 'TAB_ACCEPTOR_UNAVAILABLE', message })
+          )
+          errors.push(`TAB_ACCEPTOR_UNAVAILABLE: ${message}`)
+        }
       }
       if (acceptor && !tabAcceptorKeys.includes(acceptor)) {
         console.error(
@@ -248,10 +298,140 @@ export const refreshChainConfig = internalAction({
         nftThreshold,
         nftThresholdToken,
         tabAcceptorKeys,
+        tabSettlers,
+        tabStateReadAt,
         lastError: errors.length ? errors.join('; ').slice(0, 500) : undefined,
       }),
       paused: defined(paused),
     })
+    if (chain.v2Enabled) {
+      // One line per cause, with its own code; never a secret or a key.
+      const readiness = await ctx.runQuery(internal.chain.tabReadiness.read, {})
+      for (const cause of readiness.causes) {
+        console.error(
+          JSON.stringify({ code: readinessLogCode(cause), source: 'refresh' })
+        )
+      }
+    }
     return { refreshed: true, errors }
+  },
+})
+
+/** Tab `config().acceptor_keys`, as lowercase hex (current first). */
+async function readTabAcceptorKeys(
+  rpc: RpcClient,
+  chain: Pick<ChainEnv, 'passphrase'>,
+  tabContractId: string
+): Promise<string[]> {
+  const config = (await readView(rpc, chain, tabContractId, 'config')) as {
+    acceptor_keys?: unknown
+  }
+  if (!Array.isArray(config.acceptor_keys)) {
+    throw new Error('config: acceptor_keys is not a list')
+  }
+  return config.acceptor_keys.map((key) => {
+    if (!(key instanceof Uint8Array) || key.length !== 32) {
+      throw new Error('config: acceptor key is not 32 bytes')
+    }
+    return bytesToHex(key)
+  })
+}
+
+/** The fixed message of an acceptor refusal; never the secret. */
+function acceptorErrorMessage(error: unknown): string {
+  if (error instanceof ConvexError) {
+    const data = error.data as { message?: unknown } | undefined
+    if (typeof data?.message === 'string') return data.message
+  }
+  return error instanceof Error ? error.message : 'acceptor unavailable'
+}
+
+/**
+ * Check of the saved acceptor secret before v2 is switched on (cutover
+ * runbook, stage 3). It derives the public key from `TAB_ACCEPTOR_SECRET`
+ * exactly as acceptance does (`acceptorPublicKeyHex`), reads the Tab contract's
+ * `acceptor_keys` now, and compares them. It works with settlement on or
+ * off. It returns the public key and the listed keys only, never the secret,
+ * and writes nothing.
+ *
+ * `status`: `listed` (ready), `not_listed` (a valid seed of another key),
+ * `malformed` (acceptance would refuse with `TAB_ACCEPTOR_UNAVAILABLE`),
+ * `unset`, or `keys_unread` (no Tab contract set, or the view failed).
+ * `whitespace` is true when the saved value has white space around it;
+ * acceptance trims it, but the runbook's field check does not allow it.
+ */
+export const checkAcceptor = internalAction({
+  args: {},
+  returns: v.object({
+    status: v.union(
+      v.literal('listed'),
+      v.literal('not_listed'),
+      v.literal('malformed'),
+      v.literal('unset'),
+      v.literal('keys_unread')
+    ),
+    publicKey: v.union(v.string(), v.null()),
+    acceptorKeys: v.union(v.array(v.string()), v.null()),
+    whitespace: v.boolean(),
+    error: v.optional(v.string()),
+  }),
+  handler: async () => {
+    assertBackendTestnet()
+    const secret = process.env.TAB_ACCEPTOR_SECRET ?? ''
+    const whitespace = secret !== secret.trim()
+    if (!secret.trim()) {
+      return {
+        status: 'unset' as const,
+        publicKey: null,
+        acceptorKeys: null,
+        whitespace,
+      }
+    }
+    let publicKey: string
+    try {
+      publicKey = acceptorPublicKeyHex(secret)
+    } catch (error) {
+      return {
+        status: 'malformed' as const,
+        publicKey: null,
+        acceptorKeys: null,
+        whitespace,
+        error: acceptorErrorMessage(error),
+      }
+    }
+    const chain = readChainEnv()
+    if (!chain.tabContractId) {
+      return {
+        status: 'keys_unread' as const,
+        publicKey,
+        acceptorKeys: null,
+        whitespace,
+        error: 'TAB_CONTRACT_ID is not set',
+      }
+    }
+    let acceptorKeys: string[]
+    try {
+      acceptorKeys = await readTabAcceptorKeys(
+        createBackendRpcClient(),
+        chain,
+        chain.tabContractId
+      )
+    } catch (error) {
+      return {
+        status: 'keys_unread' as const,
+        publicKey,
+        acceptorKeys: null,
+        whitespace,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+    return {
+      status: acceptorKeys.includes(publicKey)
+        ? ('listed' as const)
+        : ('not_listed' as const),
+      publicKey,
+      acceptorKeys,
+      whitespace,
+    }
   },
 })

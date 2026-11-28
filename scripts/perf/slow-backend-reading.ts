@@ -25,7 +25,11 @@ import { join } from 'path'
 import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
 import { fixtureArticlePath } from './convex-fixture'
 import { fixtureBackendBehaviour, startFixtureBackend } from './fixture-backend'
-import { startProductionApp } from './production-app'
+import {
+  fixtureBackendPort,
+  perfPort,
+  startProductionApp,
+} from './production-app'
 import { READING, wayHomeOn } from './no-script-reading'
 
 /** Rendering and CI noise on top of the read limits. */
@@ -42,8 +46,8 @@ const PAGES = [
 const FALLBACK_TEXT = 'could not be loaded right now'
 const RETRY_LINK = 'Try again'
 
-const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
-const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
+const CONVEX_PORT = fixtureBackendPort()
+const APP_PORT = await perfPort('PERF_APP_PORT')
 const BASE_URL = `http://127.0.0.1:${APP_PORT}`
 const ENGINES = (process.env.PERF_READING_ENGINES ?? 'chromium,webkit').split(
   ','
@@ -100,7 +104,7 @@ async function main() {
     force: true,
   })
   const backend = startFixtureBackend(CONVEX_PORT)
-  const app = await startProductionApp(APP_PORT, BASE_URL)
+  const app = await startProductionApp(APP_PORT, BASE_URL, { backend })
   const failures: string[] = []
   try {
     const behaviours: Behaviour[] = ['silent', 'error', 'slow']

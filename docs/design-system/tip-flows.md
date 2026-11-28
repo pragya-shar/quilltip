@@ -54,7 +54,10 @@ bottom sheets (WHOOP, Hers on iOS) in Mobbin.
    `getTipEligibility`; the largest is $100. Errors show under the field and
    are linked with `aria-describedby`. The XLM figure is an estimate
    (`AmountSummary estimate`) at the cached price until prepare returns.
-3. **Start.** "Send tip" sits inside the `WalletGate`. "Add to tip basket"
+3. **Start.** The send button sits inside the `WalletGate`. Its name carries
+   the dollar amount as the app shows it: "Send $1 tip"; the basket's reads
+   "Send $2.25 in 2 tips". Until the amount is valid it reads "Send tip" and is
+   `aria-disabled`; pressing it shows the error. "Add to tip basket"
    needs only a signed-in reader. After prepare, the summary shows the
    prepared amounts (gross, author share, platform fee).
 4. **Progress and result.** `TransactionProgress` with the record from
@@ -91,8 +94,9 @@ loads with `import()` when the dialog opens (`components/tab/README.md`).
   `aria-disabled` and described by the notice, and nothing reaches Convex, so
   an expected refusal never logs a Convex error in the console.
 - **Primary action.** With a ready tab, "Send {amount} from your tab" is the
-  primary button and the wallet button reads "Send from your wallet" under a
-  "From your wallet" heading. Otherwise the wallet tip stays primary.
+  primary button and the wallet button reads "Send {amount} tip from your
+  wallet" under a "From your wallet" heading. Otherwise the wallet tip stays
+  primary.
 - **Busy and result.** While the quick tip sends, the dialog cannot close.
   Accepted, settled and the other receipt results replace the amount and the
   wallet tip; "Done" closes the dialog and "Send another" returns to the form.

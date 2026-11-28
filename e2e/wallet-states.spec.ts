@@ -4,6 +4,7 @@ import {
   installVarialEmulator,
   type VarialMode,
 } from './helpers/varialEmulator'
+import { SEND_TIP } from './helpers/sendButton'
 
 /**
  * Wallet connect and sign states through the real Wallets Kit 2.x, wallet
@@ -41,10 +42,9 @@ async function chooseVarial(page: Page) {
 async function openCheckout(page: Page) {
   await page.getByRole('button', { name: 'Tip article', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Tip this article' })
-  await expect(dialog.getByRole('button', { name: '$1' })).toHaveAttribute(
-    'aria-pressed',
-    'true'
-  )
+  await expect(
+    dialog.getByRole('button', { name: '$1', exact: true })
+  ).toHaveAttribute('aria-pressed', 'true')
   return dialog
 }
 
@@ -69,7 +69,7 @@ test('connects through the kit picker and signs a testnet tip', async ({
   await expect(account).toContainText(/testnet/i)
 
   const dialog = await openCheckout(page)
-  await dialog.getByRole('button', { name: 'Send tip' }).click()
+  await dialog.getByRole('button', { name: SEND_TIP }).click()
   await expect
     .poll(async () =>
       (await requests(page)).find((r) => r.type === 'SUBMIT_TRANSACTION')
@@ -166,7 +166,7 @@ test('rejected signature', async ({ page }) => {
   await open(page, 'reject-sign')
   await chooseVarial(page)
   const dialog = await openCheckout(page)
-  await dialog.getByRole('button', { name: 'Send tip' }).click()
+  await dialog.getByRole('button', { name: SEND_TIP }).click()
   await expect(
     dialog.getByText('Request declined in your wallet')
   ).toBeVisible()
@@ -178,7 +178,7 @@ test('wallet that never answers times out', async ({ page }) => {
   await open(page, 'timeout-sign')
   await chooseVarial(page)
   const dialog = await openCheckout(page)
-  await dialog.getByRole('button', { name: 'Send tip' }).click()
+  await dialog.getByRole('button', { name: SEND_TIP }).click()
   await expect
     .poll(async () => (await requests(page)).map((r) => r.type))
     .toContain('SUBMIT_TRANSACTION')
