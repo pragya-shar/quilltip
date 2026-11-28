@@ -136,13 +136,22 @@ export function createFixtureServices(params: {
       const gate: WalletGateState =
         kind === 'wrong-network'
           ? { kind, walletNetwork: 'Mainnet' }
-          : kind === 'unverified'
+          : kind === 'other-account'
             ? {
                 kind,
+                // The verified linked address holds the tab; the wallet is
+                // on another account.
+                linked: s?.address ?? '',
                 address:
                   'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI',
               }
-            : ({ kind } as WalletGateState)
+            : kind === 'unverified'
+              ? {
+                  kind,
+                  address:
+                    'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI',
+                }
+              : ({ kind } as WalletGateState)
       signer.current = s?.address ?? null
       const control = (patch: Record<string, unknown>) =>
         void post('control', { patch })

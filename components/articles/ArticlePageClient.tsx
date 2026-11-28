@@ -31,6 +31,7 @@ import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
 import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
 import { useRouter } from 'next/navigation'
+import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
 
 // The collapsed details panel sits below the article. The server renders it
 // into the HTML; its accordion, highlight notes and date code load while the
@@ -50,6 +51,11 @@ interface ArticlePageClientProps {
   initialArticle?: PublishedArticle
   /** Server-rendered HTML of `initialArticle`'s body. */
   initialBodyHtml?: string
+  /**
+   * Set when the server could not read the article in time: until the live
+   * query answers, show a fallback that reads without scripts.
+   */
+  unavailableRetryHref?: string
 }
 
 export function ArticlePageClient({
@@ -57,6 +63,7 @@ export function ArticlePageClient({
   slug,
   initialArticle,
   initialBodyHtml,
+  unavailableRetryHref,
 }: ArticlePageClientProps) {
   const { user } = useAuth()
   const router = useRouter()
@@ -89,6 +96,21 @@ export function ArticlePageClient({
 
   if (article === null) {
     notFound()
+  }
+
+  // The server could not read the article in time. Outside LoadingRegion,
+  // which hides its fallback from assistive technology.
+  if (article === undefined && unavailableRetryHref) {
+    return (
+      <div className="min-h-screen reader-surface">
+        <AppNavigation />
+        <ReadingUnavailable
+          what="This article"
+          retryHref={unavailableRetryHref}
+          headingLevel={1}
+        />
+      </div>
+    )
   }
 
   if (article === undefined) {

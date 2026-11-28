@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { ArticlePageClient } from '@/components/articles/ArticlePageClient'
 import { getPublishedArticle, movedPublicPath } from '@/lib/seo/publicContent'
 import { renderArticleHtml } from '@/lib/tiptap/renderArticleHtml'
+import { retryHrefFor } from '@/components/articles/ReadingUnavailable'
 import {
   SITE_NAME,
   articleMetaDescription,
@@ -62,9 +63,10 @@ export default async function ArticlePage({
   searchParams,
 }: ArticlePageProps) {
   const { username, slug } = await params
+  const query = await searchParams
   const initialArticle = await getPublishedArticle(username, slug)
   if (initialArticle === null) {
-    const moved = await movedPublicPath(username, slug, await searchParams)
+    const moved = await movedPublicPath(username, slug, query)
     // Temporary: writers can switch back to an earlier handle.
     if (moved) redirect(moved)
     notFound()
@@ -76,6 +78,14 @@ export default async function ArticlePage({
       slug={slug}
       initialArticle={initialArticle ?? undefined}
       initialBodyHtml={renderArticleHtml(initialArticle?.content)}
+      unavailableRetryHref={
+        initialArticle === undefined
+          ? retryHrefFor(
+              `/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`,
+              query
+            )
+          : undefined
+      }
     />
   )
 }

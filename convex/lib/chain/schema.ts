@@ -222,9 +222,22 @@ export const tabTables = {
      * before this field; such rows release no reserve by ledger order.
      */
     balanceLedger: v.optional(v.number()),
-    /** `TabSettled` debits applied after `balanceEventId`, for reordering. */
+    /**
+     * Rows written before `tabBalanceDebits`: `TabSettled` debits applied
+     * after `balanceEventId`. Read, never extended; the next absolute
+     * balance drops the entries it covers.
+     */
     settledSinceBalance: v.array(
       v.object({ eventId: v.string(), gross: v.string() })
+    ),
+    /**
+     * Set when an absolute balance arrived after more debits than one
+     * transaction may read (`debitsAfter`): its balance was not applied, and
+     * the account accepts no tab tip until a newer absolute balance or a
+     * reconciliation against the contract sets the balance.
+     */
+    reconcileRequired: v.optional(
+      v.object({ eventId: v.string(), ledger: v.number(), since: v.number() })
     ),
     /** RPC id of the newest event that set `status`. */
     statusEventId: v.optional(v.string()),
@@ -242,7 +255,8 @@ export const tabTables = {
     .index('by_user', ['userId'])
     .index('by_reader', ['readerAddress'])
     .index('by_status', ['status'])
-    .index('by_unindexed_since', ['settledUnindexedSince']),
+    .index('by_unindexed_since', ['settledUnindexedSince'])
+    .index('by_reconcile_required', ['reconcileRequired.since']),
 
   tabSessionKeys: defineTable({
     network: chainNetworkValidator,
@@ -416,6 +430,58 @@ export const tabTables = {
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index('by_status', ['status']),
+
+  /**
+   * Each `Claimed` event applied to a writer's collected earnings
+   * (`authorEarnings.collectedBaseUnits`), kept for good. The RPC event id
+   * is the ledger, transaction, operation and event index, so a restore, a
+   * backfill or rebuilt `chainEvents` rows give the same id; ids restart
+   * after a testnet reset, hence the epoch. An event with a record is not
+   * applied again.
+   */
+  tabClaims: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    /** RPC id of the `Claimed` event. */
+    eventId: v.string(),
+    txHash: v.string(),
+    ledger: v.number(),
+    recipient: v.string(),
+    userId: v.id('users'),
+    token: v.string(),
+    amount: v.string(),
+    /** `seeded`: recorded for an event applied before this table existed. */
+    source: v.union(v.literal('applied'), v.literal('seeded')),
+    createdAt: v.number(),
+  })
+    .index('by_epoch_event', ['chainEpoch', 'eventId'])
+    .index('by_user_token', ['userId', 'token']),
+
+  /** Corrections of `collectedBaseUnits` from the `tabClaims` records. */
+  tabClaimCorrections: defineTable({
+    userId: v.id('users'),
+    token: v.string(),
+    before: v.string(),
+    after: v.string(),
+    claims: v.number(),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index('by_user', ['userId', 'createdAt']),
+
+  /**
+   * `TabSettled` debits applied to a reader's `confirmedBalance` and not yet
+   * covered by an absolute balance: one row per event, so a re-dispatch or
+   * replay of the event finds its row and debits nothing, however many
+   * settlements came after it. An absolute balance that applies subtracts
+   * the rows after its event and deletes the rows before it.
+   */
+  tabBalanceDebits: defineTable({
+    tabAccountId: v.id('tabAccounts'),
+    /** RPC id of the `TabSettled` event. */
+    eventId: v.string(),
+    gross: v.string(),
+    createdAt: v.number(),
+  }).index('by_account_event', ['tabAccountId', 'eventId']),
 
   /**
    * Settlement reserves released without their `TabSettled` event: by a

@@ -99,14 +99,54 @@
 .app-menu-theme {
   @apply flex items-center justify-between gap-4 px-2 pt-3 text-[13px];
 }
+/* A native dialog: a popover before the page scripts run, a modal dialog
+   after (AppMobileMenu.tsx). Both states share one look. */
 .app-mobile-menu {
-  @apply w-[min(100%,390px)] max-w-full overflow-y-auto border-[#cdb9b4] bg-[#faf5ec] p-7;
+  @apply fixed inset-y-0 right-0 left-auto m-0 h-full max-h-none w-[min(100%,390px)] max-w-full overflow-y-auto overscroll-contain border-0 border-l border-solid border-[#cdb9b4] bg-[#faf5ec] p-7 text-[#390c18] shadow-ui;
+}
+.app-mobile-menu:popover-open {
+  @apply block;
+}
+.app-mobile-menu::backdrop {
+  background: var(--ui-overlay);
+}
+html:has(.app-mobile-menu:is(:modal, :popover-open)) {
+  @apply overflow-hidden [scrollbar-gutter:stable];
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* The sheet and its backdrop move as one: same curve, 200 ms in and a
+     quicker 150 ms out. */
+  .app-mobile-menu,
+  .app-mobile-menu::backdrop {
+    transition-property: translate, opacity, display, overlay;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.32, 0.72, 0, 1);
+    transition-behavior: allow-discrete;
+  }
+  .app-mobile-menu:is([open], :popover-open),
+  .app-mobile-menu:is([open], :popover-open)::backdrop {
+    transition-duration: 200ms;
+  }
+  .app-mobile-menu:not([open], :popover-open) {
+    translate: 100% 0;
+  }
+  .app-mobile-menu:not([open], :popover-open)::backdrop {
+    opacity: 0;
+  }
+  @starting-style {
+    .app-mobile-menu:is([open], :popover-open) {
+      translate: 100% 0;
+    }
+    .app-mobile-menu:is([open], :popover-open)::backdrop {
+      opacity: 0;
+    }
+  }
 }
 .app-mobile-menu > h2 {
   @apply mt-[42px] mb-1 text-[#390c18] [font:400_30px/1.2_'Landing_Alegreya',Georgia,serif];
 }
 .app-mobile-menu > p {
-  @apply mb-6 text-[#390c18];
+  @apply mb-6 text-sm text-[#390c18];
 }
 .app-mobile-menu nav,
 .app-mobile-account {
@@ -139,8 +179,16 @@
 .app-mobile-menu nav .app-nav-action {
   @apply mt-2 px-4 py-2.5;
 }
-.app-mobile-menu > button {
-  @apply grid size-11 place-items-center;
+.app-mobile-menu > .app-mobile-menu-close {
+  @apply absolute top-4 right-4 grid size-11 cursor-pointer place-items-center rounded-[var(--ui-radius)] border-0 bg-transparent text-[#390c18] opacity-70 transition-opacity;
+}
+.app-mobile-menu > .app-mobile-menu-close:focus-visible {
+  @apply opacity-100;
+}
+@media (hover: hover) and (pointer: fine) {
+  .app-mobile-menu > .app-mobile-menu-close:hover {
+    @apply opacity-100;
+  }
 }
 .app-site-footer {
   @apply mt-auto border-t border-[#cdb9b4] bg-[#faf5ec];
