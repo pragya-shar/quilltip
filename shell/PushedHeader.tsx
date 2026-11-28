@@ -6,20 +6,6 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Icon } from '@/system/components/Icon'
 import { BackIcon, CloseIcon } from '@/system/icons'
 import { appHistory } from './appHistory'
-import { createHeaderOnScroll } from './headerOnScroll'
-
-/** Past this scroll the header carries the screen's title. */
-export const TITLE_AFTER_PX = 140
-
-const SCROLL_KEYS = new Set([
-  'ArrowUp',
-  'ArrowDown',
-  'PageUp',
-  'PageDown',
-  'Home',
-  'End',
-  ' ',
-])
 
 /** How long `onBack` may take before the screen leaves anyway. */
 export const ON_BACK_LIMIT_MS = 800
@@ -40,7 +26,7 @@ type PushedHeaderProps = {
   /** Actions at the end of the header (Share, More). */
   actions?: ReactNode
   /** The screen's title, shown in the header after TITLE_AFTER_PX of
-   * scroll, on one line. */
+   * scroll (shell/headerOnScroll.ts), on one line. */
   title?: string
   /** Drawn along the header's bottom edge (the article's reading progress). */
   progress?: ReactNode
@@ -55,7 +41,8 @@ type PushedHeaderProps = {
  * `fallbackHref`, and never leaves the site. It works with no script (a
  * plain link; `onBack` then cannot run).
  *
- * It stays at the top as the reader scrolls (shell/headerOnScroll.ts):
+ * It stays at the top as the reader scrolls (shell/headerOnScroll.ts,
+ * loaded after the page's first load; the header shows until then):
  * gone on a scroll down, back on the reader's own scroll up, at the top and
  * at the end, and whenever focus is in it. It sits over the page, so
  * showing and hiding never moves the text. `--qt-pushed-header-h` on
@@ -79,76 +66,20 @@ export function PushedHeader({
   useEffect(() => {
     const node = header.current
     if (!node) return
-    const model = createHeaderOnScroll()
     const root = document.documentElement
-    let pointerDown = false
-    const publish = (on: boolean) => {
-      setShown(on)
-      root.style.setProperty(
-        '--qt-pushed-header-h',
-        on ? `${Math.round(node.offsetHeight)}px` : '0px'
-      )
-    }
-    const onScroll = () => {
-      const y = window.scrollY
-      setTitled(y > TITLE_AFTER_PX)
-      publish(
-        model.scroll({
-          y,
-          max: root.scrollHeight - window.innerHeight,
-          height: node.offsetHeight,
-          at: performance.now(),
-        })
-      )
-    }
-    const intent = () => model.intent(performance.now())
-    const onKey = (event: KeyboardEvent) => {
-      if (SCROLL_KEYS.has(event.key)) intent()
-    }
-    const onSelection = () => {
-      const selection = document.getSelection()
-      model.selecting(
-        pointerDown && Boolean(selection && !selection.isCollapsed)
-      )
-    }
-    const onPointerDown = () => {
-      pointerDown = true
-    }
-    const onPointerUp = () => {
-      pointerDown = false
-      model.selecting(false)
-    }
-    const onFocusIn = () => {
-      model.focus(true)
-      publish(true)
-    }
-    const onFocusOut = (event: FocusEvent) => {
-      if (node.contains(event.relatedTarget as Node | null)) return
-      model.focus(false)
-      onScroll()
-    }
-    publish(true)
-    window.addEventListener('scroll', onScroll, { passive: true })
-    window.addEventListener('wheel', intent, { passive: true })
-    window.addEventListener('touchmove', intent, { passive: true })
-    window.addEventListener('keydown', onKey)
-    document.addEventListener('selectionchange', onSelection)
-    window.addEventListener('pointerdown', onPointerDown, true)
-    window.addEventListener('pointerup', onPointerUp, true)
-    window.addEventListener('pointercancel', onPointerUp, true)
-    node.addEventListener('focusin', onFocusIn)
-    node.addEventListener('focusout', onFocusOut)
+    root.style.setProperty(
+      '--qt-pushed-header-h',
+      `${Math.round(node.offsetHeight)}px`
+    )
+    let stop: (() => void) | undefined
+    let gone = false
+    void import('./headerOnScroll').then(({ watchHeader }) => {
+      if (!gone)
+        stop = watchHeader(node, { shown: setShown, titled: setTitled })
+    })
     return () => {
-      window.removeEventListener('scroll', onScroll)
-      window.removeEventListener('wheel', intent)
-      window.removeEventListener('touchmove', intent)
-      window.removeEventListener('keydown', onKey)
-      document.removeEventListener('selectionchange', onSelection)
-      window.removeEventListener('pointerdown', onPointerDown, true)
-      window.removeEventListener('pointerup', onPointerUp, true)
-      window.removeEventListener('pointercancel', onPointerUp, true)
-      node.removeEventListener('focusin', onFocusIn)
-      node.removeEventListener('focusout', onFocusOut)
+      gone = true
+      stop?.()
       root.style.removeProperty('--qt-pushed-header-h')
     }
   }, [])

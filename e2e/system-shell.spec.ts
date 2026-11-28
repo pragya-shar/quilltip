@@ -310,11 +310,17 @@ const textLayout = (page: Page) =>
   )
 
 const pushedHeader = (page: Page) => page.locator('.qt-pushed__header')
+// The header's scroll behavior loads after the page's first load
+// (shell/headerOnScroll.ts): the tests scroll once it watches.
+async function openReading(page: Page) {
+  await page.goto('/reading')
+  await expect(pushedHeader(page)).toHaveAttribute('data-watching', '')
+}
 
 test('the pushed header leaves on a scroll down and returns on the reader’s scroll up, moving no text', async ({
   page,
 }) => {
-  await page.goto('/reading')
+  await openReading(page)
   const header = pushedHeader(page)
   await expect(header).toBeVisible()
   const layout = await textLayout(page)
@@ -352,7 +358,7 @@ test('the pushed header leaves on a scroll down and returns on the reader’s sc
 test('the pushed header carries the title only after 140 px of scroll', async ({
   page,
 }) => {
-  await page.goto('/reading')
+  await openReading(page)
   const title = pushedHeader(page).locator('.qt-pushed__title')
   await expect(title).not.toHaveAttribute('data-shown', '')
   await page.mouse.move(200, 400)
@@ -365,7 +371,7 @@ test('the pushed header carries the title only after 140 px of scroll', async ({
 test('a scroll by script never brings the pushed header back', async ({
   page,
 }) => {
-  await page.goto('/reading')
+  await openReading(page)
   const header = pushedHeader(page)
   await page.mouse.move(200, 400)
   await page.mouse.wheel(0, 1200)
@@ -380,7 +386,7 @@ test('the way back is reachable by keyboard at any depth', async ({
   page,
   browserName,
 }) => {
-  await page.goto('/reading')
+  await openReading(page)
   const header = pushedHeader(page)
   await page.mouse.move(200, 400)
   await page.mouse.wheel(0, 1500)
