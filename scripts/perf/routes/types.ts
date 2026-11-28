@@ -47,6 +47,12 @@ export type PerfRoutes = {
   /** Page-load budget (scripts/perf/page-load-budget.ts). `path` is a real
    * URL on the fixture backend. */
   pageLoad?: readonly PageLoadRoute[]
+  /** Public routes (Next.js names) whose first response with no script a
+   * production-build check of this package covers (scripts/app-checks). */
+  noScript?: readonly string[]
+  /** Public routes with no first-load budget or no no-script check, each
+   * with the reason. Every other public route needs both. */
+  unmeasured?: readonly { route: string; reason: string }[]
   /** Font fallback check (scripts/perf/font-fallback-check.ts). */
   fontFallback?: readonly {
     name: string

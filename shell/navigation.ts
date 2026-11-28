@@ -41,9 +41,17 @@ export const PLACES: readonly Place[] = [
   },
 ]
 
+/**
+ * Where "Sign in" goes: `/signin` once the shell's sign-in page is in the
+ * route tree, `/login` until then. next.config.ts reads the tree at build
+ * (lib/routing/signInPath.ts); anything else means `/login`.
+ */
+export const SIGN_IN_PATH: '/signin' | '/login' =
+  process.env.NEXT_PUBLIC_SIGN_IN_PATH === '/signin' ? '/signin' : '/login'
+
 /** The balance item: a sheet on a phone, a right panel on a desktop, and a
  * page for links and for a visitor with no script. */
-export const POCKET = { href: '/pocket', signIn: '/login' } as const
+export const POCKET = { href: '/pocket', signIn: SIGN_IN_PATH } as const
 
 function under(pathname: string, base: string): boolean {
   if (base === '/') return pathname === '/'

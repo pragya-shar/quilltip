@@ -8,18 +8,14 @@
 //   `next experimental-analyze --output`: which source modules each chunk
 //   holds. Used to refuse modules that must load only on demand.
 import { gzipSync } from 'zlib'
-import { SURFACE_FIRST_LOAD } from './routes'
+import { FIRST_LOAD_ENTRIES } from './routes'
 
-/** The routes whose first load is budgeted, as Next.js names them. */
-export const FIRST_LOAD_ROUTES = [
-  '/',
-  '/login',
-  '/articles',
-  '/[username]/[slug]',
-  // The rebuilt routes, one file per package (scripts/perf/routes).
-  ...SURFACE_FIRST_LOAD.map((entry) => entry.route),
-] as const
-export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
+/** The routes whose first load is budgeted, as Next.js names them: the
+ * legacy ones not yet replaced and every package's (scripts/perf/routes). */
+export const FIRST_LOAD_ROUTES: readonly string[] = FIRST_LOAD_ENTRIES.map(
+  (entry) => entry.route
+)
+export type FirstLoadRoute = string
 
 /**
  * Gzip budget for each route's first-load JavaScript, in KB (1024 bytes).
@@ -27,19 +23,10 @@ export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
  * few KB of growth fails; raise a budget in the change that needs it. See
  * docs/performance/page-load.md.
  */
-export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
-  '/': 211, // measured 208.9
-  '/login': 202, // measured 199.4
-  // The two legacy article routes carry the balance store in their first
-  // load and the early-press and focus code from the pages they share
-  // chrome with. Both pages are being replaced by the shell's own routes,
-  // which have their own budgets (scripts/perf/routes).
-  '/articles': 219, // measured 217.3
-  '/[username]/[slug]': 222, // measured 220.4
-  ...Object.fromEntries(
-    SURFACE_FIRST_LOAD.map((entry) => [entry.route, entry.budgetKb])
-  ),
-}
+export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> =
+  Object.fromEntries(
+    FIRST_LOAD_ENTRIES.map((entry) => [entry.route, entry.budgetKb])
+  )
 
 /**
  * Modules that must never be in the first load of these routes. Wallet, SDK

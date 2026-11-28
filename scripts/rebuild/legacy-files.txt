@@ -1,0 +1,54 @@
+# Every file under app/(legacy) on the base the surfaces build on (the route
+# split, the money layer's balance page, and what merges from overhaul/v2
+# add or remove there). scripts/rebuild/deleted-paths.test.ts: a file listed
+# here that is gone must be listed in a scripts/rebuild/deleted/<package>.txt
+# (so it never comes back), and no file under app/(legacy) may be added. Only
+# a merge from overhaul/v2 edits this list; a package never does.
+app/(legacy)/(auth)/forgot-password/page.tsx
+app/(legacy)/(auth)/layout.tsx
+app/(legacy)/(auth)/login/page.tsx
+app/(legacy)/(auth)/register/page.tsx
+app/(legacy)/(auth)/reset-password/page.tsx
+app/(legacy)/(auth)/waitlist/page.tsx
+app/(legacy)/[username]/[slug]/layout.tsx
+app/(legacy)/[username]/[slug]/not-found.tsx
+app/(legacy)/[username]/[slug]/page.tsx
+app/(legacy)/[username]/not-found.tsx
+app/(legacy)/[username]/page.tsx
+app/(legacy)/articles/page.tsx
+app/(legacy)/contact/page.tsx
+app/(legacy)/dashboard/balance/page.tsx
+app/(legacy)/dashboard/earnings/page.tsx
+app/(legacy)/dashboard/feedback/page.tsx
+app/(legacy)/dashboard/layout.tsx
+app/(legacy)/dashboard/loading.tsx
+app/(legacy)/dashboard/page.tsx
+app/(legacy)/dashboard/stats/page.tsx
+app/(legacy)/dashboard/tab/page.tsx
+app/(legacy)/dashboard/wallet/page.tsx
+app/(legacy)/demo/write/page.tsx
+app/(legacy)/drafts/loading.tsx
+app/(legacy)/drafts/page.tsx
+app/(legacy)/error.tsx
+app/(legacy)/guide/page.tsx
+app/(legacy)/layout.tsx
+app/(legacy)/library/loading.tsx
+app/(legacy)/library/page.tsx
+app/(legacy)/not-found.tsx
+app/(legacy)/ops/chain/page.tsx
+app/(legacy)/ops/loading.tsx
+app/(legacy)/page.tsx
+app/(legacy)/privacy/page.tsx
+app/(legacy)/profile/loading.tsx
+app/(legacy)/profile/page.tsx
+app/(legacy)/settings/loading.tsx
+app/(legacy)/settings/page.tsx
+app/(legacy)/settings/profile/page.tsx
+app/(legacy)/status/page.tsx
+app/(legacy)/support/page.tsx
+app/(legacy)/terms/page.tsx
+app/(legacy)/wallet/practice/page.tsx
+app/(legacy)/welcome/loading.tsx
+app/(legacy)/welcome/page.tsx
+app/(legacy)/write/loading.tsx
+app/(legacy)/write/page.tsx
