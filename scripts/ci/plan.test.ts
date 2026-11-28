@@ -127,6 +127,7 @@ describe('decide', () => {
     ]) {
       expect(shards(plan(changed(file)))).toEqual(['ab:a,b', 'c:c'])
     }
+    expect(shards(plan(changed('system/README.md')))).toEqual([])
   })
 
   it('runs everything for a path under a new top-level entry', () => {

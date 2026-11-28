@@ -182,7 +182,10 @@ export function decide(
   const forced =
     changes.find((c) => matches(c.path, EVERYTHING)) ??
     changes.find(unknownRoot)
-  const shared = changes.find((c) => matches(c.path, SHARED))
+  // A README in a shared folder is not an input.
+  const shared = changes.find(
+    (c) => matches(c.path, SHARED) && !c.path.endsWith('.md')
+  )
 
   const appChange = changes.find((c) => !matches(c.path, OUTSIDE_APP))
   const app = forced
