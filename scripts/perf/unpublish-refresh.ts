@@ -23,6 +23,7 @@ import { rmSync } from 'fs'
 import { join } from 'path'
 import {
   FIXTURE_DRAFT,
+  FIXTURE_SLUG,
   FIXTURE_WRITER,
   fixtureArticlePath,
   fixtureArticleVersion,
@@ -129,6 +130,20 @@ async function expectLoad(
   for (const problem of problems) failures.push(`${label}, ${kind}: ${problem}`)
 }
 
+/** Only the route check is slow: the proxy gives up on it, the rest answers. */
+function slowRouteCheck(on: boolean) {
+  Object.assign(
+    fixtureBackendBehaviour,
+    on
+      ? {
+          mode: 'slow',
+          delayMs: PUBLIC_READ_TIMEOUT_MS * 2,
+          slowPaths: ['publicRoutes:resolvePublicRoute'],
+        }
+      : { mode: 'normal', delayMs: 0, slowPaths: undefined }
+  )
+}
+
 /** Loads a published article twice, so its copy is cached. */
 async function warm(label: string, path: string) {
   for (let i = 0; i < 2; i++)
@@ -205,11 +220,7 @@ async function main() {
     // Only the route check is slow (the proxy gives up on it), the rest of the
     // backend answers: the page reads directly, so a published article still
     // shows and the hidden one still answers as missing.
-    Object.assign(fixtureBackendBehaviour, {
-      mode: 'slow',
-      delayMs: PUBLIC_READ_TIMEOUT_MS * 2,
-      slowPaths: ['publicRoutes:resolvePublicRoute'],
-    })
+    slowRouteCheck(true)
     await expectLoad('slow route check, published', other, 'page', {
       status: 200,
       has: [PROSE],
@@ -220,11 +231,42 @@ async function main() {
       lacks: [PROSE],
       maxMs: TROUBLE_BOUND_MS + PUBLIC_READ_TIMEOUT_MS,
     })
-    Object.assign(fixtureBackendBehaviour, {
-      mode: 'normal',
-      delayMs: 0,
-      slowPaths: undefined,
-    })
+    slowRouteCheck(false)
+
+    // One article read while the route check is slow, then hidden. A copy of
+    // that read is never used again: not while the check is still slow, and
+    // not once it answers. Each case on its own article, so a copy kept from
+    // the first read would be the one asked for.
+    const afterSlowRead = [
+      ['the check still slow', 'fixture-article-9', 'page', true],
+      ['the check still slow', 'fixture-article-3', 'navigation', true],
+      ['the check answering', 'fixture-article-2', 'page', false],
+      ['the check answering', FIXTURE_SLUG, 'navigation', false],
+    ] as const
+    for (const [when, slug, kind, stillSlow] of afterSlowRead) {
+      const path = `/${FIXTURE_WRITER}/${slug}`
+      slowRouteCheck(true)
+      await expectLoad(`slow route check, ${slug} published`, path, kind, {
+        status: 200,
+        has: [PROSE],
+        maxMs: TROUBLE_BOUND_MS,
+      })
+      setFixtureArticlePublished(slug, false)
+      slowRouteCheck(stillSlow)
+      await expectLoad(`${slug} hidden, ${when}`, path, kind, {
+        // A navigation's status is sent before the page knows the article is
+        // missing when the moved-handle lookup runs out of time first. Its
+        // payload is the not-found screen either way.
+        ...(kind === 'page'
+          ? { status: 404 }
+          : { has: ['NEXT_HTTP_ERROR_FALLBACK;404'] }),
+        lacks: [PROSE],
+        maxMs: TROUBLE_BOUND_MS + PUBLIC_READ_TIMEOUT_MS,
+      })
+      slowRouteCheck(false)
+      setFixtureArticlePublished(slug, true)
+    }
+
     setFixtureArticlePublished('fixture-article-4', true)
     for (const kind of ['page', 'navigation'] as const)
       await expectLoad('republished', hidden, kind, {
