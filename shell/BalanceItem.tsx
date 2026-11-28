@@ -1,6 +1,6 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import { useEffect, useSyncExternalStore } from 'react'
 import { Icon } from '@/system/components/Icon'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { BalanceIcon } from '@/system/icons'
@@ -8,7 +8,7 @@ import { figureState, spokenValue } from '@/system/money/figure'
 import { useBalanceReading } from './balance'
 import { POCKET } from './navigation'
 import { warmPocket } from './pocket/loadPocket'
-import { hasAuthToken } from './prePaint'
+import { SESSION_ATTR, hasAuthToken } from './prePaint'
 import { openSignIn } from './signIn'
 import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
@@ -44,6 +44,14 @@ export function BalanceItem({ className }: { className: string }) {
   // neutral) instead of following the sign-in link. False on the server and
   // with no script, where the link is right.
   const held = useSyncExternalStore(noSubscribe, tokenHeld, () => false)
+  // Once auth answers, the marker the pre-paint script set from a stored
+  // token follows the answer: what shows before auth (this item's word, the
+  // /pocket page's prompt or balance) is right after it too.
+  useEffect(() => {
+    const root = document.documentElement
+    if (reading.auth === 'signed-in') root.setAttribute(SESSION_ATTR, 'held')
+    else if (reading.auth === 'signed-out') root.removeAttribute(SESSION_ATTR)
+  }, [reading.auth])
   const open = useSheets().some((entry) => entry.id === 'pocket' && entry.open)
   const unknown = reading.auth === 'loading'
   const signedOut = reading.auth === 'signed-out'
