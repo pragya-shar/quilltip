@@ -1,8 +1,15 @@
 'use client'
 
-import { useSyncExternalStore } from 'react'
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { modalStack } from '../modalStack'
+import { useOnlyOne } from '../onlyOne'
 import { toastStore, type ToastItem } from '../toast'
 import { Toast } from './Toast'
 
@@ -13,8 +20,16 @@ const none: readonly ToastItem[] = []
  * live regions exist when a toast arrives and screen readers announce it.
  * While a sheet or dialog is open, the region moves into it: a modal makes
  * the rest of the page inert and covers it in the top layer.
+ *
+ * The region is one element for the life of the page. Opening or closing a
+ * modal moves that element in the document; React never remounts it, so a
+ * toast keeps its time left and is not announced twice. A moved element
+ * would start its entry animation again, so a toast drops it once it has
+ * played (Toast). One region per page: a second is an error in
+ * development.
  */
 export function ToastRegion() {
+  useOnlyOne('ToastRegion')
   const items = useSyncExternalStore(
     toastStore.subscribe,
     toastStore.get,
@@ -25,21 +40,47 @@ export function ToastRegion() {
     modalStack.top,
     () => null
   )
+  const anchor = useRef<HTMLDivElement>(null)
+  // Created after hydration: the server draws only the anchor.
+  const [region, setRegion] = useState<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const node = document.createElement('div')
+    node.className = 'qt-toasts'
+    setRegion(node)
+    return () => node.remove()
+  }, [])
+  useLayoutEffect(() => {
+    if (!region) return
+    const parent = host ?? anchor.current
+    if (parent && region.parentNode !== parent) parent.append(region)
+  }, [host, region])
+
   const polite = items.filter((item) => item.tone !== 'failure')
   const urgent = items.filter((item) => item.tone === 'failure')
-  const region = (
-    <div className="qt-toasts">
-      <div role="alert" aria-live="assertive" className="qt-toasts__list">
-        {urgent.map((item) => (
-          <Toast key={item.id} item={item} />
-        ))}
-      </div>
-      <div role="status" aria-live="polite" className="qt-toasts__list">
-        {polite.map((item) => (
-          <Toast key={item.id} item={item} />
-        ))}
-      </div>
-    </div>
+  return (
+    <>
+      <div ref={anchor} className="qt-toasts-anchor" />
+      {region
+        ? createPortal(
+            <>
+              <div
+                role="alert"
+                aria-live="assertive"
+                className="qt-toasts__list"
+              >
+                {urgent.map((item) => (
+                  <Toast key={item.id} item={item} />
+                ))}
+              </div>
+              <div role="status" aria-live="polite" className="qt-toasts__list">
+                {polite.map((item) => (
+                  <Toast key={item.id} item={item} />
+                ))}
+              </div>
+            </>,
+            region
+          )
+        : null}
+    </>
   )
-  return host ? createPortal(region, host) : region
 }

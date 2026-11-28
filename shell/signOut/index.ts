@@ -3,22 +3,22 @@
  * the shell runs them and never imports a surface. A package adds its
  * file's entries.
  */
-import type { SignOutCleanup } from './types'
-import { cleanups as ops } from './ops'
-import { cleanups as pocket } from './pocket'
-import { cleanups as read } from './read'
-import { cleanups as resources } from './resources'
-import { cleanups as search } from './search'
-import { cleanups as shelf } from './shelf'
-import { cleanups as signin } from './signin'
-import { cleanups as today } from './today'
-import { cleanups as write } from './write'
-import { cleanups as writer } from './writer'
-import { cleanups as you } from './you'
+import type { SignOutCleanup, SignOutWarning } from './types'
+import * as ops from './ops'
+import * as pocket from './pocket'
+import * as read from './read'
+import * as resources from './resources'
+import * as search from './search'
+import * as shelf from './shelf'
+import * as signin from './signin'
+import * as today from './today'
+import * as write from './write'
+import * as writer from './writer'
+import * as you from './you'
 
-export type { SignOutCleanup } from './types'
+export type { SignOutCleanup, SignOutWarning } from './types'
 
-export const SIGN_OUT_PACKAGES = {
+const PACKAGES = {
   ops,
   pocket,
   read,
@@ -30,10 +30,59 @@ export const SIGN_OUT_PACKAGES = {
   write,
   writer,
   you,
-} satisfies Record<string, readonly SignOutCleanup[]>
+} satisfies Record<
+  string,
+  {
+    cleanups: readonly SignOutCleanup[]
+    warnings: readonly SignOutWarning[]
+  }
+>
 
-export const SIGN_OUT_CLEANUPS: readonly SignOutCleanup[] =
-  Object.values(SIGN_OUT_PACKAGES).flat()
+export const SIGN_OUT_PACKAGES = Object.fromEntries(
+  Object.entries(PACKAGES).map(([name, pkg]) => [name, pkg.cleanups])
+) as Record<keyof typeof PACKAGES, readonly SignOutCleanup[]>
+
+export const SIGN_OUT_CLEANUPS: readonly SignOutCleanup[] = Object.values(
+  PACKAGES
+).flatMap((pkg) => pkg.cleanups)
+
+export const SIGN_OUT_WARNINGS: readonly SignOutWarning[] = Object.values(
+  PACKAGES
+).flatMap((pkg) => pkg.warnings)
+
+/** How long a warning check may take before sign-out goes on without it. */
+export const WARNING_LIMIT_MS = 800
+
+/**
+ * The sentences to show before signing out: every check at once, each
+ * bounded by `limitMs`; one that throws or answers late says nothing.
+ */
+export async function signOutWarnings(
+  warnings: readonly SignOutWarning[] = SIGN_OUT_WARNINGS,
+  limitMs = WARNING_LIMIT_MS
+): Promise<string[]> {
+  const answers = await Promise.all(
+    warnings.map(async (warning) => {
+      let timer: ReturnType<typeof setTimeout> | undefined
+      try {
+        return await Promise.race([
+          warning.check(),
+          new Promise<null>((resolve) => {
+            timer = setTimeout(() => resolve(null), limitMs)
+          }),
+        ])
+      } catch {
+        return null
+      } finally {
+        clearTimeout(timer)
+      }
+    })
+  )
+  return answers.filter(
+    (answer): answer is string =>
+      typeof answer === 'string' && answer.trim() !== ''
+  )
+}
 
 /**
  * Runs every cleanup; one that fails is logged and does not stop the rest.

@@ -227,6 +227,11 @@
     }
   }
 
+  /* Where the toast region sits while no modal is open; it adds no box. */
+  .qt-toasts-anchor {
+    display: contents;
+  }
+
   /* Toasts: always dark, above the phone navigation. */
   /* Toasts sit above whatever is docked at the foot of the screen: the
    * phone bar on a place, nothing on a pushed screen, a docked bar (the tip
@@ -267,8 +272,13 @@
     background: var(--qt-toast-bg);
     color: var(--qt-toast-ink);
     box-shadow: var(--qt-shadow-float);
-    pointer-events: auto;
+    /* Taps pass through the card to what is under it; only the action
+     * takes them (below). */
+    pointer-events: none;
     animation: qt-rise var(--qt-dur-base) var(--qt-ease-out);
+  }
+  .qt-toast[data-entered] {
+    animation: none;
   }
   .qt-toast__glyph {
     display: inline-grid;
@@ -294,6 +304,7 @@
     line-height: var(--qt-lh-ui-s);
   }
   .qt-toast__action {
+    pointer-events: auto;
     min-height: var(--qt-hit);
     padding-inline: var(--qt-space-3);
     border-radius: var(--qt-radius-pill);
@@ -365,6 +376,10 @@
     color: var(--qt-ink);
     font-weight: var(--qt-weight-ui);
     text-align: start;
+  }
+  .qt-menu__item[aria-disabled='true'] {
+    color: var(--qt-ink-3);
+    cursor: default;
   }
   .qt-menu__item[data-tone='danger'] {
     color: var(--qt-danger);

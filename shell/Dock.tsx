@@ -2,13 +2,15 @@
 
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { cx } from '@/system/cx'
+import { useOnlyOne } from '@/system/onlyOne'
 
 /**
  * A bar docked at the foot of a pushed screen (the tip bar). While it is on
  * screen it reports to the shell how far its top edge is from the bottom of
  * the viewport (`--qt-dock-h` and `data-docked` on <html>), updated on
  * resize and scroll, so toasts sit above it and never cover a control the
- * reader needs next.
+ * reader needs next. One per page: a second clears the lift when either
+ * goes, so it is an error in development.
  */
 export function Dock({
   children,
@@ -17,6 +19,7 @@ export function Dock({
   children: ReactNode
   className?: string
 }) {
+  useOnlyOne('Dock')
   const ref = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const node = ref.current

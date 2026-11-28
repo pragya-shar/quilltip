@@ -1,7 +1,9 @@
 import { sheetStack } from '../../../shell/sheetStack'
 import { warmSheet } from '../../../shell/sheets/preload'
+import { FocusCases } from './FocusCases'
 
-/** Openers for the declared demo sheets (fixture route /sheets). */
+/** Openers for the declared demo sheets (fixture route /sheets), and the
+ * focus cases: an opener that is gone, and a page that moves focus. */
 export function SheetsPage() {
   return (
     <div className="qt-page">
@@ -22,6 +24,7 @@ export function SheetsPage() {
       >
         Open the sheet that fails once
       </button>
+      <FocusCases />
     </div>
   )
 }
