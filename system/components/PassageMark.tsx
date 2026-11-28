@@ -105,7 +105,7 @@ export function PassageMark({
       </mark>
       {has('others-top') && count ? (
         <span className="qt-mark__count" aria-hidden="true">
-          {count}
+          <span>{count}</span>
         </span>
       ) : null}
       {has('mine') ? (

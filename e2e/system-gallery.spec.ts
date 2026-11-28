@@ -449,32 +449,45 @@ test('another amount: typed, checked, chosen without sending', async ({
 test('a line changing state keeps every line break', async ({ page }) => {
   await open(page)
   const layout = await page.evaluate(() =>
-    ['chosen', 'holding', 'mine'].map((state) => {
-      const p = document.querySelector<HTMLElement>(`[data-steady="${state}"]`)!
-      // Lines of text, not the ornaments drawn beside it.
-      const bottoms = new Set<number>()
-      const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT)
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        if (node.parentElement?.closest('[aria-hidden="true"]')) continue
-        const range = document.createRange()
-        range.selectNodeContents(node)
-        for (const r of range.getClientRects())
-          if (r.width > 0) bottoms.add(Math.round(r.bottom))
+    ['chosen', 'holding', 'mine', 'others-top', 'others-top-chosen'].map(
+      (state) => {
+        const p = document.querySelector<HTMLElement>(
+          `[data-steady="${state}"]`
+        )!
+        // Lines of text, not the ornaments drawn beside it.
+        const bottoms = new Set<number>()
+        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT)
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (node.parentElement?.closest('[aria-hidden="true"]')) continue
+          const range = document.createRange()
+          range.selectNodeContents(node)
+          for (const r of range.getClientRects())
+            if (r.width > 0) bottoms.add(Math.round(r.bottom))
+        }
+        const lines = bottoms.size
+        const base = p.getBoundingClientRect()
+        const words = [...p.querySelector('.qt-mark')!.getClientRects()].map(
+          (r) =>
+            [r.left - base.left, r.top - base.top, r.width].map((v) =>
+              Math.round(v)
+            )
+        )
+        // Where the text after the line starts: anything drawn in the flow
+        // after the mark (a count, a check) would push it along.
+        const tail = p.lastChild as Text
+        const after = document.createRange()
+        after.setStart(tail, tail.data.search(/\S/))
+        after.setEnd(tail, tail.data.search(/\S/) + 1)
+        const first = after.getClientRects()[0]!
+        const next = [first.left - base.left, first.top - base.top].map((v) =>
+          Math.round(v)
+        )
+        return { height: Math.round(base.height), lines, words, next }
       }
-      const lines = bottoms.size
-      const base = p.getBoundingClientRect()
-      const words = [...p.querySelector('.qt-mark')!.getClientRects()].map(
-        (r) =>
-          [r.left - base.left, r.top - base.top, r.width].map((v) =>
-            Math.round(v)
-          )
-      )
-      return { height: Math.round(base.height), lines, words }
-    })
+    )
   )
   expect(layout[0]!.lines).toBeGreaterThan(1)
-  expect(layout[1]).toEqual(layout[0])
-  expect(layout[2]).toEqual(layout[0])
+  for (const other of layout.slice(1)) expect(other).toEqual(layout[0])
 })
 
 test('forced colors keep their mapping under a stored dark theme', async ({

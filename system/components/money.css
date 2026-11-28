@@ -450,15 +450,25 @@
       box-shadow: 0 0 0 var(--qt-mark-bleed) var(--qt-mark-fill);
     }
   }
+  /* The count after a line takes no width either: raised over the space
+   * after it, like the check, so a line with a count never rewraps. */
   .qt-mark__count {
-    margin-inline-start: 0.3em;
+    position: relative;
+    display: inline-block;
+    width: 0;
+    height: 0;
+  }
+  .qt-mark__count > span {
+    position: absolute;
+    inset-inline-start: 0.12em;
+    inset-block-end: 0.62em;
     font-family: var(--qt-font-ui);
     font-size: var(--qt-text-ui-xxs);
     line-height: 1;
     font-weight: var(--qt-weight-ui-strong);
     color: var(--qt-marker-ink);
     font-variant-numeric: tabular-nums;
-    vertical-align: 0.2em;
+    white-space: nowrap;
   }
   /* The check after your line takes no width: it sits raised over the
    * space after the line, like a superscript, so tipping never rewraps. */
