@@ -314,6 +314,31 @@ test.describe('mobile menu before the page scripts run', () => {
     )
   })
 
+  test('a menu React renders again in the same moment as the tap stays open', async ({
+    page,
+  }) => {
+    // The open is recorded as the popover opens, not a task later: here the
+    // sheet leaves the page in the same task as the tap, before the browser
+    // reports the open with a toggle event (#658).
+    await recordConvexMessages(page)
+    const release = await holdPageScripts(page)
+    await page.goto(MENU_PAGE, { waitUntil: 'domcontentloaded' })
+    await page.evaluate(() => {
+      document.querySelector<HTMLButtonElement>('.app-menu-trigger')!.click()
+      document.querySelector('dialog.app-mobile-menu')!.remove()
+    })
+    release()
+    const dialog = page.getByRole('dialog', { name: 'Find your way' })
+    await expect(page.locator('.app-menu-trigger')).toHaveAttribute(
+      'aria-expanded',
+      'true'
+    )
+    await expect(dialog).toBeVisible()
+    expect(await dialog.evaluate((element) => element.matches(':modal'))).toBe(
+      true
+    )
+  })
+
   test('the close button and the backdrop close the menu before the scripts run', async ({
     page,
   }) => {
