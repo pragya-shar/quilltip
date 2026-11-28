@@ -279,13 +279,14 @@ describe('write.saveDraft saves', () => {
     })
   })
 
-  test('a create returns { id, updatedAt }; an empty title is kept as a draft', async () => {
+  test('a create returns { id, updatedAt, created }; an empty title is kept as a draft', async () => {
     const w = await setup()
     const d = await w.writer.mutation(api.write.saveDraft, {
       title: '',
       content: doc('Words before a title.'),
     })
-    expect(Object.keys(d).sort()).toEqual(['id', 'updatedAt'])
+    expect(Object.keys(d).sort()).toEqual(['created', 'id', 'updatedAt'])
+    expect(d.created).toBe(true)
     expect(await row(w, d.id)).toMatchObject({
       title: '',
       published: false,
@@ -322,11 +323,54 @@ describe('write.saveDraft saves', () => {
       title: 'Once, retried',
       content: doc('Once, retried.'),
     })
-    expect(again).toEqual(first)
+    expect(first.created).toBe(true)
+    expect(again).toEqual({ ...first, created: false })
     expect(await row(w, first.id)).toEqual(before)
     expect(
       await w.t.run((ctx) => ctx.db.query('articles').collect())
     ).toHaveLength(1)
+  })
+
+  test('created says whether this call made the draft', async () => {
+    const w = await setup()
+    const fresh = await w.writer.mutation(api.write.saveDraft, {
+      title: 'No client id',
+      content: doc('One.'),
+    })
+    expect(fresh.created).toBe(true)
+    const update = await w.writer.mutation(api.write.saveDraft, {
+      id: fresh.id,
+      baseUpdatedAt: fresh.updatedAt,
+      title: 'No client id',
+      content: doc('One. Two.'),
+    })
+    expect(update.created).toBe(false)
+    const known = await w.writer.mutation(api.write.saveDraft, {
+      clientId: CLIENT,
+      title: 'Device draft',
+      content: doc('Words.'),
+    })
+    expect(known.created).toBe(true)
+    // The device lost its answer and asks again: the server holds this draft.
+    const repeat = await w.writer.mutation(api.write.saveDraft, {
+      clientId: CLIENT,
+      title: 'Device draft',
+      content: doc('Words.'),
+    })
+    expect(repeat).toEqual({
+      id: known.id,
+      updatedAt: known.updatedAt,
+      created: false,
+    })
+    // A known id whose draft was deleted since makes a new draft.
+    await w.t.run((ctx) => ctx.db.delete(known.id))
+    const again = await w.writer.mutation(api.write.saveDraft, {
+      clientId: CLIENT,
+      title: 'Device draft',
+      content: doc('Words.'),
+    })
+    expect(again.created).toBe(true)
+    expect(again.id).not.toBe(known.id)
   })
 
   test('another author’s clientId is not matched', async () => {

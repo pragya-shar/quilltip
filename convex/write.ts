@@ -148,8 +148,11 @@ export const desk = query({
 })
 
 /**
- * Saves a draft's title and document; returns `{ id, updatedAt }`, the base
- * for the next save. Errors: `not-signed-in`, `draft-not-found` (missing or
+ * Saves a draft's title and document; returns `{ id, updatedAt, created }`:
+ * `updatedAt` is the base for the next save, and `created` is true only when
+ * this call made a new draft (false for an update, and for a create whose
+ * `clientId` is already known, so the client learns that the server may hold
+ * earlier words for that draft). Errors: `not-signed-in`, `draft-not-found` (missing or
  * another writer's), `draft-published`, `draft-changed` (with the server's
  * `updatedAt`), `draft-too-large`, `title-too-long`, `invalid-client-id`.
  * A refused save writes nothing.
@@ -162,7 +165,11 @@ export const saveDraft = mutation({
     title: v.string(),
     content: v.any(),
   },
-  returns: v.object({ id: v.id('articles'), updatedAt: v.number() }),
+  returns: v.object({
+    id: v.id('articles'),
+    updatedAt: v.number(),
+    created: v.boolean(),
+  }),
   handler: async (ctx, args) => {
     const userId = await requireUser(ctx)
     if (args.title.length > TITLE_MAX_LENGTH) {
@@ -215,7 +222,7 @@ export const saveDraft = mutation({
       const after = await ctx.db.get(article._id)
       if (after)
         await syncArticleUploadReferences(ctx, article._id, article, after)
-      return { id: article._id, updatedAt }
+      return { id: article._id, updatedAt, created: false }
     }
 
     if (args.clientId !== undefined) {
@@ -227,7 +234,11 @@ export const saveDraft = mutation({
         .unique()
       const existing = known ? await ctx.db.get(known.articleId) : null
       if (existing && existing.authorId === userId) {
-        return { id: existing._id, updatedAt: existing.updatedAt }
+        return {
+          id: existing._id,
+          updatedAt: existing.updatedAt,
+          created: false,
+        }
       }
       if (known) await ctx.db.delete(known._id)
     }
@@ -269,7 +280,7 @@ export const saveDraft = mutation({
       })
     }
     await syncArticleUploadReferences(ctx, id, null, { content: args.content })
-    return { id, updatedAt: now }
+    return { id, updatedAt: now, created: true }
   },
 })
 
