@@ -1,0 +1,16 @@
+/*
+ * The design system's one CSS entry. Imported only by the application root
+ * layout (app/(app)/layout.tsx). Layers: base (element defaults), then
+ * components, then surfaces; a surface's own CSS goes in `@layer surfaces`
+ * and so wins over a component without raising specificity.
+ */
+@layer base, components, surfaces;
+
+@import './tokens.css';
+@import './font-fallbacks.css';
+@import './base.css';
+@import './components/text.css';
+@import './components/button.css';
+@import './components/money.css';
+@import './components/overlay.css';
+@import './components/content.css';

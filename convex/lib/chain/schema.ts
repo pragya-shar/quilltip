@@ -217,6 +217,12 @@ export const tabTables = {
     ),
     /** RPC id of the newest event that set `status`. */
     statusEventId: v.optional(v.string()),
+    /**
+     * Running total, in US cents at tip time, of the reader's receipts that
+     * still reserve the balance (`ACCEPTED`, `SHORTFALL`). Kept by
+     * `syncReceiptMoney`; unset before it ran for this account.
+     */
+    reservedCents: v.optional(v.number()),
     /** Keys the client announced before registering them on chain. */
     pendingKeys: v.array(
       v.object({
@@ -282,14 +288,37 @@ export const tabTables = {
     acceptanceSignature: v.string(),
     acceptedAt: v.number(),
     settledEventId: v.optional(v.string()),
+    /**
+     * The tip's US cents as the reader chose them, copied from the tip row at
+     * acceptance so the money views read one table. Unset on receipts
+     * accepted before it existed; readers fall back to the tip row.
+     */
+    amountCents: v.optional(v.number()),
+    /** The client's `requestId` of the tip, copied from the tip row. */
+    requestId: v.optional(v.string()),
+    /**
+     * The status whose money the running figures (`tabAccounts.reservedCents`,
+     * the `authorEarnings.balance*` fields) include. `syncReceiptMoney` moves
+     * the receipt's money from this status to `status` once; unset means none.
+     */
+    moneyAppliedStatus: v.optional(tabReceiptStatusValidator),
+    /** The cents this receipt holds in its writer bucket (pending, on hold
+     * or not paid); unset on receipts applied before it existed. */
+    moneyAppliedCents: v.optional(v.number()),
+    /** The reader's cents it reserves (its unpaid part); unset as above. */
+    moneyReservedCents: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_pair_seq', ['tabAccountId', 'keyId', 'writerAddress', 'seq'])
     /** A reader's receipts by time, for the tab screens' recent tips. */
     .index('by_account_accepted', ['tabAccountId', 'acceptedAt'])
+    /** A writer's receipts by time, for the writer's earnings list. */
+    .index('by_author_accepted', ['authorId', 'acceptedAt'])
     .index('by_status_created', ['status', 'createdAt'])
-    .index('by_client_ref', ['clientRef']),
+    .index('by_client_ref', ['clientRef'])
+    .index('by_request', ['requestId'])
+    .index('by_author_status_accepted', ['authorId', 'status', 'acceptedAt']),
 
   tabVouchers: defineTable({
     network: chainNetworkValidator,

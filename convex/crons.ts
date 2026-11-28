@@ -1,5 +1,6 @@
 import { cronJobs } from 'convex/server'
 import { internal } from './_generated/api'
+import { SWEEP_RUNS_PER_DAY } from './shares'
 
 const crons = cronJobs()
 
@@ -95,7 +96,8 @@ crons.interval(
 crons.interval(
   'settle due tab vouchers',
   { minutes: 10 },
-  internal.tabSettler.settleDue
+  internal.tabSettler.settleDue,
+  {}
 )
 
 // Payments v2: credit CONFIRMED and MISMATCH direct and batch tips to
@@ -113,6 +115,17 @@ crons.interval(
   'rebuild lifetime earnings totals',
   { minutes: 1 },
   internal.earningsTotalsBackfill.run
+)
+
+// Re-check passage share quotes whose article changed without its reconcile
+// call, and delete rows cleared long ago (convex/shares.ts sweep). Hourly, so
+// it walks SWEEP_ROWS_PER_DAY (60,000) rows a day. Bounded per step; each step
+// that reads a share also writes the sweep's position.
+crons.interval(
+  'sweep passage share quotes',
+  { hours: 24 / SWEEP_RUNS_PER_DAY },
+  internal.shares.sweep,
+  {}
 )
 
 export default crons

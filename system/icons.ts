@@ -1,0 +1,46 @@
+/**
+ * The icon vocabulary: Hugeicons stroke-rounded (the free set), one icon per
+ * meaning, following the design's map. Surfaces use these
+ * names, not raw imports, so a meaning keeps one icon everywhere. Add a
+ * meaning here before using a new icon.
+ */
+export {
+  HighlighterIcon as TipIcon,
+  Wallet01Icon as BalanceIcon,
+  Home01Icon as ReadIcon,
+  Home01Icon as TodayIcon,
+  LibraryIcon as ShelfIcon,
+  Bookmark02Icon as KeepIcon,
+  BookmarkCheck02Icon as KeptIcon,
+  PencilEdit02Icon as WriteIcon,
+  Search01Icon as SearchIcon,
+  UserCircleIcon as YouIcon,
+  PlusSignIcon as AddIcon,
+  ArrowUpRight01Icon as WithdrawIcon,
+  QrCodeIcon as ReceiveIcon,
+  Share08Icon as ShareIcon,
+  Link01Icon as LinkIcon,
+  Download04Icon as SaveImageIcon,
+  FaceIdIcon as FaceIdIcon,
+  FingerPrintIcon as FingerprintIcon,
+  Tick02Icon as DoneIcon,
+  AlertCircleIcon as FailIcon,
+  InformationCircleIcon as InfoIcon,
+  Clock01Icon as PendingIcon,
+  WifiOff01Icon as OfflineIcon,
+  RefreshIcon as RetryIcon,
+  Edit02Icon as EditIcon,
+  ViewIcon as ReadItIcon,
+  Globe02Icon as OpenInBrowserIcon,
+  Notification01Icon as NotificationsIcon,
+  Settings01Icon as SettingsIcon,
+  Cancel01Icon as CloseIcon,
+  ArrowLeft01Icon as BackIcon,
+  ArrowRight01Icon as ForwardIcon,
+  ArrowDown01Icon as ExpandIcon,
+  MoreHorizontalIcon as MoreIcon,
+  DollarCircleIcon as AmountIcon,
+  GiftIcon as GiftIcon,
+  StarIcon as SupporterIcon,
+  Archive02Icon as PermanentIcon,
+} from '@hugeicons/core-free-icons'

@@ -20,6 +20,7 @@ import {
   rejectVouchers,
   selectSettlementCandidates,
 } from './lib/chain/settlementStore'
+import { requestSettlement } from './lib/chain/settleSchedule'
 import { sweepExpiredPairs, tabError } from './lib/chain/tabLedger'
 
 /** Longer than a run (resolve, simulate, send and poll), shorter than the cron. */
@@ -47,6 +48,13 @@ export const acquireSettlerLease = internalMutation({
       chainEpoch: chain.chainEpoch,
     })
   },
+})
+
+/** A requested settler run that could not settle asks for another one. */
+export const requestFollowUp = internalMutation({
+  args: { followUp: v.number() },
+  handler: async (ctx, args) =>
+    requestSettlement(ctx, Date.now(), { followUp: args.followUp }),
 })
 
 export const releaseSettlerLease = internalMutation({

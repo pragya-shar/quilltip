@@ -79,6 +79,7 @@ import {
   extractTextFromTiptapJson,
   tiptapJsonHasNonEmptyText,
 } from './lib/tiptapContent'
+import { scheduleShareReconcile } from './shares'
 
 const WRITER_NOTES_MAX_LENGTH = 5000
 const PUBLISH_RECEIVING_WALLET_ERROR =
@@ -1066,6 +1067,7 @@ export const updateArticle = mutation({
     }
 
     await ctx.db.patch(args.id, updates)
+    if (args.content !== undefined) await scheduleShareReconcile(ctx, args.id)
 
     const updated = await ctx.db.get(args.id)
     if (updated)
@@ -1209,6 +1211,7 @@ export const publishArticle = mutation({
       await replaceTagLinksForArticle(ctx, publishedRow)
       await syncReadingRoomArticle(ctx, publishedRow._id, publishedRow)
     }
+    await scheduleShareReconcile(ctx, args.id)
 
     if (shouldUpload) {
       // Schedule Arweave upload (runs in background)
@@ -1291,6 +1294,7 @@ export const deleteArticle = mutation({
 
     // Delete article
     await ctx.db.delete(args.id)
+    await scheduleShareReconcile(ctx, args.id)
 
     return { success: true }
   },
@@ -1455,6 +1459,7 @@ export const unpublishArticlesWithPlaceholderTitles = internalMutation({
         publishedAt: undefined,
         updatedAt: now,
       })
+      await scheduleShareReconcile(ctx, article._id)
 
       articleCountDeltaByAuthor.set(
         article.authorId,
@@ -1559,6 +1564,7 @@ export const hideReviewedArticles = internalMutation({
       await removeTagLinksForArticle(ctx, article._id)
       await syncReadingRoomArticle(ctx, article._id, null)
       await ctx.db.patch(article._id, { published: false, updatedAt: now })
+      await scheduleShareReconcile(ctx, article._id)
       deltas.set(article.authorId, (deltas.get(article.authorId) ?? 0) + 1)
     }
     for (const [authorId, delta] of deltas) {
@@ -1589,6 +1595,7 @@ export const setAllArticlesToDraft = internalMutation({
           published: false,
           updatedAt: now,
         })
+        await scheduleShareReconcile(ctx, article._id)
         updated += 1
       }
     }

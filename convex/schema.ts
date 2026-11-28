@@ -5,6 +5,7 @@ import { authTables } from '@convex-dev/auth/server'
 import { nftChainFields, nftTransferChainFields } from './lib/chain/nftSchema'
 import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
 import { lifetimeTotalsFields } from './lib/lifetimeTotalsFields'
+import { passagesTables } from './schema/passages'
 import { writeTables } from './schema/write'
 
 export default defineSchema({
@@ -606,6 +607,31 @@ export default defineSchema({
     // The v2 part of tipCount and totalEarnedCents.
     v2TipCount: v.optional(v.number()),
     v2EarnedCents: v.optional(v.number()),
+    // Tab tips not settled, and collects, as running figures kept by
+    // `syncReceiptMoney` and `syncCollectedCents`
+    // (convex/lib/chain/balanceFigures.ts). Cents are the writer's share on
+    // the 1/10,000-cent grid of `tabEarnedCents`. Unset means zero.
+    // `tabPendingCents` is accepted and not yet settled; unlike the v1
+    // `pendingBalanceCents` (always 0 today) and the pair-level
+    // `pendingBaseUnits` (which also holds tips on hold for shortfall).
+    tabPendingCents: v.optional(v.number()),
+    tabPendingCount: v.optional(v.number()),
+    tabOnHoldCents: v.optional(v.number()),
+    tabOnHoldCount: v.optional(v.number()),
+    tabNotPaidCents: v.optional(v.number()),
+    tabNotPaidCount: v.optional(v.number()),
+    /**
+     * Settled tab cents moved to collected by indexed `Claimed` amounts;
+     * not the v1 `withdrawnCents`. Available cents = `tabEarnedCents` minus
+     * this, not the v1 `availableBalanceCents` (earned minus withdrawn).
+     */
+    tabCollectedCents: v.optional(v.number()),
+    /** Collected base units matched against settled ones, per token. */
+    tabMatchedBaseUnits: v.optional(v.record(v.string(), v.string())),
+    /** Collected base units seen before the settlement that funded them. */
+    tabAheadBaseUnits: v.optional(v.record(v.string(), v.string())),
+    /** The `collectedBaseUnits` value already applied to cents. */
+    tabCollectedAppliedBaseUnits: v.optional(v.record(v.string(), v.string())),
 
     // Lifetime totals per recipient for the writer's earnings summary
     // (#552, convex/lib/lifetimeEarnings.ts), and the progress of a row's
@@ -850,5 +876,6 @@ export default defineSchema({
   // Payments v2 chain layer (docs/architecture/v2/06-app-integration.md, 6.2)
   ...chainTables,
   ...tabTables,
+  ...passagesTables,
   ...writeTables,
 })
