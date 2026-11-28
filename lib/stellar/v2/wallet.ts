@@ -411,6 +411,20 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
 
   const forget = () => forgetRememberedWallet(options.storage, rememberFor)
 
+  /**
+   * Removes the kit's own storage keys while nothing is connected (#607). The
+   * kit writes them from an effect that runs when its module is imported and
+   * whenever its wallet state changes, including on disconnect: two of them
+   * (`hardwareWalletPaths`, `wcSessionPaths`) are written even when empty.
+   * Quilltip never reads them, so the adapter removes them after each step
+   * that can trigger that write and leaves nothing connected: the kit load,
+   * a restore, a failed connect and a disconnect. A clear made elsewhere
+   * (the sign-in pages) is then not undone by a write that lands after it.
+   */
+  const tidyKitStorage = () => {
+    if (!connection) forgetRememberedWallet(options.storage)
+  }
+
   const emit = (event: WalletEvent) => {
     if (event.type === 'disconnected') forget()
     else remember()
@@ -447,12 +461,6 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         ...(options.theme ? { theme: options.theme } : {}),
         authModal: { showInstallLabel: true, hideUnsupportedWallets: false },
       })
-      // Starting, the kit writes its own copy of the last choice to storage
-      // (with its wallet-path lists). With no reader signed in nothing of it
-      // may stay (#562), also when the kit finishes loading after sign-out
-      // has already cleared storage (#554: a quick sign-out from the mobile
-      // menu).
-      if (!rememberFor) forgetRememberedWallet(options.storage)
       loaded.kit.on(loaded.events.stateUpdated, (event) => {
         const address = (event as { payload?: { address?: string } }).payload
           ?.address
@@ -468,6 +476,12 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         emit({ type: 'disconnected' })
       })
       bundle = { ...loaded, modules }
+      // Importing and starting the kit ran its storage effects: its unkeyed
+      // copy of the last choice and its wallet-path lists. Nothing is
+      // connected yet, so none of it stays, with or without a reader signed
+      // in, also when the kit finishes loading after sign-out has cleared
+      // storage (#554, #607). The reader's own record is kept.
+      tidyKitStorage()
       return bundle
     })().catch((error) => {
       initPromise = null
@@ -738,7 +752,8 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
   async function restoreOnce(): Promise<WalletConnection | null> {
     if (connection) return connection
     if (!rememberFor || connectPromise) return null
-    const record = readRememberedWallet(options.storage, rememberFor)
+    const reader = rememberFor
+    const record = readRememberedWallet(options.storage, reader)
     if (!record) return null
     const entry = walletEntry(record.walletId)
     if (!entry?.offered) {
@@ -776,6 +791,8 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
     }
     // The reader connected while the wallet answered: theirs wins.
     if (connection || connectPromise) return connection
+    // Signed out, or another reader signed in, while the wallet answered.
+    if (rememberFor !== reader) return null
     // Kept on another network, as an open page keeps a wallet that switches:
     // the network shows, and `signTransaction` refuses before any prompt.
     connection = {
@@ -803,6 +820,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
     restore(): Promise<WalletConnection | null> {
       restorePromise ??= restoreOnce().finally(() => {
         restorePromise = null
+        tidyKitStorage()
       })
       return restorePromise
     },
@@ -827,6 +845,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
     connect(opts: { walletId?: string } = {}): Promise<WalletConnection> {
       connectPromise ??= connectOnce(opts.walletId).finally(() => {
         connectPromise = null
+        tidyKitStorage()
       })
       return connectPromise
     },
@@ -986,6 +1005,9 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         }
       }
       if (wasConnected) emit({ type: 'disconnected' })
+      // The kit's reset wrote its keys again; remove them unless the reader
+      // connected meanwhile.
+      if (!connection) forget()
     },
     /** Subscribes to connection, account, network and disconnect events. */
     subscribe(listener: (event: WalletEvent) => void): () => void {
