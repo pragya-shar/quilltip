@@ -25,7 +25,7 @@ export const QUICK_TIPS_DEFINITION =
   'Quick tips: tip from your balance on this device without opening your wallet each time.'
 
 export const LEDGER_FINE_PRINT =
-  'The time follows Stellar testnet’s ledgers and can move by a few minutes.'
+  'The time follows Stellar testnet and can move by a few minutes.'
 
 export const TURN_OFF_LATER =
   'You can turn quick tips off in Balance, from any device you sign in on. Signing out turns them off on this device.'
