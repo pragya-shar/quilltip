@@ -13,8 +13,9 @@ import {
 
 export const WRITER_PAGE = 20
 
-/** The writer's list of tips, while a screen shows it. */
-export function WriterWatch({ now }: { now: number }) {
+/** The writer's list of tips, while a screen shows it; written only while
+ * the engine's binding holds (`live`), and again when it holds again. */
+export function WriterWatch({ now, live }: { now: number; live: boolean }) {
   const { isAuthenticated } = useConvexAuth()
   const writer = usePaginatedQuery(
     api.activity.mine,
@@ -34,7 +35,7 @@ export function WriterWatch({ now }: { now: number }) {
     [writer, now]
   )
   useEffect(() => {
-    paymentsStore.set({ writerActivity: view })
-  }, [view])
+    if (live) paymentsStore.set({ writerActivity: view })
+  }, [view, live])
   return null
 }

@@ -13,6 +13,69 @@ concurrency:
 permissions: {}
 
 jobs:
+  # Which jobs this change can affect (scripts/ci/plan.ts,
+  # docs/workflow/ci-pipeline.md). Pull requests run what their changed files
+  # reach; pushes to main and the overhaul branches run everything. Required
+  # fails when this job does not succeed.
+  changes:
+    name: What changed
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    # The filtered plan when it succeeded; otherwise the full plan, written
+    # first, before anything is installed.
+    outputs:
+      app: ${{ steps.plan.outputs.app || steps.full.outputs.app }}
+      contracts: ${{ steps.plan.outputs.contracts || steps.full.outputs.contracts }}
+      contracts_integration: ${{ steps.plan.outputs.contracts_integration || steps.full.outputs.contracts_integration }}
+      fixtures: ${{ steps.plan.outputs.fixtures || steps.full.outputs.fixtures }}
+
+    steps:
+      # Two commits: the pull request's merge commit and its first parent,
+      # the base branch it merges into.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+          fetch-depth: 2
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Plan everything
+        id: full
+        run: bun scripts/ci/plan.ts --github --outputs-only --full
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Everything runs for a push, for a pull request with the "ci-full"
+      # label, and when every job is re-run (attempt 2 and later). A planning
+      # failure or timeout leaves the full plan in place.
+      - name: Plan the jobs this change reaches
+        id: plan
+        continue-on-error: true
+        timeout-minutes: 5
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FULL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci-full') }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if [ "$EVENT_NAME" != pull_request ]; then
+            bun scripts/ci/plan.ts --github --full --reason "$EVENT_NAME"
+          elif [ "$FULL_LABEL" = true ]; then
+            bun scripts/ci/plan.ts --github --full --reason 'the ci-full label'
+          elif [ "$RUN_ATTEMPT" -gt 1 ]; then
+            bun scripts/ci/plan.ts --github --full --reason "re-run of every job (attempt $RUN_ATTEMPT)"
+          else
+            bun scripts/ci/plan.ts --github --base HEAD^1 --head HEAD
+          fi
+
+      - name: Report a failed plan
+        if: steps.plan.outcome == 'failure'
+        run: echo '### Planning failed, so every job runs' >>"$GITHUB_STEP_SUMMARY"
+
   quality:
     name: Lint & Typecheck
     runs-on: ubuntu-latest
@@ -71,13 +134,21 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
-  build:
-    name: Build
+  # Checks that need a production build, on one runner: the build with
+  # placeholder settings, then against the local fixture backend
+  # (scripts/perf/fixture-backend.ts; no backend or secrets): no CSP
+  # violations, public reading with JavaScript off, crossing into the shell,
+  # each package's own checks (one file per package in scripts/app-checks),
+  # and presses made before the page scripts run, in Chromium and WebKit.
+  # Each check runs when its build succeeded, whatever an earlier check did.
+  production:
+    name: Production build checks
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     permissions:
       contents: read
-    needs: quality
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.app == 'true') }}
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -91,6 +162,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Install Chromium and WebKit
+        run: bunx playwright install --with-deps chromium webkit
+
       - name: Build
         run: bun run build
         env:
@@ -101,13 +175,78 @@ jobs:
           NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
           NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
 
+      - name: Build against the fixture backend
+        id: fixture-build
+        if: ${{ !cancelled() }}
+        run: bun run build
+        env:
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Load the main routes with no CSP violations
+        if: ${{ !cancelled() && steps.fixture-build.outcome == 'success' }}
+        run: bun run test:e2e:csp
+        env:
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Run every production-build check
+        if: ${{ !cancelled() && steps.fixture-build.outcome == 'success' }}
+        run: bun scripts/app-checks/run.ts
+
+      # Vercel's chunk paths (/_next/static/immutable/), so the first-flush
+      # check in e2e/server-forms.spec.ts counts the bytes the site sends.
+      - name: Build against the fixture backend with immutable asset paths
+        id: immutable-build
+        if: ${{ !cancelled() }}
+        run: bun run build
+        env:
+          QUILLTIP_IMMUTABLE_ASSETS: '1'
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      # Presses made before the page scripts run: a held sign-in submit and
+      # the mobile menu opened from the first paint (#554).
+      - name: Answer presses made before the page scripts run
+        if: ${{ !cancelled() && steps.immutable-build.outcome == 'success' }}
+        run: bun run test:e2e:early-taps
+        env:
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      # A failed test's error, page snapshot and retry trace, without a re-run.
+      - name: Summarize failed tests
+        if: failure()
+        run: bun scripts/ci/failure-summary.ts >>"$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: production-check-failures
+          path: |
+            test-results/
+            e2e/**/test-results/
+          if-no-files-found: ignore
+          retention-days: 3
+
   perf-budget:
     name: Page-load Budget
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
-    needs: quality
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.app == 'true') }}
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -161,6 +300,20 @@ jobs:
 
       - name: Check reading with a slow backend
         run: bun run perf:slow-backend-reading
+      # A failed test's error, page snapshot and retry trace, without a re-run.
+      - name: Summarize failed tests
+        if: failure()
+        run: bun scripts/ci/failure-summary.ts >>"$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: page-load-failures
+          path: |
+            test-results/
+            e2e/**/test-results/
+          if-no-files-found: ignore
+          retention-days: 3
 
   # Text keeps its lines when the web fonts replace the metric-matched
   # fallback faces (app/font-fallbacks.css), in Chromium and WebKit. It runs
@@ -169,12 +322,19 @@ jobs:
   # wrapped two blocks differently, so the result there says little about the
   # browsers readers use (docs/performance/page-load.md).
   font-fallbacks:
-    name: Font Fallbacks
+    name: Font Fallbacks (${{ matrix.engine }})
     runs-on: macos-latest
     timeout-minutes: 30
     permissions:
       contents: read
-    needs: quality
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.app == 'true') }}
+    # One job per engine; the check runs each engine on its own
+    # (PERF_FONT_ENGINES), so the two halves are the whole check.
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: [chromium, webkit]
 
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -188,8 +348,10 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Install Chromium and WebKit
-        run: bunx playwright install chromium webkit
+      - name: Install ${{ matrix.engine }}
+        env:
+          ENGINE: ${{ matrix.engine }}
+        run: bunx playwright install "$ENGINE"
 
       - name: Build against the fixture backend
         run: bun run build
@@ -203,133 +365,22 @@ jobs:
 
       - name: Check font fallbacks
         run: bun run perf:font-fallbacks
-
-  csp:
-    name: Content Security Policy
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    needs: quality
-
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: '1.4.4'
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install Chromium
-        run: bunx playwright install --with-deps chromium
-
-      # Production build against the local fixture backend
-      # (scripts/perf/fixture-backend.ts); no backend or secrets.
-      - name: Build against the fixture backend
-        run: bun run build
         env:
-          SKIP_ENV_VALIDATION: '1'
-          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
-          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
-          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
-          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
-          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+          PERF_FONT_ENGINES: ${{ matrix.engine }}
+      # A failed test's error, page snapshot and retry trace, without a re-run.
+      - name: Summarize failed tests
+        if: failure()
+        run: bun scripts/ci/failure-summary.ts >>"$GITHUB_STEP_SUMMARY"
 
-      - name: Load the main routes with no CSP violations
-        run: bun run test:e2e:csp
-        env:
-          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
-          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
-          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
-
-  # Checks that need a production build: public reading with JavaScript off,
-  # crossing into the shell, and each package's own (one file per package
-  # in scripts/app-checks), in Chromium and WebKit.
-  no-script:
-    name: Production build checks
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-    needs: quality
-
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
         with:
-          persist-credentials: false
-
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: '1.4.4'
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install Chromium and WebKit
-        run: bunx playwright install --with-deps chromium webkit
-
-      - name: Build against the fixture backend
-        run: bun run build
-        env:
-          SKIP_ENV_VALIDATION: '1'
-          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
-          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
-          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
-          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
-          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
-
-      - name: Run every production-build check
-        run: bun scripts/app-checks/run.ts
-
-  # Presses made before the page scripts run: a held sign-in submit and the
-  # mobile menu opened from the first paint (#554), in Chromium and WebKit,
-  # against a production build and the fixture backend; no secrets.
-  early-taps:
-    name: Early Taps
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: read
-    needs: quality
-
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-        with:
-          persist-credentials: false
-
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
-        with:
-          bun-version: '1.4.4'
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Install Chromium and WebKit
-        run: bunx playwright install --with-deps chromium webkit
-
-      # Vercel's chunk paths (/_next/static/immutable/), so the first-flush
-      # check in e2e/server-forms.spec.ts counts the bytes the site sends.
-      - name: Build against the fixture backend
-        run: bun run build
-        env:
-          QUILLTIP_IMMUTABLE_ASSETS: '1'
-          SKIP_ENV_VALIDATION: '1'
-          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
-          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
-          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
-          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
-          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
-
-      - name: Answer presses made before the page scripts run
-        run: bun run test:e2e:early-taps
-        env:
-          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
-          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
-          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+          name: font-fallback-${{ matrix.engine }}-failures
+          path: |
+            test-results/
+            e2e/**/test-results/
+          if-no-files-found: ignore
+          retention-days: 3
 
   audit:
     name: Dependency Audit
@@ -354,6 +405,8 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.contracts == 'true') }}
     env:
       CARGO_TERM_COLOR: always
     defaults:
@@ -468,63 +521,24 @@ jobs:
             ${{ runner.temp }}/wasm/sizes.tsv
           if-no-files-found: error
 
-  # One shard per fixture suite, in parallel. Required reads the combined
-  # result: it fails when any shard fails or is cancelled. Every suite in
-  # scripts/fixture-suites.ts must appear in exactly one shard
-  # (scripts/ci/fixture-shards.test.ts).
+  # One job per fixture shard (scripts/ci/shards.ts) that this change can
+  # affect; What changed lists them, and each shard runs only the suites whose
+  # inputs changed. Required fails when any shard fails or is cancelled.
   e2e-fixtures:
     name: Playwright (fixtures, ${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # Per shard; the longest shard took about 6 minutes on 8f7cc45.
-    timeout-minutes: 15
+    # Per shard; the longest shard took about 9 minutes on 0472be1a. The
+    # one job that runs every suite when there is no plan takes about 45.
+    timeout-minutes: ${{ matrix.shard == 'all' && 75 || 15 }}
     permissions:
       contents: read
-    needs: quality
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.fixtures != '[]') }}
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - shard: presentation
-            suites: nft,recovery,avatar
-            browsers: chromium
-          - shard: payments
-            suites: payments
-            browsers: chromium
-          - shard: wallet
-            suites: wallet
-            browsers: chromium
-          - shard: article-tips
-            suites: article-tips
-            browsers: chromium
-          # Every state in Chromium; keyboard, focus and results in WebKit.
-          - shard: tips-v2
-            suites: tips-v2
-            browsers: chromium webkit
-          - shard: nft-v2
-            suites: nft-v2
-            browsers: chromium
-          # The tab session-key suite runs in all three engines.
-          - shard: tab
-            suites: tab
-            browsers: chromium firefox webkit
-          # The tab screens: every state in Chromium, key paths in all three.
-          - shard: tab-ui
-            suites: tab-ui
-            browsers: chromium firefox webkit
-          # The balance tip and screens: phone in Chromium and WebKit.
-          - shard: balance
-            suites: balance
-            browsers: chromium webkit
-          # The design system gallery and the application shell: three
-          # widths with real touch and keys, in Chromium and WebKit.
-          - shard: system
-            suites: system
-            browsers: chromium webkit
-          # Every rebuilt surface's suite (e2e/suites/, one file per package),
-          # in Chromium and WebKit. A package adds its file, never a shard.
-          - shard: surfaces
-            suites: '@surfaces'
-            browsers: chromium webkit
+        # Every suite in one job when What changed wrote no plan.
+        include: ${{ fromJSON(needs.changes.outputs.fixtures || '[{"shard":"all","suites":"","browsers":"chromium firefox webkit"}]') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -547,7 +561,27 @@ jobs:
       - name: Run fixture suites (no secrets, no backend)
         env:
           SUITES: ${{ matrix.suites }}
-        run: bun run test:e2e:fixtures --suite "$SUITES"
+        run: |
+          if [ -n "$SUITES" ]; then
+            bun run test:e2e:fixtures --suite "$SUITES"
+          else
+            bun run test:e2e:fixtures
+          fi
+
+      # A failed test's error, page snapshot and retry trace, without a re-run.
+      - name: Summarize failed tests
+        if: failure()
+        run: bun scripts/ci/failure-summary.ts >>"$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: failure()
+        with:
+          name: fixtures-${{ matrix.shard }}-failures
+          path: |
+            test-results/
+            e2e/**/test-results/
+          if-no-files-found: ignore
+          retention-days: 3
 
   contracts-integration:
     name: Contracts (local network)
@@ -555,6 +589,8 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: read
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.contracts_integration == 'true') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -624,7 +660,8 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
-    needs: quality
+    needs: changes
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.app == 'true') }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
@@ -643,28 +680,34 @@ jobs:
       - name: Sign in from protected routes (WebKit and Chromium, phone)
         run: bun run test:e2e:auth
 
-      # The page as each failed test left it (a text snapshot, no trace).
+      # A failed test's error, page snapshot and retry trace, without a re-run.
+      - name: Summarize failed tests
+        if: failure()
+        run: bun scripts/ci/failure-summary.ts >>"$GITHUB_STEP_SUMMARY"
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
           name: local-auth-failures
-          path: test-results/**/error-context.md
+          path: |
+            test-results/
+            e2e/**/test-results/
           if-no-files-found: ignore
           retention-days: 3
 
+  # Passes when every job passed, or was skipped because What changed found
+  # nothing it could affect. Fails when What changed itself did not pass.
   required:
     name: Required
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs:
       [
+        changes,
         quality,
-        build,
+        production,
         perf-budget,
         font-fallbacks,
-        csp,
-        early-taps,
-        no-script,
         audit,
         contracts,
         contracts-integration,
@@ -675,13 +718,15 @@ jobs:
     steps:
       - name: Check required CI jobs
         env:
+          CHANGES_RESULT: ${{ needs.changes.result }}
+          PLAN_APP: ${{ needs.changes.outputs.app }}
+          PLAN_CONTRACTS: ${{ needs.changes.outputs.contracts }}
+          PLAN_CONTRACTS_INTEGRATION: ${{ needs.changes.outputs.contracts_integration }}
+          PLAN_FIXTURES: ${{ needs.changes.outputs.fixtures }}
           QUALITY_RESULT: ${{ needs.quality.result }}
-          BUILD_RESULT: ${{ needs.build.result }}
+          PRODUCTION_RESULT: ${{ needs.production.result }}
           PERF_BUDGET_RESULT: ${{ needs.perf-budget.result }}
           FONT_FALLBACKS_RESULT: ${{ needs.font-fallbacks.result }}
-          CSP_RESULT: ${{ needs.csp.result }}
-          EARLY_TAPS_RESULT: ${{ needs.early-taps.result }}
-          NO_SCRIPT_RESULT: ${{ needs.no-script.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           CONTRACTS_INTEGRATION_RESULT: ${{ needs.contracts-integration.result }}
@@ -690,27 +735,41 @@ jobs:
         run: |
           failed=0
 
+          # check_result <job> <result> [<planned>]: a job must pass; it may
+          # be skipped only when What changed planned it off ("false").
           check_result() {
             name="$1"
             result="$2"
+            planned="${3:-true}"
 
-            if [ "$result" != "success" ]; then
-              echo "$name did not pass: $result"
-              failed=1
+            if [ "$result" = "success" ]; then
+              return
             fi
+            if [ "$result" = "skipped" ] && [ "$planned" = "false" ]; then
+              echo "$name skipped: no input changed"
+              return
+            fi
+            echo "$name did not pass: $result"
+            failed=1
           }
 
+          # Without a plan, every job had to run and pass, and Required
+          # fails anyway.
+          if [ "$CHANGES_RESULT" != "success" ]; then
+            echo "What changed did not pass: $CHANGES_RESULT"
+            failed=1
+          fi
+
+          if [ "$PLAN_FIXTURES" = "[]" ]; then fixtures=false; else fixtures=true; fi
+
           check_result "Lint & Typecheck" "$QUALITY_RESULT"
-          check_result "Build" "$BUILD_RESULT"
-          check_result "Page-load Budget" "$PERF_BUDGET_RESULT"
-          check_result "Font Fallbacks" "$FONT_FALLBACKS_RESULT"
-          check_result "Content Security Policy" "$CSP_RESULT"
-          check_result "Early Taps" "$EARLY_TAPS_RESULT"
-          check_result "Production build checks" "$NO_SCRIPT_RESULT"
           check_result "Dependency Audit" "$AUDIT_RESULT"
-          check_result "Contracts" "$CONTRACTS_RESULT"
-          check_result "Contracts (local network)" "$CONTRACTS_INTEGRATION_RESULT"
-          check_result "Playwright (fixtures)" "$E2E_FIXTURES_RESULT"
-          check_result "Playwright (local auth)" "$E2E_AUTH_RESULT"
+          check_result "Production build checks" "$PRODUCTION_RESULT" "$PLAN_APP"
+          check_result "Page-load Budget" "$PERF_BUDGET_RESULT" "$PLAN_APP"
+          check_result "Font Fallbacks" "$FONT_FALLBACKS_RESULT" "$PLAN_APP"
+          check_result "Playwright (local auth)" "$E2E_AUTH_RESULT" "$PLAN_APP"
+          check_result "Contracts" "$CONTRACTS_RESULT" "$PLAN_CONTRACTS"
+          check_result "Contracts (local network)" "$CONTRACTS_INTEGRATION_RESULT" "$PLAN_CONTRACTS_INTEGRATION"
+          check_result "Playwright (fixtures)" "$E2E_FIXTURES_RESULT" "$fixtures"
 
           exit "$failed"

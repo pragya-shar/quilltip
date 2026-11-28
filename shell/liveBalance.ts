@@ -2,10 +2,14 @@
 
 import { useSyncExternalStore } from 'react'
 import { useConvexAuth } from 'convex/react'
-import { paymentsStore } from '@/lib/payments/store'
+import { figuresShown, paymentsStore } from '@/lib/payments/store'
 import type { BalanceReading } from './balance'
 
-const balanceOf = () => paymentsStore.get().balance
+/** The balance, only while it is held for the user in this session. */
+const balanceOf = () => {
+  const s = paymentsStore.get()
+  return figuresShown(s) ? s.balance : null
+}
 
 /**
  * The live balance source. Auth comes from Convex; the amount is the money

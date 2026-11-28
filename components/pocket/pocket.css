@@ -1,0 +1,305 @@
+/*
+ * The Pocket (balance) surface: the sheet, the desktop panel, the /pocket
+ * page and its own sheets. Tokens only; state in data-* attributes.
+ */
+@layer surfaces {
+  .qt-pocket {
+    align-items: stretch;
+    gap: var(--qt-space-8);
+    min-width: 0;
+  }
+
+  /* Ready to tip */
+  .qt-pocket__spend {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--qt-space-3);
+    min-width: 0;
+  }
+  .qt-pocket__spend > .qt-button {
+    margin-block-start: var(--qt-space-2);
+  }
+  /* A converted Ready to tip is a button that opens the exact amount. */
+  .qt-pocket__figure-button {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--qt-space-2);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    border-radius: var(--qt-radius-tag);
+    cursor: pointer;
+  }
+  .qt-pocket__figure-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--qt-space-1);
+    color: var(--qt-ink-2);
+    font-size: var(--qt-text-ui-s);
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-pocket__figure-button:hover .qt-money__label {
+      text-decoration: underline;
+      text-underline-offset: 0.2em;
+    }
+  }
+  .qt-pocket__token-figure {
+    margin: 0;
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-money-m);
+    line-height: 1.1;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums lining-nums;
+    overflow-wrap: anywhere;
+  }
+  .qt-pocket__fine {
+    margin: 0;
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+    color: var(--qt-ink-2);
+  }
+  .qt-pocket__token {
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  .qt-pocket__line {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--qt-space-2);
+    margin: 0;
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    color: var(--qt-ink-2);
+  }
+  .qt-pocket__line > svg {
+    flex-shrink: 0;
+    margin-block-start: 0.15em;
+  }
+  .qt-pocket__line .qt-money,
+  .qt-pocket__plain .qt-money,
+  .qt-notice .qt-money,
+  .qt-pocket__collected .qt-money {
+    display: inline-flex;
+    vertical-align: baseline;
+  }
+  .qt-pocket__line .qt-money__digits,
+  .qt-pocket__plain .qt-money__digits {
+    color: var(--qt-ink);
+  }
+
+  /* A writer's earnings */
+  .qt-pocket__earn {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-4);
+    padding-block-start: var(--qt-space-6);
+    border-block-start: 1px solid var(--qt-line);
+    min-width: 0;
+  }
+  /* Held while it is not yet known whether this person writes. */
+  .qt-pocket__earn-placeholder {
+    display: flex;
+    height: 9rem;
+  }
+  .qt-pocket__end {
+    padding-block: var(--qt-space-3);
+    border-radius: var(--qt-radius-tag);
+  }
+  .qt-pocket__add {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--qt-space-3);
+  }
+  /* Top-aligned: the figures share one line whatever their labels hold
+     (On its way carries an icon). */
+  .qt-pocket__pair {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: var(--qt-space-4) var(--qt-space-8);
+  }
+  .qt-pocket__with-icon {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--qt-space-1);
+  }
+  .qt-pocket__collected {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--qt-space-2);
+    margin: 0;
+    font-size: var(--qt-text-ui);
+    color: var(--qt-ink-2);
+  }
+
+  /* Activity */
+  .qt-pocket__activity {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-3);
+    min-width: 0;
+  }
+  .qt-pocket__list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-2);
+    min-width: 0;
+  }
+  .qt-pocket__list-title {
+    margin: 0;
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+    font-weight: var(--qt-weight-ui-strong);
+    color: var(--qt-ink-2);
+  }
+  .qt-pocket__rows {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 0;
+  }
+  .qt-pocket__rows .qt-activity__main {
+    min-width: 0;
+  }
+  .qt-pocket__row-skeleton {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--qt-space-3);
+    min-height: 4.125rem;
+    padding-block: var(--qt-space-3);
+    border-block-end: 1px solid var(--qt-line);
+  }
+  .qt-pocket__row-skeleton-lines {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    gap: var(--qt-space-2);
+  }
+  .qt-pocket__glyph {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.625rem;
+    height: 2.625rem;
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-marker-faint);
+    color: var(--qt-marker-ink);
+  }
+  .qt-pocket__plain {
+    margin: 0;
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    color: var(--qt-ink-2);
+  }
+
+  /* The Pocket's sheets */
+  .qt-pocket__sheet,
+  .qt-pocket__receipt {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-4);
+    min-width: 0;
+  }
+  .qt-pocket__unbuilt,
+  .qt-pocket__act {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-3);
+  }
+  .qt-pocket__act-message {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-2);
+    margin: 0;
+    min-height: var(--qt-hit);
+    font-size: var(--qt-text-ui-l);
+    line-height: var(--qt-lh-ui-l);
+    font-weight: var(--qt-weight-ui-strong);
+    border-radius: var(--qt-radius-tag);
+  }
+  .qt-pocket__act[data-phase='failed'] .qt-pocket__act-message {
+    color: var(--qt-danger);
+  }
+  .qt-pocket__quote {
+    margin: 0;
+    padding-inline-start: var(--qt-space-3);
+    border-inline-start: 3px solid var(--qt-marker);
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-read);
+    line-height: var(--qt-lh-read);
+    color: var(--qt-ink);
+    overflow-wrap: anywhere;
+  }
+  .qt-pocket__article {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--qt-space-3);
+    margin: 0;
+    font-size: var(--qt-text-ui);
+    color: var(--qt-ink-2);
+    overflow-wrap: anywhere;
+  }
+  /* The receipt: a slip with ruled lines, label left and value right. */
+  .qt-pocket__slip {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-4);
+    padding: var(--qt-space-5);
+    border: 1px dashed var(--qt-line-strong);
+    border-radius: var(--qt-radius-card);
+    min-width: 0;
+  }
+  .qt-pocket__facts {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+  }
+  .qt-pocket__facts > div {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--qt-space-1) var(--qt-space-4);
+    padding-block: var(--qt-space-3);
+    border-block-start: 1px dashed var(--qt-line);
+  }
+  .qt-pocket__facts dd {
+    text-align: end;
+  }
+  .qt-pocket__facts dt {
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui);
+    color: var(--qt-ink-2);
+  }
+  .qt-pocket__facts dd {
+    margin: 0;
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    color: var(--qt-ink);
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  /* /pocket as a page */
+  .qt-pocket-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-6);
+  }
+
+  /* /pocket with no script: the explanation, and no empty figures. */
+  .qt-pocket-page__noscript {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--qt-space-4);
+  }
+}

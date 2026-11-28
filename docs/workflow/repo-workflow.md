@@ -68,10 +68,20 @@ cargo check --locked --target wasm32v1-none --manifest-path contracts/tipping/Ca
 cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nft/Cargo.toml
 ```
 
-[CI](../../.github/workflows/ci.yml) runs on pushes to `main` and PRs into `main`.
-`Required` aggregates quality, build, and dependency audit. The audit is a required
-job; its severity/exception rules are defined in the
-[audit policy](../../security/dependency-review.md). PR hygiene runs on PRs.
+[CI](../../.github/workflows/ci.yml) runs on pushes to `main` and the overhaul
+branches and on PRs into them. On a PR it runs only the jobs the changed files
+can affect, and pushes run everything; [how CI decides](ci-pipeline.md).
+`Required` aggregates every job and fails when one did not pass or was skipped
+without a plan to skip it. The audit is a required job; its severity/exception
+rules are defined in the [audit policy](../../security/dependency-review.md).
+PR hygiene runs on PRs. `bun scripts/ci/local.ts` runs the steps CI would plan
+for the checkout's changes locally, read from the workflow, on one production
+build per build setting (`--jobs production` for only the production-build
+checks, `--light` for lint, typecheck and unit tests; `--list` prints the
+steps, `--all` runs everything). It leaves out
+runner setup (actions, installs, failure-only steps) and needs Bun 1.4.4, the
+installed dependencies and the Playwright browsers; its header lists the rest.
+Run it under a shared machine's lock for heavy jobs.
 Local success does not establish remote CI or deployment success.
 
 ## Using Codex and Claude Code
@@ -90,6 +100,8 @@ Local success does not establish remote CI or deployment success.
   references on demand.
 - When parallel work is authorized, assign independent scopes and explicit
   ownership. Separate editing agents into worktrees; concurrent readers can share
-  a checkout. Give review work a correctness question and verification criteria.
+  a checkout. On macOS, add the worktrees' `node_modules` and `.next` folders
+  (or the folder that holds the worktrees) to Spotlight's privacy list, or
+  indexing them competes with builds and browsers for the CPU. Give review work a correctness question and verification criteria.
 
 Research and source-to-repo decisions: [agent workflow sources](agent-workflow-sources.md).
