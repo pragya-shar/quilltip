@@ -227,6 +227,9 @@ export const TAB_TIP_DIALOG = {
   sending: 'Sending from your tab…',
   /** The wallet button while the tab can send. */
   sendFromWallet: 'Send from your wallet',
+  /** The same, with the amount as the reader chose it (#645). */
+  sendFromWalletAmount: (amount: string) =>
+    `Send ${amount} tip from your wallet`,
   walletHeading: 'From your wallet',
   noTab: 'Tip without a wallet prompt from a prepaid tab.',
   loading: 'Checking your tab…',

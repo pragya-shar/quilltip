@@ -407,7 +407,7 @@ export function TipBasketPanel({ onBusyChange, onClose }: TipBasketPanelProps) {
                 aria-disabled={blocked || undefined}
               >
                 <Heart className="w-4 h-4" aria-hidden="true" />
-                {BASKET_COPY.pay(items.length)} · {formatCents(cents)}
+                {BASKET_COPY.pay(items.length, formatCents(cents))}
               </Button>
             </WalletGate>
           </div>
