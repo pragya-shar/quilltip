@@ -70,8 +70,8 @@ offered only while the settlement keys are ready (#693).
   - the settlement made by the site's settler on its regular schedule, not
     forced (tx
     [`db5dcaf6fecabf175b979529a071da1d7f26757659715e3376a74a805f89fef6`](https://stellar.expert/explorer/testnet/tx/db5dcaf6fecabf175b979529a071da1d7f26757659715e3376a74a805f89fef6),
-    ledger 5972883, 17:47:39). The fee was 2.5% of the gross and the
-    writer received 97.5%;
+    ledger 5972883, 17:47:39). The fee was 2.5% of the gross, rounded
+    down, and the writer received the rest;
   - the writer's claim (tx
     [`757c0701e0ffce0f0ba4cb67203b6b56982dde1c8a7ae4314229e2c3d277f9f7`](https://stellar.expert/explorer/testnet/tx/757c0701e0ffce0f0ba4cb67203b6b56982dde1c8a7ae4314229e2c3d277f9f7),
     ledger 5972899);
