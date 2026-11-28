@@ -4,7 +4,8 @@
  */
 @layer surfaces {
   .qt-signin,
-  .qt-signin__form {
+  .qt-signin__form,
+  .qt-signin__keep {
     display: flex;
     flex-direction: column;
     gap: var(--qt-space-4);

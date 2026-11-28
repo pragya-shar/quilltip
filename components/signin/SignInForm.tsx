@@ -241,52 +241,60 @@ export function SignInForm({
             errors.email && setErrors((e) => ({ ...e, email: undefined }))
           }
         />
-        <TextField
-          ref={password}
-          label="Password"
-          name="password"
-          type={showPassword ? 'text' : 'password'}
-          autoComplete={mode === 'create' ? 'new-password' : 'current-password'}
-          enterKeyHint="go"
-          onFocus={keepButtonsInView}
-          {...(mode === 'create' ? PASSWORD_RULES : null)}
-          // The rule shows once: an error about it takes the hint's place.
-          hint={
-            mode === 'create' && !errors.password
-              ? 'At least 8 characters. A few words make a good one.'
-              : undefined
-          }
-          error={errors.password}
-          onChange={() =>
-            errors.password && setErrors((e) => ({ ...e, password: undefined }))
-          }
-        />
-        <Button
-          type="submit"
-          variant="primary"
-          size="l"
-          block
-          loading={pending}
-        >
-          {/* While a press made before the page script ran is held, CSS
-              shows "One moment…" in place of the label. */}
-          <span className="qt-signin__ready">
-            {mode === 'create' ? 'Create account' : 'Sign in'}
-          </span>
-          <span className="qt-signin__held" aria-hidden="true">
-            One moment…
-          </span>
-        </Button>
-      </form>
-      {waiting ? null : (
-        <>
+        {/* The password, its button and the other way in stay in view
+            together above a keyboard: the shell's sheet keeps a
+            data-sheet-keep block visible while focus is inside it. */}
+        <div className="qt-signin__keep" data-sheet-keep="">
+          <TextField
+            ref={password}
+            label="Password"
+            name="password"
+            type={showPassword ? 'text' : 'password'}
+            autoComplete={
+              mode === 'create' ? 'new-password' : 'current-password'
+            }
+            enterKeyHint="go"
+            onFocus={keepButtonsInView}
+            {...(mode === 'create' ? PASSWORD_RULES : null)}
+            // The rule shows once: an error about it takes the hint's place.
+            hint={
+              mode === 'create' && !errors.password
+                ? 'At least 8 characters. A few words make a good one.'
+                : undefined
+            }
+            error={errors.password}
+            onChange={() =>
+              errors.password &&
+              setErrors((e) => ({ ...e, password: undefined }))
+            }
+          />
+          <Button
+            type="submit"
+            variant="primary"
+            size="l"
+            block
+            loading={pending}
+          >
+            {/* While a press made before the page script ran is held, CSS
+                shows "One moment…" in place of the label. */}
+            <span className="qt-signin__ready">
+              {mode === 'create' ? 'Create account' : 'Sign in'}
+            </span>
+            <span className="qt-signin__held" aria-hidden="true">
+              One moment…
+            </span>
+          </Button>
           {/* The other way in is as easy to find as this one: most people
               who meet the sheet from a first tip are new. */}
-          <div ref={otherWay} className="qt-signin__other">
+          <div ref={otherWay} className="qt-signin__other" hidden={waiting}>
             <Button variant="secondary" size="l" block onClick={switchMode}>
               {mode === 'sign-in' ? 'Create an account' : 'I have an account'}
             </Button>
           </div>
+        </div>
+      </form>
+      {waiting ? null : (
+        <>
           <div className="qt-signin__row">
             <button
               type="button"
