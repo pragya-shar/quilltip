@@ -1210,6 +1210,21 @@ row again.
 section 7.1 passes.
 **Rollback:** payments off (section 6, row D), then fix forward.
 
+**Tab readiness first (#692).** Immediately before `CHAIN_V2_ENABLED=true`
+in this stage, refresh the chain config and read `tabReady`:
+
+```bash
+bunx convex run chain/config:refreshChainConfig '{}'
+bunx convex run chain/tabReadiness:read '{}'
+```
+
+Go on only when it reports `"ready": true` and `"causes": []`. Otherwise
+fix each cause first ([chain runbook, tab tips not ready](chain-runbook.md#tab-tips-not-ready))
+and read it again. The switch cannot turn tab tips on while it is false:
+opening, top-ups and tab tips stay off and readers see "Quick tips are
+unavailable right now". Wallet tips are not affected. After the switch,
+`/api/health` and `chain/config:getChainConfig` report `"tabReady": true`.
+
 ## 6. Rollback plan
 
 The v1 client removal ships in the release (#559). Once the release site
@@ -1521,8 +1536,9 @@ earlier figures.
 
 #### Step 7. Reopen payments
 
-Set `CHAIN_V2_ENABLED=true` only when all of these are true. Leave
-`CHAIN_V1_PREPARES_ENABLED=false`:
+Set `CHAIN_V2_ENABLED=true` only when all of these are true, and
+`chain/tabReadiness:read` reports `"ready": true` (stage 6, **Tab readiness
+first**). Leave `CHAIN_V1_PREPARES_ENABLED=false`:
 
 1. Every transaction from step 3 that creates an app record has one: tips
    and registrations (`tips`, `highlightTips`, `chainSubmissions`), NFT mints
