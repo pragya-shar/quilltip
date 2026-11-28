@@ -6,7 +6,7 @@
  * state. `refreshChainConfig` reads the contract views through RPC simulation
  * and caches them in `chainConfig` (hourly cron).
  */
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import {
   Account,
   Address,
@@ -25,7 +25,9 @@ import { internalAction, internalMutation, query } from '../_generated/server'
 import { readChainEnv, type ChainEnv } from '../lib/chain/env'
 import { createBackendRpcClient, type RpcClient } from '../lib/chain/rpc'
 import { bytesToHex } from '../lib/chain/ids'
-import { loadAcceptor } from '../lib/chain/voucher'
+import { loadAcceptor, parseAcceptorSeed } from '../lib/chain/voucher'
+import { assertBackendTestnet } from '../lib/networkGuard'
+import { publicKeyOf } from '../../lib/stellar/v2/tab/encoding'
 
 /** Any valid account works as the source of a view simulation. */
 const VIEW_SOURCE = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
@@ -237,31 +239,27 @@ export const refreshChainConfig = internalAction({
     const nftThresholdToken = threshold?.token
 
     const tabAcceptorKeys = chain.tabContractId
-      ? await attempt(async () => {
-          const config = (await readView(
-            rpc,
-            chain,
-            chain.tabContractId!,
-            'config'
-          )) as { acceptor_keys?: unknown }
-          if (!Array.isArray(config.acceptor_keys)) {
-            throw new Error('config: acceptor_keys is not a list')
-          }
-          return config.acceptor_keys.map((key) => {
-            if (!(key instanceof Uint8Array) || key.length !== 32) {
-              throw new Error('config: acceptor key is not 32 bytes')
-            }
-            return bytesToHex(key)
-          })
-        })
+      ? await attempt(() =>
+          readTabAcceptorKeys(rpc, chain, chain.tabContractId!)
+        )
       : undefined
     // Acceptance refuses on a mismatch (tabs.submitTip); this makes it visible.
     if (tabAcceptorKeys) {
       let acceptor: string | null = null
       try {
         acceptor = loadAcceptor().publicKey
-      } catch {
-        // Acceptance is off on this deployment.
+      } catch (error) {
+        // With settlement off, acceptance is off and there is nothing to
+        // check. With it on, a missing or malformed secret refuses every tab
+        // tip (TAB_ACCEPTOR_UNAVAILABLE), so report it here too. The message
+        // is fixed text: it never holds the secret.
+        if (process.env.SETTLEMENT_ENABLED?.trim() === 'true') {
+          const message = acceptorErrorMessage(error)
+          console.error(
+            JSON.stringify({ code: 'TAB_ACCEPTOR_UNAVAILABLE', message })
+          )
+          errors.push(`TAB_ACCEPTOR_UNAVAILABLE: ${message}`)
+        }
       }
       if (acceptor && !tabAcceptorKeys.includes(acceptor)) {
         console.error(
@@ -306,5 +304,124 @@ export const refreshChainConfig = internalAction({
       }
     }
     return { refreshed: true, errors }
+  },
+})
+
+/** Tab `config().acceptor_keys`, as lowercase hex (current first). */
+async function readTabAcceptorKeys(
+  rpc: RpcClient,
+  chain: Pick<ChainEnv, 'passphrase'>,
+  tabContractId: string
+): Promise<string[]> {
+  const config = (await readView(rpc, chain, tabContractId, 'config')) as {
+    acceptor_keys?: unknown
+  }
+  if (!Array.isArray(config.acceptor_keys)) {
+    throw new Error('config: acceptor_keys is not a list')
+  }
+  return config.acceptor_keys.map((key) => {
+    if (!(key instanceof Uint8Array) || key.length !== 32) {
+      throw new Error('config: acceptor key is not 32 bytes')
+    }
+    return bytesToHex(key)
+  })
+}
+
+/** The fixed message of an acceptor refusal; never the secret. */
+function acceptorErrorMessage(error: unknown): string {
+  if (error instanceof ConvexError) {
+    const data = error.data as { message?: unknown } | undefined
+    if (typeof data?.message === 'string') return data.message
+  }
+  return error instanceof Error ? error.message : 'acceptor unavailable'
+}
+
+/**
+ * Check of the saved acceptor secret before v2 is switched on (cutover
+ * runbook, stage 3). It derives the public key from `TAB_ACCEPTOR_SECRET`
+ * exactly as acceptance does (`parseAcceptorSeed`), reads the Tab contract's
+ * `acceptor_keys` now, and compares them. It works with settlement on or
+ * off. It returns the public key and the listed keys only, never the secret,
+ * and writes nothing.
+ *
+ * `status`: `listed` (ready), `not_listed` (a valid seed of another key),
+ * `malformed` (acceptance would refuse with `TAB_ACCEPTOR_UNAVAILABLE`),
+ * `unset`, or `keys_unread` (no Tab contract set, or the view failed).
+ * `whitespace` is true when the saved value has white space around it;
+ * acceptance trims it, but the runbook's field check does not allow it.
+ */
+export const checkAcceptor = internalAction({
+  args: {},
+  returns: v.object({
+    status: v.union(
+      v.literal('listed'),
+      v.literal('not_listed'),
+      v.literal('malformed'),
+      v.literal('unset'),
+      v.literal('keys_unread')
+    ),
+    publicKey: v.union(v.string(), v.null()),
+    acceptorKeys: v.union(v.array(v.string()), v.null()),
+    whitespace: v.boolean(),
+    error: v.optional(v.string()),
+  }),
+  handler: async () => {
+    assertBackendTestnet()
+    const secret = process.env.TAB_ACCEPTOR_SECRET ?? ''
+    const whitespace = secret !== secret.trim()
+    if (!secret.trim()) {
+      return {
+        status: 'unset' as const,
+        publicKey: null,
+        acceptorKeys: null,
+        whitespace,
+      }
+    }
+    let publicKey: string
+    try {
+      publicKey = bytesToHex(publicKeyOf(parseAcceptorSeed(secret)))
+    } catch (error) {
+      return {
+        status: 'malformed' as const,
+        publicKey: null,
+        acceptorKeys: null,
+        whitespace,
+        error: acceptorErrorMessage(error),
+      }
+    }
+    const chain = readChainEnv()
+    if (!chain.tabContractId) {
+      return {
+        status: 'keys_unread' as const,
+        publicKey,
+        acceptorKeys: null,
+        whitespace,
+        error: 'TAB_CONTRACT_ID is not set',
+      }
+    }
+    let acceptorKeys: string[]
+    try {
+      acceptorKeys = await readTabAcceptorKeys(
+        createBackendRpcClient(),
+        chain,
+        chain.tabContractId
+      )
+    } catch (error) {
+      return {
+        status: 'keys_unread' as const,
+        publicKey,
+        acceptorKeys: null,
+        whitespace,
+        error: error instanceof Error ? error.message : String(error),
+      }
+    }
+    return {
+      status: acceptorKeys.includes(publicKey)
+        ? ('listed' as const)
+        : ('not_listed' as const),
+      publicKey,
+      acceptorKeys,
+      whitespace,
+    }
   },
 })

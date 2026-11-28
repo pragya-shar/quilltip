@@ -9,7 +9,7 @@
  * `tabReceipts`, `tabVouchers`, `tabSettlements`).
  */
 import { defineTable } from 'convex/server'
-import { v } from 'convex/values'
+import { v, type Infer } from 'convex/values'
 import { expectedNftValidator } from './nftSchema'
 
 export const chainNetworkValidator = v.union(
@@ -181,6 +181,15 @@ export const voucherSkipReasonValidator = v.union(
  * key registration and revocation, account status) come only from indexed
  * Tab events; client input never sets them.
  */
+/** Kinds of `tabOutsideEvents` rows (#647). */
+export const tabOutsideKindValidator = v.union(
+  v.literal('settled_no_voucher'),
+  v.literal('settled_above_accepted'),
+  v.literal('settled_no_account'),
+  v.literal('key_undeclared')
+)
+export type TabOutsideKind = Infer<typeof tabOutsideKindValidator>
+
 export const tabTables = {
   tabAccounts: defineTable({
     network: chainNetworkValidator,
@@ -515,6 +524,39 @@ export const tabTables = {
     note: v.optional(v.string()),
     createdAt: v.number(),
   }).index('by_account', ['tabAccountId', 'createdAt']),
+
+  /**
+   * Tab events this deployment did not originate (#647): a `TabSettled` with
+   * no voucher of this deployment or above the cumulative it accepted, and a
+   * `KeyRegistered` with no in-app declaration. One row per event, kept for
+   * good and keyed like `tabClaims`, so a replay, a re-dispatch or rebuilt
+   * `chainEvents` rows add nothing. The row changes no figure.
+   * docs/operations/chain-runbook.md, "Tab activity not accepted here".
+   */
+  tabOutsideEvents: defineTable({
+    network: chainNetworkValidator,
+    chainEpoch: v.string(),
+    /** RPC id of the event. */
+    eventId: v.string(),
+    kind: tabOutsideKindValidator,
+    /** Unset when the reader has no account in this epoch. */
+    tabAccountId: v.optional(v.id('tabAccounts')),
+    keyId: v.number(),
+    /** `TabSettled` only. */
+    gross: v.optional(v.string()),
+    cumulative: v.optional(v.string()),
+    /** `settled_above_accepted` only: the voucher's stored cumulative. */
+    acceptedCumulative: v.optional(v.string()),
+    /** `TabSettled.by_writer`: true for `settle_own`, false for `settle`. */
+    byWriter: v.optional(v.boolean()),
+    ledger: v.number(),
+    txHash: v.string(),
+    createdAt: v.number(),
+    acknowledgedAt: v.optional(v.number()),
+    acknowledgedNote: v.optional(v.string()),
+  })
+    .index('by_epoch_event', ['chainEpoch', 'eventId'])
+    .index('by_open', ['acknowledgedAt', 'createdAt']),
 }
 
 export const chainTables = {
@@ -674,5 +716,10 @@ export const chainTables = {
     name: v.string(),
     holder: v.string(),
     expiresAt: v.number(),
+    /**
+     * `settler` only: end of the last run that did not fail (#647). Read by
+     * `/ops/chain` for settler freshness; no other lease sets it.
+     */
+    lastOkAt: v.optional(v.number()),
   }).index('by_name', ['name']),
 }

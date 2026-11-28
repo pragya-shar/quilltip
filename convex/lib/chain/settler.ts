@@ -194,6 +194,8 @@ export type SettlementLedger = {
   ): Promise<void>
   noteAttempt(settlementId: string, error: string): Promise<void>
   finish(settlementId: string, result: SettlementFinish): Promise<void>
+  /** The end of a run that did not fail, for settler freshness (#647). */
+  recordRun(at: number): Promise<void>
 }
 
 export type SettlerDeps = {
@@ -225,6 +227,45 @@ export type CycleResult = {
   rejected: number
   resumed: number
   swept: number
+}
+
+// ---------------------------------------------------------------------------
+// Freshness (#647)
+
+/**
+ * Age of the last run that did not fail at which `/ops/chain` warns: three
+ * missed runs of the 10-minute cron.
+ */
+export const SETTLER_STALE_WARN_MS = 30 * 60 * 1000
+/**
+ * Age at which it alerts: one day. A closing account's unlock comes
+ * `WITHDRAW_DELAY` (about 3 days) after `withdraw_start`; after it, the
+ * reader can withdraw what the settler has not settled.
+ */
+export const SETTLER_STALE_ALERT_MS = 24 * 60 * 60 * 1000
+
+export type SettlerFreshness = {
+  /** `unknown`: no run recorded since this field was added. */
+  level: 'ok' | 'warning' | 'alert' | 'unknown'
+  lastOkAt: number | null
+  ageMs: number | null
+}
+
+export function settlerFreshness(
+  lastOkAt: number | null | undefined,
+  now: number
+): SettlerFreshness {
+  if (lastOkAt === null || lastOkAt === undefined) {
+    return { level: 'unknown', lastOkAt: null, ageMs: null }
+  }
+  const ageMs = Math.max(0, now - lastOkAt)
+  const level =
+    ageMs >= SETTLER_STALE_ALERT_MS
+      ? 'alert'
+      : ageMs >= SETTLER_STALE_WARN_MS
+        ? 'warning'
+        : 'ok'
+  return { level, lastOkAt, ageMs }
 }
 
 // ---------------------------------------------------------------------------
@@ -576,10 +617,22 @@ async function resolveOpen(
   return 'pending'
 }
 
-/** One settler run (3.8, submission steps). */
+/**
+ * One settler run (3.8, submission steps). A run that ends without an error
+ * and not `failed` records its end time (`recordRun`); a run that finds the
+ * lease held records nothing.
+ */
 export async function runSettlementCycle(
   deps: SettlerDeps
 ): Promise<CycleResult> {
+  const result = await settleOnce(deps)
+  if (result.status !== 'busy' && result.status !== 'failed') {
+    await deps.ledger.recordRun(deps.now())
+  }
+  return result
+}
+
+async function settleOnce(deps: SettlerDeps): Promise<CycleResult> {
   const result: CycleResult = {
     status: 'idle',
     submitted: 0,

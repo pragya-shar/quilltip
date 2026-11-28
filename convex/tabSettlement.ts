@@ -56,6 +56,23 @@ export const releaseSettlerLease = internalMutation({
   },
 })
 
+/**
+ * Records the end of a settler run that did not fail on the `settler` lease
+ * row, which the run created or renewed (#647). Read by `/ops/chain`.
+ */
+export const recordSettlerRun = internalMutation({
+  args: { at: v.number() },
+  handler: async (ctx, args) => {
+    const lease = await ctx.db
+      .query('chainLeases')
+      .withIndex('by_name', (q) => q.eq('name', 'settler'))
+      .unique()
+    if (!lease) return
+    if (lease.lastOkAt !== undefined && lease.lastOkAt >= args.at) return
+    await ctx.db.patch(lease._id, { lastOkAt: args.at })
+  },
+})
+
 export const listOpenSettlements = internalQuery({
   args: {},
   handler: async (ctx) => openSettlements(ctx),
