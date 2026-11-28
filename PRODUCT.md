@@ -71,7 +71,16 @@ read or to write.
   that device.
 - **Custody.** Quilltip can never move a reader's money. An email restores the
   profile, never a balance.
-- **Adding money.** Today money is added from a Stellar testnet wallet.
+- **Adding money.** Money is added inside Balance, or from the tip that
+  needs it, from a Stellar testnet wallet, and the reader comes back to the
+  same line. One approval adds the money and can set up or renew quick tips;
+  the reader may add money only. The review states the amount in dollars and
+  XLM, the network's charge and who pays it, and the approval's limit and end
+  before the wallet is asked. Adding money never sends a tip, and never
+  cancels a withdrawal without saying so on its own button.
+- **Limits.** Tip limits are set in dollars: $5 a tip and $20 a day, and the
+  tip opens at $1 at any XLM price. A quick-tips approval allows at most the
+  balance or $50, whichever is smaller.
 - **Publishing and tips are two steps.** An article is live when published;
   tips on it start after the writer's wallet registers it.
 - **Permanent copies.** A writer can choose to store a permanent copy of an
@@ -82,14 +91,12 @@ read or to write.
     of testnet practice money from Quilltip, with no wallet, and practice money
     again once a day. When it ships, it becomes the default way to a first tip
     on a phone, and a wallet becomes the second way to add money.
-  - Adding money inside Balance without leaving the product.
-  - Tip amounts and limits set in dollars, with the tip opening at $1.
   - Following writers.
 - **Terminology.** Published content is **articles**; article links say
   **Read more**. A chosen sentence is a **line**. Use **tip**, not
   "micro-tip". The reader sees **Balance**, never "Pocket" or "Tab". These
   words never appear to a reader: tab, voucher, settle, deposit, contract,
-  ledger, gas, mint, NFT, token. "Fee" appears only in the 97.5% line.
+  ledger, gas, mint, NFT, token. "Fee" appears in the 97.5% line, and as "Network fee" where a reader's own wallet pays Stellar's charge.
 
 ## Brand Commitments
 

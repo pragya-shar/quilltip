@@ -14,25 +14,36 @@ import { minBig } from './amounts'
 
 /** App default key lifetime: 7 days (spec 3.5, item 2). */
 export const DEFAULT_KEY_LIFETIME_LEDGERS = 7 * DAY_LEDGERS
-/** Default `spend_limit` cap: 50 XLM (spec 3.5, item 2). */
+/** Default `spend_limit` cap without a price: 50 XLM (spec 3.5, item 2). */
 export const DEFAULT_SPEND_LIMIT_CAP = BigInt(500_000_000)
+/** The cap with a price: $50, in XLM at that price. */
+export const DEFAULT_SPEND_LIMIT_CAP_CENTS = 5000
 /** Offer renewal this long before Convex stops accepting under the key. */
 export const RENEW_WINDOW_LEDGERS = 2 * DAY_LEDGERS
 
 /**
  * `valid_until` and `spend_limit` for a new key: 7 days from the latest
- * ledger, and `min(tab balance after this call, 50 XLM)`. A tab with no
- * balance yet gets the cap, since `spend_limit` must be above zero.
+ * ledger, and `min(tab balance after this call, cap)`. The cap is $50 at
+ * `priceUsd` when a price is given (a limit the reader feels in dollars),
+ * else 50 XLM. A tab with no balance yet gets the cap, since `spend_limit`
+ * must be above zero.
  */
 export function keyPlan(input: {
   latestLedger: number
   tabBalanceAfter: string
+  priceUsd?: number | null
 }): { validUntil: number; spendLimit: string } {
   const balance = BigInt(input.tabBalanceAfter)
-  const spendLimit =
-    balance > BigInt(0)
-      ? minBig(balance, DEFAULT_SPEND_LIMIT_CAP)
+  const price = input.priceUsd
+  const cap =
+    price && price > 0 && Number.isFinite(price)
+      ? BigInt(
+          Math.floor(
+            (DEFAULT_SPEND_LIMIT_CAP_CENTS * 10_000_000) / (price * 100)
+          )
+        )
       : DEFAULT_SPEND_LIMIT_CAP
+  const spendLimit = balance > BigInt(0) ? minBig(balance, cap) : cap
   return {
     validUntil: input.latestLedger + DEFAULT_KEY_LIFETIME_LEDGERS,
     spendLimit: spendLimit.toString(),

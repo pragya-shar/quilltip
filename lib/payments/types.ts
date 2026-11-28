@@ -53,11 +53,27 @@ export type SettlementState = 'accepted' | 'on-chain' | 'not-paid'
 export type NotPaidReason = 'shortfall' | 'expired' | 'rejected' | 'reset'
 
 /** Why this reader cannot tip from the balance here and now. */
+/** This device's quick-tip state in detail (`DeviceKeyView['kind']`). */
+export type DeviceKind =
+  | 'ready'
+  | 'pending'
+  | 'none'
+  | 'other-device'
+  | 'gone'
+  | 'expired'
+  | 'revoked'
+  | 'stopped'
+  | 'storage-unavailable'
+  | 'unchecked'
+
 export type UnavailableReason =
   | 'signed-out'
   | 'no-balance'
   | 'closing'
   | 'device'
+  /** This device holds an approval that cannot be checked yet (no ledger
+   * read): tipping waits, and nothing asks for a new approval. */
+  | 'device-checking'
   | 'own-article'
   | 'not-tippable'
   | 'settlement-off'
@@ -103,7 +119,15 @@ export type BalanceView = {
   pending: Money | null
   /** This device holds a key that can tip without a prompt. */
   deviceReady: boolean
-  device: 'loading' | 'ready' | 'needs-setup' | 'unavailable'
+  /** `checking`: this device holds an approval, but no ledger could be
+   * read to check its end; it waits rather than ask for a new one. */
+  device: 'loading' | 'checking' | 'ready' | 'needs-setup' | 'unavailable'
+  /**
+   * Why the device is in that state (`lib/tab-ui/key-plan.ts`
+   * `DeviceKeyView['kind']`: `none`, `expired`, `pending`, ...), for the tip
+   * button's words ("Set up to tip $1", "Renew to tip $1"). Null until read.
+   */
+  deviceKind?: DeviceKind | null
   limits: {
     perTip: Money
     dailyLeft: Money

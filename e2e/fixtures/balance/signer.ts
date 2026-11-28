@@ -23,6 +23,9 @@ export function createSigner(readerAddress: string): Signer {
         ? { state: 'ready', keyId: 0, view: 'ready' }
         : { state: 'needs-setup', keyId: null, view: 'none' }
     },
+    async heldKeyIds() {
+      return device === 'ready' ? [0] : []
+    },
     send(entry, keyId, deps) {
       return sendBalanceTip(entry, keyId, {
         ...deps,

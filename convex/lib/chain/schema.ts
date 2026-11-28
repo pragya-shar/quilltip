@@ -213,6 +213,13 @@ export const tabTables = {
     acceptedToday: v.string(),
     /** `YYYY-MM-DD` (UTC) that `acceptedToday` counts. */
     acceptedDay: v.string(),
+    /**
+     * Accepted on `acceptedDay`, in the tips' own US cents: the daily limit
+     * is in dollars, so a price move during the day does not change it.
+     * Unset on accounts from before it existed (read as the base units at
+     * the tip's price).
+     */
+    acceptedTodayCents: v.optional(v.number()),
     withdrawUnlockLedger: v.optional(v.number()),
     /** RPC id of the newest event that set the balance absolutely. */
     balanceEventId: v.optional(v.string()),

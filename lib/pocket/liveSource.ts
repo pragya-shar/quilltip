@@ -10,9 +10,9 @@ import type { PocketSource } from './source'
 /**
  * The balance on the money layer (hooks/payments). Only the balance's own
  * components import this, and they load with the sheet or panel when it
- * opens and with /pocket, never in a public first load. Adding money and
- * withdrawing are not in the money layer yet, so those sheets say what will
- * be possible and offer no action.
+ * opens and with /pocket, never in a public first load. Withdrawing is not
+ * in the money layer yet, so that sheet says what will be possible and
+ * offers no action.
  */
 export const liveSource: PocketSource = {
   // A backend client is there in the app; not in a page rendered without it.
@@ -24,6 +24,8 @@ export const liveSource: PocketSource = {
   useBalance,
   useEarnings,
   useActivity,
+  // Adding money is its own sheet (components/pocket/sheets/AddMoney.tsx),
+  // reached through the "Add testnet money" link, which opens it.
   useAddMoney: () => null,
   useWithdraw: () => null,
 }

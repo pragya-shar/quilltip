@@ -12,4 +12,14 @@ export const suites: readonly FixtureSuite[] = [
     config: 'e2e/fixtures/pocket/playwright.config.ts',
     env: { POCKET_FIXTURES: '1' },
   },
+  {
+    // Add money, quick tips and turning them off, on an emulated wallet
+    // and network: phones at 360, 390 and 412 in Chromium and WebKit.
+    name: 'add-money',
+    server: 'e2e/fixtures/add-money/server.mjs',
+    port: 4212,
+    spec: 'e2e/add-money.spec.ts',
+    config: 'e2e/fixtures/add-money/playwright.config.ts',
+    env: { ADD_MONEY_FIXTURES: '1' },
+  },
 ]

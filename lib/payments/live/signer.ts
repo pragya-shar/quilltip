@@ -30,9 +30,24 @@ export type ServerDevice = {
 }
 
 export type DeviceReading = {
-  state: 'ready' | 'needs-setup' | 'unavailable'
+  state: 'ready' | 'checking' | 'needs-setup' | 'unavailable'
   keyId: number | null
   view: DeviceKeyView['kind']
+}
+
+/**
+ * The balance's device state for a key view. `unchecked` (an approval is
+ * held but no ledger was read to check its end) waits as `checking`: it
+ * never asks for a new approval and never signs.
+ */
+export function deviceReading(view: DeviceKeyView): DeviceReading {
+  if (view.kind === 'ready')
+    return { state: 'ready', keyId: view.keyId, view: view.kind }
+  if (view.kind === 'storage-unavailable')
+    return { state: 'unavailable', keyId: null, view: view.kind }
+  if (view.kind === 'unchecked')
+    return { state: 'checking', keyId: null, view: view.kind }
+  return { state: 'needs-setup', keyId: null, view: view.kind }
 }
 
 export type Signer = {
@@ -48,6 +63,8 @@ export type Signer = {
     keyId: number,
     deps: Omit<BalanceTipDeps, 'sign' | 'commit'>
   ): ReturnType<typeof sendBalanceTip>
+  /** The on-chain key ids this browser holds for this reader. */
+  heldKeyIds(): Promise<number[]>
 }
 
 export function createSigner(readerAddress: string): Signer {
@@ -89,11 +106,7 @@ export function createSigner(readerAddress: string): Signer {
           currentLedger,
           seenKeyIds: seenKeyIds(scope.tabContractId, scope.readerAddress),
         })
-        if (view.kind === 'ready')
-          return { state: 'ready', keyId: view.keyId, view: view.kind }
-        if (view.kind === 'storage-unavailable')
-          return { state: 'unavailable', keyId: null, view: view.kind }
-        return { state: 'needs-setup', keyId: null, view: view.kind }
+        return deviceReading(view)
       } catch {
         return {
           state: 'unavailable',
@@ -101,6 +114,9 @@ export function createSigner(readerAddress: string): Signer {
           view: 'storage-unavailable',
         }
       }
+    },
+    async heldKeyIds() {
+      return (await keys.list(scope)).flatMap((k) => k.info.keyIds)
     },
     send(entry, keyId, deps) {
       return sendBalanceTip(entry, keyId, {

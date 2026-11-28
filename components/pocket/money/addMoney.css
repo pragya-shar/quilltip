@@ -1,0 +1,280 @@
+/*
+ * Add money, quick tips and turning them off: the states inside one sheet.
+ * Tokens only; state in data-* attributes.
+ */
+@layer surfaces {
+  .qt-add {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-5);
+    min-width: 0;
+  }
+  .qt-add__content,
+  .qt-add__step,
+  .qt-add__wallets {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-4);
+    min-width: 0;
+    outline: none;
+  }
+  .qt-add__lead {
+    margin: 0;
+    font-size: var(--qt-text-ui-l);
+    line-height: var(--qt-lh-ui-l);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-add__heading {
+    margin: 0;
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-add__body,
+  .qt-add__consent {
+    margin: 0;
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    overflow-wrap: anywhere;
+  }
+  .qt-add__consent {
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-add__note,
+  .qt-add__fine,
+  .qt-add__step-label {
+    margin: 0;
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+    color: var(--qt-ink-2);
+  }
+  .qt-add__note {
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+  }
+  .qt-add__foot {
+    margin: 0;
+    font-size: var(--qt-text-ui-xs);
+    line-height: var(--qt-lh-ui-xs);
+    color: var(--qt-ink-2);
+  }
+  .qt-add__status {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--qt-space-2);
+  }
+  .qt-add__status > .qt-spinner {
+    flex-shrink: 0;
+    margin-block-start: 0.2em;
+  }
+  .qt-add__address {
+    font-family: ui-monospace, 'SF Mono', Menlo, monospace;
+    font-size: 0.94em;
+  }
+
+  /* Amount segments: one row of equal pills, 48 px tall. */
+  .qt-add__amounts {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+    grid-auto-flow: column;
+    gap: var(--qt-space-2);
+  }
+  .qt-add__amount {
+    min-height: var(--qt-control-h);
+    padding: 0 var(--qt-space-2);
+    border: 1px solid var(--qt-line-strong);
+    border-radius: var(--qt-radius-control);
+    background: var(--qt-surface);
+    color: var(--qt-ink);
+    font: inherit;
+    font-size: var(--qt-text-ui);
+    font-variant-numeric: tabular-nums;
+    font-weight: var(--qt-weight-ui-strong);
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    transition:
+      background-color var(--qt-dur-quick) var(--qt-ease-out),
+      transform var(--qt-dur-press) var(--qt-ease-out);
+  }
+  .qt-add__amount[aria-checked='true'] {
+    border-color: var(--qt-ink);
+    background: var(--qt-ink);
+    color: var(--qt-on-ink);
+  }
+  .qt-add__amount:active {
+    transform: scale(0.97);
+  }
+  .qt-add__amount:focus-visible,
+  .qt-add__wallet:focus-visible {
+    outline: var(--qt-focus-width) solid var(--qt-focus);
+    outline-offset: var(--qt-focus-offset);
+  }
+
+  /* Ruled rows: label left, figure right. */
+  .qt-add__facts {
+    margin: 0;
+    border-block-start: 1px solid var(--qt-line);
+  }
+  .qt-add__fact {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--qt-space-4);
+    padding-block: var(--qt-space-3);
+    border-block-end: 1px solid var(--qt-line);
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+  }
+  .qt-add__fact dt {
+    color: var(--qt-ink-2);
+    flex-shrink: 0;
+  }
+  .qt-add__fact dd {
+    margin: 0;
+    text-align: end;
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
+  /* Wallet rows: 56 px buttons. */
+  .qt-add__rows,
+  .qt-add__installs {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .qt-add__wallet {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-3);
+    width: 100%;
+    min-height: 56px;
+    padding: var(--qt-space-2) var(--qt-space-3);
+    border: 1px solid var(--qt-line);
+    border-radius: var(--qt-radius-control);
+    background: var(--qt-surface);
+    color: var(--qt-ink);
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .qt-add__wallet:disabled {
+    opacity: 0.55;
+    cursor: default;
+  }
+  .qt-add__wallet-mark {
+    display: grid;
+    place-items: center;
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: var(--qt-radius-control);
+    background: var(--qt-sunk);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-add__wallet-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+  }
+  .qt-add__wallet-name {
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-add__wallet-how {
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+    color: var(--qt-ink-2);
+    overflow-wrap: anywhere;
+  }
+  .qt-add__wallet-go {
+    flex-shrink: 0;
+    font-size: var(--qt-text-ui-s);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-add__installs a {
+    color: inherit;
+    font-size: var(--qt-text-ui-s);
+  }
+
+  .qt-add__actions {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-2);
+  }
+  .qt-add__done {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-2);
+    margin: 0;
+    font-size: var(--qt-text-ui-l);
+    line-height: var(--qt-lh-ui-l);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-add__done svg {
+    color: var(--qt-marker-ink);
+  }
+  .qt-add__figure {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-1);
+  }
+
+  /* Quick tips in Balance. */
+  .qt-quick {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-3);
+    min-width: 0;
+  }
+  .qt-quick__devices {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    border-block-start: 1px solid var(--qt-line);
+  }
+  .qt-quick__device {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--qt-space-3);
+    padding-block: var(--qt-space-3);
+    border-block-end: 1px solid var(--qt-line);
+  }
+  .qt-quick__device-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+  }
+  .qt-quick__device-name {
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-quick__device-meta {
+    color: var(--qt-ink-2);
+    font-variant-numeric: tabular-nums;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .qt-add__amount {
+      transition: none;
+    }
+    .qt-add__amount:active {
+      transform: none;
+    }
+  }
+}

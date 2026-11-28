@@ -584,7 +584,7 @@ test.describe('receipts and money sheets', () => {
     await expect(receipt).not.toContainText('not charged')
   })
 
-  test('Add money from a tip says what will be possible and offers no fake action', async ({
+  test('Add money from a tip opens the add money sheet over the article, and gives focus back', async ({
     page,
   }) => {
     await page.goto('/article?scenario=ready')
@@ -596,14 +596,17 @@ test.describe('receipts and money sheets', () => {
     await expect(sheet).toContainText(
       'Nothing is sent until you tap Tip again.'
     )
-    await expect(sheet.getByRole('button', { name: /Add \$/ })).toHaveCount(0)
-    await expect(sheet).toContainText(
-      'You add testnet money from a Stellar wallet on the current balance page.'
-    )
+    // Amounts first; nothing is asked of a wallet before the review.
     await expect(
-      sheet.getByRole('link', { name: 'Add testnet money' })
-    ).toHaveAttribute('href', '/dashboard/tab')
-    await expect(sheet).not.toContainText('practice money')
+      sheet.getByRole('button', { name: /^Review \$/ })
+    ).toBeVisible()
+    await expect(sheet.getByRole('button', { name: /^Add \$/ })).toHaveCount(0)
+    // The one testnet line, at the foot of the sheet where money comes in.
+    const text = await sheet.innerText()
+    expect(text.match(/practice money/g)).toEqual(['practice money'])
+    expect(text).toContain(
+      'Quilltip runs on Stellar testnet. Tips are practice money.'
+    )
     await page.keyboard.press('Escape')
     await expect
       .poll(
@@ -618,20 +621,24 @@ test.describe('receipts and money sheets', () => {
   test('a money act moves focus to its status, then its result', async ({
     page,
   }) => {
-    await page.goto('/?scenario=ready&act=add')
+    await page.goto('/?scenario=ready&role=writer&act=withdraw')
     await openFromBar(page)
-    const add = pocket(page).getByRole('button', { name: 'Add money' })
-    await add.focus()
-    await press(add)
-    const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await press(sheet.getByRole('button', { name: 'Add $10' }))
-    await expect.poll(async () => (await focused(page)).text).toBe('Adding $10')
+    const open = pocket(page).getByRole('button', { name: 'Withdraw $0.6825' })
+    await open.focus()
+    await press(open)
+    const sheet = page.getByRole('dialog', { name: 'Withdraw' })
+    await press(sheet.getByRole('button', { name: 'Withdraw $0.6825' }))
     await expect
       .poll(async () => (await focused(page)).text)
-      .toBe('$10 added to your balance')
+      .toBe('Withdrawing $0.6825')
+    await expect
+      .poll(async () => (await focused(page)).text)
+      .toBe('$0.6825 sent to your wallet')
     await press(sheet.getByRole('button', { name: 'Done' }))
     await expect(sheet).toBeHidden()
-    await expect.poll(async () => (await focused(page)).text).toBe('Add money')
+    await expect
+      .poll(async () => (await focused(page)).text)
+      .toBe('Withdraw $0.6825')
   })
 
   test('a tip waiting for balance states no amount or time; its receipt offers to add money', async ({
@@ -656,7 +663,7 @@ test.describe('receipts and money sheets', () => {
   test('a double press that closes a sheet never presses the page under it; a press 500 ms later works', async ({
     page,
   }) => {
-    await page.goto('/pocket?scenario=ready&act=add')
+    await page.goto('/pocket?scenario=ready&role=both&act=withdraw')
     // Presses that reach the page outside any sheet (the shell's guard
     // swallows held presses before they get here).
     await page.evaluate(() => {
@@ -694,17 +701,17 @@ test.describe('receipts and money sheets', () => {
     await twice(receipt.getByRole('button', { name: /^Close/ }), receipt)
     expect(await under()).toBe(before)
 
-    // Add money's Done, pressed twice after the act (once the hold after
+    // Withdraw's Done, pressed twice after the act (once the hold after
     // the receipt has passed).
     await page.waitForTimeout(500)
-    const add = page.getByRole('button', { name: 'Add money' })
+    const add = page.getByRole('button', { name: 'Withdraw $0.6825' })
     await press(add)
-    const sheet = page.getByRole('dialog', { name: 'Add money' })
+    const sheet = page.getByRole('dialog', { name: 'Withdraw' })
     // The act changes the sheet in place (its button becomes the status,
     // then the result and Done below it): a double press on it starts it
     // once, and the second press never reaches Done.
     const act = (await sheet
-      .getByRole('button', { name: 'Add $10' })
+      .getByRole('button', { name: 'Withdraw $0.6825' })
       .boundingBox())!
     const actAt = () => {
       const x = act.x + act.width / 2
@@ -716,7 +723,7 @@ test.describe('receipts and money sheets', () => {
     const done = sheet.getByRole('button', { name: 'Done' })
     await expect(done).toBeVisible()
     await expect(sheet).toBeVisible()
-    await expect(sheet.getByText('$10 added to your balance')).toHaveCount(1)
+    await expect(sheet.getByText('$0.6825 sent to your wallet')).toHaveCount(1)
     const beforeDone = await under()
     await twice(done, sheet)
     expect(await under()).toBe(beforeDone)
@@ -730,15 +737,17 @@ test.describe('receipts and money sheets', () => {
   test('a failed money act says so and can be tried again', async ({
     page,
   }) => {
-    await page.goto('/pocket?scenario=ready&act=add-fail')
-    await press(page.getByRole('button', { name: 'Add money' }))
-    const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await press(sheet.getByRole('button', { name: 'Add $10' }))
+    await page.goto('/pocket?scenario=ready&role=writer&act=withdraw-fail')
+    await press(page.getByRole('button', { name: 'Withdraw $0.6825' }))
+    const sheet = page.getByRole('dialog', { name: 'Withdraw' })
+    await press(sheet.getByRole('button', { name: 'Withdraw $0.6825' }))
     await expect
       .poll(async () => (await focused(page)).text)
       .toBe('That did not go through. Nothing was added.')
     await press(sheet.getByRole('button', { name: 'Try again' }))
-    await expect(sheet.getByRole('button', { name: 'Add $10' })).toBeVisible()
+    await expect(
+      sheet.getByRole('button', { name: 'Withdraw $0.6825' })
+    ).toBeVisible()
   })
 
   test('the Withdraw sheet opened with no way to withdraw says what has arrived', async ({

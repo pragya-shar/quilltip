@@ -133,7 +133,9 @@ describe('actions before sign-out', () => {
     expect(Date.now() - t0).toBeLessThan(1000)
   })
 
-  it('has none registered yet', () => {
-    expect(SIGN_OUT_BEFORE).toEqual([])
+  it('has the pocket package’s stop of quick-tips keys registered', () => {
+    expect(SIGN_OUT_BEFORE.map((action) => action.name)).toEqual([
+      'stop quick tips keys',
+    ])
   })
 })

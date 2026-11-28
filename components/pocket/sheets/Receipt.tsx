@@ -1,7 +1,6 @@
 'use client'
 
 import '../pocket.css'
-import { Button } from '@/system/components/Button'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TextLink } from '@/system/components/TextLink'
 import { sheetStack } from '@/shell/sheetStack'
@@ -11,7 +10,7 @@ import type { ActivityItem } from '@/lib/pocket/types'
 import { recordHref, rowWords, whenLong } from '../copy'
 import { ReceiptFact as Fact } from '../ReceiptFact'
 import { rowAmount } from '../rowAmount'
-import { ADD_MONEY_PAGE } from '../sheetIds'
+import { AddMoneyLink } from '../money/AddMoneyLink'
 
 export type ReceiptProps = { item: ActivityItem }
 
@@ -100,9 +99,7 @@ export default function ReceiptBody({
         // What to do, with the action beside it.
         <div className="qt-pocket__add">
           <p className="qt-pocket__fine">{words.long}</p>
-          <Button variant="secondary" href={ADD_MONEY_PAGE}>
-            Add testnet money
-          </Button>
+          <AddMoneyLink>Add testnet money</AddMoneyLink>
         </div>
       ) : (
         <p className="qt-pocket__fine">{words.long}</p>

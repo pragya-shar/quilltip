@@ -90,6 +90,7 @@ function balance(over: Partial<BalanceView>, asOf: number): BalanceView {
     pending: money(0),
     deviceReady: true,
     device: 'ready',
+    deviceKind: 'ready',
     limits: {
       perTip: money(50),
       dailyLeft: money(500),
@@ -123,6 +124,7 @@ const LOADING_BALANCE: Partial<BalanceView> = {
   pending: null,
   deviceReady: false,
   device: 'loading',
+  deviceKind: null,
   limits: null,
   amounts: [],
   exact: null,
@@ -365,6 +367,7 @@ function forRole(v: FakePayments, role: FakeRole): FakePayments {
                 price: null,
                 deviceReady: false,
                 device: 'needs-setup',
+                deviceKind: 'none',
                 limits: null,
                 amounts: [],
                 online: v.balance.online,

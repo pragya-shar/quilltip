@@ -163,7 +163,8 @@ describe('signing out here', () => {
       [RECORD]: '{}',
     })
     const run = vi.fn(async () => {})
-    // The token goes, then the page leaves before the server answers.
+    // The token goes, then the page leaves before the server answers. (No
+    // actions before sign-out here: those are tested on their own.)
     void signOutHere(
       () =>
         new Promise<void>(() => {
@@ -171,7 +172,8 @@ describe('signing out here', () => {
           storage.setItem(KIT, 'G...')
         }),
       storage,
-      run
+      run,
+      null
     )
     page.dispatchEvent(new Event('pagehide'))
     expect(walletKeys(storage)).toEqual([])

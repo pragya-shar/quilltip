@@ -7,8 +7,10 @@ import { Notice } from '@/system/components/Notice'
 import { AddIcon, ForwardIcon, PendingIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
 import { warmSheet } from '@/shell/sheets/preload'
-import { ADD_MONEY_PAGE, ADD_MONEY_SHEET, EXACT_AMOUNT_SHEET } from './sheetIds'
+import { ADD_MONEY_SHEET, EXACT_AMOUNT_SHEET } from './sheetIds'
 import { usePocketSource } from '@/lib/pocket/source'
+import { AddMoneyLink } from './money/AddMoneyLink'
+import { QuickTipsSection } from './money/QuickTipsSection'
 import type { BalanceView } from '@/lib/pocket/types'
 
 /**
@@ -132,11 +134,10 @@ export function SpendableSection({
           <p className="qt-pocket__fine">
             Money comes from a Stellar testnet wallet.
           </p>
-          <Button variant="secondary" href={ADD_MONEY_PAGE}>
-            Add testnet money
-          </Button>
+          <AddMoneyLink>Add testnet money</AddMoneyLink>
         </div>
       ) : null}
+      {status === 'ready' ? <QuickTipsSection /> : null}
     </section>
   )
 }
