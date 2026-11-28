@@ -82,6 +82,7 @@ import {
 import { scheduleShareReconcile } from './shares'
 import { forgetDraftClientIds } from './lib/write/clientIds'
 import { nextUpdatedAt } from './lib/write/clock'
+import { syncDeskRow } from './lib/write/deskRow'
 
 const WRITER_NOTES_MAX_LENGTH = 5000
 const PUBLISH_RECEIVING_WALLET_ERROR =
@@ -959,6 +960,7 @@ export const createArticle = mutation({
     })
 
     await syncArticleUploadReferences(ctx, articleId, null, args)
+    await syncDeskRow(ctx, articleId)
 
     if (args.published) {
       const row = await ctx.db.get(articleId)
@@ -1070,6 +1072,7 @@ export const updateArticle = mutation({
     }
 
     await ctx.db.patch(args.id, updates)
+    await syncDeskRow(ctx, args.id)
     if (args.content !== undefined) await scheduleShareReconcile(ctx, args.id)
 
     const updated = await ctx.db.get(args.id)
@@ -1208,6 +1211,7 @@ export const publishArticle = mutation({
       contentHashSchema: ARTICLE_SCHEMA,
       updatedAt: now,
     })
+    await syncDeskRow(ctx, args.id)
 
     const publishedRow = await ctx.db.get(args.id)
     if (publishedRow) {
@@ -1297,6 +1301,7 @@ export const deleteArticle = mutation({
 
     // Delete article
     await ctx.db.delete(args.id)
+    await syncDeskRow(ctx, args.id)
     await forgetDraftClientIds(ctx, args.id)
     await scheduleShareReconcile(ctx, args.id)
 
@@ -1370,6 +1375,7 @@ export const saveDraft = mutation({
       }
 
       await ctx.db.patch(args.id, patch)
+      await syncDeskRow(ctx, args.id)
 
       const after = await ctx.db.get(args.id)
       if (after) await syncArticleUploadReferences(ctx, args.id, article, after)
@@ -1418,6 +1424,7 @@ export const saveDraft = mutation({
         updatedAt: now,
       })
       await syncArticleUploadReferences(ctx, articleId, null, args)
+      await syncDeskRow(ctx, articleId)
       return articleId
     }
   },
@@ -1464,6 +1471,7 @@ export const unpublishArticlesWithPlaceholderTitles = internalMutation({
         publishedAt: undefined,
         updatedAt: now,
       })
+      await syncDeskRow(ctx, article._id)
       await scheduleShareReconcile(ctx, article._id)
 
       articleCountDeltaByAuthor.set(
@@ -1569,6 +1577,7 @@ export const hideReviewedArticles = internalMutation({
       await removeTagLinksForArticle(ctx, article._id)
       await syncReadingRoomArticle(ctx, article._id, null)
       await ctx.db.patch(article._id, { published: false, updatedAt: now })
+      await syncDeskRow(ctx, article._id)
       await scheduleShareReconcile(ctx, article._id)
       deltas.set(article.authorId, (deltas.get(article.authorId) ?? 0) + 1)
     }
@@ -1600,6 +1609,7 @@ export const setAllArticlesToDraft = internalMutation({
           published: false,
           updatedAt: now,
         })
+        await syncDeskRow(ctx, article._id)
         await scheduleShareReconcile(ctx, article._id)
         updated += 1
       }

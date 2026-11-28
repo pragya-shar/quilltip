@@ -1,4 +1,5 @@
 import { ConvexError, v } from 'convex/values'
+import { syncDeskRow } from './lib/write/deskRow'
 import {
   PUBLISHED_ARTICLE_LOCKED_MESSAGE,
   isArticleLocked,
@@ -276,6 +277,7 @@ export const updateArticleCoverImage = mutation({
       coverImage: imageUrl || undefined,
       updatedAt: now,
     })
+    await syncDeskRow(ctx, args.articleId)
 
     return {
       imageUrl,
