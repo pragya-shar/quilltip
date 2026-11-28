@@ -100,6 +100,7 @@ import type * as nftsV2 from "../nftsV2.js";
 import type * as passwordReset from "../passwordReset.js";
 import type * as permanentStorage from "../permanentStorage.js";
 import type * as publicRoutes from "../publicRoutes.js";
+import type * as publishing from "../publishing.js";
 import type * as readingRoomIndex from "../readingRoomIndex.js";
 import type * as reconcileTips from "../reconcileTips.js";
 import type * as schema_write from "../schema/write.js";
@@ -222,6 +223,7 @@ declare const fullApi: ApiFromModules<{
   passwordReset: typeof passwordReset;
   permanentStorage: typeof permanentStorage;
   publicRoutes: typeof publicRoutes;
+  publishing: typeof publishing;
   readingRoomIndex: typeof readingRoomIndex;
   reconcileTips: typeof reconcileTips;
   "schema/write": typeof schema_write;
