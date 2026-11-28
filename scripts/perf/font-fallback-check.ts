@@ -43,6 +43,13 @@ import {
 } from '@playwright/test'
 import { startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
+import {
+  READING_FALLBACK,
+  changedFaces as changedReadingFaces,
+  heldFailures,
+  readingRatios,
+  upgradeFailures,
+} from './font-gates'
 import { FONT_FALLBACK_ROUTES, SURFACE_FONT_FALLBACK } from './routes'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -108,8 +115,6 @@ const MAX_WIDTH_DIFFERENCE = 0.07
  * held by font-display: optional and not by these values.
  */
 const READING_WIDTH_DIFFERENCE = 0.025
-/** Families of the reading faces' fallbacks. */
-const READING_FALLBACK = /Quilltip (Read|Display)[A-Za-z ]* Fallback/
 /** How long font responses are held back in the movement runs: well past
  * the block period, and after the page's own client work has settled. */
 const LATE_MS = 5000
@@ -229,12 +234,15 @@ async function lateView(
     await page.waitForTimeout(LATE_MS)
     await page.evaluate(() => document.fonts.ready)
     await page.waitForTimeout(1000)
-    const after = await capture(page)
-    if (!roundTrip) return { before, after, held: heldCount }
-    // The upgrade loads the faces under their second names when idle.
+    if (!roundTrip)
+      return { before, after: await capture(page), held: heldCount }
+    // The upgrade loads the faces under their second names when idle; the
+    // view's "after" is taken once they have, so a change they caused
+    // inside the view would show. Not loaded in time fails the run.
     await page
       .locator('html[data-reading-faces-loaded]')
       .waitFor({ state: 'attached', timeout: 15_000 })
+    const after = await capture(page)
     for (const to of [roundTrip, routePath]) {
       await page.evaluate(
         (path) =>
@@ -438,25 +446,11 @@ function checkUpgrade(
   next: Snapshot | undefined
 ): string[] {
   const upgradeLabel = `${label} next page view`
-  if (!next) return [`${upgradeLabel}: not measured`]
-  const cachedRuns = new Map(cached.runs.map((run) => [run.key, run]))
-  let width = 0
-  let reference = 0
-  for (const run of next.runs) {
-    const other = cachedRuns.get(run.key)
-    if (!other || !READING_FALLBACK.test(run.family)) continue
-    width += run.width
-    reference += other.width
-  }
-  const ratio = reference > 0 ? width / reference : 0
+  const ratios = next ? readingRatios(next.runs, cached.runs) : []
   console.log(
-    `${upgradeLabel.padEnd(30)} reading text ${ratio.toFixed(3)} times its width in the web fonts`
+    `${upgradeLabel.padEnd(30)} reading text, per font, against the web fonts: ${ratios.map(({ font, ratio }) => `${font} ${ratio.toFixed(3)}`).join(', ') || '-'}`
   )
-  return Math.abs(ratio - 1) > 0.002
-    ? [
-        `${upgradeLabel}: after a late first view and a client navigation, reading text is ${ratio.toFixed(3)} times its width in the web fonts (not upgraded)`,
-      ]
-    : []
+  return upgradeFailures(upgradeLabel, next?.runs, cached.runs)
 }
 
 /** Movement within one page view, from before the fonts arrive to after. */
@@ -492,22 +486,7 @@ function checkMovement(
   const max = Math.max(0, ...moves)
   // A face that changes inside the view with no re-wrap moves nothing:
   // its text's width changes. Per reading font, summed over the page.
-  const widths = (snapshot: Snapshot) => {
-    const sums = new Map<string, number>()
-    // The reading faces only: late client content in the interface face
-    // is not a face change.
-    for (const run of snapshot.runs)
-      if (READING_FALLBACK.test(run.family))
-        sums.set(run.font, (sums.get(run.font) ?? 0) + run.width)
-    return sums
-  }
-  const afterWidths = widths(after)
-  const changedFaces = [...widths(before)]
-    .map(([font, width]) => ({
-      font,
-      ratio: (afterWidths.get(font) ?? width) / width,
-    }))
-    .filter(({ ratio }) => Math.abs(ratio - 1) > 0.001)
+  const changedFaces = changedReadingFaces(before.runs, after.runs)
   if (gate === 'still')
     for (const { font, ratio } of changedFaces)
       failures.push(
@@ -580,10 +559,7 @@ async function main() {
                 : undefined
             )
             const moved = checkMovement(label, viewport.height, late, gate)
-            if (late.held === 0)
-              moved.failures.push(
-                `${label}: no font request was held back, so the late view measured nothing`
-              )
+            moved.failures.push(...heldFailures(label, late.held, true))
             console.log(
               `${label.padEnd(30)} ${faces.summary}  ${moved.summary}`
             )
@@ -610,10 +586,9 @@ async function main() {
             const drawsItalic = cached.runs.some((run) =>
               / italic$/.test(run.font)
             )
-            if (drawsItalic && mixedView.held === 0)
-              mixed.failures.push(
-                `${mixedLabel}: the page draws italic text, but no italic font request was held back`
-              )
+            mixed.failures.push(
+              ...heldFailures(mixedLabel, mixedView.held, drawsItalic)
+            )
             console.log(
               `${mixedLabel.padEnd(30)} ${drawsItalic ? mixed.summary : 'no italic text on the page'}`
             )
