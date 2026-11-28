@@ -93,10 +93,24 @@ describe('links from the shell to legacy pages never prefetch', () => {
     expect(shell.filter((segment) => !SHELL_SEGMENTS.has(segment))).toEqual([])
   })
 
-  it('sends every link in system/, shell/ and app/(app) through AppLink', () => {
+  it('sends every link of the shell and its surfaces through AppLink', () => {
+    // The same places as the lint rule in eslint.config.mjs.
+    const surfaces = [
+      'read',
+      'pocket',
+      'today',
+      'shelf',
+      'write',
+      'writer',
+      'search',
+      'you',
+      'signin',
+      'resources',
+      'ops',
+    ].map((name) => `components/${name}`)
     const files = execFileSync(
       'git',
-      ['ls-files', 'system', 'shell', 'app/(app)'],
+      ['ls-files', 'system', 'shell', 'app/(app)', ...surfaces],
       {
         cwd: root,
       }
@@ -107,7 +121,7 @@ describe('links from the shell to legacy pages never prefetch', () => {
     const direct = files.filter(
       (file) =>
         file !== 'system/components/AppLink.tsx' &&
-        /import Link from 'next\/link'/.test(
+        /import\s+Link\b[^;]*from\s+'next\/link'/.test(
           readFileSync(path.join(root, file), 'utf8')
         )
     )
