@@ -212,6 +212,8 @@ async function lateView(
   next?: Snapshot
   /** How many font requests were held back. */
   held: number
+  /** Why the next page view could not be measured. */
+  upgradeError?: string
 }> {
   const context = await browser.newContext({ viewport })
   try {
@@ -237,12 +239,23 @@ async function lateView(
     if (!roundTrip)
       return { before, after: await capture(page), held: heldCount }
     // The upgrade loads the faces under their second names when idle; the
-    // view's "after" is taken once they have, so a change they caused
-    // inside the view would show. Not loaded in time fails the run.
-    await page
-      .locator('html[data-reading-faces-loaded]')
+    // view's "after" is taken once every load has settled, so a change they
+    // caused inside the view would show. Not settled in 15 s: a failure.
+    const settled = await page
+      .locator('html[data-reading-faces-settled]')
       .waitFor({ state: 'attached', timeout: 15_000 })
+      .then(
+        () => true,
+        () => false
+      )
     const after = await capture(page)
+    if (!settled)
+      return {
+        before,
+        after,
+        held: heldCount,
+        upgradeError: 'the second names did not settle within 15 s',
+      }
     for (const to of [roundTrip, routePath]) {
       await page.evaluate(
         (path) =>
@@ -565,7 +578,11 @@ async function main() {
             )
             failures.push(...faces.failures, ...moved.failures)
             if (!shell) continue
-            failures.push(...checkUpgrade(label, cached, late.next))
+            failures.push(
+              ...(late.upgradeError
+                ? [`${label} next page view: ${late.upgradeError}`]
+                : checkUpgrade(label, cached, late.next))
+            )
             // A first view: the roman face preloaded and on time, the italic
             // faces (not preloaded) late.
             const mixedLabel = `${label} roman on time, italic late`

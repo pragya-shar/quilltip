@@ -61,14 +61,14 @@ function askedFor(face: FacePair): boolean {
   return false
 }
 
-function loadNext(name: PairName) {
+function loadNext(name: PairName): Promise<unknown> | undefined {
   const face = faces()?.pairs[name]
   if (!face) return
   if (loaded.has(name) || !askedFor(face)) return
   const font = `${face.italic ? 'italic ' : ''}400 1em ${face.next}`
   // A Latin Extended face loads only for its own letters (unicode-range).
   const text = name.startsWith('extended') ? 'Łđ' : 'a'
-  document.fonts
+  return document.fonts
     .load(font, text)
     .then((faces) => {
       if (faces.length === 0) return
@@ -84,7 +84,14 @@ function loadNext(name: PairName) {
 function loadAll() {
   const known = faces()
   if (!known) return
-  for (const name of Object.keys(known.pairs) as PairName[]) loadNext(name)
+  const root = document.documentElement
+  delete root.dataset.readingFacesSettled
+  const loads = (Object.keys(known.pairs) as PairName[]).map(loadNext)
+  // Every face this page asked for has loaded under its second name, or
+  // failed: the next change of page leads with what loaded.
+  void Promise.allSettled(loads).then(() => {
+    root.dataset.readingFacesSettled = ''
+  })
 }
 
 /**

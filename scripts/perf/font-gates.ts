@@ -54,12 +54,29 @@ export function upgradeFailures(
   if (!next) return [`${label}: not measured`]
   const ratios = readingRatios(next, cached)
   if (ratios.length === 0) return [`${label}: no reading text measured`]
-  return ratios
-    .filter(({ ratio }) => Math.abs(ratio - 1) > UPGRADE_TOLERANCE)
-    .map(
-      ({ font, ratio }) =>
-        `${label}: text in ${font} is ${ratio.toFixed(3)} times its width in the web fonts (not upgraded)`
-    )
+  // Every reading font of the cached view is in the next one (by its runs'
+  // keys): a font missing there would pass unseen.
+  const nextReading = new Set(
+    next
+      .filter((run) => READING_FALLBACK.test(run.family))
+      .map((run) => run.key)
+  )
+  const cachedFonts = new Map<string, string[]>()
+  for (const run of cached)
+    if (READING_FALLBACK.test(run.family))
+      cachedFonts.set(run.font, [...(cachedFonts.get(run.font) ?? []), run.key])
+  const missing = [...cachedFonts]
+    .filter(([, keys]) => !keys.some((key) => nextReading.has(key)))
+    .map(([font]) => `${label}: text in ${font} is missing from the next view`)
+  return [
+    ...missing,
+    ...ratios
+      .filter(({ ratio }) => Math.abs(ratio - 1) > UPGRADE_TOLERANCE)
+      .map(
+        ({ font, ratio }) =>
+          `${label}: text in ${font} is ${ratio.toFixed(3)} times its width in the web fonts (not upgraded)`
+      ),
+  ]
 }
 
 /** Reading fonts whose text width changed inside one view. */

@@ -40,9 +40,16 @@ describe('the next page view gate', () => {
 
   it('holds to 0.2 percent', () => {
     const next = [run('p#0', 'readingFace 400 normal', 1654.6 * 1.003)]
-    expect(upgradeFailures('x', next, cached)).toHaveLength(1)
+    expect(upgradeFailures('x', next, [cached[0]!])).toHaveLength(1)
     const close = [run('p#0', 'readingFace 400 normal', 1654.6 * 1.0015)]
-    expect(upgradeFailures('x', close, cached)).toEqual([])
+    expect(upgradeFailures('x', close, [cached[0]!])).toEqual([])
+  })
+
+  it('fails on a reading font missing from the next view', () => {
+    const next = [run('p#0', 'readingFace 400 normal', 1654.6)]
+    expect(upgradeFailures('x', next, cached)).toEqual([
+      'x: text in readingItalicFace 400 italic is missing from the next view',
+    ])
   })
 
   it('fails when nothing was measured', () => {
