@@ -6,7 +6,8 @@ import { api } from '@/convex/_generated/api'
 /** What each cause means, for the operator; never a key or a secret. */
 const CAUSE_TEXT: Record<string, string> = {
   settlement_off: 'SETTLEMENT_ENABLED is not true',
-  config_missing: 'Chain config not loaded for this Tab',
+  config_missing:
+    'Chain config for this Tab not loaded, or not read by the last two refreshes',
   paused: 'Tab contract paused',
   settler_unset: 'TAB_SETTLER_SECRET is not set',
   settler_malformed: 'TAB_SETTLER_SECRET does not parse',

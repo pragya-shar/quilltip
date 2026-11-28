@@ -77,6 +77,7 @@ export const storeChainConfig = internalMutation({
     nftThresholdToken: v.optional(v.string()),
     tabAcceptorKeys: v.optional(v.array(v.string())),
     tabSettlers: v.optional(v.array(v.string())),
+    tabStateReadAt: v.optional(v.number()),
     paused: v.object({
       core: v.optional(v.boolean()),
       tab: v.optional(v.boolean()),
@@ -94,9 +95,11 @@ export const storeChainConfig = internalMutation({
       await ctx.db.insert('chainConfig', row)
     } else if (
       existing.coreContractId !== args.coreContractId ||
+      existing.tabContractId !== args.tabContractId ||
       existing.chainEpoch !== args.chainEpoch
     ) {
-      // A new contract set: drop values read from the previous one.
+      // A new contract set, or a new Tab: drop values read from the previous
+      // one, so another Tab's keys or role holders never count.
       await ctx.db.replace(existing._id, row)
     } else {
       // Same set: a view that failed this time keeps its previous value.
@@ -242,6 +245,13 @@ export const refreshChainConfig = internalAction({
           readTabAcceptorKeys(rpc, chain, chain.tabContractId!)
         )
       : undefined
+    // Every part of the Tab's state that readiness uses was read now.
+    const tabStateReadAt =
+      tabAcceptorKeys !== undefined &&
+      tabSettlers !== undefined &&
+      paused.tab !== undefined
+        ? Date.now()
+        : undefined
     // Acceptance refuses on a mismatch (tabs.submitTip); this makes it visible.
     if (tabAcceptorKeys) {
       let acceptor: string | null = null
@@ -289,6 +299,7 @@ export const refreshChainConfig = internalAction({
         nftThresholdToken,
         tabAcceptorKeys,
         tabSettlers,
+        tabStateReadAt,
         lastError: errors.length ? errors.join('; ').slice(0, 500) : undefined,
       }),
       paused: defined(paused),

@@ -372,6 +372,7 @@ async function seed(t: T, options: { open?: boolean } = {}) {
       feeBps: 250,
       tabAcceptorKeys: [ACCEPTOR_PUBLIC],
       tabSettlers: [SETTLER.publicKey()],
+      tabStateReadAt: now,
       paused: { core: false, tab: false },
       refreshedAt: now,
     })

@@ -8,7 +8,9 @@
  * - `SETTLEMENT_ENABLED=true`;
  * - the cached chain config (`chainConfig`) describes this epoch and Tab
  *   contract, and has the Tab's acceptor keys, `settler` role holders and
- *   pause state;
+ *   pause state, all read by a refresh at most `TAB_STATE_MAX_AGE_MS` before
+ *   the latest one (a failed read keeps the previous values, so after two
+ *   failed hourly refreshes in a row they no longer count);
  * - the Tab contract is not paused;
  * - `TAB_SETTLER_SECRET` parses as `settlerKeypair` parses it, and its
  *   address holds the Tab's `settler` role;
@@ -36,6 +38,14 @@ import { readChainEnv } from './env'
 import { acceptorPublicKeyHex } from './voucher'
 
 type EnvLike = Record<string, string | undefined>
+
+/**
+ * How much older than the latest refresh the Tab's cached state may be: one
+ * failed hourly refresh is tolerated, a second one in a row makes the state
+ * count as missing. A role or key change on chain then stops counting as
+ * unchanged once its reads keep failing.
+ */
+export const TAB_STATE_MAX_AGE_MS = 90 * 60 * 1000
 
 /** In check order. Each has its own log code (`readinessLogCode`). */
 export const TAB_READINESS_CAUSES = [
@@ -105,7 +115,9 @@ export function evaluateTabReadiness(
     !!config &&
     !!chain.tabContractId &&
     config.chainEpoch === chain.chainEpoch &&
-    config.tabContractId === chain.tabContractId
+    config.tabContractId === chain.tabContractId &&
+    config.tabStateReadAt !== undefined &&
+    config.refreshedAt - config.tabStateReadAt <= TAB_STATE_MAX_AGE_MS
   const acceptorKeys = current ? config.tabAcceptorKeys : undefined
   const settlers = current ? config.tabSettlers : undefined
   const paused = current ? config.paused.tab : undefined

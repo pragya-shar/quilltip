@@ -22,6 +22,7 @@ import {
   TAB_READINESS_CAUSES,
   acceptorKeyOf,
   readinessLogCode,
+  TAB_STATE_MAX_AGE_MS,
   settlerAddressOf,
   type TabReadinessCause,
 } from '../../convex/lib/chain/tabReadiness'
@@ -94,6 +95,7 @@ async function seed(t: T) {
       feeBps: 250,
       tabAcceptorKeys: [ACCEPTOR_PUBLIC],
       tabSettlers: [SETTLER.publicKey()],
+      tabStateReadAt: T0,
       paused: { core: false, tab: false },
       refreshedAt: T0,
     })
@@ -453,11 +455,77 @@ describe('tab tip readiness (#692)', () => {
     expect(acceptorKeyOf(undefined).status).toBe('unset')
   })
 
+  /** A refresh as the store sees it: `tab` false when a Tab read failed. */
+  async function store(t: T, o: { tab: boolean; tabContractId?: string }) {
+    await t.mutation(internal.chain.config.storeChainConfig, {
+      network: 'TESTNET',
+      chainEpoch: EPOCH,
+      tabContractId: o.tabContractId ?? TAB,
+      tokenContractId: TOKEN,
+      ...(o.tab
+        ? {
+            tabAcceptorKeys: [ACCEPTOR_PUBLIC],
+            tabSettlers: [SETTLER.publicKey()],
+            tabStateReadAt: Date.now(),
+          }
+        : { lastError: 'simulateTransaction failed' }),
+      paused: o.tab ? { core: false, tab: false } : {},
+    })
+  }
+
+  const isReady = async (t: T) =>
+    (await t.query(api.chain.config.getChainConfig, {})).tabReady
+
+  it('a failed Tab read keeps the last state for one hourly refresh; a second one in a row fails closed', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t)
+    expect(await isReady(t)).toBe(true)
+    // One refresh whose Tab reads fail: the last state still counts.
+    vi.setSystemTime(T0 + 60 * 60_000)
+    await store(t, { tab: false })
+    const row = await t.run(
+      async (ctx) => (await ctx.db.query('chainConfig').first())!
+    )
+    expect(row.tabSettlers).toEqual([SETTLER.publicKey()])
+    expect(await isReady(t)).toBe(true)
+    // A second one: the state is older than TAB_STATE_MAX_AGE_MS.
+    vi.setSystemTime(T0 + 120 * 60_000)
+    await store(t, { tab: false })
+    expect(await isReady(t)).toBe(false)
+    expect(
+      (await t.query(internal.chain.tabReadiness.read, {})).causes
+    ).toEqual(['config_missing'])
+    // The next refresh that reads it makes it ready again.
+    vi.setSystemTime(T0 + 180 * 60_000)
+    await store(t, { tab: true })
+    expect(await isReady(t)).toBe(true)
+    expect(TAB_STATE_MAX_AGE_MS).toBe(90 * 60_000)
+  })
+
+  it('a new Tab contract drops the previous Tab state even when its reads fail', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t)
+    // TOKEN stands in for the new Tab's contract address.
+    vi.stubEnv('TAB_CONTRACT_ID', TOKEN)
+    await store(t, { tab: false, tabContractId: TOKEN })
+    const row = await t.run(
+      async (ctx) => (await ctx.db.query('chainConfig').first())!
+    )
+    expect(row.tabContractId).toBe(TOKEN)
+    expect(row.tabSettlers).toBeUndefined()
+    expect(row.tabAcceptorKeys).toBeUndefined()
+    expect(await isReady(t)).toBe(false)
+    expect(
+      (await t.query(internal.chain.tabReadiness.read, {})).causes
+    ).toEqual(['config_missing'])
+  })
+
   it('the hourly refresh stores the settler role holders and logs one code per cause, with no secret', async () => {
     const t = convexTest(schema, modules)
     vi.stubEnv('CORE_CONTRACT_ID', CORE)
     const u32 = (n: number) => nativeToScVal(n, { type: 'u32' })
     const i128 = (n: bigint) => nativeToScVal(n, { type: 'i128' })
+    let rolesDown = false
     const fetch = fakeRpcFetch((method, params) => {
       if (method !== 'simulateTransaction') throw new Error(method)
       const bytes = Buffer.from(
@@ -472,6 +540,9 @@ describe('tab tip readiness (#692)', () => {
         'fee_bps',
         'min_tip',
       ].find((name) => bytes.includes(Buffer.from(name)))
+      if (rolesDown && fn === 'get_role_member_count') {
+        throw new Error('role read failed')
+      }
       const retval =
         fn === 'get_role_member_count'
           ? u32(1)
@@ -503,6 +574,7 @@ describe('tab tip readiness (#692)', () => {
       async (ctx) => (await ctx.db.query('chainConfig').first())!
     )
     expect(row.tabSettlers).toEqual([SETTLER.publicKey()])
+    expect(row.tabStateReadAt).toBe(T0)
     expect(row.lastError ?? null).toBeNull()
     expect((await t.query(api.chain.config.getChainConfig, {})).tabReady).toBe(
       true
@@ -512,6 +584,32 @@ describe('tab tip readiness (#692)', () => {
         .map((c) => String(c[0]))
         .filter((l) => l.includes('TAB_NOT_READY_'))
     expect(codes()).toEqual([])
+
+    // A refresh whose role read fails keeps the holders and the time of the
+    // last full read; the next failed one makes the state too old.
+    rolesDown = true
+    vi.setSystemTime(T0 + 60 * 60_000)
+    await t.action(internal.chain.config.refreshChainConfig, {})
+    const kept = await t.run(
+      async (ctx) => (await ctx.db.query('chainConfig').first())!
+    )
+    expect(kept.tabSettlers).toEqual([SETTLER.publicKey()])
+    expect(kept.tabStateReadAt).toBe(T0)
+    expect((await t.query(api.chain.config.getChainConfig, {})).tabReady).toBe(
+      true
+    )
+    vi.setSystemTime(T0 + 120 * 60_000)
+    await t.action(internal.chain.config.refreshChainConfig, {})
+    expect((await t.query(api.chain.config.getChainConfig, {})).tabReady).toBe(
+      false
+    )
+    rolesDown = false
+    vi.setSystemTime(T0 + 180 * 60_000)
+    await t.action(internal.chain.config.refreshChainConfig, {})
+    expect((await t.query(api.chain.config.getChainConfig, {})).tabReady).toBe(
+      true
+    )
+    errors.mockClear()
 
     vi.stubEnv('TAB_SETTLER_SECRET', `${SETTLER.secret().slice(0, -1)}A`)
     vi.stubEnv('TAB_ACCEPTOR_SECRET', 'ef'.repeat(32))
