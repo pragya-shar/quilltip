@@ -7,6 +7,7 @@
 import { describe, expect, test } from 'vitest'
 import type { MutationCtx } from '../../convex/_generated/server'
 import { syncTipCountsForReceipt } from '../../convex/lib/counts/sync'
+import { syncReceiptMoneyFor } from '../../convex/lib/chain/tabLedger'
 import {
   STATES,
   addTip,
@@ -16,6 +17,7 @@ import {
   figuresOf,
   mulberry32,
   replay,
+  setPaid,
   setState,
   world,
   type Kind,
@@ -53,6 +55,9 @@ describe('invariant: the figures equal a recount from the rows', () => {
         const roll = random()
         if (roll < 0.2) {
           await replay(w, tip)
+        } else if (roll < 0.35 && tip.kind === 'tab') {
+          // A settlement pays part or all of the tip.
+          await setPaid(w, tip, pick([0, 0.25, 0.5, 1]))
         } else {
           await setState(w, tip, pick(STATES[tip.kind]))
           if (roll > 0.85) await replay(w, tip)
@@ -63,7 +68,116 @@ describe('invariant: the figures equal a recount from the rows', () => {
   )
 })
 
+describe('a balance tip: in full while accepted or settled, else its paid part', () => {
+  const tabTip = (w: Awaited<ReturnType<typeof world>>) =>
+    addTip(w, {
+      kind: 'tab',
+      tipper: w.readers[0]!,
+      articleId: w.articles[0]!,
+      sentence: 1,
+      cents: 100,
+      at: 1,
+    })
+  const article = async (w: Awaited<ReturnType<typeof world>>) =>
+    figuresOf((await countTables(w)).articles[0])
+
+  test('a paid part stays counted when the rest is never paid', async () => {
+    const w = await world()
+    const tip = await tabTip(w)
+    await replay(w, tip)
+    expect(await article(w)).toMatchObject({ tipCount: 1, tipCents: 100 })
+    // A short settlement pays 40 of the 100 cents, then the rest fails.
+    await setState(w, tip, 'SHORTFALL')
+    expect(await article(w)).toMatchObject({ tipCount: 0, tipCents: 0 })
+    await setPaid(w, tip, 0.4)
+    expect(await article(w)).toMatchObject({ tipCount: 1, tipCents: 40 })
+    await setState(w, tip, 'UNPAID')
+    expect(await article(w)).toMatchObject({ tipCount: 1, tipCents: 40 })
+    await replay(w, tip)
+    expect(await article(w)).toMatchObject({ tipCount: 1, tipCents: 40 })
+    expect((await countTables(w)).passages[0]).toMatchObject({
+      tipCount: 1,
+      tipCents: 40,
+    })
+  })
+
+  test('a tip never paid leaves the counts once it is not accepted', async () => {
+    const w = await world()
+    const tip = await tabTip(w)
+    await replay(w, tip)
+    for (const state of ['UNPAID', 'REJECTED', 'VOID_RESET', 'SHORTFALL']) {
+      await setState(w, tip, state)
+      expect(await article(w), state).toMatchObject({ tipCount: 0 })
+    }
+  })
+
+  test('accepted or settled counts the whole tip, whatever is paid so far', async () => {
+    const w = await world()
+    const tip = await tabTip(w)
+    await setPaid(w, tip, 0.25)
+    expect(await article(w)).toMatchObject({ tipCount: 1, tipCents: 100 })
+    await setState(w, tip, 'SETTLED')
+    expect(await article(w)).toMatchObject({ tipCount: 1, tipCents: 100 })
+    // Paid in full and then marked rejected: what was paid still counts.
+    await setPaid(w, tip, 1)
+    await setState(w, tip, 'REJECTED')
+    expect(await article(w)).toMatchObject({ tipCount: 1, tipCents: 100 })
+  })
+
+  test('the figures equal a recount through partial payments', async () => {
+    const w = await world()
+    const tips = []
+    for (let i = 0; i < 6; i++)
+      tips.push(
+        await addTip(w, {
+          kind: 'tab',
+          tipper: w.readers[i % 3]!,
+          articleId: w.articles[i % 2]!,
+          sentence: i % 4,
+          cents: 37 + i * 11,
+          at: 10 + i,
+        })
+      )
+    for (const [i, tip] of tips.entries()) {
+      await replay(w, tip)
+      await setPaid(w, tip, [0, 0.1, 0.5, 0.99, 1, 0.33][i]!)
+      await setState(w, tip, ['UNPAID', 'SHORTFALL', 'REJECTED'][i % 3]!)
+    }
+    await expectFiguresMatch(w, tips)
+  })
+})
+
 describe('cases', () => {
+  test('the money layer syncs the counts with every receipt status change', async () => {
+    const w = await world()
+    const tip = await addTip(w, {
+      kind: 'tab',
+      tipper: w.readers[0]!,
+      articleId: w.articles[0]!,
+      sentence: 2,
+      cents: 80,
+      at: 1,
+    })
+    const money = () =>
+      w.t.run((ctx) =>
+        syncReceiptMoneyFor(ctx as unknown as MutationCtx, tip.receiptId!, 10)
+      )
+    // Acceptance: the money layer's sync counts the tip.
+    await money()
+    expect(figuresOf((await countTables(w)).articles[0])).toMatchObject({
+      tipCount: 1,
+      tipCents: 80,
+    })
+    // A status change written without a counts sync, then the money sync.
+    await setState(w, tip, 'UNPAID', false)
+    await money()
+    expect(figuresOf((await countTables(w)).articles[0])).toMatchObject({
+      tipCount: 0,
+    })
+    await money()
+    await expectFiguresMatch(w, [tip])
+  })
+
   test('replaying a change writes nothing', async () => {
     const w = await world()
     const tip = await addTip(w, {

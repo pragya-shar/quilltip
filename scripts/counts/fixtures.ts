@@ -175,18 +175,45 @@ export async function addTip(
     }
     let receiptId: Id<'tabReceipts'> | null = null
     if (spec.kind === 'tab') {
+      // Each balance tip is the only receipt of its own pair (key = `at`),
+      // so a test sets what of it was paid with `setPaid`.
+      const amount = String(spec.cents * 100_000)
+      await ctx.db.insert('tabVouchers', {
+        network: 'TESTNET',
+        chainEpoch: 'test',
+        tabAccountId: w.account,
+        tabContractId: 'C' + 'A'.repeat(55),
+        tokenContractId: 'C' + 'T'.repeat(55),
+        readerAddress: 'G' + 'B'.repeat(55),
+        keyId: spec.at,
+        writerAddress: 'G' + 'C'.repeat(55),
+        authorId: w.writer,
+        cumulative: amount,
+        receiptsRoot: 'r',
+        leafHashes: ['l'],
+        signature: 's',
+        acceptance: { acceptor: 'a', signature: 'a' },
+        seq: 1,
+        paidOnChain: '0',
+        unsettled: true,
+        state: 'ACTIVE',
+        earnedNet: '0',
+        pendingNet: '0',
+        acceptedAt: spec.at,
+        updatedAt: spec.at,
+      })
       receiptId = await ctx.db.insert('tabReceipts', {
         network: 'TESTNET',
         chainEpoch: 'test',
         tabAccountId: w.account,
-        keyId: 0,
+        keyId: spec.at,
         writerAddress: 'G' + 'C'.repeat(55),
         authorId: w.writer,
         articleId: spec.articleId,
         articleKey: 'k',
-        seq: spec.at,
-        amount: String(spec.cents * 100_000),
-        cumulativeAfter: '0',
+        seq: 1,
+        amount,
+        cumulativeAfter: amount,
         clientRef: `ref${spec.at}`,
         contentHash: 'h',
         leafHash: 'l',
@@ -249,6 +276,33 @@ export async function setState(
   })
 }
 
+/**
+ * Sets what a balance tip's pair has paid on chain, as a fraction of the
+ * tip, the way a settlement records it, then syncs.
+ */
+export async function setPaid(
+  w: World,
+  tip: TipSpec,
+  fraction: number,
+  sync = true
+) {
+  await w.t.run(async (ctx) => {
+    const receipt = (await ctx.db.get(tip.receiptId!))!
+    const pair = (await ctx.db
+      .query('tabVouchers')
+      .withIndex('by_pair', (q) =>
+        q
+          .eq('tabAccountId', receipt.tabAccountId)
+          .eq('keyId', receipt.keyId)
+          .eq('writerAddress', receipt.writerAddress)
+      )
+      .first())!
+    const paid = Math.floor(Number(receipt.amount) * fraction)
+    await ctx.db.patch(pair._id, { paidOnChain: String(paid) })
+    if (sync) await syncOf(ctx as unknown as MutationCtx, tip)
+  })
+}
+
 export async function syncOf(ctx: MutationCtx, tip: TipSpec) {
   return tip.receiptId
     ? syncTipCountsForReceipt(ctx, tip.receiptId, 10)
@@ -268,21 +322,30 @@ export type Recount = {
 
 /** The figures recomputed from the rows, without the module under test. */
 export async function recount(w: World, tips: TipSpec[]) {
-  const rows = await w.t.run(async (ctx) =>
-    Promise.all(
-      tips.map(async (tip) => ({
-        tip,
-        row: (await ctx.db.get(tip.rowId)) as
+  const rows = await w.t.run(async (ctx) => {
+    const pairs = await ctx.db.query('tabVouchers').collect()
+    return Promise.all(
+      tips.map(async (tip) => {
+        const row = (await ctx.db.get(tip.rowId)) as
           | Doc<'tips'>
-          | Doc<'highlightTips'>,
-        receipt: tip.receiptId ? await ctx.db.get(tip.receiptId) : null,
-        tipperKnown:
-          (await ctx.db.get(
-            ((await ctx.db.get(tip.rowId)) as Doc<'tips'>).tipperId
-          )) !== null,
-      }))
+          | Doc<'highlightTips'>
+        const receipt = tip.receiptId ? await ctx.db.get(tip.receiptId) : null
+        return {
+          tip,
+          row,
+          receipt,
+          // What the tip's own pair has paid on chain, in base units.
+          paid: receipt
+            ? Number(
+                pairs.find((pair) => pair.keyId === receipt.keyId)
+                  ?.paidOnChain ?? 0
+              )
+            : 0,
+          tipperKnown: (await ctx.db.get(row.tipperId)) !== null,
+        }
+      })
     )
-  )
+  })
   const articles = new Map<string, Recount & { readers: Set<string> }>()
   const passages = new Map<string, Recount & { readers: Set<string> }>()
   const bump = (
@@ -305,11 +368,19 @@ export async function recount(w: World, tips: TipSpec[]) {
     r.distinctTippers = r.readers.size
     map.set(key, r)
   }
-  for (const { tip, row, receipt, tipperKnown } of rows) {
+  for (const { tip, row, receipt, paid, tipperKnown } of rows) {
     let counted: boolean
     let cents = row.amountCents
     if (tip.kind === 'tab') {
-      counted = ['ACCEPTED', 'SHORTFALL', 'SETTLED'].includes(receipt!.status)
+      // In full while accepted or settled; otherwise only the paid part.
+      const amount = Number(receipt!.amount)
+      if (['ACCEPTED', 'SETTLED'].includes(receipt!.status)) {
+        counted = true
+      } else {
+        const part = Math.min(paid, amount)
+        counted = part > 0
+        cents = Math.round((row.amountCents * part) / amount)
+      }
     } else if (tip.kind === 'v1') {
       counted = row.status === 'CONFIRMED' && (row.verifiedAt ?? 0) > 0
     } else {
