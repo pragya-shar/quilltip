@@ -99,6 +99,26 @@ describe('content security policy on proxy responses', () => {
     ])
   })
 
+  it('limits img-src to this deployment and the listed hosts, with no wildcard (#615)', async () => {
+    const header =
+      (await pageResponse('/')).headers.get('content-security-policy') ?? ''
+    expect(header).not.toContain('*.convex.cloud')
+    expect(header).not.toContain('*.convex.site')
+    const imgSrc = directives(header).get('img-src') ?? []
+    expect(imgSrc).toEqual([
+      "'self'",
+      'data:',
+      'blob:',
+      'https://example-deployment-123.convex.cloud/',
+      'https://img.youtube.com/vi/',
+      'https://images.unsplash.com/',
+      'https://plus.unsplash.com/',
+      'https://arweave.net/',
+      'https://stellar.creit.tech',
+    ])
+    expect(imgSrc.filter((source) => source.includes('*'))).toEqual([])
+  })
+
   it('sets the restrictive document directives', async () => {
     const policy = policyOf(await pageResponse('/'))
     expect(policy.get('default-src')).toEqual(["'self'"])
