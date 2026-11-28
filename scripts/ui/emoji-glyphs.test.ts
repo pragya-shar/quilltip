@@ -13,6 +13,9 @@ import { join } from 'path'
  * Allowed without it: ASCII (digits, # and * have emoji forms only with
  * U+FE0F), and the signs every text face carries (© ® ™). Characters that are
  * emoji by default (Emoji_Presentation=Yes) are chosen as emoji everywhere.
+ *
+ * Scope: .ts, .tsx, .js, .mjs, .css and .html files under app, components,
+ * lib, public and convex. Not read: .json and .md files, and scripts/.
  */
 
 const root = join(__dirname, '../..')
@@ -44,10 +47,10 @@ function bareEmojiGlyphs(text: string): string[] {
 function uiFiles(): string[] {
   const out = execFileSync(
     'git',
-    ['ls-files', 'app', 'components', 'lib', 'public'],
+    ['ls-files', 'app', 'components', 'lib', 'public', 'convex'],
     { cwd: root, encoding: 'utf8' }
   )
-  return out.split('\n').filter((file) => /\.(tsx?|css|html)$/.test(file))
+  return out.split('\n').filter((file) => /\.(tsx?|m?js|css|html)$/.test(file))
 }
 
 test('the check fails on a bare arrow and passes the text-presentation form', () => {
