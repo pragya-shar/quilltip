@@ -2,10 +2,10 @@ import { build } from 'esbuild'
 import { describe, expect, it } from 'vitest'
 
 /**
- * The reading pages' client components (#609): the readable fallback and the
- * outage modules are rendered on the server only, and the client carries
- * only the paused sentence, not the server's anchored match. Walks each
- * client component's imports as a bundler does, with packages left out.
+ * The reading pages' client components (#609): the readable fallback, the
+ * outage modules and the paused-deployment rule are server only. Walks each
+ * client component's imports as a bundler does, with packages left out, and
+ * fails if any of them enters a client bundle.
  */
 const CLIENT_ENTRIES = [
   'components/articles/ArticlePageClient.tsx',
@@ -18,6 +18,8 @@ const SERVER_ONLY = [
   'lib/outage/legacyOutageBody.ts',
   'lib/outage/outageBody.ts',
   'lib/convex/pausedDeployment.ts',
+  'lib/convex/pausedSentence.ts',
+  'hooks/convex/useReadingQuery.ts',
   'lib/seo/publicQuery.ts',
 ]
 
@@ -43,8 +45,9 @@ describe('reading pages keep the fallback out of the client bundle', () => {
     '%s',
     async (entry) => {
       const inputs = await clientInputs(entry)
-      expect(inputs).toContain('hooks/convex/useReadingQuery.ts')
-      expect(inputs).toContain('lib/convex/pausedSentence.ts')
+      // The walk saw the page's own modules, so an absence below means
+      // something.
+      expect(inputs).toContain('hooks/convex/useArticles.ts')
       for (const file of SERVER_ONLY) expect(inputs, file).not.toContain(file)
     },
     30_000

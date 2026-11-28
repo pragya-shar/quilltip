@@ -191,6 +191,16 @@ describe('a paused deployment', () => {
     expect(backend.reads).toBe(2)
     expect(ms).toBeLessThan(500)
     expect((await request('/fixture-writer/the-lamp')).status).toBe(503)
+    expect((await request('/fixture-writer')).status).toBe(503)
+    expect(backend.reads).toBe(2)
+    // The home page reads nothing, so it keeps its 200.
+    expect((await request('/')).status).toBe(200)
+    expect(backend.reads).toBe(2)
+  })
+
+  it('answers a writer page first checked during the pause with 503', async () => {
+    backend.mode = 'paused'
+    expect((await request('/fixture-writer')).status).toBe(503)
     expect(backend.reads).toBe(2)
   })
 

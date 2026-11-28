@@ -1,5 +1,4 @@
 import { useQuery } from 'convex/react'
-import { useReadingQuery } from './useReadingQuery'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/types/convex'
 
@@ -7,7 +6,7 @@ export function useArticleHighlightsQuery(
   articleId: Id<'articles'> | undefined,
   enabled = true
 ) {
-  return useReadingQuery(
+  return useQuery(
     api.highlights.getArticleHighlights,
     enabled && articleId ? { articleId } : 'skip'
   )
@@ -34,7 +33,7 @@ export function useArticleHighlightTipStatsOptional(
   articleId: Id<'articles'> | undefined,
   opts?: { sinceMs?: number }
 ) {
-  return useReadingQuery(
+  return useQuery(
     api.highlightTips.getArticleStats,
     articleId
       ? {

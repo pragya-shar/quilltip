@@ -721,13 +721,15 @@ so a reader sees one message.
 - A paused deployment counts as an outage too. It answers HTTP 200 with an
   error body ("Server Error" followed by "Cannot run functions while this
   deployment is paused."), so the text decides, not the status
-  (`lib/convex/pausedDeployment.ts`). Any other function error does not. On
-  a page that has already loaded, the public reading hooks
-  (`hooks/convex/useReadingQuery.ts`) show nothing new when a live
-  subscription reports the pause, so the page keeps its server copy instead
-  of throwing into the error page; the content updates again once the
-  deployment resumes. Other subscriptions on the page (the signed-in user,
-  tips) still throw.
+  (`lib/convex/pausedDeployment.ts`, server only). Any other function error
+  does not.
+- **Limit:** this covers full loads only. A page that is already open is
+  replaced by the error screen at the first live subscription that reports
+  the pause (for example the signed-in user's, which every page reads), for
+  signed-in and signed-out readers alike. A highlight saved during a pause
+  shows a failure toast with the backend's raw message; bookmarks are kept
+  in the browser and still work. Keeping an open page readable through a
+  pause is #663.
 - The readable fallback (`ReadingUnavailable`) is rendered by the server
   pages and passed to the client components, so it adds no client bytes.
 - An outage is remembered for 5 s per server instance: every public reading

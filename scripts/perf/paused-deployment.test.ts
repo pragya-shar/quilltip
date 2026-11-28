@@ -1,6 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { api } from '../../convex/_generated/api'
 import { isPausedDeploymentMessage } from '../../lib/convex/pausedDeployment'
 import {
@@ -12,13 +10,13 @@ import { NEAR_MISS_BODY, PAUSED_BODY } from './paused-deployment-fixture'
 
 /**
  * A paused Convex deployment (#609): HTTP 200 with an error body. The text
- * decides, narrowly: on the proxy's path and the page's reads it counts as an
- * outage; on a live subscription the reader keeps what they had.
+ * decides, narrowly: on the proxy's path and the page's server reads it
+ * counts as an outage. (A page already open is not covered: its first
+ * subscription that reports the pause still throws into the error screen.)
  */
 
 // The page reads: a request-scoped memo and the request headers, with no
 // proxy answer (the page asks for itself), and a pass-through cache.
-const state = vi.hoisted(() => ({ liveResult: undefined as unknown }))
 vi.mock('react', async (original) => ({
   ...(await original<typeof import('react')>()),
   cache: <T>(fn: T) => fn,
@@ -30,15 +28,14 @@ vi.mock('next/cache', () => ({
     (...args: A) =>
       fn(...args),
 }))
-vi.mock('convex/react', async (original) => ({
-  ...(await original<typeof import('convex/react')>()),
-  useQueries: () => ({ r: state.liveResult }),
-}))
 
-const { getPublishedArticle, getPublicProfile, getReadingRoomList } =
-  await import('../../lib/seo/publicContent')
-const { readThroughPause, useReadingQuery } =
-  await import('../../hooks/convex/useReadingQuery')
+const {
+  getPublishedArticle,
+  getPublicProfile,
+  getPublicProfileArticles,
+  getReadingRoomList,
+  movedPublicPath,
+} = await import('../../lib/seo/publicContent')
 
 /** The same text as a live subscription reports it. */
 const SUBSCRIPTION_MESSAGE = `[CONVEX Q(articles:getArticleBySlug)] ${PAUSED_BODY.errorMessage}`
@@ -117,76 +114,8 @@ describe('the page’s reads on a paused deployment', () => {
     await expect(
       getReadingRoomList({ page: 1, limit: 9 })
     ).resolves.toBeUndefined()
-  })
-})
-
-describe('a live subscription on a paused deployment', () => {
-  const paused = new Error(SUBSCRIPTION_MESSAGE)
-
-  it('shows nothing new instead of throwing', () => {
-    expect(readThroughPause(paused)).toBeUndefined()
-    expect(readThroughPause({ title: 'New' })).toEqual({ title: 'New' })
-    expect(readThroughPause(undefined)).toBeUndefined()
-  })
-
-  it('still throws any other error', () => {
-    expect(() =>
-      readThroughPause(new Error(NEAR_MISS_BODY.errorMessage))
-    ).toThrow('paused for maintenance')
-  })
-
-  // A signed-out reader on an article: the page shows the server copy until
-  // live data arrives. When the subscription reports the pause, the reader
-  // keeps reading that copy; nothing throws into the page's error boundary.
-  function Article({
-    slug = 'lamp',
-    serverTitle,
-  }: {
-    slug?: string
-    serverTitle: string
-  }) {
-    const live = useReadingQuery(api.articles.getArticleBySlug, {
-      username: 'writer',
-      slug,
-    }) as { title: string } | null | undefined
-    const article = live === undefined ? { title: serverTitle } : live
-    return createElement('h1', null, article?.title ?? 'Not found')
-  }
-
-  it('leaves a signed-out reader on the server copy', () => {
-    state.liveResult = paused
-    expect(
-      renderToStaticMarkup(createElement(Article, { serverTitle: 'The Lamp' }))
-    ).toBe('<h1>The Lamp</h1>')
-  })
-
-  it('after a change of article during a pause, shows that article’s own server copy', () => {
-    // The hook keeps no live value, so a value read for the first article
-    // can never appear on the second.
-    state.liveResult = { title: 'The Lamp, live' }
-    renderToStaticMarkup(createElement(Article, { serverTitle: 'The Lamp' }))
-    state.liveResult = paused
-    expect(
-      renderToStaticMarkup(
-        createElement(Article, {
-          slug: 'the-quiet-street',
-          serverTitle: 'The Quiet Street',
-        })
-      )
-    ).toBe('<h1>The Quiet Street</h1>')
-  })
-
-  it('shows live data when it answers', () => {
-    state.liveResult = { title: 'The Lamp, edited' }
-    expect(
-      renderToStaticMarkup(createElement(Article, { serverTitle: 'The Lamp' }))
-    ).toBe('<h1>The Lamp, edited</h1>')
-  })
-
-  it('throws another subscription error, as before', () => {
-    state.liveResult = new Error(NEAR_MISS_BODY.errorMessage)
-    expect(() =>
-      renderToStaticMarkup(createElement(Article, { serverTitle: 'The Lamp' }))
-    ).toThrow('paused for maintenance')
+    await expect(getPublicProfileArticles('writer', 1)).resolves.toBeUndefined()
+    // The moved-handle lookup could not run: the fallback, never a 404.
+    await expect(movedPublicPath('writer', 'lamp', {})).resolves.toBeUndefined()
   })
 })
