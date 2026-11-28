@@ -49,6 +49,12 @@ import {
   signTabTip,
   type SessionKeyScope,
 } from '../../lib/stellar/v2/tab'
+import {
+  INDEXER_POLL_MS,
+  INDEXER_WAIT_MS,
+  coveredLedgerOf,
+  reconcileWhenIndexed,
+} from '../../convex/chain/tabReconcile'
 import { depsFor, freshDb, plantKey } from '../tab/helpers'
 import shared from '../../contracts/shared/test-vectors.json'
 import { rpcEventId } from './coreEvents'
@@ -6092,6 +6098,323 @@ describe('spendable balance across settler records and indexed events', () => {
     expect(await spendable(t, s)).toBeLessThanOrEqual(truth)
     await screenSums(t, s)
     expect(flagged()).toEqual([])
+  }, 30_000)
+
+  // -------------------------------------------------------------------------
+  // #648: the RPC reads the chain only at the newest ledger, and the indexer
+  // covers the newest ledger once a minute. `run` waits until the indexer
+  // has applied the ledger it read; `reconcile` keeps every check.
+
+  /** One indexer run: the cron runs every minute, a ledger closes every 5 s. */
+  const PERIOD_MS = 60_000
+  const LEDGER_MS = 5_000
+  const PERIOD_LEDGERS = PERIOD_MS / LEDGER_MS
+
+  type ChainAt = { ledger: number; balance: bigint; paid: Map<string, bigint> }
+
+  /**
+   * `run`'s steps against this deployment's functions. The chain answers
+   * `reads` in order. The clock moves only while `run` sleeps; after each
+   * sleep `indexer(waited)` runs with the time waited so far.
+   */
+  function runSteps(
+    t: T,
+    o: {
+      reads: ChainAt[]
+      indexer?: (waitedMs: number) => Promise<void>
+      apply?: boolean
+    }
+  ) {
+    const log = { slept: 0, sleeps: 0, reads: 0 }
+    let clock = 0
+    const result = reconcileWhenIndexed({
+      snapshot: () =>
+        t.query(internal.chain.tabReconcile.snapshot, { reader: READER }),
+      readChain: async (snap) => {
+        const read = o.reads[log.reads++]
+        if (!read) throw new Error('no chain read left')
+        return {
+          ledger: read.ledger,
+          balance: read.balance.toString(),
+          paid: snap.pairs.map((p) => ({
+            ...p,
+            paid: (read.paid.get(p.writer) ?? BigInt(0)).toString(),
+          })),
+        }
+      },
+      coveredLedger: async () =>
+        coveredLedgerOf(
+          await t.query(internal.chain.indexer.readCursor, {}),
+          EPOCH
+        ),
+      reconcile: (snap, read) =>
+        t.mutation(internal.chain.tabReconcile.reconcile, {
+          tabAccountId: snap.tabAccountId,
+          digest: snap.digest,
+          pairs: snap.pairs,
+          chain: read,
+          apply: o.apply ?? false,
+        }),
+      now: () => clock,
+      sleep: async (ms) => {
+        // A wait without a limit would never end: fail instead.
+        if (log.slept + ms > 10 * INDEXER_WAIT_MS) {
+          throw new Error('waited without a limit')
+        }
+        log.sleeps++
+        log.slept += ms
+        clock += ms
+        await o.indexer?.(log.slept)
+      },
+    })
+    return { result, log }
+  }
+
+  /** A 0.15 tab, 0.10 accepted and settled at L+1, its event lost. */
+  async function lostSettlement() {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    // The indexer's last run covered the chain up to L+2.
+    await caughtUp(t, LEDGER + 2)
+    return { t, s }
+  }
+
+  const chainAfterSettlement = (ledger: number): ChainAt => ({
+    ledger,
+    balance: BigInt(5) * CENT,
+    paid: new Map([[WRITER, BigInt(10) * CENT]]),
+  })
+
+  for (const lag of [1, PERIOD_LEDGERS / 2, PERIOD_LEDGERS]) {
+    it(`a healthy indexer ${lag} ledger(s) behind the chain read: the reconciliation waits for its next run, then reconciles (#648)`, async () => {
+      const flagged = negatives()
+      const { t, s } = await lostSettlement()
+      const read = chainAfterSettlement(LEDGER + 2 + lag)
+      const before = await ledgerState(t)
+      // Before #648, `run` called `reconcile` once with this read: refused.
+      expect(
+        await reconcileAt(t, read, { behind: true, apply: false })
+      ).toMatchObject({ status: 'refused', reason: 'INDEXER_BEHIND' })
+
+      // The indexer's next run covers the newest ledger, `lag` ledgers on.
+      const dry = runSteps(t, {
+        reads: [read],
+        indexer: async (waited) => {
+          if (waited >= lag * LEDGER_MS) await caughtUp(t, read.ledger)
+        },
+      })
+      expect(await dry.result).toMatchObject({
+        status: 'dry_run',
+        ledger: read.ledger,
+        after: {
+          confirmedBalance: (BigInt(5) * CENT).toString(),
+          outstanding: '0',
+          settledUnindexed: '0',
+          spendable: (BigInt(5) * CENT).toString(),
+        },
+        pairs: [{ writer: WRITER, marked: (BigInt(10) * CENT).toString() }],
+      })
+      expect(dry.log).toEqual({
+        slept: lag * LEDGER_MS,
+        sleeps: (lag * LEDGER_MS) / INDEXER_POLL_MS,
+        reads: 1,
+      })
+      // The dry run wrote nothing.
+      expect(await ledgerState(t)).toEqual(before)
+
+      // Apply. The indexer has covered the ledger: no wait.
+      const applied = runSteps(t, { reads: [read], apply: true })
+      expect(await applied.result).toMatchObject({
+        status: 'applied',
+        ledger: read.ledger,
+      })
+      expect(applied.log).toEqual({ slept: 0, sleeps: 0, reads: 1 })
+      expect(await account(t)).toMatchObject({
+        confirmedBalance: (BigInt(5) * CENT).toString(),
+        settledUnindexed: '0',
+        balanceLedger: read.ledger,
+      })
+      expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+      expect(await releases(t)).toMatchObject([
+        { source: 'reconcile', ledger: read.ledger },
+      ])
+      await screenSums(t, s)
+      expect(flagged()).toEqual([])
+    })
+  }
+
+  it('a real indexer lag still refuses: the reconciliation waits its limit, then INDEXER_BEHIND, and writes nothing (#648)', async () => {
+    const { t } = await lostSettlement()
+    const read = chainAfterSettlement(LEDGER + 2 + PERIOD_LEDGERS)
+    const before = await ledgerState(t)
+    // The indexer runs no more: its cursor stays at L+2.
+    const stuck = runSteps(t, { reads: [read, read, read], apply: true })
+    expect(await stuck.result).toMatchObject({
+      status: 'refused',
+      reason: 'INDEXER_BEHIND',
+    })
+    // It waited the whole limit, once, and did not read again.
+    expect(stuck.log).toEqual({
+      slept: INDEXER_WAIT_MS,
+      sleeps: INDEXER_WAIT_MS / INDEXER_POLL_MS,
+      reads: 1,
+    })
+    // An indexer that catches up only after the limit: the same.
+    const late = runSteps(t, {
+      reads: [read],
+      apply: true,
+      indexer: async (waited) => {
+        if (waited > INDEXER_WAIT_MS) await caughtUp(t, read.ledger)
+      },
+    })
+    expect(await late.result).toMatchObject({
+      status: 'refused',
+      reason: 'INDEXER_BEHIND',
+    })
+    expect(late.log.slept).toBe(INDEXER_WAIT_MS)
+    // An indexer that stopped, or a cursor of another epoch: waiting cannot
+    // help, so it refuses at once.
+    const setCursor = (patch: Partial<Doc<'chainCursor'>>) =>
+      t.run(async (ctx) => {
+        const cursor = (await ctx.db.query('chainCursor').first())!
+        await ctx.db.patch(cursor._id, patch)
+      })
+    for (const patch of [
+      { status: 'RESET_DETECTED' as const },
+      { status: 'BEHIND_RETENTION' as const },
+      { status: 'OK' as const, chainEpoch: 'another-epoch' },
+    ]) {
+      await setCursor(patch)
+      const stopped = runSteps(t, { reads: [read], apply: true })
+      expect(await stopped.result).toMatchObject({
+        status: 'refused',
+        reason: 'INDEXER_BEHIND',
+      })
+      expect(stopped.log).toEqual({ slept: 0, sleeps: 0, reads: 1 })
+    }
+    expect(await ledgerState(t)).toEqual(before)
+  })
+
+  it('a lagging node answers first: the reconciliation reads the chain again and never applies the old read (#648)', async () => {
+    const flagged = negatives()
+    const { t, s, a, b } = await twoPairs()
+    // Chain: A settles at L+1 (event lost), B settles at L+3 (indexed).
+    const first = await beginSettlement(t, [a])
+    await settlerRecord(t, first.settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    const second = await beginSettlement(t, [b])
+    const pb = paidOf(OTHER_WRITER, 10)
+    await settlerRecord(t, second.settlementId, [pb], LEDGER + 3)
+    await ingest(t, settledEvent(pb, { ledger: LEDGER + 3 }))
+    await caughtUp(t, LEDGER + 3)
+    // Truth from L+3 on: balance 0.10, nothing owed.
+    const truth = BigInt(10) * CENT
+    const paidBoth = new Map([
+      [WRITER, BigInt(10) * CENT],
+      [OTHER_WRITER, BigInt(10) * CENT],
+    ])
+    const fresh: ChainAt = {
+      ledger: LEDGER + 3 + PERIOD_LEDGERS,
+      balance: truth,
+      paid: paidBoth,
+    }
+    const r = runSteps(t, {
+      reads: [
+        // A node two ledgers behind the indexer: before B's settlement.
+        {
+          ledger: LEDGER + 1,
+          balance: BigInt(20) * CENT,
+          paid: new Map([[WRITER, BigInt(10) * CENT]]),
+        },
+        fresh,
+      ],
+      apply: true,
+      indexer: async (waited) => {
+        if (waited >= PERIOD_MS) await caughtUp(t, fresh.ledger)
+      },
+    })
+    expect(await r.result).toMatchObject({
+      status: 'applied',
+      ledger: fresh.ledger,
+      after: {
+        confirmedBalance: truth.toString(),
+        settledUnindexed: '0',
+        spendable: truth.toString(),
+      },
+    })
+    // The first read was refused (STALE_READ) without a wait; the second
+    // waited for the indexer's next run.
+    expect(r.log).toEqual({
+      slept: PERIOD_MS,
+      sleeps: PERIOD_MS / INDEXER_POLL_MS,
+      reads: 2,
+    })
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: truth.toString(),
+      balanceLedger: fresh.ledger,
+    })
+    expect(await spendable(t, s)).toBe(truth)
+    expect(await releases(t)).toHaveLength(1)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  }, 30_000)
+
+  it('the account changes while the reconciliation waits: a new snapshot and read each time, at most three (#648)', async () => {
+    const { t, s } = await lostSettlement()
+    const read = chainAfterSettlement(LEDGER + 2 + PERIOD_LEDGERS)
+    // The reader tips 0.01 during the first wait only.
+    let tips = 0
+    const once = runSteps(t, {
+      reads: [read, read],
+      indexer: async (waited) => {
+        if (tips === 0) {
+          tips++
+          await tip(t, s, { cents: 1 })
+        }
+        if (waited >= PERIOD_MS) await caughtUp(t, read.ledger)
+      },
+    })
+    // The first check sees the change (CHANGED); the second, from a new
+    // snapshot, counts the new tip as owed.
+    expect(await once.result).toMatchObject({
+      status: 'dry_run',
+      after: {
+        confirmedBalance: (BigInt(5) * CENT).toString(),
+        outstanding: CENT.toString(),
+        spendable: (BigInt(4) * CENT).toString(),
+      },
+    })
+    expect(once.log.reads).toBe(2)
+
+    // A tip during every wait: three attempts, then CHANGED. Nothing written.
+    // Each read is a minute newer; the indexer covers it after one poll, so
+    // each attempt sleeps once and sees one tip.
+    const before = await ledgerState(t)
+    const newer = [2, 3, 4, 5].map((k) =>
+      chainAfterSettlement(LEDGER + 2 + k * PERIOD_LEDGERS)
+    )
+    let polls = 0
+    const busy = runSteps(t, {
+      reads: newer,
+      indexer: async () => {
+        await tip(t, s, { cents: 1 })
+        await caughtUp(t, newer[polls++]!.ledger)
+      },
+    })
+    expect(await busy.result).toMatchObject({
+      status: 'refused',
+      reason: 'CHANGED',
+    })
+    expect(busy.log.reads).toBe(3)
+    const after = await ledgerState(t)
+    // Only the three new tips changed the tables, not the reconciliation.
+    expect(after.releases).toBe(before.releases)
+    expect(after.accounts[0]!.confirmedBalance).toBe(
+      before.accounts[0]!.confirmedBalance
+    )
+    expect(after.accounts[0]!.settledUnindexed).toBe(
+      before.accounts[0]!.settledUnindexed
+    )
   }, 30_000)
 
   /** Everything a release can change, for "nothing was written" checks. */
