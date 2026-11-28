@@ -753,7 +753,7 @@ test.describe('landing reading link from the first paint', () => {
     }
   }
 
-  // Known gap (focus order, WCAG 2.4.3): when the opening ends while its
+  // Known gap #694 (focus order, WCAG 2.4.3): when the opening ends while its
   // reading link has keyboard focus, the link leaves with the stage and
   // focus falls to the body; the next key press goes on from where the link
   // was, at the end of the page. These cases record where the reader is and
@@ -766,7 +766,7 @@ test.describe('landing reading link from the first paint', () => {
     }) => {
       test.fail(
         true,
-        'Known gap: focus falls to the body when the opening ends'
+        'Known gap #694: focus falls to the body when the opening ends'
       )
       await recordConvexMessages(page)
       await page.goto('/', { waitUntil: 'domcontentloaded' })
