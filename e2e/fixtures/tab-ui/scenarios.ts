@@ -344,6 +344,18 @@ const S: Scenario[] = [
     },
   },
   {
+    id: 'home-not-ready',
+    title: 'Settlement on, keys not ready, a tip waiting',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.tabReady = false
+      s.tips = [tipRow(0, 'ACCEPTED', { acceptedAt: NOW - 30 * 60_000 })]
+      recomputeTab(s)
+    },
+  },
+  {
     id: 'home-settlement-off-none',
     title: 'Settlement off, no tab yet',
     view: 'home',
@@ -371,6 +383,20 @@ const S: Scenario[] = [
       open(s, 12)
       s.tab!.status = 'CLOSING'
       s.tab!.withdrawUnlockLedger = LEDGER + 2 * DAY
+    },
+  },
+  {
+    // The estimated day has passed, the unlock ledger has not: the latest
+    // ledger read is two days old (#671).
+    id: 'home-closing-overdue',
+    title: 'Closing: the estimate has passed, the ledger has not',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      open(s, 12)
+      s.tab!.status = 'CLOSING'
+      s.tab!.withdrawUnlockLedger = LEDGER + 10
+      s.clockLagMs = 2 * 86_400_000
     },
   },
   {
@@ -959,6 +985,16 @@ const S: Scenario[] = [
     seed: (s) => {
       open(s)
       s.settlementEnabled = false
+    },
+  },
+  {
+    id: 'tip-not-ready',
+    title: 'Quick tip: settlement on, keys not ready',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.tabReady = false
     },
   },
   {

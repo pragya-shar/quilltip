@@ -9,11 +9,15 @@
  *    local deployment `anonymous-agent` on that version, and waits until the
  *    functions are pushed.
  * 2. Gives that backend a new Convex Auth signing key and SITE_URL.
- * 3. Builds the app against it (unless --skip-build) and serves it.
+ * 3. Builds the app against it (unless --skip-build) and serves it on
+ *    AUTH_E2E_PORT, or a free port, through the perf checks' start-up helper
+ *    (scripts/perf/production-app.ts).
  * 4. Runs the suite in WebKit and Chromium at phone viewports.
  *
  * Only local backends are used. The run refuses when .env.local selects any
- * other deployment, because `convex dev` would rewrite that file.
+ * other deployment, because `convex dev` would rewrite that file. The backend
+ * and the app stop with this process, also on SIGINT or SIGTERM; a signal
+ * that comes during the build or the suite takes effect when that step ends.
  */
 import { spawn, spawnSync, type ChildProcess } from 'child_process'
 import {
@@ -27,7 +31,6 @@ import {
   writeFileSync,
 } from 'fs'
 import { createHash, randomBytes } from 'crypto'
-import { createServer } from 'net'
 import { homedir, tmpdir } from 'os'
 import { join, resolve } from 'path'
 
@@ -35,6 +38,13 @@ import { ConvexHttpClient } from 'convex/browser'
 
 import { api } from '../../convex/_generated/api'
 import { assertScriptConvexDeployAllowed } from '../lib/network-guard'
+import {
+  launchProductionApp,
+  perfPort,
+  stopWithThisProcess,
+  type StartOptions,
+} from '../perf/production-app'
+import type { SuiteSecrets } from './scrub-failure-notes'
 
 const repoRoot = resolve(__dirname, '../..')
 const DEPLOYMENT = 'anonymous:anonymous-agent'
@@ -76,21 +86,6 @@ function readEnvLocal(): Record<string, string> {
   return out
 }
 
-function freePort(): Promise<number> {
-  return new Promise((done, reject) => {
-    const server = createServer()
-    server.once('error', reject)
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address()
-      server.close(() =>
-        typeof address === 'object' && address
-          ? done(address.port)
-          : reject(new Error('no port'))
-      )
-    })
-  })
-}
-
 function runOrFail(args: string[], env: NodeJS.ProcessEnv) {
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
@@ -100,17 +95,11 @@ function runOrFail(args: string[], env: NodeJS.ProcessEnv) {
   if (result.status !== 0) fail(`${args.slice(0, 4).join(' ')} failed`)
 }
 
-function stop(child: ChildProcess) {
-  if (child.pid === undefined || child.exitCode !== null) return
-  try {
-    process.kill(-child.pid, 'SIGTERM')
-  } catch {
-    // Already gone.
-  }
-}
-
-/** Starts a long-running process and resolves when `ready` matches its output. */
-function startUntil(
+/**
+ * Starts a long-running process and resolves when `ready` matches its output.
+ * It stops with this process.
+ */
+export function startUntil(
   args: string[],
   env: NodeJS.ProcessEnv,
   ready: RegExp,
@@ -124,8 +113,9 @@ function startUntil(
       env,
       detached: true,
     })
+    stopWithThisProcess(child)
     const timer = setTimeout(() => {
-      stop(child)
+      child.kill()
       reject(new Error(`${label} did not start`))
     }, READY_TIMEOUT_MS)
     const onData = (chunk: Buffer) => {
@@ -213,6 +203,24 @@ export async function ensurePinnedLocalBackend(): Promise<void> {
   }
 }
 
+/**
+ * Serves the build with `next start`, through the perf checks' helper: it
+ * stops when the port already answers, when the server serves another build
+ * than .next/BUILD_ID, or when the app does not answer at localhost, and the
+ * server stops with this process.
+ */
+export function startApp(
+  port: number,
+  env: Record<string, string>,
+  testOptions: Pick<StartOptions, 'command' | 'buildDir'> = {}
+): Promise<ChildProcess> {
+  return launchProductionApp(port, `http://127.0.0.1:${port}`, {
+    env,
+    buildDir: resolve(repoRoot, '.next'),
+    ...testOptions,
+  })
+}
+
 /** A new RS256 key for Convex Auth, as scripts/generateKeys.mjs writes it. */
 async function signingKey(): Promise<{ privateKey: string; jwks: string }> {
   const keys = await crypto.subtle.generateKey(
@@ -270,6 +278,42 @@ async function createAccount(
   }
 }
 
+/**
+ * Runs the suite. Before it starts, the run's secrets go to
+ * AUTH_E2E_SECRETS_FILE (when set), for CI's copy of the failure notes
+ * without them (scrub-failure-notes.ts). With AUTH_E2E_OUTPUT_DIR set,
+ * Playwright writes its results there instead of test-results.
+ */
+export function runSuite(
+  playwrightArgs: string[],
+  env: NodeJS.ProcessEnv,
+  secrets: SuiteSecrets,
+  options: {
+    secretsFile?: string
+    outputDir?: string
+    run?: typeof spawnSync
+  } = {}
+): number {
+  const secretsFile = options.secretsFile ?? process.env.AUTH_E2E_SECRETS_FILE
+  const outputDir = options.outputDir ?? process.env.AUTH_E2E_OUTPUT_DIR
+  if (secretsFile)
+    writeFileSync(secretsFile, JSON.stringify(secrets), { mode: 0o600 })
+  const result = (options.run ?? spawnSync)(
+    process.execPath,
+    [
+      'x',
+      'playwright',
+      'test',
+      '--config',
+      'e2e/auth/playwright.config.ts',
+      ...(outputDir ? ['--output', outputDir] : []),
+      ...playwrightArgs,
+    ],
+    { cwd: repoRoot, stdio: 'inherit', env }
+  )
+  return result.status ?? 1
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2)
   // `bun run` drops the first `--`, so every argument except the runner's
@@ -322,7 +366,7 @@ async function main(): Promise<number> {
       fail('the local backend URL was not written to .env.local')
     }
 
-    const appPort = Number(process.env.AUTH_E2E_PORT) || (await freePort())
+    const appPort = await perfPort('AUTH_E2E_PORT')
     const baseURL = `http://127.0.0.1:${appPort}`
     const { privateKey, jwks } = await signingKey()
     for (const [name, value] of [
@@ -336,12 +380,12 @@ async function main(): Promise<number> {
     // After the key: signing up issues a token signed with it.
     const account = await createAccount(convexUrl!)
 
-    const appEnv: NodeJS.ProcessEnv = {
-      ...process.env,
-      NEXT_PUBLIC_CONVEX_URL: convexUrl,
+    const appVars = {
+      NEXT_PUBLIC_CONVEX_URL: convexUrl!,
       NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
       NEXT_TELEMETRY_DISABLED: '1',
     }
+    const appEnv: NodeJS.ProcessEnv = { ...process.env, ...appVars }
     // The build holds the backend URL, and the backend's port can change
     // between runs, so a reused build must name this backend.
     const builtFor = resolve(repoRoot, '.next', 'auth-e2e-convex-url')
@@ -358,47 +402,28 @@ async function main(): Promise<number> {
       runOrFail(['x', 'next', 'build'], appEnv)
       writeFileSync(builtFor, convexUrl!)
     }
-    children.push(
-      await startUntil(
-        ['x', 'next', 'start', '-H', '127.0.0.1', '-p', String(appPort)],
-        appEnv,
-        /Ready in|ready on|started server/i,
-        'app'
-      )
-    )
+    children.push(await startApp(appPort, appVars))
 
-    const result = spawnSync(
-      process.execPath,
-      [
-        'x',
-        'playwright',
-        'test',
-        '--config',
-        'e2e/auth/playwright.config.ts',
-        ...playwrightArgs,
-      ],
+    return runSuite(
+      playwrightArgs,
       {
-        cwd: repoRoot,
-        stdio: 'inherit',
-        env: {
-          ...process.env,
-          PLAYWRIGHT_BASE_URL: baseURL,
-          AUTH_E2E_CONVEX_URL: convexUrl,
-          AUTH_E2E_EMAIL: account.email,
-          AUTH_E2E_PASSWORD: account.password,
-          // This run's throwaway key on the local backend: the suite signs an
-          // expired copy of a real token with it.
-          AUTH_E2E_JWT_PRIVATE_KEY: privateKey,
-          NEXT_PUBLIC_CONVEX_URL: convexUrl,
-          CONVEX_DEPLOYMENT: DEPLOYMENT,
-          QUILLTIP_NETWORK_GUARD_OPT_IN: 'testnet',
-          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
-        },
-      }
+        ...process.env,
+        PLAYWRIGHT_BASE_URL: baseURL,
+        AUTH_E2E_CONVEX_URL: convexUrl,
+        AUTH_E2E_EMAIL: account.email,
+        AUTH_E2E_PASSWORD: account.password,
+        // This run's throwaway key on the local backend: the suite signs an
+        // expired copy of a real token with it.
+        AUTH_E2E_JWT_PRIVATE_KEY: privateKey,
+        NEXT_PUBLIC_CONVEX_URL: convexUrl,
+        CONVEX_DEPLOYMENT: DEPLOYMENT,
+        QUILLTIP_NETWORK_GUARD_OPT_IN: 'testnet',
+        NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
+      },
+      { password: account.password, privateKey }
     )
-    return result.status ?? 1
   } finally {
-    for (const child of children.reverse()) stop(child)
+    for (const child of children.reverse()) child.kill()
   }
 }
 

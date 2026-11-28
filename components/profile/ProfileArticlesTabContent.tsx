@@ -65,7 +65,7 @@ export function ProfileArticlesTabContent({
         </p>
         {isOwnProfile && (
           <Link href="/write" className="library-browse">
-            Write your first article ↗
+            Write your first article <span aria-hidden="true">↗︎</span>
           </Link>
         )}
       </div>
@@ -106,7 +106,7 @@ export function ProfileArticlesTabContent({
               <span>{displayName}</span>
             </span>
             <span className="writer-row-action" aria-hidden>
-              Read more ↗
+              Read more <span aria-hidden="true">↗︎</span>
             </span>
           </Link>
         )

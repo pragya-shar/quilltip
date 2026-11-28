@@ -11,23 +11,15 @@
 
 import { spawn } from 'child_process'
 import { startFixtureBackend } from '../perf/fixture-backend'
+import {
+  fixtureBackendPort,
+  perfPort,
+  startProductionApp,
+} from '../perf/production-app'
 
-const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
-const APP_PORT = Number(process.env.CSP_APP_PORT ?? 3198)
+const CONVEX_PORT = fixtureBackendPort()
+const APP_PORT = await perfPort('CSP_APP_PORT')
 const BASE_URL = `http://127.0.0.1:${APP_PORT}`
-
-async function waitForApp(): Promise<void> {
-  const deadline = Date.now() + 60_000
-  while (Date.now() < deadline) {
-    try {
-      if ((await fetch(`${BASE_URL}/login`)).ok) return
-    } catch {
-      /* Not listening yet. */
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500))
-  }
-  throw new Error(`The app did not start on ${BASE_URL}`)
-}
 
 function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
   return new Promise<number>((resolve) => {
@@ -38,12 +30,9 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
 
 async function main(): Promise<number> {
   const backend = startFixtureBackend(CONVEX_PORT)
-  const app = spawn('bunx', ['next', 'start', '-p', String(APP_PORT)], {
-    stdio: ['ignore', 'inherit', 'inherit'],
-    env: { ...process.env, NODE_ENV: 'production' },
-  })
+  let app: Awaited<ReturnType<typeof startProductionApp>>
   try {
-    await waitForApp()
+    app = await startProductionApp(APP_PORT, BASE_URL, { backend })
     // The first request to a route compiles its server data; warm the routes
     // so a cold start cannot race the spec's first assertions.
     for (const path of ['/', '/articles', '/wallet/practice']) {
@@ -63,7 +52,7 @@ async function main(): Promise<number> {
       }
     )
   } finally {
-    app.kill()
+    app?.kill()
     backend.closeAllConnections()
     backend.close()
   }

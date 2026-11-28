@@ -43,6 +43,22 @@ export function earningsLabel(base = 'Earned'): string {
 export const TESTNET_NO_VALUE_NOTE = 'testnet, no real value'
 
 /**
+ * Under the wallet tip history: the dollar figures are a hint of value, not
+ * money paid (#670).
+ */
+export const TIP_HISTORY_USD_NOTE =
+  'Testnet tips. Dollar figures show what the XLM would have been worth as real XLM when sent. Testnet XLM has no value.'
+
+/**
+ * The receipt's recorded dollar figure, in the form of the payment kit's
+ * quote ("Worth about $1.00 if this were real XLM"). The figure was recorded
+ * when the tip was sent, so it carries no "about" (#670).
+ */
+export function recordedUsdNote(usd: string): string {
+  return `Worth ${usd} if this were real XLM, when sent`
+}
+
+/**
  * Formats stroops as an XLM amount, rounded half up to at most
  * `maxDecimals` places (7 keeps full stroop precision).
  */

@@ -3,9 +3,12 @@
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useAuth } from '@/components/providers/AuthContext'
+import { TabReadinessDetail } from './TabReadinessDetail'
 import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import { AccountSurface } from '@/components/account/AccountSurface'
 import { FlaggedTipsReview } from './FlaggedTipsReview'
+import { OpsSignalItems } from './OpsSignalItems'
+import { OutsideTabActivityReview } from './OutsideTabActivityReview'
 import { StaleReservesReview } from './StaleReservesReview'
 
 function formatTime(seconds: number | null | undefined): string {
@@ -25,6 +28,15 @@ export function ChainIndexerStatusPage() {
     api.chain.indexer.getIndexerStatus,
     isAuthenticated ? {} : 'skip'
   )
+  const outside = useQuery(
+    api.chain.tabOutside.getOutsideTabActivity,
+    isAuthenticated ? {} : 'skip'
+  )
+  const settler = useQuery(
+    api.chain.settlerStatus.getSettlerFreshness,
+    isAuthenticated ? {} : 'skip'
+  )
+  const now = Date.now()
 
   if (!isAuthenticated && !isLoading) return null
   // Before the first run that reaches the latest ledger nothing is covered.
@@ -99,6 +111,7 @@ export function ChainIndexerStatusPage() {
                   {status.submissions.open} / {status.submissions.needsReview}
                 </dd>
               </div>
+              <OpsSignalItems outside={outside} settler={settler} now={now} />
             </dl>
 
             <dl className="ops-chain-details">
@@ -110,6 +123,7 @@ export function ChainIndexerStatusPage() {
               <dd>{status.contracts.core ?? 'Not set'}</dd>
               <dt>Tab</dt>
               <dd>{status.contracts.tab ?? 'Not set'}</dd>
+              <TabReadinessDetail />
               <dt>NFT</dt>
               <dd>{status.contracts.nft ?? 'Not set'}</dd>
               <dt>Lease</dt>
@@ -123,6 +137,7 @@ export function ChainIndexerStatusPage() {
               <dt>Last error</dt>
               <dd>{status.cursor?.lastError ?? 'None'}</dd>
             </dl>
+            <OutsideTabActivityReview />
             <FlaggedTipsReview />
             <StaleReservesReview />
           </>

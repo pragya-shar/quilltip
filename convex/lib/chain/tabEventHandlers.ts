@@ -31,6 +31,7 @@ import type { MutationCtx } from '../../_generated/server'
 import { readChainEnv } from './env'
 import { isHexOfLength } from './ids'
 import type { ChainEventHandler, IndexedEvent } from './indexerStore'
+import { recordOutsideEvent } from './tabOutside'
 import {
   adjustBaseUnitEarnings,
   applyPairPayment,
@@ -94,6 +95,11 @@ function hex32(value: unknown, field: string): string {
     throw new StoredEventError(`${field} is not 32 bytes`)
   }
   return value
+}
+
+/** `TabSettled.by_writer`; unset on events stored without it. */
+function optionalBool(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
 }
 
 function passphrase(): string {
@@ -384,6 +390,13 @@ const keyRegistered: ChainEventHandler = async (ctx, event) => {
       pendingKeys: account.pendingKeys.filter((k) => k.publicKey !== publicKey),
       updatedAt: event.now,
     })
+  } else {
+    // The app declares every key before the reader registers it.
+    await recordOutsideEvent(ctx, event, {
+      kind: 'key_undeclared',
+      tabAccountId: account._id,
+      keyId,
+    })
   }
   return 'done'
 }
@@ -438,8 +451,18 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
   const gross = int(d.gross, 'gross')
   int(d.fee, 'fee')
   hex32(d.receipts_root, 'receipts_root')
+  const byWriter = optionalBool(d.by_writer)
   const account = await accountFor(ctx, event, reader, false)
-  if (!account) return 'orphan'
+  if (!account) {
+    await recordOutsideEvent(ctx, event, {
+      kind: 'settled_no_account',
+      keyId,
+      gross,
+      cumulative,
+      byWriter,
+    })
+    return 'orphan'
+  }
   await patchAccount(
     ctx,
     account,
@@ -449,7 +472,20 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
 
   const voucher = await tabVoucher(ctx, account._id, keyId, writer)
   // A voucher accepted outside this deployment: the balance is still applied.
-  if (!voucher) return 'orphan'
+  if (!voucher) {
+    await recordOutsideEvent(ctx, event, {
+      kind: 'settled_no_voucher',
+      tabAccountId: account._id,
+      keyId,
+      gross,
+      cumulative,
+      byWriter,
+    })
+    return 'orphan'
+  }
+  // `submitTabTip` stores the cumulative in the mutation that countersigns
+  // it, so no voucher of this deployment settles above it.
+  const accepted = BigInt(voucher.cumulative)
   await applyPairSettlement(ctx, {
     voucherId: voucher._id,
     paidAfter,
@@ -459,6 +495,17 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
     sourceLedger: event.doc.ledger,
     now: event.now,
   })
+  if (cumulative > accepted) {
+    await recordOutsideEvent(ctx, event, {
+      kind: 'settled_above_accepted',
+      tabAccountId: account._id,
+      keyId,
+      gross,
+      cumulative,
+      acceptedCumulative: accepted,
+      byWriter,
+    })
+  }
   return 'done'
 }
 

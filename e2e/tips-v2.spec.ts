@@ -11,6 +11,12 @@ import {
   installVarialEmulator,
   type VarialMode,
 } from './helpers/varialEmulator'
+import { SEND_TIP, sendBasket } from './helpers/sendButton'
+import {
+  ESTIMATE,
+  TESTNET_LABEL_DETAIL,
+  quoteCopy,
+} from '../lib/copy/payment-states'
 import {
   expectNoticeAnnounced,
   expectNoticeQuiet,
@@ -102,7 +108,7 @@ async function connect(scope: Locator) {
 
 async function sendTip(page: Page, scope: Locator = tipDialog(page)) {
   await connect(scope)
-  await scope.getByRole('button', { name: 'Send tip' }).click()
+  await scope.getByRole('button', { name: SEND_TIP }).click()
 }
 
 async function overflow(page: Page) {
@@ -188,13 +194,15 @@ const STATES: State[] = [
     id: 'form',
     run: openArticleTip,
     check: async (dialog) => {
-      await expect(dialog.getByRole('button', { name: '$1' })).toHaveAttribute(
-        'aria-pressed',
-        'true'
-      )
-      await expect(dialog.getByText('About 4 XLM')).toBeVisible()
       await expect(
-        dialog.getByText('Final amount shown before you approve')
+        dialog.getByRole('button', { name: '$1', exact: true })
+      ).toHaveAttribute('aria-pressed', 'true')
+      await expect(dialog.getByText('About 4 XLM')).toBeVisible()
+      await expect(dialog.getByText(quoteCopy('$1.00'))).toBeVisible()
+      await expect(dialog.getByText(ESTIMATE.caption)).toBeVisible()
+      // With an amount chosen, the label keeps its detail (#670).
+      await expect(
+        dialog.locator('.pay-amount-caption').getByText(TESTNET_LABEL_DETAIL)
       ).toBeVisible()
       await expectTestnetLabel(dialog)
       await expect(
@@ -288,9 +296,7 @@ const STATES: State[] = [
         })
       ).toBeVisible()
       await dialog.getByRole('button', { name: 'Confirm wallet' }).click()
-      await expect(
-        dialog.getByRole('button', { name: 'Send tip' })
-      ).toBeFocused()
+      await expect(dialog.getByRole('button', { name: SEND_TIP })).toBeFocused()
       expect((await log(page)).prepared).toEqual([])
     },
   },
@@ -319,7 +325,9 @@ const STATES: State[] = [
         }),
       ])
       // The form stays, so the reader can choose less.
-      await expect(dialog.getByRole('button', { name: '$2' })).toBeVisible()
+      await expect(
+        dialog.getByRole('button', { name: '$2', exact: true })
+      ).toBeVisible()
     },
   },
   {
@@ -381,7 +389,7 @@ const STATES: State[] = [
           hasText: 'No XLM price right now',
         })
       ).toBeVisible()
-      const send = dialog.getByRole('button', { name: 'Send tip' })
+      const send = dialog.getByRole('button', { name: SEND_TIP })
       await expect(send).toHaveAttribute('aria-disabled', 'true')
       await send.click({ force: true })
       expect((await log(page)).prepared).toEqual([])
@@ -486,9 +494,9 @@ const STATES: State[] = [
       await expect(
         dialog.locator('.pay-panel-title', { hasText: 'Payments are paused' })
       ).toBeVisible()
-      await expect(
-        dialog.getByRole('button', { name: 'Send tip' })
-      ).toHaveCount(0)
+      await expect(dialog.getByRole('button', { name: SEND_TIP })).toHaveCount(
+        0
+      )
     },
   },
   {
@@ -912,7 +920,7 @@ const STATES: State[] = [
       await page.getByRole('button', { name: /Tip basket/ }).click()
       const sheet = page.getByRole('dialog', { name: 'Tip basket' })
       await connect(sheet)
-      await sheet.getByRole('button', { name: /^Send 2 tips/ }).click()
+      await sheet.getByRole('button', { name: sendBasket(2) }).click()
       return sheet
     },
     check: async (sheet, page) => {
@@ -938,7 +946,7 @@ const STATES: State[] = [
       await page.getByRole('button', { name: /Tip basket/ }).click()
       const sheet = page.getByRole('dialog', { name: 'Tip basket' })
       await connect(sheet)
-      await sheet.getByRole('button', { name: /^Send 3 tips/ }).click()
+      await sheet.getByRole('button', { name: sendBasket(3) }).click()
       return sheet
     },
     check: async (sheet, page) => {
@@ -965,7 +973,7 @@ const STATES: State[] = [
       await page.getByRole('button', { name: /Tip basket/ }).click()
       const sheet = page.getByRole('dialog', { name: 'Tip basket' })
       await connect(sheet)
-      await sheet.getByRole('button', { name: /^Send 3 tips/ }).click()
+      await sheet.getByRole('button', { name: sendBasket(3) }).click()
       return sheet
     },
     check: async (sheet) => {
@@ -1040,7 +1048,7 @@ test.describe('keyboard, focus and announcements', () => {
     const dialog = tipDialog(page)
     await expect(dialog).toBeVisible()
     // Choose $2 with Tab and Space. The dialog opens on its title.
-    const two = dialog.getByRole('button', { name: '$2' })
+    const two = dialog.getByRole('button', { name: '$2', exact: true })
     await expect(two).toBeVisible()
     await expectOpensOnTitle(dialog)
     for (
@@ -1070,7 +1078,7 @@ test.describe('keyboard, focus and announcements', () => {
     }
     await page.keyboard.press('Enter')
     // The gate hands focus to the action it was guarding.
-    const send = dialog.getByRole('button', { name: 'Send tip' })
+    const send = dialog.getByRole('button', { name: SEND_TIP })
     await expect(send).toBeFocused()
     await page.keyboard.press('Enter')
     const result = dialog.getByRole('heading', { name: 'Tip confirmed' })
@@ -1103,8 +1111,9 @@ test.describe('keyboard, focus and announcements', () => {
     await expect(input).toHaveAttribute('aria-invalid', 'true')
     const describedBy = await input.getAttribute('aria-describedby')
     const ids = describedBy!.split(' ')
+    // The error takes the hint's place, so it states the range too (#658).
     await expect(page.locator(`[id="${ids[0]}"]`)).toHaveText(
-      'Enter an amount in dollars, for example 1.50.'
+      'Enter an amount in dollars, for example 1.50. Tips go from $0.03 to $100.'
     )
     // Fixing it clears the error at once.
     await input.fill('1.50')
@@ -1250,21 +1259,6 @@ test.describe('dialog focus', () => {
     }
   })
 
-  test('"Send tip" reads the chosen amount before it is pressed', async ({
-    page,
-  }) => {
-    await open(page)
-    const dialog = await openArticleTip(page)
-    // At open, the title and its description name the writer; the amount
-    // is chosen in the form, and the send button reads it.
-    await expect(dialog).toHaveAccessibleDescription(/For Ada Lovelace/)
-    await connect(dialog)
-    const send = dialog.getByRole('button', { name: 'Send tip' })
-    await expect(send).toHaveAccessibleDescription(/Tip amount\s*About 4 XLM/)
-    await dialog.getByRole('button', { name: '$2' }).click()
-    await expect(send).toHaveAccessibleDescription(/Tip amount\s*About 8 XLM/)
-  })
-
   test('a refusal that arrives while the picker closes keeps its focus', async ({
     page,
   }) => {
@@ -1281,8 +1275,8 @@ test.describe('dialog focus', () => {
         .click()
       const send = await new Promise<HTMLButtonElement>((resolve) => {
         const timer = setInterval(() => {
-          const button = [...document.querySelectorAll('button')].find(
-            (b) => b.textContent?.trim() === 'Send tip'
+          const button = [...document.querySelectorAll('button')].find((b) =>
+            /^Send \$[\d.,]+ tip$/.test(b.textContent?.trim() ?? '')
           )
           if (button) {
             clearInterval(timer)
@@ -1366,6 +1360,86 @@ test.describe('dialog focus', () => {
   })
 })
 
+test.describe('send button name', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  /** The dialog's send button, whatever its name says. */
+  const sendIn = (scope: Locator) =>
+    scope.getByRole('button', { name: /^Send (\$[\d.,]+ tip|tip)$/ })
+
+  test('the tip button names the amount, and none until it is valid', async ({
+    page,
+  }) => {
+    await open(page)
+    const dialog = await openArticleTip(page)
+    // At open the dialog reads its title and description (the writer), as
+    // before (#606).
+    await expectOpensOnTitle(dialog)
+    await expect(dialog).toHaveAccessibleDescription(/For Ada Lovelace/)
+    await connect(dialog)
+    const send = sendIn(dialog)
+    // The amount is in the visible label and the name, not also described.
+    await expect(send).toHaveAccessibleName('Send $1 tip')
+    await expect(send).toHaveText('Send $1 tip')
+    await expect(send).toHaveAccessibleDescription('')
+    await expect(send).not.toHaveAttribute('aria-disabled', 'true')
+    // No live region on or around it: the name changes quietly.
+    expect(await send.evaluate((b) => b.closest('[aria-live]'))).toBeNull()
+
+    await dialog.getByRole('button', { name: '$2', exact: true }).click()
+    await expect(send).toHaveAccessibleName('Send $2 tip')
+    const field = dialog.getByLabel('Other amount')
+    for (const [typed, name, valid] of [
+      ['12.5', 'Send $12.50 tip', true],
+      ['abc', 'Send tip', false],
+      ['0.01', 'Send tip', false],
+      ['100', 'Send $100 tip', true],
+    ] as const) {
+      await field.fill(typed)
+      await expect(send).toHaveAccessibleName(name)
+      if (valid) {
+        await expect(send).not.toHaveAttribute('aria-disabled', 'true')
+      } else {
+        await expect(send).toHaveAttribute('aria-disabled', 'true')
+      }
+    }
+    // Pressed while not valid, it explains instead of sending.
+    await field.fill('abc')
+    await send.focus()
+    await page.keyboard.press('Enter')
+    await expect(field).toHaveAttribute('aria-invalid', 'true')
+    expect((await log(page)).prepared).toEqual([])
+  })
+
+  test('the passage tip button names the amount', async ({ page }) => {
+    await open(page)
+    await page.getByRole('button', { name: 'Tip passage' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Tip this passage' })
+    await connect(dialog)
+    await expect(sendIn(dialog)).toHaveAccessibleName('Send $1 tip')
+  })
+
+  test('the basket button names its total and count', async ({ page }) => {
+    await open(page, 'basket=2')
+    await page.getByRole('button', { name: /Tip basket/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+    await connect(sheet)
+    const send = sheet.getByRole('button', { name: sendBasket(2) })
+    await expect(send).toHaveAccessibleName('Send $2.25 in 2 tips')
+    await expect(send).toHaveText('Send $2.25 in 2 tips')
+  })
+
+  test('the basket button says "1 tip" for one tip', async ({ page }) => {
+    await open(page, 'basket=1')
+    await page.getByRole('button', { name: /Tip basket/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+    await connect(sheet)
+    const send = sheet.getByRole('button', { name: sendBasket(1) })
+    await expect(send).toHaveAccessibleName('Send $1 in 1 tip')
+    await expect(send).toHaveText('Send $1 in 1 tip')
+  })
+})
+
 const RATE_TITLE = 'Too many tips in a short time'
 const RATE_HEADING = {
   level: 3,
@@ -1389,7 +1463,7 @@ test.describe('refusal focus', () => {
       await open(page, 'prepare=rate')
       const dialog = await openArticleTip(page)
       await connect(dialog)
-      await press(page, dialog.getByRole('button', { name: 'Send tip' }))
+      await press(page, dialog.getByRole('button', { name: SEND_TIP }))
       await expectNoticeTookFocus(page, dialog, RATE_TITLE, RATE_HEADING)
     })
 
@@ -1400,7 +1474,7 @@ test.describe('refusal focus', () => {
       await page.getByRole('button', { name: 'Tip passage' }).click()
       const dialog = page.getByRole('dialog', { name: 'Tip this passage' })
       await connect(dialog)
-      await press(page, dialog.getByRole('button', { name: 'Send tip' }))
+      await press(page, dialog.getByRole('button', { name: SEND_TIP }))
       await expectNoticeTookFocus(page, dialog, RATE_TITLE, RATE_HEADING)
     })
 
@@ -1411,7 +1485,7 @@ test.describe('refusal focus', () => {
       await page.getByRole('button', { name: /Tip basket/ }).click()
       const sheet = page.getByRole('dialog', { name: 'Tip basket' })
       await connect(sheet)
-      await press(page, sheet.getByRole('button', { name: /^Send 2 tips/ }))
+      await press(page, sheet.getByRole('button', { name: sendBasket(2) }))
       await expectNoticeTookFocus(page, sheet, RATE_TITLE, RATE_HEADING)
     })
   }
@@ -1422,7 +1496,7 @@ test.describe('refusal focus', () => {
     await open(page, 'prepare=unregistered')
     const dialog = await openArticleTip(page)
     await connect(dialog)
-    await dialog.getByRole('button', { name: 'Send tip' }).click()
+    await dialog.getByRole('button', { name: SEND_TIP }).click()
     await expectNoticeTookFocus(
       page,
       dialog,
@@ -1437,7 +1511,7 @@ test.describe('refusal focus', () => {
     await open(page, 'prepare=rate&prepareDelay=1500')
     const dialog = await openArticleTip(page)
     await connect(dialog)
-    await dialog.getByRole('button', { name: 'Send tip' }).click()
+    await dialog.getByRole('button', { name: SEND_TIP }).click()
     const close = dialog.getByRole('button', { name: 'Close' })
     await close.focus()
     await expectNoticeAnnounced(dialog, RATE_TITLE)
@@ -1476,7 +1550,7 @@ test.describe('one payment per activation', () => {
     // Both clicks run before React renders again, as some assistive tools
     // and test drivers fire them.
     await dialog
-      .getByRole('button', { name: 'Send tip' })
+      .getByRole('button', { name: SEND_TIP })
       .evaluate((button: HTMLButtonElement) => {
         button.click()
         button.click()
@@ -1499,7 +1573,7 @@ test.describe('one payment per activation', () => {
     const sheet = page.getByRole('dialog', { name: 'Tip basket' })
     await connect(sheet)
     await sheet
-      .getByRole('button', { name: /^Send 2 tips/ })
+      .getByRole('button', { name: sendBasket(2) })
       .evaluate((button: HTMLButtonElement) => {
         button.click()
         button.click()
@@ -1518,7 +1592,7 @@ test.describe('one payment per activation', () => {
     await page.getByRole('button', { name: /Tip basket/ }).click()
     const sheet = page.getByRole('dialog', { name: 'Tip basket' })
     await connect(sheet)
-    await sheet.getByRole('button', { name: /^Send 3 tips/ }).click()
+    await sheet.getByRole('button', { name: sendBasket(3) }).click()
     await expect(
       sheet.getByRole('heading', { name: 'Sent, but under review' })
     ).toBeVisible()
@@ -1734,7 +1808,7 @@ test.describe('testnet wallet run follow-ups (#547)', () => {
     await page.getByRole('button', { name: /Tip basket/ }).click()
     const sheet = page.getByRole('dialog', { name: 'Tip basket' })
     await connect(sheet)
-    await sheet.getByRole('button', { name: /^Send 2 tips/ }).click()
+    await sheet.getByRole('button', { name: sendBasket(2) }).click()
     await expect(
       sheet.getByRole('heading', { name: /Tips confirmed/ })
     ).toBeVisible()
@@ -1777,7 +1851,7 @@ test.describe('the wallet account before signing (#547)', () => {
       ).__fixtureWallet.address =
         'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
     })
-    await dialog.getByRole('button', { name: 'Send tip' }).click()
+    await dialog.getByRole('button', { name: SEND_TIP }).click()
     await expect(
       dialog.getByRole('heading', { name: /^Switch your wallet to G/ })
     ).toBeVisible()

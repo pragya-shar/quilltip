@@ -137,7 +137,7 @@ export function WritingDesk({
                 href={`/${article.authorUsername ?? username}/${article.slug}`}
                 aria-label={`View article: ${article.title}`}
               >
-                View article ↗
+                View article <span aria-hidden="true">↗︎</span>
               </a>
             </div>
           </div>

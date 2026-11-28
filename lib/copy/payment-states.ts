@@ -6,6 +6,11 @@
  * copy speaks about money only from server-verified chain data.
  */
 import { TIPS_UNAVAILABLE_COPY } from './tips-unavailable'
+import {
+  estimateSummary,
+  formatXlm,
+  type EstimateFigure,
+} from '@/lib/payments/format'
 import type { WalletErrorKind } from '@/lib/stellar/v2/wallet-errors'
 import type {
   PaymentFlow,
@@ -21,17 +26,45 @@ import type {
 export const TESTNET_LABEL = 'Stellar testnet'
 export const TESTNET_LABEL_DETAIL = 'Practice funds only'
 
-/** The cents quote beside an amount: what the same XLM would be worth. */
+/**
+ * The cents quote beside a testnet amount: what the same XLM would be worth
+ * if it were real. The conditional keeps a first-time reader from taking
+ * the testnet amount for real money (#670).
+ */
 export function quoteCopy(usd: string | 'under-a-cent'): string {
   return usd === 'under-a-cent'
-    ? 'Under $0.01 in real XLM'
-    : `About ${usd} in real XLM`
+    ? 'Worth under $0.01 if this were real XLM'
+    : `Worth about ${usd} if this were real XLM`
 }
 
 export const ESTIMATE = {
   prefix: 'About',
-  caption: 'Final amount shown before you approve',
+  /** Before an estimate that rounds to 0: "Under 0.001 XLM". */
+  under: 'Under',
+  /** Under an estimate when the payment goes through the wallet. */
+  caption: 'Your wallet shows the exact amount before you approve.',
+  /**
+   * Under an estimate while a tab can send it too: a tab tip has no wallet
+   * prompt, and its result states the exact amount once it is sent.
+   */
+  tabCaption: 'The exact amount shows once you send.',
 } as const
+
+/**
+ * An estimated figure as the kit shows it: "About 8.11 XLM", "Under 0.001
+ * XLM", or a dash for a zero or missing amount (#670). Round with
+ * `estimateSummary`, so the parts of one summary add up to its total.
+ */
+export function estimateFigureCopy(figure: EstimateFigure): string {
+  if (!figure) return '–'
+  const text = formatXlm(figure.stroops)
+  return `${figure.under ? ESTIMATE.under : ESTIMATE.prefix} ${text}`
+}
+
+/** One estimated figure on its own: "About 8.11 XLM" (#670). */
+export function estimateXlmCopy(stroops: string): string {
+  return estimateFigureCopy(estimateSummary(stroops).total)
+}
 
 export type CopyBlock = { title: string; detail: string }
 

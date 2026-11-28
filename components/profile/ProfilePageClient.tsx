@@ -252,7 +252,7 @@ export function ProfilePageClient({
           unavailableRetryHref={unavailableRetryHref}
         />
         <Link className="library-browse" href={`/${user.username}?tab=nfts`}>
-          NFT collection ↗
+          NFT collection <span aria-hidden="true">↗︎</span>
         </Link>
         {/* Fixed to the viewport, so it does not push the page down. */}
         {isOwnProfile && isGeneratedHandle(user.username) && (

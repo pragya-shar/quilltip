@@ -43,8 +43,11 @@ export function TabHome() {
     settlement,
     tabSettlement,
   } = reader
-  // Convex accepts no quick tips: opening, topping up and keys wait too.
-  const quickTipsOff = settlement.kind === 'off'
+  // Convex accepts no quick tips: settlement is off, or its keys or the
+  // Tab's state are not ready. Opening, topping up and keys wait too;
+  // closing and withdrawing never do.
+  const notReady = tabSettlement?.tabReady === false
+  const quickTipsOff = settlement.kind === 'off' || notReady
   const op = useTabOperation({
     surface: 'reader',
     services,
@@ -134,7 +137,7 @@ export function TabHome() {
   const conditions = (
     <>
       {paused ? <PaymentNotice kind="paused" audience="reader" /> : null}
-      {settlement.kind === 'off' ? (
+      {quickTipsOff ? (
         <PaymentNotice
           kind="refused"
           copy={{
@@ -142,7 +145,7 @@ export function TabHome() {
             detail:
               !tab || status.kind === 'none' || status.kind === 'closed'
                 ? TAB_SETTLEMENT.offNoTab
-                : settlement.waiting
+                : settlement.kind === 'off' && settlement.waiting
                   ? `${TAB_SETTLEMENT.offTab} ${TAB_SETTLEMENT.offWaiting}`
                   : TAB_SETTLEMENT.offTab,
           }}
@@ -223,11 +226,35 @@ export function TabHome() {
 
   const balances = tabBalances(tab)
   const busy = op.active
+  // A closing tab's next step is the withdrawal: its timeline and action
+  // come before the tip history (#671). An open tab keeps "Close tab" last.
+  const closeSection =
+    status.kind === 'open' || status.kind === 'closing' ? (
+      <TabCloseSection
+        status={status}
+        balance={tab.confirmedBalance}
+        clock={clock}
+        busy={busy || running}
+        onClose={() => start({ flow: 'tab-close' })}
+        onWithdraw={() => start({ flow: 'tab-withdraw' })}
+      />
+    ) : null
   return (
     <div className="tab-page">
       {conditions}
       <div className="tab-section">
-        <TabBalance balances={balances} closing={tab.status === 'CLOSING'} />
+        <TabBalance
+          balances={balances}
+          closing={
+            status.kind === 'closing'
+              ? {
+                  unlocksAround: status.unlocksAround,
+                  ready: status.ready,
+                  overdue: status.overdue,
+                }
+              : null
+          }
+        />
         {progress}
         {!running && !paused && !quickTipsOff
           ? gate(
@@ -268,17 +295,9 @@ export function TabHome() {
           onRevoke={(keyId) => start({ flow: 'tab-revoke-key', keyId })}
         />
       ) : null}
+      {status.kind === 'closing' ? closeSection : null}
       <TabTipHistory activity={activity ?? null} tabShort={short !== null} />
-      {status.kind === 'open' || status.kind === 'closing' ? (
-        <TabCloseSection
-          status={status}
-          balance={tab.confirmedBalance}
-          clock={clock}
-          busy={busy || running}
-          onClose={() => start({ flow: 'tab-close' })}
-          onWithdraw={() => start({ flow: 'tab-withdraw' })}
-        />
-      ) : null}
+      {status.kind === 'open' ? closeSection : null}
     </div>
   )
 }

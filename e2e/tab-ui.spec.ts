@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 
+import { expectFixtureReady } from './fixtures/tab-ui/ready'
 import { SCENARIOS } from './fixtures/tab-ui/scenarios'
 import { contrastScan, surfaceColours } from './helpers/lightSurface'
 import { expectNoticeTookFocus } from './helpers/noticeFocus'
@@ -50,7 +51,9 @@ const EXPECT: Record<string, string | RegExp> = {
   'home-settlement-off': 'Quick tips are paused on Stellar testnet',
   'home-settlement-off-none': 'Quick tips are paused on Stellar testnet',
   'home-settlement-off-open': 'Quick tips are paused on Stellar testnet',
-  'home-closing': /Your balance unlocks around/,
+  'home-not-ready': 'Quick tips are paused on Stellar testnet',
+  'home-closing': 'Your withdrawal is waiting to unlock',
+  'home-closing-overdue': 'Unlocks soon',
   'home-short': 'Your tab is short',
   'wallet-short': 'Waiting for balance',
   'wallet-funded': 'Settling',
@@ -83,6 +86,7 @@ const EXPECT: Record<string, string | RegExp> = {
   'tip-key-revoked': 'Quick tips are off for this device',
   'tip-key-unchecked': 'Quick tips can’t be checked right now',
   'tip-settlement-off': 'Quick tips are unavailable right now',
+  'tip-not-ready': 'Quick tips are unavailable right now',
   'tip-settlement-off-no-tab': 'Quick tips are unavailable right now',
   'tip-signed-out': 'Sign in to continue',
   'tip-v2-disabled': 'Quick tips are unavailable right now',
@@ -105,7 +109,7 @@ async function open(page: Page, id: string, session?: string) {
     if (message.type() === 'error') errors.push(message.text())
   })
   await page.goto(`/?state=${id}${session ? `&session=${session}` : ''}`)
-  await expect(page.getByTestId('fixture-state')).toBeVisible()
+  await expectFixtureReady(page)
   return errors
 }
 
@@ -387,6 +391,26 @@ test('settlement off with tips waiting: says they settle when quick tips are bac
   await expect(
     visibleText(page, /Tips you already sent from your tab are recorded/)
   ).toBeVisible()
+})
+
+test('keys not ready, settlement on (#692): the same holds, exits stay, and no settle promise', async ({
+  page,
+}) => {
+  await open(page, 'home-not-ready')
+  await expect(
+    visibleText(page, 'Quick tips are paused on Stellar testnet')
+  ).toBeVisible()
+  await expect(
+    visibleText(page, /can’t tip from your tab or add funds to it/)
+  ).toBeVisible()
+  // A tip waits, but whether it settles depends on the key at fault.
+  await expect(
+    visibleText(page, /Tips you already sent from your tab are recorded/)
+  ).toHaveCount(0)
+  for (const name of ['Top up', 'Set up quick tips', 'Renew quick tips'])
+    await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Close tab' })).toBeVisible()
+  expect((await backend(page)).calls).toEqual([])
 })
 
 // --- Keys: this device, and each quick tip key state -------------------------
@@ -762,7 +786,13 @@ test('while the tab is closing, the free balance is not offered for quick tips (
   page,
 }) => {
   await open(page, 'home-closing')
-  await expect(visibleText(page, /Your balance unlocks around/)).toBeVisible()
+  await expect(
+    visibleText(page, 'Your withdrawal is waiting to unlock')
+  ).toBeVisible()
+  // The date shows twice: beside the balance and in the timeline (#671).
+  await expect(
+    page.locator('.tab-ui').getByText(/Unlocks around /)
+  ).toHaveCount(2)
   const balance = page.getByRole('region', { name: 'Balance' })
   await expect(balance.getByText('Free to tip', { exact: true })).toHaveCount(0)
   await expect(
@@ -771,9 +801,24 @@ test('while the tab is closing, the free balance is not offered for quick tips (
   await expect(
     balance.getByText('Comes back to you', { exact: true })
   ).toBeVisible()
+  // Beside the figure: when it unlocks and what to do then (#671).
   await expect(
-    balance.getByText(/Your tab is closing, so quick tips are off\./)
+    balance.getByText(
+      /^Unlocks around .+\. Come back then and choose Withdraw to move it to your wallet\. Quick tips are off while your tab closes\.$/
+    )
   ).toBeVisible()
+  // The withdrawal timeline comes before the tip history on a closing tab,
+  // and after it on an open one.
+  const closeFirst = () =>
+    page.evaluate(() => {
+      const close = document.getElementById('tab-close-title')!
+      const history = document.getElementById('tab-history-title')!
+      return Boolean(
+        close.compareDocumentPosition(history) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    })
+  expect(await closeFirst()).toBe(true)
   // An open tab still offers it.
   await page.goto('/?state=home-open')
   await expect(
@@ -781,6 +826,41 @@ test('while the tab is closing, the free balance is not offered for quick tips (
       exact: true,
     })
   ).toBeVisible()
+  expect(await closeFirst()).toBe(false)
+})
+
+test('after the estimated day, a closing tab says "soon", never a past date (#671)', async ({
+  page,
+}) => {
+  await open(page, 'home-closing-overdue')
+  const balance = page.getByRole('region', { name: 'Balance' })
+  await expect(
+    balance.getByText(
+      'Unlocks soon. Check back and choose Withdraw to move it to your wallet. Quick tips are off while your tab closes.',
+      { exact: true }
+    )
+  ).toBeVisible()
+  const timeline = page.getByRole('list', { name: 'Withdrawal' })
+  await expect(
+    timeline.getByText('Unlocks soon', { exact: true })
+  ).toBeVisible()
+  await expect(page.locator('.tab-ui').getByText(/Unlocks around/)).toHaveCount(
+    0
+  )
+  await expect(page.getByRole('button', { name: /^Withdraw / })).toHaveCount(0)
+})
+
+test('once a closing tab unlocks, the balance note says so and names Withdraw (#671)', async ({
+  page,
+}) => {
+  await open(page, 'home-withdraw-ready')
+  const balance = page.getByRole('region', { name: 'Balance' })
+  await expect(
+    balance.getByText('Unlocked. Choose Withdraw to move it to your wallet.', {
+      exact: true,
+    })
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Withdraw' })).toBeVisible()
 })
 
 test('the stats cover the same tips in XLM, dollars and count (#552)', async ({

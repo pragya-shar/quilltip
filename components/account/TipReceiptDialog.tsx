@@ -13,6 +13,7 @@ import {
   TAB_TIP_RESULT,
 } from '@/lib/copy/payment-states'
 import { TAB_HISTORY } from '@/lib/copy/tab'
+import { recordedUsdNote } from '@/lib/copy/network-status'
 
 /**
  * A row's status in words. v1 statuses keep their labels; v2 statuses use
@@ -174,7 +175,7 @@ export function TipReceiptDialog({
             </div>
             <div>
               <dt>Recorded tip</dt>
-              <dd>{recordedUsd(item.amountCents)} USD equivalent</dd>
+              <dd>{recordedUsdNote(recordedUsd(item.amountCents))}</dd>
             </div>
             {item.amountUsdSuspicious && (
               <div>

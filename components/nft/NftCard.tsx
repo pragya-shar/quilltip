@@ -69,7 +69,7 @@ export function NftCard({
         {excerpt && <p className="nft-card-excerpt">{excerpt}</p>}
         {articleHref && (
           <span className="nft-card-read">
-            Read more <span aria-hidden="true">↗</span>
+            Read more <span aria-hidden="true">↗︎</span>
           </span>
         )}
       </div>

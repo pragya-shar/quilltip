@@ -6,6 +6,12 @@ export type HealthReport = {
   environment: string
   network: string
   backend: BackendStatus
+  /**
+   * Tab tips can be offered (Stellar testnet). False while payments v2 keys
+   * or settlement are not ready, including when tab tips are not set up at
+   * all; null when unknown. It does not change `status`.
+   */
+  tabReady: boolean | null
   checkedAt: string
 }
 
@@ -46,10 +52,49 @@ export async function checkBackend(
   }
 }
 
+/**
+ * `tabReady` from the public `chain/config:getChainConfig` query: whether
+ * tab tips can be offered (keys, settlement and the Tab's state). Null when
+ * the backend does not answer or has no such field. Never a reason or a key.
+ */
+export async function checkTabReady(
+  convexUrl: string | undefined,
+  fetchImpl: typeof fetch = fetch,
+  timeoutMs = 2_000
+): Promise<boolean | null> {
+  if (!convexUrl) return null
+  try {
+    const response = await fetchImpl(new URL('/api/query', convexUrl), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        path: 'chain/config:getChainConfig',
+        args: {},
+        format: 'json',
+      }),
+      cache: 'no-store',
+      signal: AbortSignal.timeout(timeoutMs),
+    })
+    if (!response.ok) return null
+    const body = (await response.json()) as {
+      status?: string
+      value?: { tabReady?: unknown }
+    }
+    return body.status === 'success' &&
+      typeof body.value?.tabReady === 'boolean'
+      ? body.value.tabReady
+      : null
+  } catch {
+    return null
+  }
+}
+
 export function buildHealthReport(input: {
   env: EnvLike
   network: string
   backend: BackendStatus
+  /** `checkTabReady`; does not change `status`. */
+  tabReady?: boolean | null
   now?: Date
 }): HealthReport {
   return {
@@ -58,6 +103,7 @@ export function buildHealthReport(input: {
     environment: resolveDeploymentEnvironment(input.env),
     network: input.network,
     backend: input.backend,
+    tabReady: input.tabReady ?? null,
     checkedAt: (input.now ?? new Date()).toISOString(),
   }
 }

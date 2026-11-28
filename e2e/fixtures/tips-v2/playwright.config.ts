@@ -22,7 +22,7 @@ export default defineConfig({
     },
     {
       name: 'webkit',
-      grep: /keyboard, focus and announcements|dialog focus|refusal focus|px (confirmed|declined|basket-confirmed)$/,
+      grep: /keyboard, focus and announcements|dialog focus|refusal focus|send button name|px (confirmed|declined|basket-confirmed)$/,
       use: { ...devices['Desktop Safari'] },
     },
   ],

@@ -21,6 +21,71 @@ export function formatXlm(stroops: string, maxDecimals = 7): string {
   return isBaseUnits(stroops) ? formatXlmFromStroops(stroops, maxDecimals) : '–'
 }
 
+const ONE_XLM = BigInt(10_000_000)
+const ZERO = BigInt(0)
+const TEN = BigInt(10)
+
+/**
+ * One estimated figure as shown: rounded stroops, or `under` the smallest
+ * step when a non-zero amount rounds to 0. `null` for a zero, missing or
+ * invalid amount: the caller shows a dash, never "About 0 XLM".
+ */
+export type EstimateFigure = {
+  stroops: string
+  under: boolean
+  /** Decimals the figure was rounded to: 2 from 1 XLM, 3 below it. */
+  decimals: 2 | 3
+} | null
+
+/** Half up to `decimals` of an XLM, in stroops. */
+function roundStroops(raw: bigint, decimals: number): bigint {
+  const step = TEN ** BigInt(7 - decimals)
+  return ((raw + step / BigInt(2)) / step) * step
+}
+
+function figure(raw: bigint, shown: bigint, decimals: 2 | 3): EstimateFigure {
+  if (raw <= ZERO) return null
+  if (shown <= ZERO) {
+    return {
+      stroops: (TEN ** BigInt(7 - decimals)).toString(),
+      under: true,
+      decimals,
+    }
+  }
+  return { stroops: shown.toString(), under: false, decimals }
+}
+
+/**
+ * The figures of one estimated summary (#670). Every figure is rounded to
+ * the total's precision: two decimals from 1 XLM, three below it, half up.
+ * The first part is the shown total minus the other shown parts, so the
+ * parts a reader sees add up to the total they see ("About 8.11 XLM": 7.91
+ * and 0.2, not 7.9 and 0.203). Exact, server-verified figures (receipts,
+ * history, settled balances) keep full precision through `formatXlm`.
+ */
+export function estimateSummary(
+  total: string,
+  parts: string[] = []
+): { total: EstimateFigure; parts: EstimateFigure[] } {
+  const raw = isBaseUnits(total) ? BigInt(total) : ZERO
+  if (raw <= ZERO) return { total: null, parts: parts.map(() => null) }
+  const decimals: 2 | 3 = raw >= ONE_XLM ? 2 : 3
+  const shownTotal = roundStroops(raw, decimals)
+  const rawParts = parts.map((part) =>
+    isBaseUnits(part) ? BigInt(part) : ZERO
+  )
+  const shownParts = rawParts.map((part) => roundStroops(part, decimals))
+  if (rawParts.length > 0) {
+    const others = shownParts.slice(1).reduce((sum, part) => sum + part, ZERO)
+    const first = shownTotal - others
+    shownParts[0] = first > ZERO ? first : ZERO
+  }
+  return {
+    total: figure(raw, shownTotal, decimals),
+    parts: rawParts.map((part, i) => figure(part, shownParts[i]!, decimals)),
+  }
+}
+
 /**
  * "$0.50" from 50, `under-a-cent` for a fraction of a cent. `null` when no
  * quote is available, so the caller shows nothing rather than "$0.00".
