@@ -14,9 +14,6 @@ import {
 import SampleReadingPage from '../../../app/(app)/(public)/system/reading/page'
 import ShelfPage from '../../../app/(app)/(public)/shelf/page'
 import PocketPage from '../../../app/(app)/(signed-in)/pocket/page'
-import { registerSheet } from '../../../shell/sheetRegistry'
-import { SIGN_IN_SHEET } from '../../../shell/signIn'
-import { DemoSignInSheet } from './DemoSignInSheet'
 import { SheetsPage } from './SheetsPage'
 import { setPocketLoader } from '../../../shell/pocket/loadPocket'
 import { PocketContent } from '../../../components/pocket/PocketContent'
@@ -57,9 +54,7 @@ if (new URLSearchParams(location.search).get('pocket') === 'fail') {
       : Promise.reject(new Error('offline'))
   )
 }
-// `?signin=sheet`: a stand-in for the Account surface's sign-in sheet.
-if (new URLSearchParams(location.search).get('signin') === 'sheet')
-  registerSheet(SIGN_IN_SHEET, DemoSignInSheet)
+// `?signin=sheet`: a declared stand-in sign-in sheet (./demoSignIn.ts).
 
 const pages: Record<string, () => React.ReactNode> = {
   '/': () => <Gallery />,

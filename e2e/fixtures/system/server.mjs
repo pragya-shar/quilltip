@@ -5,6 +5,7 @@
 // replaced by plain stand-ins. No backend, no secrets.
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
+import { signInPathFromRoutes } from '../../../lib/routing/signInPath'
 
 const PORT = Number(process.env.SYSTEM_FIXTURE_PORT ?? 4185)
 const here = import.meta.dirname
@@ -12,7 +13,14 @@ const root = path.resolve(here, '../../..')
 const result = await Bun.build({
   entrypoints: [path.join(here, 'page.tsx')],
   target: 'browser',
-  define: { 'process.env.NODE_ENV': '"production"', 'process.env': '{}' },
+  define: {
+    'process.env.NODE_ENV': '"production"',
+    // As next.config.ts sets it from the route tree.
+    'process.env.NEXT_PUBLIC_SIGN_IN_PATH': JSON.stringify(
+      signInPathFromRoutes(path.join(root, 'app/(app)'))
+    ),
+    'process.env': '{}',
+  },
   plugins: [
     {
       name: 'system-collaborators',
@@ -28,6 +36,11 @@ const result = await Bun.build({
         build.onResolve({ filter: /^\.\/today$/ }, (args) =>
           args.importer.endsWith(path.join('shell', 'sheets', 'index.ts'))
             ? { path: path.join(here, 'demoSheets.ts') }
+            : undefined
+        )
+        build.onResolve({ filter: /^\.\/signin$/ }, (args) =>
+          args.importer.endsWith(path.join('shell', 'sheets', 'index.ts'))
+            ? { path: path.join(here, 'demoSignIn.ts') }
             : undefined
         )
         build.onResolve({ filter: /^next\/link$/ }, () => ({
