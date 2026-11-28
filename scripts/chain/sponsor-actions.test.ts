@@ -653,7 +653,10 @@ describe('readiness fails closed', () => {
     expect(r?.warnings).toEqual(['no_confirmed_call_yet'])
     expect(node.simulated).toEqual(['config'])
     expect(node.sent).toEqual([])
-    expect(await t.query(api.sponsorStore.passkeyTipAvailable, {})).toBe(true)
+    const row = await t.query(internal.sponsorStore.readiness, {
+      service: 'sponsor',
+    })
+    expect(row?.ready).toBe(true)
   })
 
   it('a changed secret makes the next call check again', async () => {

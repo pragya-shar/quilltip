@@ -618,9 +618,9 @@ describe('the budget holds what open requests may cost', () => {
 })
 
 describe('the public answer for the newcomer sheet', () => {
-  const record = (t: T, ready: boolean) =>
+  const record = (t: T, ready: boolean, service = 'sponsor') =>
     t.mutation(internal.sponsorStore.recordReadiness, {
-      service: 'sponsor',
+      service,
       ready,
       failed: ready ? [] : ['below_floor'],
       warnings: [],
@@ -632,9 +632,21 @@ describe('the public answer for the newcomer sheet', () => {
     vi.setSystemTime(NOW)
     const t = convexTest(schema, modules)
     vi.stubEnv('SPONSOR_ENABLED', 'true')
+    vi.stubEnv('PRACTICE_GRANTS_ENABLED', 'true')
     try {
       const ask = () => t.query(api.sponsorStore.passkeyTipAvailable, {})
       expect(await ask()).toBe(false)
+      // The sponsor alone is not enough: the first tip needs the treasury.
+      await record(t, true)
+      expect(await ask()).toBe(false)
+      await record(t, true, 'practice')
+      expect(await ask()).toBe(true)
+      vi.stubEnv('PRACTICE_GRANTS_ENABLED', 'false')
+      expect(await ask()).toBe(false)
+      vi.stubEnv('PRACTICE_GRANTS_ENABLED', 'true')
+      await record(t, false, 'practice')
+      expect(await ask()).toBe(false)
+      await record(t, true, 'practice')
       await record(t, false)
       expect(await ask()).toBe(false)
       await record(t, true)
@@ -642,6 +654,7 @@ describe('the public answer for the newcomer sheet', () => {
       // A later check extends it: the first expiry leaves it set.
       vi.advanceTimersByTime(10 * 60_000)
       await record(t, true)
+      await record(t, true, 'practice')
       vi.advanceTimersByTime(READINESS_TTL_MS - 10 * 60_000 + 50)
       await t.finishInProgressScheduledFunctions()
       expect(await ask()).toBe(true)

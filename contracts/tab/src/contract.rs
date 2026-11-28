@@ -17,8 +17,9 @@ use quilltip_shared::ttl;
 
 use crate::errors::TabError;
 use crate::events::{
-    AcceptorSet, Claimed, Deposited, KeyRegistered, KeyRevoked, LimitsSet, Migrated, TabSettled,
-    TreasurySet, VoucherSkipped, WithdrawCancelled, WithdrawStarted, Withdrawn,
+    AcceptorSet, Claimed, Deposited, GiftGranted, GrantKeyRaised, KeyRegistered, KeyRevoked,
+    LimitsSet, Migrated, SessionGranted, TabSettled, TreasurySet, VoucherSkipped,
+    WithdrawCancelled, WithdrawStarted, Withdrawn,
 };
 use crate::storage::{
     self, ReaderAccount, SessionKey, SettleSummary, TabConfig, Voucher, MAX_ACCEPTOR_KEYS,
@@ -32,6 +33,9 @@ pub const ROLE_PAUSER: Symbol = symbol_short!("pauser");
 pub const ROLE_UPGRADER: Symbol = symbol_short!("upgrader");
 /// Role that may call `settle`.
 pub const ROLE_SETTLER: Symbol = symbol_short!("settler");
+/// Role that may give readers a balance (`grant_session`, `grant_gift`): the
+/// practice-money treasury only.
+pub const ROLE_GRANTOR: Symbol = symbol_short!("grantor");
 
 #[contract]
 pub struct QuillTipTab;
@@ -89,6 +93,12 @@ fn payload_bytes(
 }
 
 fn do_deposit(e: &Env, cfg: &TabConfig, reader: &Address, amount: i128) {
+    do_deposit_from(e, cfg, reader, reader, amount);
+}
+
+/// Moves `amount` from `from` into `reader`'s balance. `from` is the reader
+/// for a deposit and the grantor for a gift.
+fn do_deposit_from(e: &Env, cfg: &TabConfig, from: &Address, reader: &Address, amount: i128) {
     if amount < cfg.min_deposit {
         err(e, TabError::BelowMinimumDeposit);
     }
@@ -97,7 +107,7 @@ fn do_deposit(e: &Env, cfg: &TabConfig, reader: &Address, amount: i128) {
     if balance_after > cfg.max_balance {
         err(e, TabError::BalanceCapExceeded);
     }
-    TokenClient::new(e, &cfg.token).transfer(reader, e.current_contract_address(), &amount);
+    TokenClient::new(e, &cfg.token).transfer(from, e.current_contract_address(), &amount);
     acct.balance = balance_after;
     let cancelled = acct.withdraw_unlock != 0;
     acct.withdraw_unlock = 0;
@@ -254,10 +264,17 @@ fn settle_batch(e: &Env, vouchers: &Vec<Voucher>, writer: Option<&Address>) -> S
         // 5. Account (I-28).
         let mut acct =
             storage::account(e, &v.reader).unwrap_or_else(|| err(e, TabError::AccountMissing));
-        // 6. Payable amount (I-12).
+        // 6. Payable amount (I-12). A granted key spends gift only (G-2).
         let delta = checked_sub(e, v.cumulative, paid);
         let headroom = checked_sub(e, key.spend_limit, key.spent);
-        let gross = delta.min(acct.balance).min(headroom);
+        let gift = storage::gift(e, &v.reader);
+        let granted = storage::is_granted(e, &v.reader, v.key_id);
+        let available = if granted {
+            gift.min(acct.balance)
+        } else {
+            acct.balance
+        };
+        let gross = delta.min(available).min(headroom);
         if gross <= 0 {
             skip(e, &v, SKIP_SHORTFALL, &mut summary);
             continue;
@@ -277,6 +294,10 @@ fn settle_batch(e: &Env, vouchers: &Vec<Voucher>, writer: Option<&Address>) -> S
         );
         acct.balance = checked_sub(e, acct.balance, gross);
         storage::set_account(e, &v.reader, &acct);
+        // Every tip spends gift first, so the reader's own money is spent last (G-1).
+        if gift > 0 {
+            storage::set_gift(e, &v.reader, gift - gross.min(gift));
+        }
         key.spent = checked_add(e, key.spent, gross);
         storage::set_session(e, &v.reader, v.key_id, &key);
         storage::add_claimable(e, &v.writer, net);
@@ -392,6 +413,116 @@ impl QuillTipTab {
         key_id
     }
 
+    /// Gives a new reader a balance and a device key in one call, authorised by
+    /// a grantor instead of the reader: a newcomer's first tip needs no
+    /// signature of the reader's own.
+    ///
+    /// - Only a `grantor` may call it, with its own authorisation; the gift
+    ///   moves from `funder`.
+    /// - Only for a reader with no balance, no key and no withdrawal: it never
+    ///   touches an account the reader already uses.
+    /// - `0 < spend_limit <= amount`. The key spends gift only (see `settle`),
+    ///   so it can never spend money the reader adds later.
+    /// - The gift can be tipped and is never withdrawn (`withdraw` pays the
+    ///   balance less the unspent gift).
+    #[when_not_paused]
+    pub fn grant_session(
+        e: &Env,
+        funder: Address,
+        reader: Address,
+        amount: i128,
+        public_key: BytesN<32>,
+        valid_until: u32,
+        spend_limit: i128,
+    ) -> u32 {
+        funder.require_auth();
+        access_control::ensure_role(e, &ROLE_GRANTOR, &funder);
+        if spend_limit > amount {
+            err(e, TabError::GrantCapAboveAmount);
+        }
+        check_key_args(e, &public_key, valid_until, spend_limit);
+        if let Some(acct) = storage::account(e, &reader) {
+            if acct.balance != 0 || acct.next_key_id != 0 || acct.withdraw_unlock != 0 {
+                err(e, TabError::GrantAccountInUse);
+            }
+        }
+        let cfg = storage::config(e);
+        do_deposit_from(e, &cfg, &funder, &reader, amount);
+        let gift_after = checked_add(e, storage::gift(e, &reader), amount);
+        storage::set_gift(e, &reader, gift_after);
+        let key_id = do_register_key(e, &reader, public_key, valid_until, spend_limit);
+        storage::set_granted(e, &reader, key_id, valid_until);
+        SessionGranted {
+            funder,
+            reader,
+            key_id,
+            amount,
+            spend_limit,
+            gift_after,
+        }
+        .publish(e);
+        ttl::extend_instance(e);
+        key_id
+    }
+
+    /// Adds to a reader's gift (practice money again). Only a `grantor`;
+    /// refused while a withdrawal is pending, so a gift never cancels or
+    /// changes a reader's withdrawal.
+    ///
+    /// With `key_id`, the reader's live granted key (from `grant_session`,
+    /// not revoked, not past its `valid_until`) gets its cap raised by
+    /// `amount`, so the reader keeps tipping with no new approval. That key
+    /// still spends gift only. Without `key_id`, the reader spends the gift
+    /// through keys the reader approved.
+    #[when_not_paused]
+    pub fn grant_gift(
+        e: &Env,
+        funder: Address,
+        reader: Address,
+        amount: i128,
+        key_id: Option<u32>,
+    ) {
+        funder.require_auth();
+        access_control::ensure_role(e, &ROLE_GRANTOR, &funder);
+        if let Some(acct) = storage::account(e, &reader) {
+            if acct.withdraw_unlock != 0 {
+                err(e, TabError::WithdrawPending);
+            }
+        }
+        let raised = key_id.map(|id| {
+            let key = storage::session(e, &reader, id)
+                .filter(|k| {
+                    !k.revoked
+                        && e.ledger().sequence() <= k.valid_until
+                        && storage::is_granted(e, &reader, id)
+                })
+                .unwrap_or_else(|| err(e, TabError::GrantKeyNotLive));
+            (id, key)
+        });
+        let cfg = storage::config(e);
+        do_deposit_from(e, &cfg, &funder, &reader, amount);
+        let gift_after = checked_add(e, storage::gift(e, &reader), amount);
+        storage::set_gift(e, &reader, gift_after);
+        if let Some((id, mut key)) = raised {
+            key.spend_limit = checked_add(e, key.spend_limit, amount);
+            storage::set_session(e, &reader, id, &key);
+            GrantKeyRaised {
+                reader: reader.clone(),
+                key_id: id,
+                spend_limit: key.spend_limit,
+            }
+            .publish(e);
+        }
+        GiftGranted {
+            funder,
+            reader,
+            amount,
+            gift_after,
+        }
+        .publish(e);
+        ttl::extend_instance(e);
+    }
+
     /// Revokes a key. Accepted vouchers can still settle within the grace period.
     pub fn revoke_key(e: &Env, reader: Address, key_id: u32) {
         reader.require_auth();
@@ -409,11 +540,13 @@ impl QuillTipTab {
         ttl::extend_instance(e);
     }
 
-    /// Starts the withdrawal waiting period.
+    /// Starts the withdrawal waiting period. Only the balance above the
+    /// unspent gift can be withdrawn.
     pub fn withdraw_start(e: &Env, reader: Address) {
         reader.require_auth();
+        let gift = storage::gift(e, &reader);
         let mut acct = storage::account(e, &reader)
-            .filter(|a| a.balance > 0)
+            .filter(|a| a.balance > gift)
             .unwrap_or_else(|| err(e, TabError::NothingToWithdraw));
         if acct.withdraw_unlock != 0 {
             err(e, TabError::WithdrawPending);
@@ -421,6 +554,8 @@ impl QuillTipTab {
         let unlock_ledger = e.ledger().sequence().saturating_add(WITHDRAW_DELAY);
         acct.withdraw_unlock = unlock_ledger;
         storage::set_account(e, &reader, &acct);
+        // `balance` stays the whole balance (the indexer applies it as the
+        // account's balance); `withdraw` pays it less the unspent gift.
         WithdrawStarted {
             reader,
             balance: acct.balance,
@@ -430,7 +565,8 @@ impl QuillTipTab {
         ttl::extend_instance(e);
     }
 
-    /// Pays the whole remaining balance to the reader after the waiting period.
+    /// Pays the remaining balance less the unspent gift to the reader after the
+    /// waiting period. The gift stays in the balance, still tippable.
     pub fn withdraw(e: &Env, reader: Address) -> i128 {
         reader.require_auth();
         let mut acct = storage::account(e, &reader)
@@ -439,8 +575,9 @@ impl QuillTipTab {
         if e.ledger().sequence() < acct.withdraw_unlock {
             err(e, TabError::WithdrawLocked);
         }
-        let amount = acct.balance;
-        acct.balance = 0;
+        let gift = storage::gift(e, &reader);
+        let amount = checked_sub(e, acct.balance, gift);
+        acct.balance = gift;
         acct.withdraw_unlock = 0;
         storage::set_account(e, &reader, &acct);
         if amount > 0 {
@@ -451,6 +588,8 @@ impl QuillTipTab {
                 &amount,
             );
         }
+        // The unspent gift stays in the balance: the indexer derives it as its
+        // confirmed balance less `amount`.
         Withdrawn { reader, amount }.publish(e);
         ttl::extend_instance(e);
         amount
@@ -500,6 +639,16 @@ impl QuillTipTab {
 
     pub fn paid(e: &Env, reader: Address, key_id: u32, writer: Address) -> i128 {
         storage::paid(e, &reader, key_id, &writer)
+    }
+
+    /// The unspent gift in a reader's balance: tippable, never withdrawn.
+    pub fn gift(e: &Env, reader: Address) -> i128 {
+        storage::gift(e, &reader)
+    }
+
+    /// Whether a key was registered by `grant_session` (it spends gift only).
+    pub fn is_granted_key(e: &Env, reader: Address, key_id: u32) -> bool {
+        storage::is_granted(e, &reader, key_id)
     }
 
     pub fn claimable(e: &Env, owner: Address) -> i128 {

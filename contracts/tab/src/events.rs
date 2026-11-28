@@ -107,3 +107,40 @@ pub struct Migrated {
     pub from_version: u32,
     pub to_version: u32,
 }
+
+/// A grantor gave `reader` a balance and registered a device key whose cap is
+/// at most the gift (`grant_session`). `Deposited` and `KeyRegistered` are
+/// published too, as for `open_session`.
+#[contractevent(data_format = "map")]
+pub struct SessionGranted {
+    #[topic]
+    pub funder: Address,
+    #[topic]
+    pub reader: Address,
+    pub key_id: u32,
+    pub amount: i128,
+    pub spend_limit: i128,
+    pub gift_after: i128,
+}
+
+/// A grantor added to `reader`'s gift (`grant_gift`). `Deposited` is
+/// published too, and `GrantKeyRaised` when a granted key's cap was raised.
+#[contractevent(data_format = "map")]
+pub struct GiftGranted {
+    #[topic]
+    pub funder: Address,
+    #[topic]
+    pub reader: Address,
+    pub amount: i128,
+    pub gift_after: i128,
+}
+
+/// `grant_gift` raised the cap of a reader's granted key by the gift
+/// (`spend_limit` is the new cap). The key still spends gift only.
+#[contractevent(data_format = "map")]
+pub struct GrantKeyRaised {
+    #[topic]
+    pub reader: Address,
+    pub key_id: u32,
+    pub spend_limit: i128,
+}

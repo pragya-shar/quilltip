@@ -18,12 +18,14 @@ use crate::{QuillTipTab, QuillTipTabClient, Voucher};
 
 mod admin;
 mod edge;
+mod grant;
 mod props;
 mod reader;
 mod resource;
 mod roles;
 mod settle;
 mod upgrade;
+mod upgrade_v3;
 mod vectors;
 
 /// Testnet passphrase hash, used as the ledger network ID in tests.
@@ -81,6 +83,12 @@ impl Fixture {
     }
 
     pub fn with_env(e: Env) -> Self {
+        Self::with_code(e, None)
+    }
+
+    /// A fixture whose Tab runs `wasm` (an earlier release) instead of this
+    /// crate's code; the old-state upgrade test writes state with it first.
+    pub fn with_code(e: Env, wasm: Option<&[u8]>) -> Self {
         e.ledger().set_sequence_number(START_LEDGER);
         e.ledger().set_network_id(TESTNET_NETWORK_ID);
         let issuer = Address::generate(&e);
@@ -93,20 +101,21 @@ impl Fixture {
         let settler = Address::generate(&e);
         let treasury = Address::generate(&e);
         let acceptor = signing_key("acceptor");
-        let tab = e.register(
-            QuillTipTab,
-            (
-                &admin,
-                &pauser,
-                &upgrader,
-                &settler,
-                &token,
-                &treasury,
-                MAX_BALANCE,
-                MIN_DEPOSIT,
-                public_key(&e, &acceptor),
-            ),
+        let args = (
+            &admin,
+            &pauser,
+            &upgrader,
+            &settler,
+            &token,
+            &treasury,
+            MAX_BALANCE,
+            MIN_DEPOSIT,
+            public_key(&e, &acceptor),
         );
+        let tab = match wasm {
+            Some(code) => e.register(code, args),
+            None => e.register(QuillTipTab, args),
+        };
         Fixture {
             e,
             tab,

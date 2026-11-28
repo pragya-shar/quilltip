@@ -1,6 +1,6 @@
 /**
  * Contract error codes to user messages (docs/architecture/v2/06-app-integration.md,
- * section 6.1 step 3). Covers Core (1 to 21), Tab (30 to 47), the article NFT
+ * section 6.1 step 3). Covers Core (1 to 21), Tab (30 to 50), the article NFT
  * (70 to 76), the OpenZeppelin codes the contracts use (pause 1000+,
  * access control 2000+, role transfer 2200+, non-fungible token 200+) and
  * the Stellar Asset Contract that moves XLM (1 to 15).
@@ -64,6 +64,9 @@ const TAB: Record<number, string> = {
   45: 'The limits are not valid.',
   46: 'The admin role cannot be given up.',
   47: 'This tab does not exist.',
+  48: 'Practice money cannot come with a limit above the gift.',
+  49: 'Practice money for a new account only.',
+  50: 'This quick-tip key cannot be topped up.',
 }
 
 const NFT: Record<number, string> = {

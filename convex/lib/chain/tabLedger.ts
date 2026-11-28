@@ -473,6 +473,18 @@ export async function checkTabTip(
   if (big(key.acceptedTotal) + args.amount > big(key.spendLimit)) {
     tabError('TAB_OVER_KEY_LIMIT', "The session key's spend limit is reached.")
   }
+  // A key from `grant_session` spends gift only (the contract enforces it at
+  // settlement), and every accepted tip spends gift first. So it may take at
+  // most the gift less everything accepted or settled but not yet indexed.
+  if (
+    key.granted &&
+    args.amount > big(account.gift ?? '0') - reservedOf(account)
+  ) {
+    tabError(
+      'TAB_OVER_GIFT',
+      'Your practice money is spent. Add money to keep tipping.'
+    )
+  }
 
   return {
     chain,

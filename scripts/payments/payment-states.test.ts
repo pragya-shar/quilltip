@@ -789,6 +789,7 @@ describe('Convex tab refusals', () => {
     const expected: Record<string, string> = {
       TAB_OVER_BALANCE: 'notice:insufficient-balance',
       TAB_OVER_KEY_LIMIT: 'notice:key-limit',
+      TAB_OVER_GIFT: 'notice:key-limit',
       TAB_RECEIPT_CAP: 'notice:key-limit',
       TAB_DAILY_LIMIT: 'notice:daily-limit',
       TAB_KEY_EXPIRED: 'notice:session-key-expired',

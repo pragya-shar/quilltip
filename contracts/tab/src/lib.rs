@@ -18,7 +18,9 @@ mod storage;
 mod test;
 
 #[cfg(not(feature = "upgrade-probe"))]
-pub use contract::{QuillTipTab, QuillTipTabClient, ROLE_PAUSER, ROLE_SETTLER, ROLE_UPGRADER};
+pub use contract::{
+    QuillTipTab, QuillTipTabClient, ROLE_GRANTOR, ROLE_PAUSER, ROLE_SETTLER, ROLE_UPGRADER,
+};
 pub use errors::TabError;
 pub use storage::{
     ReaderAccount, SessionKey, SettleSummary, TabConfig, Voucher, MAX_ACCEPTOR_KEYS,

@@ -147,4 +147,22 @@ crons.interval(
   {}
 )
 
+// Practice money: close grants from the network's answer (convex/practice.ts
+// reconcile). It runs while grants are off too, so no grant stays open.
+crons.interval(
+  'reconcile practice grants',
+  { minutes: 2 },
+  internal.practice.reconcile,
+  {}
+)
+
+// Practice treasury readiness (convex/practice.ts checkReadiness): the key,
+// the grantor role, the floor plus one gift, recorded with a time.
+crons.interval(
+  'check practice treasury readiness',
+  { minutes: 10 },
+  internal.practice.checkReadiness,
+  {}
+)
+
 export default crons

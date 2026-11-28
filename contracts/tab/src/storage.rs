@@ -94,6 +94,11 @@ pub enum TabKey {
     Claimable(Address),
     Session(Address, u32),
     Paid(Address, u32, Address),
+    /// The part of a reader's balance that was given by a grantor and is not
+    /// spent yet. It can be tipped and never withdrawn. Absent means 0.
+    Gift(Address),
+    /// Present for a key registered by `grant_session`: it spends gift only.
+    Granted(Address, u32),
 }
 
 pub fn config(e: &Env) -> TabConfig {
@@ -190,4 +195,36 @@ pub fn settle_deadline(valid_until: u32) -> u32 {
 /// TTL that keeps a temporary entry live through `valid_until + SETTLE_GRACE`.
 fn live_ledgers(e: &Env, valid_until: u32) -> u32 {
     ttl::ledgers_until(e.ledger().sequence(), settle_deadline(valid_until))
+}
+
+/// The unspent gift in a reader's balance (0 when none). Always `<= balance`.
+pub fn gift(e: &Env, reader: &Address) -> i128 {
+    e.storage()
+        .persistent()
+        .get(&TabKey::Gift(reader.clone()))
+        .unwrap_or(0)
+}
+
+pub fn set_gift(e: &Env, reader: &Address, amount: i128) {
+    let key = TabKey::Gift(reader.clone());
+    if amount == 0 {
+        e.storage().persistent().remove(&key);
+    } else {
+        e.storage().persistent().set(&key, &amount);
+        ttl::extend_persistent(e, &key);
+    }
+}
+
+/// Whether a key was registered by `grant_session`.
+pub fn is_granted(e: &Env, reader: &Address, key_id: u32) -> bool {
+    e.storage()
+        .temporary()
+        .has(&TabKey::Granted(reader.clone(), key_id))
+}
+
+/// Marks a granted key, live as long as the key itself (I-29).
+pub fn set_granted(e: &Env, reader: &Address, key_id: u32, valid_until: u32) {
+    let k = TabKey::Granted(reader.clone(), key_id);
+    e.storage().temporary().set(&k, &true);
+    ttl::extend_temporary(e, &k, live_ledgers(e, valid_until));
 }

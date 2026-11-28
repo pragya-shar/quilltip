@@ -63,11 +63,12 @@ npx prettier --write contracts/shared/test-vectors.json
 `tab/` implements `docs/architecture/v2/03-tab-contract.md`. Tests live in
 `tab/src/test/` and name the invariants they cover (`I-n`, section 7.1).
 
-| Path                              | Contents                                                                                     |
-| --------------------------------- | -------------------------------------------------------------------------------------------- |
-| `tab/test-vectors.json`           | Settlement sequence: payload and acceptance bytes, signatures and expected contract results  |
-| `tab/testdata/upgrade_probe.wasm` | Upgrade test fixture: this crate built with `--features upgrade-probe` (`src/probe.rs`)      |
-| `tab/fuzz/`                       | cargo-fuzz targets `settle_vouchers` and `voucher_decode` (own workspace, nightly toolchain) |
+| Path                                | Contents                                                                                                               |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `tab/test-vectors.json`             | Settlement sequence: payload and acceptance bytes, signatures and expected contract results                            |
+| `tab/testdata/upgrade_probe.wasm`   | Upgrade test fixture: this crate built with `--features upgrade-probe` (`src/probe.rs`)                                |
+| `tab/testdata/tab_v3_2773ff1e.wasm` | Old-state upgrade fixture: the Tab code deployed on testnet before grants, read from the network (SHA-256 `2773ff1e…`) |
+| `tab/fuzz/`                         | cargo-fuzz targets `settle_vouchers` and `voucher_decode` (own workspace, nightly toolchain)                           |
 
 The resource figures at the maximum batch print with:
 

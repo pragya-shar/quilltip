@@ -329,12 +329,19 @@ const withdrawn: ChainEventHandler = async (ctx, event) => {
   int(data(event).amount, 'amount')
   const account = await accountFor(ctx, event, reader, false)
   if (!account) return 'orphan'
+  // `withdraw` pays the balance less the unspent gift; the gift stays.
+  const gift = BigInt(account.gift ?? '0')
   await applyAbsolute(
     ctx,
     account,
     event,
-    ZERO,
-    statusChange(account, event.doc.eventId, 'CLOSED', undefined)
+    gift,
+    statusChange(
+      account,
+      event.doc.eventId,
+      gift > ZERO ? 'OPEN' : 'CLOSED',
+      undefined
+    )
   )
   await resolveUnpaidPairs(ctx, account._id, event.doc.ledger, event.now)
   return 'done'
@@ -441,11 +448,13 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
   hex32(d.receipts_root, 'receipts_root')
   const account = await accountFor(ctx, event, reader, false)
   if (!account) return 'orphan'
+  const debit = await balanceDebit(ctx, account, event, gross)
   await patchAccount(
     ctx,
     account,
     event.now,
-    await balanceDebit(ctx, account, event, gross)
+    debit,
+    debit ? await giftAfterSettle(ctx, account, keyId, gross) : null
   )
 
   const voucher = await tabVoucher(ctx, account._id, keyId, writer)
@@ -460,6 +469,79 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
     sourceLedger: event.doc.ledger,
     now: event.now,
   })
+  return 'done'
+}
+
+/**
+ * The gift after a settled tip, as the contract computes it: a granted key
+ * spends gift only; any other key spends gift first. Null when there is no
+ * gift to change.
+ */
+async function giftAfterSettle(
+  ctx: MutationCtx,
+  account: Doc<'tabAccounts'>,
+  keyId: number,
+  gross: bigint
+): Promise<Partial<Doc<'tabAccounts'>> | null> {
+  const gift = BigInt(account.gift ?? '0')
+  if (gift === ZERO) return null
+  const key = await tabKey(ctx, account._id, keyId)
+  const spent = key?.granted ? gross : gross < gift ? gross : gift
+  const after = gift - spent
+  return { gift: (after > ZERO ? after : ZERO).toString() }
+}
+
+/** `SessionGranted`: the gift, and the key it registered spends gift only. */
+const sessionGranted: ChainEventHandler = async (ctx, event) => {
+  const reader = address(event.doc.topics[2], 'reader')
+  const d = data(event)
+  const keyId = u32(d.key_id, 'key_id')
+  const giftAfter = int(d.gift_after, 'gift_after')
+  int(d.amount, 'amount')
+  int(d.spend_limit, 'spend_limit')
+  const account = await accountFor(ctx, event, reader, true)
+  if (!account) return 'orphan'
+  await patchAccount(ctx, account, event.now, { gift: giftAfter.toString() })
+  const key = await tabKey(ctx, account._id, keyId)
+  // `KeyRegistered` comes first in the same transaction, so the row exists.
+  if (!key) return 'orphan'
+  if (!key.granted) {
+    await ctx.db.patch(key._id, { granted: true, updatedAt: event.now })
+  }
+  return 'done'
+}
+
+/** `GiftGranted`: practice money added (a raised key is `GrantKeyRaised`). */
+const giftGranted: ChainEventHandler = async (ctx, event) => {
+  const reader = address(event.doc.topics[2], 'reader')
+  const d = data(event)
+  const giftAfter = int(d.gift_after, 'gift_after')
+  int(d.amount, 'amount')
+  const account = await accountFor(ctx, event, reader, true)
+  if (!account) return 'orphan'
+  await patchAccount(ctx, account, event.now, { gift: giftAfter.toString() })
+  return 'done'
+}
+
+/**
+ * `GrantKeyRaised`: `grant_gift` raised a live granted key's cap. The event
+ * carries the new cap, so applying it twice is harmless; the cap only rises.
+ */
+const grantKeyRaised: ChainEventHandler = async (ctx, event) => {
+  const reader = address(event.doc.topics[1], 'reader')
+  const d = data(event)
+  const keyId = u32(d.key_id, 'key_id')
+  const spendLimit = int(d.spend_limit, 'spend_limit')
+  const account = await accountFor(ctx, event, reader, false)
+  if (!account) return 'orphan'
+  const key = await tabKey(ctx, account._id, keyId)
+  if (!key) return 'orphan'
+  if (spendLimit > BigInt(key.spendLimit)) {
+    await ctx.db.patch(key._id, {
+      spendLimit: spendLimit.toString(),
+      updatedAt: event.now,
+    })
+  }
   return 'done'
 }
 
@@ -552,4 +634,7 @@ export const TAB_EVENT_HANDLERS: Readonly<Record<string, ChainEventHandler>> = {
   'tab:withdraw_started': withdrawStarted,
   'tab:withdraw_cancelled': withdrawCancelled,
   'tab:withdrawn': withdrawn,
+  'tab:session_granted': sessionGranted,
+  'tab:gift_granted': giftGranted,
+  'tab:grant_key_raised': grantKeyRaised,
 }

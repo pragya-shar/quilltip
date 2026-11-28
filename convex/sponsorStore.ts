@@ -566,7 +566,8 @@ export const getSignerReadiness = query({
 
 /**
  * The one public answer: can a first tip with a passkey go through now?
- * True only when the fee sponsor is switched on and its readiness is set.
+ * True only when the fee sponsor (it deploys the account) and the practice
+ * treasury (it gives the first money) are both switched on and both ready.
  * `ready` is written only by mutations (a passing check sets it, a scheduled
  * expiry clears it), so a subscribed client sees the change. Nothing about
  * why leaves the server.
@@ -575,10 +576,14 @@ export const passkeyTipAvailable = query({
   args: {},
   handler: async (ctx): Promise<boolean> => {
     if (process.env.SPONSOR_ENABLED?.trim() !== 'true') return false
-    const row = await ctx.db
-      .query('signerReadiness')
-      .withIndex('by_service', (q) => q.eq('service', 'sponsor'))
-      .unique()
-    return !!row && row.ready
+    if (process.env.PRACTICE_GRANTS_ENABLED?.trim() !== 'true') return false
+    for (const service of ['sponsor', 'practice']) {
+      const row = await ctx.db
+        .query('signerReadiness')
+        .withIndex('by_service', (q) => q.eq('service', service))
+        .unique()
+      if (!row?.ready) return false
+    }
+    return true
   },
 })
