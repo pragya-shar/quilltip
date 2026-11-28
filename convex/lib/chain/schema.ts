@@ -532,6 +532,8 @@ export const chainTables = {
     nftThresholdToken: v.optional(v.string()),
     /** Tab `config().acceptor_keys`, lowercase hex (current first). */
     tabAcceptorKeys: v.optional(v.array(v.string())),
+    /** Holders of the Tab's `settler` role (`get_role_member`), G addresses. */
+    tabSettlers: v.optional(v.array(v.string())),
     paused: v.object({
       core: v.optional(v.boolean()),
       tab: v.optional(v.boolean()),

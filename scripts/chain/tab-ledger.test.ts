@@ -8,7 +8,7 @@
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Buffer } from 'buffer'
-import { Address, nativeToScVal, xdr } from '@stellar/stellar-sdk'
+import { Address, Keypair, nativeToScVal, xdr } from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
 import type { Doc, Id, TableNames } from '../../convex/_generated/dataModel'
@@ -87,6 +87,8 @@ const LEDGER = 7_000_000
 const VALID_UNTIL = LEDGER + 7 * DAY_LEDGERS
 const T0 = Date.UTC(2026, 11, 2, 12, 0, 0)
 const XLM = BigInt(10_000_000)
+/** Holds the Tab's `settler` role in the seeded chain config (#692). */
+const SETTLER = Keypair.fromRawEd25519Seed(new Uint8Array(32).fill(61))
 
 beforeEach(() => {
   vi.useFakeTimers({ now: T0 })
@@ -99,6 +101,7 @@ beforeEach(() => {
     TOKEN_CONTRACT_ID: TOKEN,
     SETTLEMENT_ENABLED: 'true',
     TAB_ACCEPTOR_SECRET: shared.keys.acceptor.seed,
+    TAB_SETTLER_SECRET: SETTLER.secret(),
   })) {
     vi.stubEnv(k, v)
   }
@@ -343,7 +346,8 @@ async function seed(t: T, options: { open?: boolean } = {}) {
       minTip: '100000',
       feeBps: 250,
       tabAcceptorKeys: [ACCEPTOR_PUBLIC],
-      paused: {},
+      tabSettlers: [SETTLER.publicKey()],
+      paused: { core: false, tab: false },
       refreshedAt: now,
     })
     await db.insert('chainCursor', {
@@ -3267,12 +3271,13 @@ describe('settler inputs', () => {
       const c = await ctx.db.query('chainConfig').first()
       await ctx.db.patch(c!._id, { tabAcceptorKeys: ['ab'.repeat(32)] })
     })
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_MISMATCH')
+    // Readiness (#692) refuses first; acceptance would refuse too.
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     await t.run(async (ctx) => {
       const c = await ctx.db.query('chainConfig').first()
       await ctx.db.patch(c!._id, { tabAcceptorKeys: undefined })
     })
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_MISMATCH')
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     await t.run(async (ctx) => {
       const c = await ctx.db.query('chainConfig').first()
       await ctx.db.patch(c!._id, {
@@ -3288,10 +3293,10 @@ describe('settler inputs', () => {
     const s = await seed(t)
     const p = await prepare(t, s)
     vi.stubEnv('SETTLEMENT_ENABLED', 'false')
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_UNAVAILABLE')
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     vi.stubEnv('SETTLEMENT_ENABLED', 'true')
     vi.stubEnv('TAB_ACCEPTOR_SECRET', '')
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_UNAVAILABLE')
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     vi.stubEnv('STELLAR_NETWORK', 'PUBLIC')
     expect(await errorCode(submit(t, s, p))).not.toBe('no error')
   })
@@ -3418,8 +3423,10 @@ describe('signature bytes and key state at acceptance', () => {
     const p = await prepare(t, s)
     // The Tab contract changes without a new chain epoch.
     vi.stubEnv('TAB_CONTRACT_ID', TOKEN)
-    expect(await errorCode(prepare(t, s))).toBe('TAB_CONTRACT_MISMATCH')
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_CONTRACT_MISMATCH')
+    // The cached config describes the old contract, so readiness (#692)
+    // refuses first; TAB_CONTRACT_MISMATCH stays behind it.
+    expect(await errorCode(prepare(t, s))).toBe('TAB_NOT_READY')
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     expect((await account(t)).outstanding).toBe('0')
   })
 })
@@ -3639,12 +3646,20 @@ describe('tab screens read models (tabActivity)', () => {
 
   it('reports whether settlement is on without a tab or a sign-in', async () => {
     const t = convexTest(schema, modules)
+    // No chain config cached yet: not ready.
     expect(await t.query(api.tabActivity.getTabSettlement, {})).toEqual({
       settlementEnabled: true,
+      tabReady: false,
+    })
+    await seed(t, { open: false })
+    expect(await t.query(api.tabActivity.getTabSettlement, {})).toEqual({
+      settlementEnabled: true,
+      tabReady: true,
     })
     vi.stubEnv('SETTLEMENT_ENABLED', '')
     expect(await t.query(api.tabActivity.getTabSettlement, {})).toEqual({
       settlementEnabled: false,
+      tabReady: false,
     })
   })
 })

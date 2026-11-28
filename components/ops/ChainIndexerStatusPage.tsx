@@ -3,6 +3,7 @@
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useAuth } from '@/components/providers/AuthContext'
+import { TabReadinessDetail } from './TabReadinessDetail'
 import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
 import { AccountSurface } from '@/components/account/AccountSurface'
 import { FlaggedTipsReview } from './FlaggedTipsReview'
@@ -110,6 +111,7 @@ export function ChainIndexerStatusPage() {
               <dd>{status.contracts.core ?? 'Not set'}</dd>
               <dt>Tab</dt>
               <dd>{status.contracts.tab ?? 'Not set'}</dd>
+              <TabReadinessDetail />
               <dt>NFT</dt>
               <dd>{status.contracts.nft ?? 'Not set'}</dd>
               <dt>Lease</dt>

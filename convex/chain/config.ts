@@ -12,10 +12,15 @@ import {
   Address,
   Contract,
   TransactionBuilder,
+  nativeToScVal,
   scValToNative,
   xdr,
 } from '@stellar/stellar-sdk'
 import { internal } from '../_generated/api'
+import {
+  evaluateTabReadiness,
+  readinessLogCode,
+} from '../lib/chain/tabReadiness'
 import { internalAction, internalMutation, query } from '../_generated/server'
 import { readChainEnv, type ChainEnv } from '../lib/chain/env'
 import { createBackendRpcClient, type RpcClient } from '../lib/chain/rpc'
@@ -50,6 +55,9 @@ export const getChainConfig = query({
       nftThreshold: cached?.nftThreshold ?? null,
       paused: cached?.paused ?? {},
       refreshedAt: cached?.refreshedAt ?? null,
+      // Keys and settlement ready (`tabReadiness.ts`). One boolean: which
+      // check failed is for operators only (`chain/tabReadiness`).
+      tabReady: evaluateTabReadiness(process.env, cached).ready,
     }
   },
 })
@@ -67,6 +75,7 @@ export const storeChainConfig = internalMutation({
     nftThreshold: v.optional(v.string()),
     nftThresholdToken: v.optional(v.string()),
     tabAcceptorKeys: v.optional(v.array(v.string())),
+    tabSettlers: v.optional(v.array(v.string())),
     paused: v.object({
       core: v.optional(v.boolean()),
       tab: v.optional(v.boolean()),
@@ -98,6 +107,34 @@ export const storeChainConfig = internalMutation({
     }
   },
 })
+
+/** Holders of an OpenZeppelin role, by `get_role_member_count` and index. */
+async function readRoleMembers(
+  rpc: RpcClient,
+  chain: Pick<ChainEnv, 'passphrase'>,
+  contractId: string,
+  role: string
+): Promise<string[]> {
+  const symbol = xdr.ScVal.scvSymbol(role)
+  const count = Number(
+    await readView(rpc, chain, contractId, 'get_role_member_count', [symbol])
+  )
+  if (!Number.isInteger(count) || count < 0 || count > 50) {
+    throw new Error(`get_role_member_count: ${count}`)
+  }
+  const members: string[] = []
+  for (let i = 0; i < count; i++) {
+    members.push(
+      String(
+        await readView(rpc, chain, contractId, 'get_role_member', [
+          symbol,
+          nativeToScVal(i, { type: 'u32' }),
+        ])
+      )
+    )
+  }
+  return members
+}
 
 /** Simulates a read-only call and returns the native return value. */
 export async function readView(
@@ -177,6 +214,12 @@ export const refreshChainConfig = internalAction({
           }
         : {}),
     }
+    // Tab tip readiness compares TAB_SETTLER_SECRET with these.
+    const tabSettlers = chain.tabContractId
+      ? await attempt(() =>
+          readRoleMembers(rpc, chain, chain.tabContractId!, 'settler')
+        )
+      : undefined
     const threshold = chain.nftContractId
       ? await attempt(async () => {
           const value = await readView(
@@ -248,10 +291,20 @@ export const refreshChainConfig = internalAction({
         nftThreshold,
         nftThresholdToken,
         tabAcceptorKeys,
+        tabSettlers,
         lastError: errors.length ? errors.join('; ').slice(0, 500) : undefined,
       }),
       paused: defined(paused),
     })
+    if (chain.v2Enabled) {
+      // One line per cause, with its own code; never a secret or a key.
+      const readiness = await ctx.runQuery(internal.chain.tabReadiness.read, {})
+      for (const cause of readiness.causes) {
+        console.error(
+          JSON.stringify({ code: readinessLogCode(cause), source: 'refresh' })
+        )
+      }
+    }
     return { refreshed: true, errors }
   },
 })
