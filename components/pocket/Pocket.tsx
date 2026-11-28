@@ -23,6 +23,7 @@ import { EarningsSection } from './EarningsSection'
 import { retryPayments } from './LocalPaymentsShell'
 import { SpendableSection } from './SpendableSection'
 import { useNow } from '@/hooks/payments/useNow'
+import { PocketPlaceholder } from './PocketPlaceholder'
 import { writerMemory } from './writerMemory'
 
 /** Whether this person writes, as the money layer says: true, false, or
@@ -84,17 +85,7 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   // Until auth is known, nobody is known to be signed in: a neutral
   // placeholder in the shape of the shell's, with no labels or words that
   // belong to a signed-in person.
-  if (reading.auth === 'loading')
-    return (
-      <div
-        className="qt-pocket"
-        data-auth="loading"
-        aria-busy="true"
-        aria-label="Loading"
-      >
-        <MoneyFigure value={null} status="loading" size="xl" />
-      </div>
-    )
+  if (reading.auth === 'loading') return <PocketPlaceholder />
   if (!wired)
     // Before the money layer is connected: the shell's own reading of what
     // can be tipped (the bar shows the same), and plainly what is not here

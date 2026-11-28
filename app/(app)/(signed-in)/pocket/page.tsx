@@ -6,7 +6,7 @@ import { BalanceIcon } from '@/system/icons'
 import { POCKET } from '@/shell/navigation'
 import { PushedHeader } from '@/shell/PushedHeader'
 import { PushedScreen } from '@/shell/PushedScreen'
-import { PocketPage } from '@/components/pocket/PocketPage'
+import { PocketPageLoader } from '@/components/pocket/PocketPageLoader'
 
 export const metadata: Metadata = {
   title: 'Balance',
@@ -34,7 +34,7 @@ export default function PocketRoute() {
             script saw a session token (data-session="held"): then the
             balance shows, waiting neutrally while auth loads. */}
         <div data-when="held">
-          <PocketPage />
+          <PocketPageLoader />
         </div>
         <div className="qt-pocket" data-when="signed-out">
           <EmptyState
