@@ -158,7 +158,7 @@ test('a press on the offer that clears the selection still opens the slip with t
       })
   )
   await expect(offer).toBeVisible()
-  await offer.click()
+  await offer.tap()
   await expect(slip).toBeVisible()
   await expect(slip.locator('blockquote')).toContainText(passage.trim())
 })
