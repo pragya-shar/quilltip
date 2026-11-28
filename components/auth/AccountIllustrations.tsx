@@ -1,7 +1,7 @@
 // Phosphor artwork from the approved prototype; license in public/landing.
 // No xmlns, width or height: inline SVG in HTML needs no namespace, and
-// .account-sketch sets the size. Every byte here is in each auth page's first
-// flush, which React keeps under its chunk size (e2e/server-forms.spec.ts).
+// .account-sketch sets the size. Every byte here is in each auth page's server
+// HTML (e2e/server-forms.spec.ts checks the forms show without scripts).
 export function AccountIllustrations() {
   return (
     <div className="account-illustrations" aria-hidden="true">

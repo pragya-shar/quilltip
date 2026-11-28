@@ -166,10 +166,11 @@ test.describe('forms in the server HTML', () => {
 })
 
 test.describe('auth forms in the first flush', () => {
-  // React streams a boundary separately, behind the loading fallback, when the
-  // HTML flushed so far passes its chunk size (12,800 bytes). A browser
-  // without scripts then shows only the fallback, and WebKit shows nothing
-  // until the scripts run. Each auth form must be in the first flush.
+  // Each auth form is in the server HTML a browser can show without scripts.
+  // The auth pages have no loading boundary since #597. If one comes back,
+  // React streams it separately, behind its fallback, once the HTML flushed
+  // so far passes its chunk size (12,800 bytes); a browser without scripts
+  // then shows only the fallback, and WebKit nothing until the scripts run.
   for (const path of FORM_PAGES) {
     test(`${path} shows its form without scripts`, async ({ page }) => {
       await page.goto(path, { waitUntil: 'domcontentloaded' })

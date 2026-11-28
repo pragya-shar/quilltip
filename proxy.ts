@@ -8,6 +8,10 @@ import {
   NONCE_HEADER,
 } from '@/lib/security/contentSecurityPolicy'
 import { PUBLIC_READ_TIMEOUT_MS } from '@/lib/seo/publicReadTimeout'
+import {
+  ARTICLE_ROUTE_HEADER,
+  formatArticleRoute,
+} from '@/lib/seo/articleRoute'
 
 const ROUTE_CHECK_TIMEOUT_MS = PUBLIC_READ_TIMEOUT_MS
 
@@ -28,7 +32,7 @@ const ACCOUNT_FONT_PRELOAD =
 const ACCOUNT_FONT_PATHS = new Set(['/settings', '/welcome'])
 
 type RouteCheck =
-  | { kind: 'found' }
+  | { kind: 'found'; version?: string }
   | { kind: 'missing' }
   | { kind: 'moved'; username: string }
 
@@ -39,10 +43,14 @@ type RouteCheck =
  * do, #428.) Any failure lets the request through unchanged.
  */
 /**
- * Recent "found" answers, per server instance. A found writer or article page
- * renders normally, so reusing the answer briefly only skips a backend round
- * trip before the HTML starts. Missing and moved answers are never reused, so
- * new articles and handle changes take effect at once.
+ * Recent "found" answers for writer pages, per server instance. A found writer
+ * page renders normally and reads the writer itself, so reusing the answer
+ * briefly only skips a backend round trip before the HTML starts. Missing and
+ * moved answers are never reused, so handle changes take effect at once.
+ *
+ * Article pages always ask: the answer carries the article's version, which
+ * decides whether the page may use its cached copy, so an article that was
+ * unpublished, deleted or replaced leaves the page at once.
  */
 const FOUND_TTL_MS = 60_000
 const FOUND_CACHE_LIMIT = 500
@@ -72,13 +80,15 @@ function rememberFound(key: string) {
 async function checkPublicContent(
   request: NextRequest
 ): Promise<RouteCheck | null> {
-  // Only full page loads carry a status that crawlers read. Client navigations
-  // and link prefetches (RSC requests) skip the extra backend call.
+  // Only full page loads carry a status that crawlers read; this skip is meant
+  // for client navigations and link prefetches (RSC requests). Under
+  // `next start`, Next.js removes the RSC header before the proxy runs
+  // (next/dist/server/web/adapter.js), so those are checked as well.
   if (request.headers.get('rsc') === '1') return null
   const target = publicContentPath(request.nextUrl.pathname)
   if (!target) return null
-  const key = foundKey(target)
-  if (wasRecentlyFound(key)) return { kind: 'found' }
+  const key = target.slug === undefined ? foundKey(target) : null
+  if (key && wasRecentlyFound(key)) return { kind: 'found' }
 
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -88,7 +98,7 @@ async function checkPublicContent(
         timer = setTimeout(() => resolve(null), ROUTE_CHECK_TIMEOUT_MS)
       }),
     ])
-    if (check?.kind === 'found') rememberFound(key)
+    if (key && check?.kind === 'found') rememberFound(key)
     return check
   } catch {
     return null
@@ -128,6 +138,23 @@ export async function proxy(request: NextRequest) {
         })
       : null
   const requestHeaders = new Headers(request.headers)
+  // Only the proxy's own answer may reach the article page: a copy the client
+  // sent is removed on every request. A request that arrives marked as RSC
+  // is not checked above, so it carries no answer and the page asks itself.
+  requestHeaders.delete(ARTICLE_ROUTE_HEADER)
+  if (
+    publicContentPath(pathname)?.slug !== undefined &&
+    request.headers.get('rsc') !== '1'
+  ) {
+    requestHeaders.set(
+      ARTICLE_ROUTE_HEADER,
+      formatArticleRoute(
+        check?.kind === 'found' || check?.kind === 'missing'
+          ? check
+          : { kind: 'unknown' }
+      )
+    )
+  }
   if (csp) {
     requestHeaders.set('Content-Security-Policy', csp)
     // Server components read the nonce here for scripts Next.js does not
@@ -194,12 +221,16 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * Match all request paths except:
+     * - /api and /api/... (API routes). Only that segment: a writer's handle
+     *   may start with "api" (/apiary/...), and writer pages need the
+     *   proxy's headers and checks.
+     * - /_next/static/... and /_next/image... (static files and the image
+     *   optimizer; handles cannot start with "_").
+     * - /favicon.ico exactly (the dot is escaped, so no other path matches).
+     * Matching is case-sensitive, as routing is: /API/x is a writer page.
+     * scripts/perf/proxy-matcher.test.ts compiles this list as Next.js does.
      */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api(?:/|$)|_next/static|_next/image|favicon\\.ico$).*)',
   ],
 }

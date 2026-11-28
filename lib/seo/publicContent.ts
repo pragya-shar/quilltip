@@ -1,9 +1,15 @@
 import { cache } from 'react'
 import { unstable_cache } from 'next/cache'
+import { headers } from 'next/headers'
 import { fetchQuery } from 'convex/nextjs'
 import type { FunctionArgs } from 'convex/server'
 import { api } from '@/convex/_generated/api'
 import { PUBLIC_READ_TIMEOUT_MS } from '@/lib/seo/publicReadTimeout'
+import {
+  ARTICLE_ROUTE_HEADER,
+  parseArticleRoute,
+  type ArticleRoute,
+} from '@/lib/seo/articleRoute'
 import {
   PROFILE_ARTICLES_PER_PAGE,
   toProfileArticlesPage,
@@ -50,10 +56,12 @@ async function withinLimit<T>(read: Promise<T>): Promise<T> {
 }
 
 /**
- * Seconds a server copy of a published article may be reused. The reader page
- * subscribes to the live article on load, so a newer edit replaces this copy
- * in the browser right away; the cache only spares the backend round trip that
- * delays the first HTML.
+ * Seconds a server copy of a published article may be reused. A copy is used
+ * only while the article's version matches (see getPublishedArticle), so an
+ * edit, an unpublish or a replacement takes effect at once; this limit bounds
+ * the data the version does not cover, such as tip totals and the writer's
+ * name. The reader page subscribes to the live article on load, so those
+ * update in the browser right away.
  */
 const PUBLISHED_ARTICLE_REVALIDATE_SECONDS = 60
 
@@ -84,24 +92,57 @@ function cachedFor<Args extends unknown[], Result>(
   }
 }
 
+async function fetchPublishedArticle(username: string, slug: string) {
+  const article = await fetchQuery(api.articles.getArticleBySlug, {
+    username,
+    slug,
+  })
+  // Not cached: a newly published article must appear immediately.
+  if (article === null) throw new ArticleMissing()
+  return article
+}
+
+/** Keyed by the article's version too, so a changed article is read again. */
 const fetchPublishedArticleCached = cachedFor(
-  async (username: string, slug: string) => {
-    const article = await fetchQuery(api.articles.getArticleBySlug, {
-      username,
-      slug,
-    })
-    // Not cached: a newly published article must appear immediately.
-    if (article === null) throw new ArticleMissing()
-    return article
-  },
-  'published-article-v2',
+  (username: string, slug: string, _version: string) =>
+    fetchPublishedArticle(username, slug),
+  'published-article-v3',
   PUBLISHED_ARTICLE_REVALIDATE_SECONDS
 )
+
+/**
+ * Whether the article is published now, and its version. The proxy has asked
+ * already on a full page load and passes its answer in a request header;
+ * a request the proxy did not check carries none, so the page asks here. A check
+ * that runs out of time here rejects, and the page shows its fallback.
+ */
+async function currentArticleRoute(
+  username: string,
+  slug: string
+): Promise<ArticleRoute | { kind: 'moved' }> {
+  const fromProxy = parseArticleRoute(
+    (await headers()).get(ARTICLE_ROUTE_HEADER)
+  )
+  if (fromProxy) return fromProxy
+  return withinLimit(
+    fetchQuery(api.publicRoutes.resolvePublicRoute, { username, slug })
+  )
+}
 
 export const getPublishedArticle = cache(
   async (username: string, slug: string) => {
     try {
-      return await withinLimit(fetchPublishedArticleCached(username, slug))
+      const route = await currentArticleRoute(username, slug)
+      // Missing or moved; the page checks for a moved handle itself.
+      if (route.kind === 'missing' || route.kind === 'moved') return null
+      // A cached copy only for the version just confirmed. Otherwise (the
+      // proxy's check ran out of time, or the backend has no versions) read
+      // directly: a hidden article never comes back from the cache.
+      return await withinLimit(
+        route.kind === 'found' && route.version
+          ? fetchPublishedArticleCached(username, slug, route.version)
+          : fetchPublishedArticle(username, slug)
+      )
     } catch (error) {
       if (error instanceof ArticleMissing) return null
       console.error('Server article fetch failed', error)

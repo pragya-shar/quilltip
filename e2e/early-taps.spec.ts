@@ -34,10 +34,10 @@ async function recordConvexMessages(page: Page): Promise<string[]> {
 }
 
 /**
- * A page with the shared header and no streamed loading state. WebKit paints
- * nothing on `/articles` before the scripts run: its first screen is a
- * loading fallback that React swaps in a requestAnimationFrame, and WebKit
- * runs none before its first paint.
+ * A page with the shared header and no streamed loading state. When a page's
+ * first screen is a loading fallback, React swaps the content in on a
+ * requestAnimationFrame, which WebKit does not run before its first paint;
+ * `/support` has no such fallback (and since #597 no reading page does).
  */
 const MENU_PAGE = '/support'
 
