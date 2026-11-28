@@ -227,9 +227,15 @@ export function TabTipDialogSection({
           available={check.free}
           action={{ href: manageHref, label: TAB_ACTIONS.topUp }}
           announce
+          headingLevel={4}
         />
       ) : (
-        <PaymentNotice kind="refused" copy={limitCopy(check)!} announce />
+        <PaymentNotice
+          kind="refused"
+          copy={limitCopy(check)!}
+          announce
+          headingLevel={4}
+        />
       )
     ) : null
 

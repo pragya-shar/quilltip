@@ -20,6 +20,7 @@ export function TabTipOutcomeNotice({
   free,
   manageHref,
   walletAction,
+  headingLevel = 4,
 }: {
   refusal: TabRefusal | null
   outcome: TabTipOutcome | null
@@ -27,6 +28,8 @@ export function TabTipOutcomeNotice({
   free?: string
   manageHref: string
   walletAction?: NoticeAction & { label: string }
+  /** The notice title's level: under the tab tip's own heading. */
+  headingLevel?: 2 | 3 | 4 | 5 | 6
 }) {
   const manage = { href: manageHref, label: TAB_ACTIONS.manage }
   if (refusal) {
@@ -40,16 +43,38 @@ export function TabTipOutcomeNotice({
             available={free}
             action={manage}
             announce
+            headingLevel={headingLevel}
           />
         )
       }
       if (kind === 'daily-limit' || kind === 'tab-closing') {
-        return <PaymentNotice kind={kind} action={walletAction} announce />
+        return (
+          <PaymentNotice
+            kind={kind}
+            action={walletAction}
+            announce
+            headingLevel={headingLevel}
+          />
+        )
       }
-      return <PaymentNotice kind={kind} action={manage} announce />
+      return (
+        <PaymentNotice
+          kind={kind}
+          action={manage}
+          announce
+          headingLevel={headingLevel}
+        />
+      )
     }
     if (refusal.kind === 'refused') {
-      return <PaymentNotice kind="refused" copy={refusal.copy} announce />
+      return (
+        <PaymentNotice
+          kind="refused"
+          copy={refusal.copy}
+          announce
+          headingLevel={headingLevel}
+        />
+      )
     }
     if (refusal.kind === 'tips-unavailable') {
       return (
@@ -58,6 +83,7 @@ export function TabTipOutcomeNotice({
           reason={refusal.reason}
           action={walletAction}
           announce
+          headingLevel={headingLevel}
         />
       )
     }
@@ -74,6 +100,7 @@ export function TabTipOutcomeNotice({
           kind="refused"
           copy={{ title: TAB_TIP.stoppedTitle, detail: outcome.message }}
           announce
+          headingLevel={headingLevel}
         />
       )
     case 'unconfirmed':
@@ -85,6 +112,7 @@ export function TabTipOutcomeNotice({
             detail: TAB_TIP.unconfirmedDetail,
           }}
           announce
+          headingLevel={headingLevel}
         />
       )
     case 'unreachable':
@@ -96,6 +124,7 @@ export function TabTipOutcomeNotice({
             detail: TAB_TIP.unreachableDetail,
           }}
           announce
+          headingLevel={headingLevel}
         />
       )
     default:

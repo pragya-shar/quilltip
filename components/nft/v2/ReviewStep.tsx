@@ -46,6 +46,8 @@ export function ReviewStep({
             detail: TRANSFER_COPY.refreshed,
           }}
           announce
+          // Under the step's h3 title.
+          headingLevel={4}
         />
       ) : null}
       <dl className="nft-v2-facts">
