@@ -235,13 +235,27 @@ export const prepareOpen = mutation({
   },
 })
 
-/** `Tab.deposit` (top-up). */
+/**
+ * `Tab.deposit`: a top-up, or a first deposit with no device key. The
+ * contract creates the account on a first deposit, so the server records
+ * it here as `prepareOpen` does; the indexer applies the `Deposited` event
+ * to it.
+ */
 export const prepareDeposit = mutation({
   args: { amount: v.string() },
   handler: async (ctx, args) => {
-    const c = await readerContext(ctx, Date.now())
-    if (!c.account) tabError('TAB_NO_ACCOUNT', 'Open a tab first.')
+    const now = Date.now()
+    const c = await readerContext(ctx, now)
     checkAmount(args.amount, false)
+    if (!c.account)
+      await insertTabAccount(ctx, {
+        network: c.chain.network,
+        chainEpoch: c.chain.chainEpoch,
+        userId: c.user._id,
+        readerAddress: c.readerAddress,
+        tabContractId: c.chain.tabContractId,
+        now,
+      })
     return operationResult(c)
   },
 })

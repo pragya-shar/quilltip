@@ -7409,3 +7409,67 @@ describe('review #596: claims through re-dispatch, restore and seeding', () => {
     expect(await collectedOf(t, s.authorId)).toBe('61278360')
   })
 })
+
+describe('adding money from the balance sheet', () => {
+  it('prepares a first deposit with no device key', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    expect(await as(t, s.readerId).query(api.tabs.getMyTab, {})).toBeNull()
+    await as(t, s.readerId).mutation(api.tabs.prepareDeposit, {
+      amount: (BigInt(10) * XLM).toString(),
+    })
+    // Recorded, not on chain: the balance is not shown as open with zero.
+    expect(await as(t, s.readerId).query(api.tabs.getMyTab, {})).toMatchObject({
+      status: 'OPEN',
+      confirmedBalance: '0',
+      onChain: false,
+      keys: [],
+    })
+    await ingest(t, ev.deposited(READER, BigInt(10) * XLM, BigInt(10) * XLM))
+    expect(await as(t, s.readerId).query(api.tabs.getMyTab, {})).toMatchObject({
+      onChain: true,
+      confirmedBalance: '100000000',
+      keys: [],
+    })
+    // A second prepare finds the account and adds nothing to it.
+    await as(t, s.readerId).mutation(api.tabs.prepareDeposit, {
+      amount: (BigInt(5) * XLM).toString(),
+    })
+    const accounts = await t.run((ctx) => ctx.db.query('tabAccounts').collect())
+    expect(accounts).toHaveLength(1)
+  })
+
+  it('refuses a zero deposit before it records anything', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await expect(
+      as(t, s.readerId).mutation(api.tabs.prepareDeposit, { amount: '0' })
+    ).rejects.toThrow()
+    const accounts = await t.run((ctx) => ctx.db.query('tabAccounts').collect())
+    expect(accounts).toHaveLength(0)
+  })
+
+  it('tops up and registers a new device key in one call, leaving the other key alone', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const before = await as(t, s.readerId).query(api.tabs.getMyTab, {})
+    expect(before?.keys).toHaveLength(1)
+    await as(t, s.readerId).mutation(api.tabs.prepareOpen, {
+      amount: (BigInt(10) * XLM).toString(),
+      publicKey: SESSION_PUBLIC,
+      validUntil: VALID_UNTIL,
+      spendLimit: (BigInt(50) * XLM).toString(),
+      extractable: false,
+    })
+    const balance = BigInt(before!.confirmedBalance) + BigInt(10) * XLM
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(10) * XLM, balance),
+      ev.keyRegistered(READER, 1)
+    )
+    const after = await as(t, s.readerId).query(api.tabs.getMyTab, {})
+    expect(after?.confirmedBalance).toBe(balance.toString())
+    expect(after?.keys.map((k) => k.keyId)).toEqual([0, 1])
+    expect(after?.keys[0]).toEqual(before?.keys[0])
+  })
+})
