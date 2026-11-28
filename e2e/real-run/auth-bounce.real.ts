@@ -25,7 +25,7 @@ test('a reader who signs in on the way to the balance screen stays on it', async
     const context = await browser.newContext(info.project.use)
     const page = await context.newPage()
     await page.goto('/dashboard/balance')
-    await page.waitForURL(/\/login/, { timeout: 30_000 })
+    await page.waitForURL(/\/(login|signin)/, { timeout: 30_000 })
     await page.getByLabel('Email', { exact: true }).fill(reader.email)
     await page.getByLabel('Password', { exact: true }).fill(reader.password)
     await page.getByRole('button', { name: /^(Log in|Sign in)$/ }).tap()

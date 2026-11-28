@@ -66,7 +66,7 @@ for (let run = 1; run <= runs; run++) {
       a.click()
     }, url)
   }
-  await page.waitForURL(/\/login/, { timeout: 30_000 })
+  await page.waitForURL(/\/(login|signin)/, { timeout: 30_000 })
   await page.getByLabel('Email', { exact: true }).fill(account.email)
   await page.getByLabel('Password', { exact: true }).fill(account.password)
   await page.getByRole('button', { name: /^(Log in|Sign in)$/ }).click()

@@ -153,7 +153,7 @@ function makeRun(options: RunOptions) {
     await page.goto('/articles')
     await page.waitForTimeout(2_500)
     if (await page.getByRole('link', { name: /^Log in$/ }).count()) {
-      await page.goto('/login')
+      await page.goto('/signin')
       await page.getByLabel('Email', { exact: true }).fill(account.email)
       await page.getByLabel('Password', { exact: true }).fill(account.password)
       await tap(
@@ -161,7 +161,7 @@ function makeRun(options: RunOptions) {
         page.getByRole('button', { name: /^(Log in|Sign in)$/ }),
         'Log in'
       )
-      await page.waitForURL((u) => !u.pathname.startsWith('/login'), {
+      await page.waitForURL((u) => !u.pathname.startsWith('/signin'), {
         timeout: 30_000,
       })
       await page.goto('/articles')
