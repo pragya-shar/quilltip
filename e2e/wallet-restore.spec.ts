@@ -469,6 +469,36 @@ for (const motion of ['reduce', 'no-preference'] as const) {
   })
 }
 
+test('the picker opened and dismissed with nothing connected leaves no kit key (#607)', async ({
+  page,
+}) => {
+  // The kit's keys as an earlier visit left them; the kit reads them into its
+  // state when it loads and writes them back from its storage effects.
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('qa-seeded')) return
+    localStorage.setItem('@StellarWalletsKit/selectedModuleId', 'varial')
+    localStorage.setItem('@StellarWalletsKit/usedWalletsIds', '["varial"]')
+    localStorage.setItem('@StellarWalletsKit/hardwareWalletPaths', '[]')
+    localStorage.setItem('@StellarWalletsKit/wcSessionPaths', '[]')
+    sessionStorage.setItem('qa-seeded', '1')
+  })
+  await open(page)
+  await settled(page)
+  await connectButton(page).click()
+  await expect(picker(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(picker(page)).toHaveCount(0)
+  await expect(connectButton(page)).toBeVisible()
+  const keys = await page.evaluate(() => Object.keys(localStorage))
+  expect(
+    keys.filter(
+      (key) =>
+        key.startsWith('@StellarWalletsKit/') ||
+        key.startsWith('quilltip:wallet')
+    )
+  ).toEqual([])
+})
+
 test('the restored state is not announced on load', async ({ page }) => {
   await open(page)
   await connectVarial(page)
