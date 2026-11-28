@@ -582,3 +582,131 @@ test('a session ended in another tab keeps the return path', async ({
     timeout: PROMPT_MS,
   })
 })
+
+// The toaster loads after the page (components/providers/Providers.tsx) and
+// holds each toast until its empty live region has existed for two frames
+// (components/ui/sonner.tsx). The worst case: a toast raised while the
+// toaster's own code has not arrived. Its chunk is held back here; the
+// profile save raises "Profile saved" in that time (the form imports sonner
+// itself). Once the chunk arrives, the region must be added empty first and
+// the toast added into it at least two frames later. In Chromium the
+// accessibility tree, which screen readers read, must show the live region
+// before the message. It cannot show what a screen reader speaks, and
+// Playwright cannot read WebKit's accessibility tree.
+test('a toast raised before the toaster loads goes into a live region that already exists', async ({
+  page,
+  browserName,
+}) => {
+  let release!: () => void
+  const released = new Promise<void>((resolve) => (release = resolve))
+  let held = 0
+  await page.route('**/_next/static/chunks/*.js', async (route) => {
+    const response = await route.fetch()
+    const body = await response.text()
+    // The toaster's chunk is the one that carries its holding id.
+    if (body.includes('quilltip-region-not-ready')) {
+      held += 1
+      await released
+    }
+    await route.fulfill({ response, body })
+  })
+  await page.addInitScript(() => {
+    const log: { what: string; frame: number }[] = []
+    ;(window as unknown as { __toastLog: typeof log }).__toastLog = log
+    let frame = 0
+    const tick = () => {
+      frame += 1
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+    const counted = new WeakSet<Element>()
+    new MutationObserver((records) => {
+      for (const record of records)
+        for (const node of record.addedNodes) {
+          if (!(node instanceof Element)) continue
+          for (const element of [
+            node,
+            ...node.querySelectorAll('section[aria-live], [data-sonner-toast]'),
+          ]) {
+            if (counted.has(element)) continue
+            if (element.matches('section[aria-live]')) {
+              counted.add(element)
+              log.push({ what: 'region', frame })
+            } else if (element.matches('[data-sonner-toast]')) {
+              counted.add(element)
+              log.push({ what: `toast: ${element.textContent}`, frame })
+            }
+          }
+        }
+    }).observe(document, { childList: true, subtree: true })
+  })
+
+  await page.goto(loginUrl('/settings/profile'))
+  await signIn(page)
+  await expect(page).toHaveURL('/settings/profile', { timeout: PROMPT_MS })
+  await expect(page.getByLabel('Display name', { exact: true })).toBeVisible()
+  expect(held, 'the toaster chunk was requested and held').toBeGreaterThan(0)
+  const region = page.getByRole('region', { name: /Notifications/ })
+  await expect(region).toHaveCount(0)
+
+  // Save the current name unchanged, so the account is left as it was. The
+  // form calls toast.success before its button reads "Save profile" again.
+  const save = page.getByRole('button', { name: 'Save profile', exact: true })
+  await save.click()
+  await expect(page.getByRole('button', { name: 'Saving…' })).toBeHidden({
+    timeout: PROMPT_MS,
+  })
+  await expect(save).toBeEnabled()
+  await expect(region).toHaveCount(0)
+
+  // Chromium: watch the accessibility tree while the toaster arrives.
+  const cdp =
+    browserName === 'chromium' ? await page.context().newCDPSession(page) : null
+  const tree: string[] = []
+  const watchTree = async () => {
+    if (!cdp) return
+    await cdp.send('Accessibility.enable')
+    for (let i = 0; i < 400; i++) {
+      const { nodes } = (await cdp.send('Accessibility.getFullAXTree')) as {
+        nodes: { role?: { value?: string }; name?: { value?: string } }[]
+      }
+      const hasRegion = nodes.some(
+        (node) =>
+          node.role?.value === 'region' &&
+          /Notifications/.test(node.name?.value ?? '')
+      )
+      const hasMessage = nodes.some((node) =>
+        (node.name?.value ?? '').includes('Profile saved')
+      )
+      const state = hasMessage
+        ? 'message'
+        : hasRegion
+          ? 'region only'
+          : 'no region'
+      if (tree[tree.length - 1] !== state) tree.push(state)
+      if (hasMessage) return
+    }
+  }
+  const watching = watchTree()
+  release()
+  await expect(region.getByText('Profile saved', { exact: true })).toBeVisible()
+  await watching
+  await expect(region).toHaveAttribute('aria-live', 'polite')
+
+  const log = await page.evaluate(
+    () =>
+      (window as unknown as { __toastLog: { what: string; frame: number }[] })
+        .__toastLog
+  )
+  console.log(`${browserName} additions: ${JSON.stringify(log)}`)
+  if (cdp)
+    console.log(`${browserName} accessibility tree: ${tree.join(' -> ')}`)
+  expect(log).toHaveLength(2)
+  expect(log[0]!.what).toBe('region')
+  expect(log[1]!.what).toContain('Profile saved')
+  expect(log[1]!.frame - log[0]!.frame).toBeGreaterThanOrEqual(2)
+  if (cdp) {
+    expect(tree).toContain('region only')
+    expect(tree.indexOf('region only')).toBeLessThan(tree.indexOf('message'))
+  }
+})

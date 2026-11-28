@@ -1,9 +1,9 @@
 'use client'
 
 import { createContext, useContext } from 'react'
+import dynamic from 'next/dynamic'
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
-import { Toaster } from '@/components/ui/sonner'
 import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 import { WalletErrorFallback } from '@/components/error/WalletErrorFallback'
 import { ThemeProvider } from '@/components/theme/ThemeProvider'
@@ -11,10 +11,16 @@ import { WalletActivationProvider } from './WalletActivationContext'
 import { WalletProvider } from './WalletProvider'
 import { AuthSessionProvider } from './AuthContext'
 
-// The toaster stays in the first load (about 9.7 KB gzip). Loaded on demand,
-// a toast raised before it arrived was shown, but its live region was created
-// in the same moment as the toast, which screen readers may not announce
-// (review of #503).
+// The toaster (sonner, about 9.5 KB gzip) loads after the page, starting at
+// hydration rather than at the first toast. sonner replays toasts raised
+// before it subscribed, and the Toaster holds every toast until its empty
+// live region has existed for two frames, so none is lost and none arrives
+// together with the region that announces it (review of #503;
+// components/ui/sonner.tsx). Its empty region is no longer in the server HTML.
+const Toaster = dynamic(
+  () => import('@/components/ui/sonner').then((mod) => mod.Toaster),
+  { ssr: false }
+)
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
 /**
