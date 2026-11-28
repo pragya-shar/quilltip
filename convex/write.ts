@@ -37,6 +37,7 @@ import {
 import { assertPublishableArticleTitle } from './lib/articleTitle'
 import { ARTICLE_SCHEMA } from './lib/chain/ids'
 import { syncReadingRoomArticle } from './lib/readingRoomIndex'
+import { scheduleShareReconcile } from './shares'
 import { tiptapJsonHasNonEmptyText } from './lib/tiptapContent'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
 import {
@@ -388,6 +389,9 @@ export const publish = mutation({
       await replaceTagLinksForArticle(ctx, published)
       await syncReadingRoomArticle(ctx, published._id, published)
     }
+    // Shares made while the article was published before are checked against
+    // the text now published (none exist for a first publish).
+    await scheduleShareReconcile(ctx, article._id)
     if (shouldUpload) {
       await ctx.scheduler.runAfter(0, internal.arweave.uploadArticleToArweave, {
         articleId: article._id,

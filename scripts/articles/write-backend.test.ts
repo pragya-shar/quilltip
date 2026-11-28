@@ -694,6 +694,52 @@ describe('write.publish', () => {
     expect(scheduled.filter((s) => s.name.includes('arweave'))).toEqual([])
   })
 
+  test('a republish checks the shares made before against the new text', async () => {
+    const w = await setup()
+    const first = await draft(w)
+    await w.writer.mutation(api.write.publish, {
+      id: first.id,
+      baseUpdatedAt: first.updatedAt,
+    })
+    const none = await w.t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect()
+    )
+    // A first publish has no shares to check.
+    expect(none.filter((s) => s.name.includes('shares'))).toEqual([])
+
+    const d = await draft(w, doc('A line that was shared before.'))
+    const shareId = await w.t.run(async (ctx) => {
+      await ctx.db.patch(d.id, { content: doc('Rewritten since.') })
+      return ctx.db.insert('shares', {
+        code: 'abcdefgh',
+        kind: 'canonical',
+        articleId: d.id,
+        passageId: 'p1',
+        sentenceStart: 0,
+        sentenceEnd: 0,
+        quote: 'A line that was shared before.',
+        contentVersion: 1,
+        createdAt: 1,
+        checkedAt: 1,
+      })
+    })
+    await w.writer.mutation(api.write.publish, {
+      id: d.id,
+      baseUpdatedAt: (await row(w, d.id))!.updatedAt,
+    })
+    const scheduled = await w.t.run((ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect()
+    )
+    expect(
+      scheduled.filter((s) => s.name.includes('shares:reconcileArticle'))
+    ).toHaveLength(1)
+    await w.t.finishAllScheduledFunctions(vi.runAllTimers)
+    expect(await w.t.run((ctx) => ctx.db.get(shareId))).toMatchObject({
+      quote: null,
+      passageId: null,
+    })
+  })
+
   test('a permanent copy only when asked and storage is on', async () => {
     const w = await setup()
     const off = await draft(w)
