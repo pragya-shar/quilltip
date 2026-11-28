@@ -75,7 +75,7 @@
     },
     {
       "name": "abbreviations and times",
-      "note": "Mr is listed; dotted letters (p.m.) before a lower-case word do not end a sentence.",
+      "note": "Mr is listed; dotted letters (p.m.) never end a sentence by themselves.",
       "content": {
         "type": "doc",
         "content": [
@@ -519,7 +519,7 @@
     },
     {
       "name": "initials and dotted abbreviations",
-      "note": "A one-letter word before a stop is an initial. Dotted letters (U.S.) end a sentence when a capital follows, so \"The U.S. Army\" splits: knowingly crude.",
+      "note": "A one-letter word before a stop is an initial. Dotted letters (U.S.) never end a sentence by themselves, so \"The U.S. Army read it.\" stays whole.",
       "content": {
         "type": "doc",
         "content": [
@@ -543,13 +543,8 @@
         },
         {
           "start": 27,
-          "end": 35,
-          "text": "The U.S."
-        },
-        {
-          "start": 36,
           "end": 49,
-          "text": "Army read it."
+          "text": "The U.S. Army read it."
         }
       ],
       "passages": [
@@ -563,32 +558,25 @@
         {
           "sentenceStart": 1,
           "sentenceEnd": 1,
-          "text": "The U.S.",
-          "passageId": "a518d71c4b853cddf349ef3d5345",
-          "ambiguous": false
-        },
-        {
-          "sentenceStart": 2,
-          "sentenceEnd": 2,
-          "text": "Army read it.",
-          "passageId": "3b87c38778c06ce6c21160a548a7",
+          "text": "The U.S. Army read it.",
+          "passageId": "f5bb67186be8a4f90f6270311505",
           "ambiguous": false
         },
         {
           "sentenceStart": 0,
           "sentenceEnd": 1,
-          "text": "J. R. R. Tolkien wrote it. The U.S.",
-          "passageId": "6de274a557fc8ddf6ca473aef0f3",
+          "text": "J. R. R. Tolkien wrote it. The U.S. Army read it.",
+          "passageId": "279c1837d85636271833748877d1",
           "ambiguous": false
         }
       ],
       "selections": [
         {
-          "start": 37,
-          "end": 37,
-          "sentenceStart": 2,
-          "sentenceEnd": 2,
-          "passageId": "3b87c38778c06ce6c21160a548a7"
+          "start": 28,
+          "end": 28,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "f5bb67186be8a4f90f6270311505"
         },
         {
           "start": 1,
@@ -2305,7 +2293,7 @@
     },
     {
       "name": "p.m. before a capital",
-      "note": "Dotted letters end a sentence when a capital follows.",
+      "note": "Knowingly crude: dotted letters never end a sentence by themselves, so this is one sentence.",
       "content": {
         "type": "doc",
         "content": [
@@ -2324,33 +2312,14 @@
       "sentences": [
         {
           "start": 0,
-          "end": 16,
-          "text": "We met at 5 p.m."
-        },
-        {
-          "start": 17,
           "end": 30,
-          "text": "She was late."
+          "text": "We met at 5 p.m. She was late."
         }
       ],
       "passages": [
         {
           "sentenceStart": 0,
           "sentenceEnd": 0,
-          "text": "We met at 5 p.m.",
-          "passageId": "35d42eb69fe48c6e599656fe5aa2",
-          "ambiguous": false
-        },
-        {
-          "sentenceStart": 1,
-          "sentenceEnd": 1,
-          "text": "She was late.",
-          "passageId": "0e44840c3cbbb7376656d32d1d9b",
-          "ambiguous": false
-        },
-        {
-          "sentenceStart": 0,
-          "sentenceEnd": 1,
           "text": "We met at 5 p.m. She was late.",
           "passageId": "3b8dc0aa7596391baa078ae20768",
           "ambiguous": false
@@ -2358,24 +2327,24 @@
       ],
       "selections": [
         {
-          "start": 18,
-          "end": 18,
-          "sentenceStart": 1,
-          "sentenceEnd": 1,
-          "passageId": "0e44840c3cbbb7376656d32d1d9b"
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "3b8dc0aa7596391baa078ae20768"
         },
         {
           "start": 1,
-          "end": 15,
+          "end": 29,
           "sentenceStart": 0,
           "sentenceEnd": 0,
-          "passageId": "35d42eb69fe48c6e599656fe5aa2"
+          "passageId": "3b8dc0aa7596391baa078ae20768"
         }
       ]
     },
     {
       "name": "U.S. before a capital",
-      "note": "Dotted letters end a sentence when a capital follows.",
+      "note": "Knowingly crude: dotted letters never end a sentence by themselves, so this is one sentence; a fragment such as \"The U.S.\" would be worse.",
       "content": {
         "type": "doc",
         "content": [
@@ -2394,33 +2363,14 @@
       "sentences": [
         {
           "start": 0,
-          "end": 20,
-          "text": "He lives in the U.S."
-        },
-        {
-          "start": 21,
           "end": 41,
-          "text": "The weather is fine."
+          "text": "He lives in the U.S. The weather is fine."
         }
       ],
       "passages": [
         {
           "sentenceStart": 0,
           "sentenceEnd": 0,
-          "text": "He lives in the U.S.",
-          "passageId": "211d4b1dca586a0eb1d954a08688",
-          "ambiguous": false
-        },
-        {
-          "sentenceStart": 1,
-          "sentenceEnd": 1,
-          "text": "The weather is fine.",
-          "passageId": "7fa2fa9822caa9e088ed634a0f66",
-          "ambiguous": false
-        },
-        {
-          "sentenceStart": 0,
-          "sentenceEnd": 1,
           "text": "He lives in the U.S. The weather is fine.",
           "passageId": "7d2e300b8095729e497f97155a5e",
           "ambiguous": false
@@ -2428,18 +2378,387 @@
       ],
       "selections": [
         {
-          "start": 22,
-          "end": 22,
-          "sentenceStart": 1,
-          "sentenceEnd": 1,
-          "passageId": "7fa2fa9822caa9e088ed634a0f66"
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "7d2e300b8095729e497f97155a5e"
         },
         {
           "start": 1,
-          "end": 19,
+          "end": 40,
           "sentenceStart": 0,
           "sentenceEnd": 0,
-          "passageId": "211d4b1dca586a0eb1d954a08688"
+          "passageId": "7d2e300b8095729e497f97155a5e"
+        }
+      ]
+    },
+    {
+      "name": "dotted letters before a name",
+      "note": "Dotted letters before a capital keep the sentence open, so neither sentence splits.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "The U.S. Senate voted. U.S.A. Today is a paper."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "The U.S. Senate voted. U.S.A. Today is a paper.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 22,
+          "text": "The U.S. Senate voted."
+        },
+        {
+          "start": 23,
+          "end": 47,
+          "text": "U.S.A. Today is a paper."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "The U.S. Senate voted.",
+          "passageId": "917da1c67a2934fb9ddc615af635",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "U.S.A. Today is a paper.",
+          "passageId": "fcbe43c73701ccdafeda13c56c6e",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "The U.S. Senate voted. U.S.A. Today is a paper.",
+          "passageId": "c75e3526181668ce44c124e28e00",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 24,
+          "end": 24,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "fcbe43c73701ccdafeda13c56c6e"
+        },
+        {
+          "start": 1,
+          "end": 21,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "917da1c67a2934fb9ddc615af635"
+        }
+      ]
+    },
+    {
+      "name": "two initials before a name",
+      "note": "Each one-letter word is an initial, P included.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "P. G. Wodehouse wrote it. J. P. Morgan ran a bank."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "P. G. Wodehouse wrote it. J. P. Morgan ran a bank.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 25,
+          "text": "P. G. Wodehouse wrote it."
+        },
+        {
+          "start": 26,
+          "end": 50,
+          "text": "J. P. Morgan ran a bank."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "P. G. Wodehouse wrote it.",
+          "passageId": "c24bbd240b1b2dd2398ad38d8db3",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "J. P. Morgan ran a bank.",
+          "passageId": "9cbbe056fb2ee53938dfb7f09625",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "P. G. Wodehouse wrote it. J. P. Morgan ran a bank.",
+          "passageId": "80142a8a9ce0fb5ea62cc019b64b",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 27,
+          "end": 27,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "9cbbe056fb2ee53938dfb7f09625"
+        },
+        {
+          "start": 1,
+          "end": 24,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "c24bbd240b1b2dd2398ad38d8db3"
+        }
+      ]
+    },
+    {
+      "name": "p. before a page number",
+      "note": "p is one letter, so the initial rule keeps \"p. 5\" open.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "See p. 5 for the map. Then turn left."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "See p. 5 for the map. Then turn left.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 21,
+          "text": "See p. 5 for the map."
+        },
+        {
+          "start": 22,
+          "end": 37,
+          "text": "Then turn left."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "See p. 5 for the map.",
+          "passageId": "aed40ed8b633af1e93edea0c2d0c",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Then turn left.",
+          "passageId": "f2cab18314032a8f9797a261a4a3",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "See p. 5 for the map. Then turn left.",
+          "passageId": "38ae620d8ccb3cb6d1012cd03484",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 23,
+          "end": 23,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "f2cab18314032a8f9797a261a4a3"
+        },
+        {
+          "start": 1,
+          "end": 20,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "aed40ed8b633af1e93edea0c2d0c"
+        }
+      ]
+    },
+    {
+      "name": "a word longer than the lookback",
+      "note": "The word before a stop is read for at most 32 UTF-16 units: a longer word is no exception, so its stop ends the sentence; a short dotted word keeps it open.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q. Next one. X.Y.Z. Last one."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q. Next one. X.Y.Z. Last one.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 34,
+          "text": "A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q."
+        },
+        {
+          "start": 35,
+          "end": 44,
+          "text": "Next one."
+        },
+        {
+          "start": 45,
+          "end": 61,
+          "text": "X.Y.Z. Last one."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q.",
+          "passageId": "0ec8427abc0497e2cee2b317d5e0",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Next one.",
+          "passageId": "f15174e7dca31809bd63e9a7ef49",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "text": "X.Y.Z. Last one.",
+          "passageId": "d144c44a68f4563506fdf2dbfd19",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q. Next one.",
+          "passageId": "58fff32d840733889f757e0dd6e1",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 46,
+          "end": 46,
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "passageId": "d144c44a68f4563506fdf2dbfd19"
+        },
+        {
+          "start": 1,
+          "end": 33,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "0ec8427abc0497e2cee2b317d5e0"
+        }
+      ]
+    },
+    {
+      "name": "a hard break ends the word before a stop",
+      "note": "The word before the stop starts after the hard break, so \"Mr\" is found and the sentence stays open.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Look at"
+              },
+              {
+                "type": "hardBreak"
+              },
+              {
+                "type": "text",
+                "text": "Mr. Brown here. Then go."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Look atMr. Brown here. Then go.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 22,
+          "text": "Look at Mr. Brown here."
+        },
+        {
+          "start": 23,
+          "end": 31,
+          "text": "Then go."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Look at Mr. Brown here.",
+          "passageId": "73dda8c404b28940b213bcc0dd42",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Then go.",
+          "passageId": "44bdefa933f81249bf4e66a4ad5c",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Look at Mr. Brown here. Then go.",
+          "passageId": "faba8fc3d21e7bd5abba1ff563ce",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 24,
+          "end": 24,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "44bdefa933f81249bf4e66a4ad5c"
+        },
+        {
+          "start": 1,
+          "end": 21,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "73dda8c404b28940b213bcc0dd42"
         }
       ]
     },
@@ -2768,6 +3087,146 @@
       ]
     },
     {
+      "name": "full-width stop as a decimal point",
+      "note": "U+FF0E between two digits is a decimal point and does not end the sentence.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "バージョン３．１４です。次です。"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "バージョン３．１４です。次です。",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 12,
+          "text": "バージョン３．１４です。"
+        },
+        {
+          "start": 12,
+          "end": 16,
+          "text": "次です。"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "バージョン３．１４です。",
+          "passageId": "0d8d1ea9bb0ef826359c2be40a8b",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "次です。",
+          "passageId": "c91d6779c94d514572470e4e09ec",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "バージョン３．１４です。次です。",
+          "passageId": "44e47f5b313657f187f4c9f0f6bd",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 13,
+          "end": 13,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "c91d6779c94d514572470e4e09ec"
+        },
+        {
+          "start": 1,
+          "end": 11,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "0d8d1ea9bb0ef826359c2be40a8b"
+        }
+      ]
+    },
+    {
+      "name": "full-width stop after a list number",
+      "note": "U+FF0E after a number that opens the sentence does not end it.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "１．はじめに。続き。"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "１．はじめに。続き。",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 7,
+          "text": "１．はじめに。"
+        },
+        {
+          "start": 7,
+          "end": 10,
+          "text": "続き。"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "１．はじめに。",
+          "passageId": "8024fb96eb57409f2fa5a9f05452",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "続き。",
+          "passageId": "e81bdf19fd3d9039e0bc1ee88903",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "１．はじめに。続き。",
+          "passageId": "e171deb3f8147f218ec1e47d7c6d",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 8,
+          "end": 8,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "e81bdf19fd3d9039e0bc1ee88903"
+        },
+        {
+          "start": 1,
+          "end": 6,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "8024fb96eb57409f2fa5a9f05452"
+        }
+      ]
+    },
+    {
       "name": "Greek question mark",
       "note": "The Greek question mark (U+037E) ends a sentence; the id uses NFC, which maps it to U+003B.",
       "content": {
@@ -2834,6 +3293,139 @@
           "sentenceStart": 0,
           "sentenceEnd": 0,
           "passageId": "36c6134b814183173c013dc7bd51"
+        }
+      ]
+    },
+    {
+      "name": "Greek with a plain semicolon",
+      "note": "Knowingly crude: a plain semicolon (U+003B), which most Greek keyboards type, never ends a sentence, so this is one sentence.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Τι κάνεις; Καλά."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Τι κάνεις; Καλά.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 16,
+          "text": "Τι κάνεις; Καλά."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Τι κάνεις; Καλά.",
+          "passageId": "64e863bc60b96798d19580f1968c",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "64e863bc60b96798d19580f1968c"
+        },
+        {
+          "start": 1,
+          "end": 15,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "64e863bc60b96798d19580f1968c"
+        }
+      ]
+    },
+    {
+      "name": "Georgian",
+      "note": "Georgian Mkhedruli counts as uncased, so the lower-case rule never keeps a Georgian sentence open.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "გამარჯობა. როგორ ხარ? კარგად."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "გამარჯობა. როგორ ხარ? კარგად.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 10,
+          "text": "გამარჯობა."
+        },
+        {
+          "start": 11,
+          "end": 21,
+          "text": "როგორ ხარ?"
+        },
+        {
+          "start": 22,
+          "end": 29,
+          "text": "კარგად."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "გამარჯობა.",
+          "passageId": "062881c8120815a9cf99c6fe84cd",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "როგორ ხარ?",
+          "passageId": "286c9c105824f4e521bfd742e218",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "text": "კარგად.",
+          "passageId": "0b85fd55bc2256eb7a95398013b1",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "გამარჯობა. როგორ ხარ?",
+          "passageId": "ea8afd294c9642f8a3beb752a135",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 23,
+          "end": 23,
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "passageId": "0b85fd55bc2256eb7a95398013b1"
+        },
+        {
+          "start": 1,
+          "end": 9,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "062881c8120815a9cf99c6fe84cd"
         }
       ]
     },

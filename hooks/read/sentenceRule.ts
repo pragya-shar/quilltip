@@ -1,6 +1,6 @@
 /**
  * COPY of the sentence rule of `lib/passages/sentences.ts` from pull request
- * 603 (passage identity, scheme `quilltip-passage-v1`) at 29206235: the
+ * 603 (passage identity, scheme `quilltip-passage-v1`) at c2eb6dc7: the
  * canonical text, the sentence splitter, `sentenceRange` and
  * `normalizePassageText`, unchanged. One rule for every engine, Node and
  * Convex, with no `Intl.Segmenter`, so offsets and `#s-{p}-{k}` anchors are
@@ -113,7 +113,8 @@ export function canonicalText(content: unknown): CanonicalText {
  * end follows: full stop, exclamation and question marks, ellipsis,
  * interrobang, the Devanagari danda (U+0964) and double danda (U+0965), the
  * Arabic question mark (U+061F), the Arabic full stop (U+06D4), the Armenian
- * full stop (U+0589) and the Greek question mark (U+037E).
+ * full stop (U+0589) and the Greek question mark (U+037E, written as an escape
+ * because it looks like a semicolon; a plain semicolon never ends a sentence).
  */
 const TERMINATORS = new Set([
   '.',
@@ -126,7 +127,7 @@ const TERMINATORS = new Set([
   '؟',
   '۔',
   '։',
-  ';',
+  '\u037e',
 ])
 /**
  * Terminators that end a sentence with no space after them: the ideographic
@@ -177,7 +178,8 @@ const ABBREVIATIONS = new Set([
 
 /**
  * Words that keep the sentence open only before a number ("no. 5", "fig. 3"),
- * because they are also ordinary words at the end of a sentence.
+ * because they are also ordinary words at the end of a sentence. One-letter
+ * words ("p. 5") need no entry: the initial rule keeps them open.
  */
 const NUMBER_ABBREVIATIONS = new Set([
   'no',
@@ -187,7 +189,6 @@ const NUMBER_ABBREVIATIONS = new Set([
   'vol',
   'pp',
   'ch',
-  'p',
 ])
 
 /**
@@ -201,17 +202,26 @@ function isWhitespace(ch: string | undefined): boolean {
   return ch !== undefined && WHITESPACE.test(ch)
 }
 
-/** A cased letter in lower case (Unicode default case mapping, no locale). */
+/**
+ * A cased letter in lower case (Unicode default case mapping, no locale).
+ * Georgian Mkhedruli (U+10D0 to U+10FF) is excluded: it is written without
+ * case, although engines map it to Mtavruli in upper case.
+ */
 function isLowercaseLetter(ch: string): boolean {
+  const cp = ch.codePointAt(0) ?? 0
+  if (cp >= 0x10d0 && cp <= 0x10ff) return false
   return ch !== ch.toUpperCase() && ch === ch.toLowerCase()
 }
 
-/** A cased letter in upper case. */
-function isUppercaseLetter(ch: string): boolean {
-  return ch !== ch.toLowerCase() && ch === ch.toUpperCase()
-}
-
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
+const DECIMAL_DIGIT = /^\p{Nd}$/u
+const DIGITS = /^\p{Nd}+$/u
+
+/** The longest word, in UTF-16 units, read back from a stop (rule 4c). */
+export const MAX_WORD_LOOKBACK = 32
+
+/** The full-width full stop, which is also a decimal point (rule 4d). */
+const FULL_WIDTH_STOP = '\uff0e'
 
 /** The code point at `i` as a string (one or two UTF-16 units). */
 function codePointString(text: string, i: number): string {
@@ -219,11 +229,26 @@ function codePointString(text: string, i: number): string {
   return cp === undefined ? '' : String.fromCodePoint(cp)
 }
 
-/** The word that ends at `stop` (exclusive), without opening marks. */
-function wordBefore(text: string, from: number, stop: number): string {
+/**
+ * The word that ends at `stop` (exclusive): back to whitespace, a hard break
+ * (`gaps`) or `from`, with opening marks removed. Null when it is longer than
+ * `MAX_WORD_LOOKBACK`. `opensSentence`: it starts at `from` with no opening
+ * mark.
+ */
+function wordBefore(
+  text: string,
+  from: number,
+  stop: number,
+  gaps: Set<number>
+): { word: string; opensSentence: boolean } | null {
   let i = stop
-  while (i > from && !isWhitespace(text[i - 1])) i--
-  return text.slice(i, stop).replace(OPENERS, '')
+  while (i > from && !isWhitespace(text[i - 1]) && !gaps.has(i)) {
+    if (stop - i === MAX_WORD_LOOKBACK) return null
+    i--
+  }
+  const raw = text.slice(i, stop)
+  const word = raw.replace(OPENERS, '')
+  return { word, opensSentence: i === from && word === raw }
 }
 
 /** True when the stop at `stop` does not end the sentence. */
@@ -231,24 +256,40 @@ function keepsSentenceOpen(
   text: string,
   sentenceStart: number,
   stop: number,
-  next: string
+  next: string,
+  gaps: Set<number>
 ): boolean {
   if (next !== '' && isLowercaseLetter(next)) return true
   if (text[stop] !== '.') return false
-  const word = wordBefore(text, sentenceStart, stop)
-  if (word.length === 0) return false
+  const before = wordBefore(text, sentenceStart, stop, gaps)
+  if (!before || before.word.length === 0) return false
+  const { word } = before
   const lower = word.toLowerCase()
   if (ABBREVIATIONS.has(lower)) return true
   if (NUMBER_ABBREVIATIONS.has(lower)) return /^\p{N}/u.test(next)
-  // An initial: one letter ("J. R. Tolkien").
+  // An initial: one letter ("J. R. Tolkien", "p. 5").
   if (codePointString(word, 0).length === word.length && /\p{L}/u.test(word))
     return true
-  // Dotted letters ("U.S.", "a.m."): open unless a capital letter follows.
-  if (/^(?:\p{L}\.)+\p{L}$/u.test(word)) return !isUppercaseLetter(next)
+  // Dotted letters ("U.S.", "a.m.") never end a sentence by themselves.
+  if (/^(?:\p{L}\.)+\p{L}$/u.test(word)) return true
   // A list number that opens the sentence ("1. First").
-  if (/^\d+$/.test(word) && text.slice(sentenceStart, stop) === word)
-    return true
+  if (/^\d+$/.test(word) && before.opensSentence) return true
   return false
+}
+
+/** True when the full-width stop at `i` is a decimal point or a list number. */
+function fullWidthStopKeepsOpen(
+  text: string,
+  sentenceStart: number,
+  i: number,
+  blockEnd: number,
+  gaps: Set<number>
+): boolean {
+  const prev = i > sentenceStart && !gaps.has(i) ? text[i - 1]! : ''
+  const next = i + 1 < blockEnd && !gaps.has(i + 1) ? text[i + 1]! : ''
+  if (DECIMAL_DIGIT.test(prev) && DECIMAL_DIGIT.test(next)) return true
+  const before = wordBefore(text, sentenceStart, i, gaps)
+  return !!before && before.opensSentence && DIGITS.test(before.word)
 }
 
 /** Closers between the last terminator of the run at `i` and `j`. */
@@ -256,6 +297,18 @@ function countClosers(text: string, i: number, j: number): number {
   let n = 0
   while (j - 1 - n > i && CLOSERS.has(text[j - 1 - n]!)) n++
   return n
+}
+
+/** The index of the first gap after `start` in the sorted `gaps`. */
+function firstGapAfter(gaps: number[], start: number): number {
+  let lo = 0
+  let hi = gaps.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (gaps[mid]! <= start) lo = mid + 1
+    else hi = mid
+  }
+  return lo
 }
 
 /** `text.slice(start, end)` with one space at each hard break inside. */
@@ -267,8 +320,9 @@ function textWithBreaks(
 ): string {
   let out = ''
   let at = start
-  for (const gap of gaps) {
-    if (gap <= start || gap >= end) continue
+  for (let g = firstGapAfter(gaps, start); g < gaps.length; g++) {
+    const gap = gaps[g]!
+    if (gap >= end) break
     out += `${text.slice(at, gap)} `
     at = gap
   }
@@ -292,6 +346,13 @@ function blockPieces(
     while (i < block.end) {
       const ch = text[i]!
       if (WIDE_TERMINATORS.has(ch)) {
+        if (
+          ch === FULL_WIDTH_STOP &&
+          fullWidthStopKeepsOpen(text, start, i, block.end, gaps)
+        ) {
+          i++
+          continue
+        }
         let j = i + 1
         while (
           j < block.end &&
@@ -314,7 +375,8 @@ function blockPieces(
               text,
               start,
               j - 1 - countClosers(text, i, j),
-              next
+              next,
+              gaps
             )
           ) {
             end = j

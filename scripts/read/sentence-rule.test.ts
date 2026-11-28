@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { canonicalText, sentencesOf } from '@/hooks/read/sentenceRule'
 import { sentenceSpans } from '@/hooks/read/sentences'
 
-// The shared sentence rule's own vectors (pull request 603 at 29206235,
+// The shared sentence rule's own vectors (pull request 603 at c2eb6dc7,
 // lib/passages/vectors/identity-v1.json, copied beside this test). Delete
 // both this copy and hooks/read/sentenceRule.ts when 603 merges.
 type Vector = {
