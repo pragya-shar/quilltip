@@ -1,5 +1,7 @@
 /**
- * Balance fixture page: `/?screen=tip|balance|earnings&seed=<scenario>&run=<id>`.
+ * Balance fixture page: `/?screen=tip|balance|earnings|account&seed=<scenario>&run=<id>`.
+ * `account` is the old dashboard's section row, with the balance screen
+ * under it, as the old dashboard pages show them.
  * It mounts the real payments provider, hooks and screens over a stand-in
  * backend (`backend.ts`), stand-in Convex hooks (`convex-react.ts`) and a
  * stand-in signer (`signer.ts`). `run` makes a fresh backend; the same `run`
@@ -7,6 +9,8 @@
  */
 import { StrictMode, useEffect, useMemo, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import '../../../components/account/account.css'
+import { AccountSections } from '../../../components/account/AccountSections'
 import { PaymentsShell } from '../../../components/payments/PaymentsShell'
 import { BalanceScreenLive } from '../../../components/payments/BalanceScreenLive'
 import { EarningsScreenLive } from '../../../components/payments/EarningsScreenLive'
@@ -144,7 +148,17 @@ function Fixture() {
     )
   return (
     <>
-      {screen === 'balance' ? (
+      {screen === 'account' ? (
+        <div className="account-surface">
+          <main className="account-folio account-folio-under-header">
+            <AccountSections
+              pathname="/dashboard/tab"
+              username="a_reader_with_a_long_handle"
+            />
+            <BalanceScreenLive />
+          </main>
+        </div>
+      ) : screen === 'balance' ? (
         <main style={{ padding: '16px' }}>
           <BalanceScreenLive />
         </main>

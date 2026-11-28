@@ -394,10 +394,18 @@ async function main() {
           failures.push(
             `${label}: median LCP ${summary.lcpMs} ms > ${lcpLimit} ms`
           )
-        if (!summary.lcpInServerHtml)
-          failures.push(
-            `${label}: LCP element is not in the server HTML in most runs:\n    ${summary.lcpElements.join('\n    ')}`
-          )
+        if (!summary.lcpInServerHtml) {
+          const message = `${label}: LCP element is not in the server HTML in most runs`
+          // A signed-in page drawn from the browser's session: reported only.
+          if (route.budget.lcpInServerHtml === false)
+            warn(
+              `${message} (not gated: drawn from the browser's session): ${summary.lcpElements.join('; ')}`
+            )
+          else
+            failures.push(
+              `${message}:\n    ${summary.lcpElements.join('\n    ')}`
+            )
+        }
         if (!summary.lcpImageInServerHtml)
           failures.push(
             `${label}: LCP image is not discoverable in the server HTML in most runs:\n    ${summary.lcpElements.join('\n    ')}`

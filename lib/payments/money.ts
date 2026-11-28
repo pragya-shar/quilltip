@@ -105,6 +105,14 @@ export function money(cents: Cents): Money {
   }
 }
 
+/**
+ * A tip amount, as the tip control offers and states it: `money` plus the
+ * short text ("$1", "$0.50", "$2.50") a control shows without a formatter.
+ */
+export function tipAmount(cents: Cents): Money {
+  return { ...money(cents), short: formatMoney(cents, { short: true }) }
+}
+
 /** A figure converted from a token amount at today's price. */
 export function convertedMoney(cents: Cents): Money {
   return {

@@ -12,9 +12,13 @@ import { WRITER_PAGE } from './WriterWatch'
 export function EarningsWatch({
   now,
   online,
+  live,
 }: {
   now: number
   online: boolean
+  /** The engine's binding holds: written only then, and again when it
+   * holds again. */
+  live: boolean
 }) {
   const { isAuthenticated, isLoading } = useConvexAuth()
   const earnings = useQuery(api.earnings.mine, isAuthenticated ? {} : 'skip')
@@ -36,7 +40,7 @@ export function EarningsWatch({
     [isLoading, isAuthenticated, earnings, newest.results, now, asOf]
   )
   useEffect(() => {
-    paymentsStore.set({ earnings: view })
-  }, [view])
+    if (live) paymentsStore.set({ earnings: view })
+  }, [view, live])
   return null
 }
