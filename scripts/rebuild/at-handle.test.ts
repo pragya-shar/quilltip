@@ -1,4 +1,10 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -38,6 +44,13 @@ describe('/@handle', () => {
       '/tomas',
       '/@_next',
       '/@%E0%A4%A',
+      // Reserved in any case, and the route handlers.
+      '/@Shelf',
+      '/@SIGNIN',
+      '/@Write',
+      '/@api',
+      '/@API/x',
+      '/@_Next',
     ])
       expect(at(href), href).toBeNull()
     expect(
@@ -60,7 +73,10 @@ describe('the legacy writer page font preloads', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
-    // This tree: the legacy writer page still serves /{handle}.
-    expect(legacyWriterPageServes()).toBe(true)
+    // This tree, whichever it is: the answer follows the file, so the
+    // package that deletes the legacy writer page edits nothing here.
+    expect(legacyWriterPageServes()).toBe(
+      existsSync(path.join(process.cwd(), LEGACY_WRITER_PAGE))
+    )
   })
 })
