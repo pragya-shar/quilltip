@@ -84,12 +84,30 @@ export function feeDollars(feeCents: number): string {
   return `≈ ${formatMoney(feeCents)}`
 }
 
+/** Who pays the network fee, in the reader's words. */
+export function paidByWords(paidBy: 'wallet' | 'quilltip'): string {
+  return paidBy === 'quilltip' ? 'paid by Quilltip' : 'paid by your wallet'
+}
+
 /** "0.0004213 XLM, ≈ $0.000054, paid by your wallet" */
-export function feeRow(feeStroops: string, feeCents: number | null): string {
+export function feeRow(
+  feeStroops: string,
+  feeCents: number | null,
+  paidBy: 'wallet' | 'quilltip' = 'wallet'
+): string {
   const xlm = formatTokenAmount(feeStroops)
+  const who = paidByWords(paidBy)
   return feeCents === null
-    ? `${xlm}, paid by your wallet`
-    : `${xlm}, ${feeDollars(feeCents)}, paid by your wallet`
+    ? `${xlm}, ${who}`
+    : `${xlm}, ${feeDollars(feeCents)}, ${who}`
+}
+
+/** The fee as a screen reader says it, in Lumens. */
+export function feeSpoken(
+  feeStroops: string,
+  paidBy: 'wallet' | 'quilltip' = 'wallet'
+): string {
+  return `${formatTokenAmount(feeStroops).replace('XLM', 'Lumens')}, ${paidByWords(paidBy)}`
 }
 
 /** "Albedo · GABC…WXYZ" */

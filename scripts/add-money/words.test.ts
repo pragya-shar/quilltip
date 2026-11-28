@@ -59,6 +59,10 @@ describe('the fee and the signing line', () => {
       '0.0004213 XLM, ≈ $0.00, paid by your wallet'
     )
     expect(feeRow('4213', null)).toBe('0.0004213 XLM, paid by your wallet')
+    // A passkey account's fee is paid by Quilltip's sponsor.
+    expect(feeRow('1364691', 1.7, 'quilltip')).toBe(
+      '0.1364691 XLM, ≈ $0.017, paid by Quilltip'
+    )
   })
 
   it('names the network from the configuration', () => {

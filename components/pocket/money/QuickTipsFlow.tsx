@@ -7,11 +7,7 @@ import { Spinner } from '@/system/components/Spinner'
 import { DoneIcon } from '@/system/icons'
 import { focusDestination } from '@/system/inputModality'
 import { showToast } from '@/system/toast'
-import {
-  baseUnitsToCents,
-  formatMoney,
-  formatTokenAmount,
-} from '@/lib/payments/money'
+import { baseUnitsToCents, formatMoney } from '@/lib/payments/money'
 import type { Money } from '@/lib/payments/types'
 import { consentFigures } from '@/lib/addMoney/consent'
 import { failureView, type FailureView } from '@/lib/addMoney/failures'
@@ -30,6 +26,7 @@ import {
   LEDGER_FINE_PRINT,
   TURN_OFF_LATER,
   feeRow,
+  feeSpoken,
   fromRow,
   networkName,
   quickTipsSignsLine,
@@ -283,8 +280,15 @@ export function QuickTipsFlow({
             { label: 'Up to', value: consent.cap },
             {
               label: 'Network fee',
-              value: feeRow(step.prepared.fee.stroops, feeCents),
-              spoken: `${formatTokenAmount(step.prepared.fee.stroops).replace('XLM', 'Lumens')}, paid by your wallet`,
+              value: feeRow(
+                step.prepared.fee.stroops,
+                feeCents,
+                step.prepared.fee.paidBy
+              ),
+              spoken: feeSpoken(
+                step.prepared.fee.stroops,
+                step.prepared.fee.paidBy
+              ),
             },
           ]}
         />

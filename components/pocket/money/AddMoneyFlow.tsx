@@ -41,6 +41,7 @@ import {
   NOTHING_ADDED,
   TESTNET_FOOT,
   feeRow,
+  feeSpoken,
   formatTime,
   fromRow,
   networkName,
@@ -657,8 +658,8 @@ export function AddMoneyFlow({
           },
           {
             label: 'Network fee',
-            value: feeRow(prepared.fee.stroops, feeCents),
-            spoken: `${formatTokenAmount(prepared.fee.stroops).replace('XLM', 'Lumens')}, paid by your wallet`,
+            value: feeRow(prepared.fee.stroops, feeCents, prepared.fee.paidBy),
+            spoken: feeSpoken(prepared.fee.stroops, prepared.fee.paidBy),
           },
           {
             label: 'Your balance after',

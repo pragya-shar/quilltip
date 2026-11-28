@@ -6,7 +6,6 @@ import { Icon } from '@/system/components/Icon'
 import { Spinner } from '@/system/components/Spinner'
 import { DoneIcon } from '@/system/icons'
 import { focusDestination } from '@/system/inputModality'
-import { formatTokenAmount } from '@/lib/payments/money'
 import { failureView, type FailureView } from '@/lib/addMoney/failures'
 import {
   StepError,
@@ -21,6 +20,7 @@ import {
   TURN_OFF_GAP,
   TURN_OFF_UNCONFIRMED,
   feeRow,
+  feeSpoken,
   fromRow,
   networkName,
   turnOffSigningLine,
@@ -204,9 +204,10 @@ export function TurnOffFlow({
       label: 'Network fee',
       value: feeRow(
         prepared.fee.stroops,
-        price ? (Number(prepared.fee.stroops) / 1e7) * price * 100 : null
+        price ? (Number(prepared.fee.stroops) / 1e7) * price * 100 : null,
+        prepared.fee.paidBy
       ),
-      spoken: `${formatTokenAmount(prepared.fee.stroops).replace('XLM', 'Lumens')}, paid by your wallet`,
+      spoken: feeSpoken(prepared.fee.stroops, prepared.fee.paidBy),
     },
   ]
 
