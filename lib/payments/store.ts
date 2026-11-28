@@ -55,6 +55,9 @@ export type PaymentsState = {
   shells: number
   /** The user the figures above were read for; null when none are held. */
   owner: string | null
+  /** The user in this browser's session token now, as the shell last read
+   * it; null when there is none or it cannot be read. */
+  session: string | null
 }
 
 // Nothing of one reader is shown to the next, or after a failure.
@@ -76,10 +79,25 @@ let state: PaymentsState = {
   registrations: {},
   watches: { writer: 0, earnings: 0 },
   shells: 0,
+  session: null,
 }
 
 const listeners = new Set<() => void>()
 let engineWanted: (() => void) | null = null
+let retryLoad: (() => void) | null = null
+
+/**
+ * Whether the figures in `s` may be shown, and its queued taps sent. Signed
+ * in, they must have been claimed for a user (`claim`), and that user must
+ * be the one in this browser's session token, when it can be read: after
+ * another tab signs in as someone else, the last reader's figures stay
+ * hidden until the engine claims the store for the new one. Signed out or
+ * loading, the store holds no one's figures.
+ */
+export function figuresShown(s: PaymentsState): boolean {
+  if (s.auth !== 'signed-in') return true
+  return s.owner !== null && (s.session === null || s.session === s.owner)
+}
 
 function set(patch: Partial<PaymentsState>) {
   state = { ...state, ...patch }
@@ -101,33 +119,62 @@ export const paymentsStore = {
     }
   },
   set,
-  /**
-   * Called by `PaymentsShell` on mount, with the user in this browser's
-   * session token now; returns the unmount call. The first shell to mount
-   * drops figures held for anyone else (another account in another tab, no
-   * reload), so nobody reads the last person's figures before their own
-   * arrive.
-   */
-  attachShell(owner: string | null = null) {
-    const stale =
-      state.shells === 0 && state.owner !== null && state.owner !== owner
-    set({ ...(stale ? CLEARED : {}), shells: state.shells + 1 })
+  /** Called by `PaymentsShell` on mount; returns the unmount call. */
+  attachShell() {
+    set({ shells: state.shells + 1 })
     return () => set({ shells: state.shells - 1 })
   },
-  /** The engine is about to publish figures for `owner`: anything held for
-   * someone else goes first. */
+  /**
+   * The user in this browser's session token, read by `PaymentsShell` on
+   * mount, on every auth change and when another tab changes the token.
+   * Figures held for anyone else go at once, before the auth library or the
+   * engine has caught up, so nobody reads the last person's figures.
+   */
+  setSession(session: string | null) {
+    if (session === state.session) return
+    const stale = state.owner !== null && state.owner !== session
+    set({ ...(stale ? CLEARED : {}), session })
+  },
+  /**
+   * The engine is about to publish figures for `owner`. Anything held for
+   * someone else goes first; taps queued before the engine was ready stay
+   * only when they were made in this user's session.
+   */
   claim(owner: string) {
     if (state.owner === owner) return
-    set({ ...(state.owner === null ? {} : CLEARED), owner })
+    const keepTaps =
+      state.owner === null &&
+      (state.session === null || state.session === owner)
+    set({
+      ...CLEARED,
+      ...(keepTaps ? { queuedTaps: state.queuedTaps } : {}),
+      owner,
+    })
   },
   setAuth(auth: AuthState) {
     if (auth === state.auth) return
     set({ auth, ...CLEARED })
     wantPublic()
   },
-  /** The engine failed: every view reads unavailable until it recovers. */
+  /**
+   * The engine failed: every view reads unavailable until it recovers. Whose
+   * figures they were is kept, so the balance still knows whether this
+   * person writes; a change of session clears it (`setSession`).
+   */
   fail() {
-    set({ engine: 'failed', ...CLEARED })
+    set({ engine: 'failed', ...CLEARED, owner: state.owner })
+  },
+  /** Whoever loads payments now registers how to load them again; returns
+   * the unregister call. */
+  onRetry(load: () => void) {
+    retryLoad = load
+    return () => {
+      if (retryLoad === load) retryLoad = null
+    }
+  },
+  /** "Try again": loads payments again now, if they failed. */
+  retry() {
+    retryLoad?.()
   },
   /** The shell's loader, called on tip intent before sign-in is known. */
   onEngineWanted(load: () => void) {
@@ -156,7 +203,7 @@ export const paymentsStore = {
   /** Takes a queued tap once; the engine calls it when a control is ready. */
   takeTap(id: string): QueuedTap | undefined {
     const tap = state.queuedTaps[id]
-    if (!tap) return undefined
+    if (!tap || !figuresShown(state)) return undefined
     const { [id]: _taken, ...rest } = state.queuedTaps
     set({ queuedTaps: rest })
     return tap

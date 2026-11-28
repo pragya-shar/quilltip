@@ -1,19 +1,21 @@
 // @vitest-environment happy-dom
+/**
+ * The root layout's loader for the payments shell
+ * (`shell/DeferredPaymentsShell`): when the shell's code cannot load, the
+ * figures read unavailable (the balance says so, with Try again) instead
+ * of loading for ever, and Try again loads it again.
+ */
 import { act, createElement as h } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { viewsOf } from '../../lib/payments/runtime'
 import { paymentsStore } from '../../lib/payments/store'
+import { DeferredPaymentsShell } from '../../shell/DeferredPaymentsShell'
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
 
-// The balance's own payments shell: when its code cannot load, the figures
-// read unavailable (so the balance says so, with Try again) instead of
-// loading for ever, and Try again loads it again.
-
 const load = vi.hoisted(() => ({ fail: true, attempts: 0 }))
-vi.mock('convex/react', () => ({ useConvex: () => ({}) }))
 vi.mock('@/components/payments/PaymentsShell', () => {
   load.attempts += 1
   if (load.fail) throw new Error('chunk failed to load')
@@ -25,13 +27,11 @@ afterEach(() => {
   paymentsStore.set({ engine: 'idle' })
 })
 
-describe('the balance’s payments shell', () => {
-  it('says the figures are unavailable when its code cannot load, and Try again loads it again', async () => {
-    const { LocalPaymentsShell, retryPayments } =
-      await import('../../components/pocket/LocalPaymentsShell')
+describe('the payments shell’s loader', () => {
+  it('says the figures are unavailable when the shell cannot load, and Try again loads it again', async () => {
     paymentsStore.setAuth('signed-in')
     const root = createRoot(document.createElement('div'))
-    await act(async () => root.render(h(LocalPaymentsShell)))
+    await act(async () => root.render(h(DeferredPaymentsShell)))
     await vi.waitFor(() => expect(paymentsStore.get().engine).toBe('failed'))
     const views = viewsOf(paymentsStore.get())
     expect(views.balance.status).toBe('unavailable')
@@ -40,7 +40,7 @@ describe('the balance’s payments shell', () => {
     load.fail = false
     vi.resetModules()
     const before = load.attempts
-    await act(async () => retryPayments())
+    await act(async () => paymentsStore.retry())
     await vi.waitFor(() => expect(load.attempts).toBeGreaterThan(before))
     await act(async () => root.unmount())
   })

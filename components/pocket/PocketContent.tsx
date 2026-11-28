@@ -1,6 +1,5 @@
 'use client'
 
-import { LocalPaymentsShell } from './LocalPaymentsShell'
 import { Pocket } from './Pocket'
 
 /**
@@ -9,10 +8,5 @@ import { Pocket } from './Pocket'
  * /pocket page renders `PocketPage`, the same content under its own title.
  */
 export function PocketContent() {
-  return (
-    <>
-      <LocalPaymentsShell />
-      <Pocket />
-    </>
-  )
+  return <Pocket />
 }

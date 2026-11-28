@@ -20,7 +20,7 @@ import {
   useSyncExternalStore,
 } from 'react'
 import { tipAmount } from './money'
-import { paymentsStore, type PaymentsState } from './store'
+import { figuresShown, paymentsStore, type PaymentsState } from './store'
 import type {
   ActivityView,
   BalanceView,
@@ -110,13 +110,20 @@ const OWN_TIPS: Record<Blank, OwnTipsView> = {
   unavailable: { status: 'unavailable', tips: [], complete: true },
 }
 
-/** The views the hooks read: the engine's, else the blank one (stable). */
-export const viewsOf = (s: PaymentsState) => ({
-  balance: s.balance ?? BALANCE[blankOf(s)],
-  readerActivity: s.readerActivity ?? ACTIVITY[blankOf(s)],
-  writerActivity: s.writerActivity ?? ACTIVITY[blankOf(s)],
-  earnings: s.earnings ?? EARNINGS[blankOf(s)],
-})
+/**
+ * The views the hooks read: the engine's, else the blank one (stable). The
+ * engine's views show only while they are held for the user in this
+ * session (`figuresShown`).
+ */
+export const viewsOf = (s: PaymentsState) => {
+  const shown = figuresShown(s)
+  return {
+    balance: (shown && s.balance) || BALANCE[blankOf(s)],
+    readerActivity: (shown && s.readerActivity) || ACTIVITY[blankOf(s)],
+    writerActivity: (shown && s.writerActivity) || ACTIVITY[blankOf(s)],
+    earnings: (shown && s.earnings) || EARNINGS[blankOf(s)],
+  }
+}
 
 /**
  * The controller a control shows before the engine computed one. With no
@@ -181,7 +188,7 @@ function useShellTip(target: TipTarget, meta: TipMeta) {
     [id, target, meta]
   )
   return useStore((s) => {
-    const computed = s.tips[id]
+    const computed = figuresShown(s) ? s.tips[id] : undefined
     if (computed) return computed
     const key = `${s.shells > 0}:${s.auth}:${s.engine}:${id in s.queuedTaps}`
     const cached = shellControllers.get(id)
@@ -210,7 +217,9 @@ export const shellRuntime: PaymentsRuntime = {
   },
   // The engine reads it for each article with a tip control on the page.
   useOwnTips: (articleId) =>
-    useStore((s) => s.ownTips[articleId] ?? OWN_TIPS[blankOf(s)]),
+    useStore(
+      (s) => (figuresShown(s) && s.ownTips[articleId]) || OWN_TIPS[blankOf(s)]
+    ),
 }
 
 export const PaymentsRuntimeContext =

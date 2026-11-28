@@ -12,7 +12,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Id } from '../../convex/_generated/dataModel'
 import { PaymentsEngine } from '../../components/payments/PaymentsEngine'
 import { createOutbox, type OutboxEntry } from '../../lib/payments/outbox'
-import { shellController } from '../../lib/payments/runtime'
+import { shellController, viewsOf } from '../../lib/payments/runtime'
 import { paymentsStore } from '../../lib/payments/store'
 import type { TipController, TipTarget } from '../../lib/payments/types'
 ;(
@@ -285,6 +285,21 @@ describe('an article that is not registered on chain', () => {
       expect(paymentsStore.get().tips.control?.unavailable).toBeNull()
     )
     expect(await settle()).toHaveLength(0)
+  })
+})
+
+describe('whose figures the engine publishes', () => {
+  it('claims the store for its reader, so its figures show for that reader only', async () => {
+    start()
+    await mountEngine()
+    await vi.waitFor(() =>
+      expect(viewsOf(paymentsStore.get()).balance.status).toBe('ready')
+    )
+    expect(paymentsStore.get().owner).toBe(fake.user)
+    // Another tab signs someone else in: nothing of this reader shows.
+    await act(async () => paymentsStore.setSession('someone-else'))
+    expect(viewsOf(paymentsStore.get()).balance.status).toBe('loading')
+    paymentsStore.setSession(null)
   })
 })
 

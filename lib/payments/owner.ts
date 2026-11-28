@@ -7,6 +7,12 @@
  */
 const TOKEN_PREFIX = '__convexAuthJWT'
 
+/** Whether a `storage` event's key is the session token's (null: the
+ * whole storage was cleared). */
+export function isTokenKey(key: string | null): boolean {
+  return key === null || key.startsWith(TOKEN_PREFIX)
+}
+
 /** The user id in this browser's session token, or null when there is none
  * or it cannot be read. */
 export function tokenOwner(storage?: Storage): string | null {

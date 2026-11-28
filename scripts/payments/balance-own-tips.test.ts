@@ -78,6 +78,7 @@ describe("a reader's own tips on an article", () => {
     expect(seen.at(-1)?.status).toBe('signed-out')
     await act(async () => {
       paymentsStore.setAuth('signed-in')
+      paymentsStore.claim('reader-1')
       paymentsStore.set({
         ownTips: {
           'article-1': { status: 'ready', tips: [], complete: true },

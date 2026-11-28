@@ -11,8 +11,15 @@
  *
  * When the engine fails (it could not load, or a payments query threw), the
  * views read "unavailable" and the shell tries again after a delay that
- * doubles up to five minutes, and at once on the next navigation. No reload
- * is needed when the backend catches up.
+ * doubles up to five minutes, at once on the next navigation, and at once
+ * on "Try again" (`paymentsStore.retry`). No reload is needed when the
+ * backend catches up.
+ *
+ * It tells the store who is in this browser's session token: on mount, on
+ * each auth change, when another tab changes the token, and when the engine
+ * claims the store for a user the token did not name. Figures held for
+ * anyone else go at once, and none show until the engine claims the store
+ * for the user in the token (`figuresShown`).
  */
 import {
   useCallback,
@@ -23,7 +30,7 @@ import {
 } from 'react'
 import { usePathname } from 'next/navigation'
 import { useConvexAuth } from 'convex/react'
-import { tokenOwner } from '@/lib/payments/owner'
+import { isTokenKey, tokenOwner } from '@/lib/payments/owner'
 import { paymentsStore } from '@/lib/payments/store'
 import { PaymentsBoundary } from './PaymentsBoundary'
 
@@ -40,13 +47,37 @@ export function PaymentsShell() {
   const [failedAt, setFailedAt] = useState<number | null>(null)
   const delay = useRef(FIRST_RETRY_MS)
 
-  useEffect(() => paymentsStore.attachShell(tokenOwner()), [])
+  useEffect(() => {
+    const read = () => paymentsStore.setSession(tokenOwner())
+    read()
+    const onStorage = (event: StorageEvent) => {
+      if (isTokenKey(event.key)) read()
+    }
+    window.addEventListener('storage', onStorage)
+    // The engine claimed the store for a user the token did not name: read
+    // the token again (a sign-in in this tab writes it before auth says so),
+    // once per claimed user.
+    let checked: string | null = null
+    const off = paymentsStore.subscribe(() => {
+      const { owner, session } = paymentsStore.get()
+      if (owner === null || owner === session || owner === checked) return
+      checked = owner
+      read()
+    })
+    const detach = paymentsStore.attachShell()
+    return () => {
+      detach()
+      off()
+      window.removeEventListener('storage', onStorage)
+    }
+  }, [])
 
   useEffect(() => {
     paymentsStore.onEngineWanted(() => setWanted(true))
   }, [])
 
   useEffect(() => {
+    paymentsStore.setSession(tokenOwner())
     paymentsStore.setAuth(
       isLoading ? 'loading' : isAuthenticated ? 'signed-in' : 'signed-out'
     )
@@ -97,6 +128,15 @@ export function PaymentsShell() {
     }, delay.current)
     return () => window.clearTimeout(id)
   }, [failedAt, retry])
+  useEffect(
+    () =>
+      paymentsStore.onRetry(() => {
+        if (failedAt === null) return
+        delay.current = FIRST_RETRY_MS
+        retry()
+      }),
+    [failedAt, retry]
+  )
   const lastPath = useRef(pathname)
   useEffect(() => {
     if (lastPath.current === pathname) return

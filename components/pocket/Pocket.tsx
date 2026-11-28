@@ -20,7 +20,6 @@ import { activityLists } from './activityModel'
 import { ActivitySection } from './ActivitySection'
 import { ago } from './copy'
 import { EarningsSection } from './EarningsSection'
-import { retryPayments } from './LocalPaymentsShell'
 import { SpendableSection } from './SpendableSection'
 import { useNow } from '@/hooks/payments/useNow'
 import { PocketPlaceholder } from './PocketPlaceholder'
@@ -124,7 +123,7 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
           tone="info"
           title="Payments are not answering right now"
           action={
-            <Button variant="quiet" onClick={retryPayments}>
+            <Button variant="quiet" onClick={paymentsStore.retry}>
               Try again
             </Button>
           }
