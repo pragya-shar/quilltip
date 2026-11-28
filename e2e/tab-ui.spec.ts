@@ -3,6 +3,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 
+import { expectFixtureReady } from './fixtures/tab-ui/ready'
 import { SCENARIOS } from './fixtures/tab-ui/scenarios'
 import { contrastScan, surfaceColours } from './helpers/lightSurface'
 import { expectNoticeTookFocus } from './helpers/noticeFocus'
@@ -105,7 +106,7 @@ async function open(page: Page, id: string, session?: string) {
     if (message.type() === 'error') errors.push(message.text())
   })
   await page.goto(`/?state=${id}${session ? `&session=${session}` : ''}`)
-  await expect(page.getByTestId('fixture-state')).toBeVisible()
+  await expectFixtureReady(page)
   return errors
 }
 

@@ -15,6 +15,7 @@ import {
   penUnsupported,
   pressWith,
 } from './helpers/press'
+import { expectFixtureReady } from './fixtures/tab-ui/ready'
 import { SEND_TIP, SEND_TIP_FROM_WALLET } from './helpers/sendButton'
 
 /**
@@ -48,7 +49,7 @@ async function open(page: Page, state: string, query = '') {
     address: UNUSED,
   })
   await page.goto(`/dialog?state=${state}${query ? `&${query}` : ''}`)
-  await expect(page.getByTestId('fixture-state')).toBeVisible()
+  await expectFixtureReady(page)
   return errors
 }
 
