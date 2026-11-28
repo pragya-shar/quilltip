@@ -147,6 +147,8 @@ type Run = {
   scriptKb: number
   cssKb: number
   fontKb: number
+  /** Each font file the page loaded, with its size. */
+  fontFiles: string[]
   lateScriptKb: number
   lcpElement: string
   lcpInServerHtml: boolean
@@ -314,6 +316,14 @@ async function measure(
       scriptKb: Math.round(kb((p) => refs.scripts.has(p))),
       cssKb: Math.round(kb((p) => refs.stylesheets.has(p))),
       fontKb: Math.round(kb((p) => /\.woff2?$/.test(p))),
+      // Each font file and its size, so a failure names what loaded.
+      fontFiles: [
+        ...new Map(
+          result.resources
+            .filter((resource) => /\.woff2?$/.test(resource.path))
+            .map((resource) => [resource.path, resource.bytes] as const)
+        ),
+      ].map(([file, bytes]) => `${file} (${(bytes / 1024).toFixed(1)} KB)`),
       lateScriptKb: Math.round(kb((p) => isScript(p) && !refs.scripts.has(p))),
       lcpElement: `${result.element} "${result.text.slice(0, 40)}"`,
       lcpInServerHtml: isImage
@@ -375,6 +385,7 @@ async function main() {
           htmlKb: refs.htmlKb,
           htmlGzipKb: refs.htmlGzipKb,
           lcpElement: runs[0]?.lcpElement ?? '',
+          fontFiles: runs[0]?.fontFiles ?? [],
           lcpElements: runs.map((run) => run.lcpElement),
           lcpInServerHtml: mostRuns(runs, (run) => run.lcpInServerHtml),
           lcpImageInServerHtml: mostRuns(
@@ -394,7 +405,7 @@ async function main() {
           )
         if (summary.fontKb > route.budget.fontKb)
           failures.push(
-            `${label}: ${summary.fontKb} KB of fonts > ${route.budget.fontKb}`
+            `${label}: ${summary.fontKb} KB of fonts > ${route.budget.fontKb}: ${summary.fontFiles.join(', ')}`
           )
         const clsLimit = route.budget.cls ?? BUDGETS.cls
         if (summary.cls > clsLimit)
