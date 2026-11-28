@@ -1,8 +1,6 @@
 'use client'
 
 import '@/components/highlights/highlights.css'
-import type { TipXlmPreset } from '@/lib/constants'
-
 import { useState } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, X } from 'lucide-react'
@@ -36,14 +34,6 @@ interface HighlightPopoverProps {
   endOffset?: number
   startContainerPath?: string
   endContainerPath?: string
-  selectionStartPosition?: number
-  selectionEndPosition?: number
-  resumeHighlightTip?: {
-    amountCents?: number
-    amountXlm?: TipXlmPreset
-    customAmount?: string
-  } | null
-  onHighlightTipResumeOpened?: () => void
   onSignInToSave: () => void
 }
 
@@ -61,10 +51,6 @@ export function HighlightPopover({
   endOffset,
   startContainerPath,
   endContainerPath,
-  selectionStartPosition,
-  selectionEndPosition,
-  resumeHighlightTip,
-  onHighlightTipResumeOpened,
   onSignInToSave,
 }: HighlightPopoverProps) {
   const { isAuthenticated } = useAuth()
@@ -160,14 +146,11 @@ export function HighlightPopover({
                     articleSlug={articleSlug}
                     articleTitle={articleTitle}
                     authorName={authorName || 'Author'}
-                    authorStellarAddress={authorStellarAddress}
                     highlightText={selectedText}
                     startOffset={startOffset}
                     endOffset={endOffset}
                     startContainerPath={startContainerPath}
                     endContainerPath={endContainerPath}
-                    selectionStartPosition={selectionStartPosition}
-                    selectionEndPosition={selectionEndPosition}
                     className="slip-action"
                     label="Highlight & tip"
                     disabled={isSaving}
@@ -178,15 +161,6 @@ export function HighlightPopover({
                         ? () => handleSaveHighlight(true)
                         : undefined
                     }
-                    resumeOpen={Boolean(resumeHighlightTip)}
-                    resumeAmountCents={resumeHighlightTip?.amountCents}
-                    resumeAmountXlm={resumeHighlightTip?.amountXlm}
-                    resumeCustomAmount={resumeHighlightTip?.customAmount}
-                    onResumeDialogVisible={() => {
-                      if (resumeHighlightTip) {
-                        onHighlightTipResumeOpened?.()
-                      }
-                    }}
                   />
                 </HighlightTipGate>
               )}

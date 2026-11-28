@@ -14,7 +14,6 @@ import {
   walletErrorMessage,
   type WalletErrorKind,
 } from '../../lib/stellar/v2/wallet-errors'
-import { formatTipFailureMessage } from '../../lib/stellar/tip-error-messages'
 import { forgetAllRememberedWallets } from '../../lib/wallet/remembered-wallet'
 
 const TESTNET = 'Test SDF Network ; September 2015'
@@ -561,10 +560,10 @@ describe('copy', () => {
     expect(message?.detail).toBeTruthy()
   })
 
-  test('tip failures use the wallet copy', () => {
+  test('a declined request has the wallet copy', () => {
     expect(
-      formatTipFailureMessage(new WalletError('rejected', 'User declined'))
-    ).toEqual({
+      walletErrorMessage(new WalletError('rejected', 'User declined'))
+    ).toMatchObject({
       title: 'Request declined in your wallet',
       detail:
         'Nothing was signed or sent. Try again and approve the request when you are ready.',

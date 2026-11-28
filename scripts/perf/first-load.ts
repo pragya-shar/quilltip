@@ -27,8 +27,12 @@ export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
 export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
   '/': 211, // measured 208.9
   '/login': 202, // measured 199.4
-  '/articles': 216, // measured 214.0
-  '/[username]/[slug]': 219, // measured 216.9
+  // The two article routes allow one more shared chunk (#451): removing the
+  // v1 payment code made their module bytes smaller (333 B on the article
+  // page), but the bundler split the shared code into one more file, with the
+  // same chunk-group membership. The overage is that file's overhead.
+  '/articles': 217, // measured 216.4
+  '/[username]/[slug]': 220, // measured 219.4
 }
 
 /**

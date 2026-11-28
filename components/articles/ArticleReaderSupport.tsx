@@ -8,7 +8,6 @@ interface ArticleReaderSupportProps {
   articleId: Id<'articles'>
   articleSlug: string
   authorName: string
-  authorStellarAddress?: string | null
 }
 
 export function ArticleReaderSupport({
@@ -16,7 +15,6 @@ export function ArticleReaderSupport({
   articleId,
   articleSlug,
   authorName,
-  authorStellarAddress,
 }: ArticleReaderSupportProps) {
   return (
     <div className="reader-support">
@@ -25,7 +23,6 @@ export function ArticleReaderSupport({
         articleId={articleId}
         articleSlug={articleSlug}
         authorName={authorName}
-        authorStellarAddress={authorStellarAddress}
       />
     </div>
   )

@@ -7,8 +7,6 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useAuthReturnPath } from './useAuthReturnPath'
 import { useAuth } from '@/components/providers/AuthContext'
 import { parseRegisterSignInError } from '@/lib/auth/map-register-error'
-import { shouldUseFullPageAuthNavigation } from '@/lib/auth/postAuthNavigation'
-import { readPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 import { buildWelcomeHref } from '@/lib/profile/welcomeDestination'
 import {
   createAccountHandle,
@@ -64,12 +62,7 @@ export default function RegisterForm() {
         flow: 'signUp',
       })
       setSuccess(true)
-      if (shouldUseFullPageAuthNavigation(returnPath, readPendingTipIntent())) {
-        // A tip in progress resumes first; the writer page then offers setup.
-        window.location.assign(returnPath)
-      } else {
-        router.replace(buildWelcomeHref(returnPath))
-      }
+      router.replace(buildWelcomeHref(returnPath))
     } catch (error) {
       const result = parseRegisterSignInError(error)
       if (result.field === 'email') {

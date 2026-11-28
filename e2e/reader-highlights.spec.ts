@@ -206,96 +206,6 @@ test.describe('saved passages on a development backend', () => {
     'Provide a disposable development QA account through PLAYWRIGHT_QA_EMAIL and PLAYWRIGHT_QA_PASSWORD.'
   )
 
-  test('guest tip auth preserves return state and amount through storage and save failures', async ({
-    page,
-  }) => {
-    test.setTimeout(90000)
-    let reject = true
-    await page.routeWebSocket(/\.convex\.cloud\//, (socket) => {
-      const server = socket.connectToServer()
-      socket.onMessage((message) => {
-        const data = JSON.parse(message.toString())
-        if (
-          reject &&
-          data.type === 'Mutation' &&
-          data.udfPath === 'highlights:createHighlight'
-        ) {
-          reject = false
-          socket.send(
-            JSON.stringify({
-              type: 'MutationResponse',
-              requestId: data.requestId,
-              success: false,
-              result: 'QA prerequisite save failure',
-              logLines: [],
-            })
-          )
-        } else server.send(message)
-      })
-    })
-    const returnPath = `${articlePath}?reader=notes#passage`
-    await page.goto(returnPath)
-    const create = await selectPassage(page, 4)
-    await create
-      .getByRole('button', { name: 'Highlight & tip', exact: true })
-      .click()
-    const tip = page.getByTestId('highlight-tip-dialog')
-    await tip
-      .getByRole('button', { name: /^2( test)? XLM$/, exact: true })
-      .click()
-    await tip
-      .getByRole('button', { name: 'Choose wallet', exact: true })
-      .click()
-    await page.evaluate(() => {
-      Object.defineProperty(sessionStorage, 'setItem', {
-        configurable: true,
-        value: () => {
-          throw new Error('Storage unavailable')
-        },
-      })
-    })
-    await tip
-      .getByRole('button', { name: 'Sign in to tip', exact: true })
-      .click()
-    await expect(tip.getByRole('alert')).toContainText(
-      'Your words and amount are still here'
-    )
-    await page.evaluate(() => {
-      Reflect.deleteProperty(sessionStorage, 'setItem')
-    })
-    await tip
-      .getByRole('button', { name: 'Sign in to tip', exact: true })
-      .click()
-    await expect(page).toHaveURL(/\/login\?returnTo=/)
-    expect(new URL(page.url()).searchParams.get('returnTo')).toBe(returnPath)
-    await page
-      .getByLabel('Email', { exact: true })
-      .fill(process.env.PLAYWRIGHT_QA_EMAIL!)
-    await page
-      .getByLabel('Password', { exact: true })
-      .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
-    await page.getByRole('button', { name: 'Log in', exact: true }).click()
-    await expect(page).toHaveURL(
-      new URL(returnPath, process.env.PLAYWRIGHT_BASE_URL!).href
-    )
-    const resumed = page.getByRole('dialog', {
-      name: 'Create highlight',
-      exact: true,
-    })
-    await expect(resumed.getByRole('alert')).toContainText(
-      'Your words are still here'
-    )
-    await expect(tip).toBeHidden()
-    await resumed
-      .getByRole('button', { name: 'Highlight & tip', exact: true })
-      .click()
-    await expect(tip).toBeVisible()
-    await expect(tip).toContainText(/2( test)? XLM/)
-    await page.keyboard.press('Escape')
-    await expect(tip).toBeHidden()
-    await page.keyboard.press('Escape')
-  })
-
   test('a new saved passage supports adding, clearing and retrying optional notes', async ({
     page,
   }, testInfo) => {
@@ -453,7 +363,7 @@ test.describe('saved passages on a development backend', () => {
     await create
       .getByRole('button', { name: 'Highlight & tip', exact: true })
       .click()
-    const tip = page.getByTestId('highlight-tip-dialog')
+    const tip = page.getByRole('dialog', { name: 'Tip this passage' })
     await expect(tip).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(tip).toBeHidden()
