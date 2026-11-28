@@ -1,6 +1,6 @@
 'use client'
 
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import {
   CircleAlert,
   CircleCheck,
@@ -20,6 +20,7 @@ import {
 } from '@/lib/copy/payment-states'
 import { formatXlm } from '@/lib/payments/format'
 import { cn } from '@/lib/utils'
+import { focusLost } from './focus'
 import { NoticeActionButton } from './NoticeActionButton'
 import { PaymentPanel } from './PaymentPanel'
 import { TestnetLabel } from './TestnetLabel'
@@ -214,7 +215,25 @@ function look(props: PanelNotice): Look {
 export function PaymentNotice(props: PaymentNoticeProps) {
   const item = props.kind === 'tips-unavailable' ? null : look(props)
   const message = item ? `${item.copy.title}. ${item.copy.detail}` : ''
-  const live = useAnnouncement(message, { announceOnMount: props.announce })
+  const root = useRef<HTMLDivElement>(null)
+  const title = useRef<HTMLHeadingElement & HTMLParagraphElement>(null)
+  // An announced notice appears because of the reader's action. Its title
+  // takes focus when nothing more specific holds it, for example after the
+  // progress it replaced had focus; the focused title then reads the notice,
+  // so the live region stays empty. Only at mount: later changes are read by
+  // the live region.
+  const [titleFocused, setTitleFocused] = useState(false)
+  useLayoutEffect(() => {
+    if (!props.announce || !title.current) return
+    if (!focusLost(root.current)) return
+    title.current.focus({ preventScroll: true })
+    if (document.activeElement === title.current) setTitleFocused(true)
+    // Mount only.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+  const live = useAnnouncement(message, {
+    announceOnMount: props.announce && !titleFocused,
+  })
 
   if (props.kind === 'tips-unavailable') {
     const label = props.action?.label ?? NOTICE_ACTION.tipFromWallet
@@ -233,7 +252,11 @@ export function PaymentNotice(props: PaymentNoticeProps) {
 
   const label = item!.action?.label ?? item!.defaultLabel
   return (
-    <div className={cn('pay-notice', props.className)} data-state={props.kind}>
+    <div
+      ref={root}
+      className={cn('pay-notice', props.className)}
+      data-state={props.kind}
+    >
       {/* Mounted empty: a region created with its text is often not read. */}
       <p className="sr-only" role="status" aria-live="polite">
         {live}
@@ -242,6 +265,9 @@ export function PaymentNotice(props: PaymentNoticeProps) {
         tone={item!.tone}
         icon={item!.icon}
         title={item!.copy.title}
+        // An announced notice is a heading wherever focus was.
+        headingLevel={props.announce ? (props.headingLevel ?? 3) : undefined}
+        titleRef={title}
         actions={
           item!.action && label ? (
             <NoticeActionButton

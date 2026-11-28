@@ -2,7 +2,7 @@ import { useId, type ReactNode, type Ref } from 'react'
 import { cn } from '@/lib/utils'
 import type { PaymentTone } from './payment-types'
 
-type HeadingLevel = 2 | 3 | 4
+type HeadingLevel = 2 | 3 | 4 | 5 | 6
 
 interface PaymentPanelProps {
   tone: PaymentTone
