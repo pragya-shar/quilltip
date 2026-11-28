@@ -1,4 +1,6 @@
 import { expect, test } from '@playwright/test'
+import { READING_PLACE_KEY } from '../components/today/readingPlace'
+import { reserveScript } from '../components/today/rowsMemory'
 
 // Today (`/`) on a production build against the fixture backend
 // (scripts/perf/fixture-backend.ts), started by scripts/today/app-check.ts.
@@ -164,8 +166,8 @@ test.describe('with script', () => {
     for (const tag of scripts) expect(tag).toContain(`nonce="${nonce}"`)
     // Today's own inline script (the row reservation) is one of them: it runs
     // under the page's nonce, with no hash exception and no looser policy.
-    expect(html).toMatch(
-      new RegExp(`<script nonce="${nonce}">try\\{var s=localStorage`)
+    expect(html).toContain(
+      `<script nonce="${nonce}">${reserveScript(READING_PLACE_KEY)}</script>`
     )
     expect(policy).not.toContain('sha256-')
     await page.waitForTimeout(1000)

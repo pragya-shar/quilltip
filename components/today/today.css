@@ -228,6 +228,9 @@
     margin: 0;
   }
   .qt-today__item-by {
+    /* The containing block of its visually hidden separator, so the clip
+     * holds it too: WebKit counts an escaped one as page overflow. */
+    position: relative;
     flex: 1;
     min-width: 0;
     overflow: hidden;
