@@ -663,6 +663,8 @@ Notes:
 - Every amount and every transaction link carries `TestnetLabel` ("Stellar
   testnet"): `AmountSummary` always, a result with a summary or a link, the
   checking step with a link, and notices that show an amount.
+  A `refused` notice whose copy states an XLM amount (the tab's daily and
+  device limits) passes `showsAmount`, so it carries the label too (#676).
   `TestnetLabel detail` adds "Practice funds only" where a reader first meets
   an amount: the first tip dialog step, and every estimate in
   `AmountSummary` (the dialog and the basket once an amount is chosen).

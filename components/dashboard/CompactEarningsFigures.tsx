@@ -46,7 +46,8 @@ export function CompactEarningsFigures({
       </div>
       {bound && <p className="text-sm text-muted-foreground">{AT_LEAST}</p>}
       <p className="text-2xl font-bold text-foreground tabular-nums">
-        {formatXlmFromStroops(earnedStroops, 2)}
+        {/* A settled, server-summed figure: every stroop (#676). */}
+        {formatXlmFromStroops(earnedStroops)}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
         {usdEstimateNote(

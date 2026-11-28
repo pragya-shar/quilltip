@@ -1140,6 +1140,21 @@ const S: Scenario[] = [
     seed: (s) => writer(s),
   },
   {
+    // A large settled total at full precision: every stroop shows (#676).
+    id: 'stats-worst',
+    title: 'Stats: worst case total',
+    view: 'stats',
+    device: 'none',
+    stats: {
+      tipCount: 123456,
+      earnedStroops: '1234567890123456',
+      estimatedUsd: 12345678.9,
+      complete: true,
+      source: 'lifetime',
+    },
+    seed: (s) => writer(s),
+  },
+  {
     id: 'collect-ready',
     title: 'Collect: earnings ready',
     view: 'collect',

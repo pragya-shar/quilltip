@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import {
   AT_LEAST,
   EARNINGS_UPDATING_NOTE,
@@ -54,7 +55,29 @@ export function CreatorStatsPanel({
     {
       label: isTestnet ? 'Earned (testnet)' : earningsLabel(),
       bound,
-      value: formatXlmFromStroops(earnedStroops, 2),
+      // A settled, server-summed figure: every stroop (#676). The unit is
+      // smaller, and a long figure breaks only after a thousands comma.
+      value: (() => {
+        const figure = formatXlmFromStroops(earnedStroops).replace(/ XLM$/, '')
+        const groups = figure.split(',')
+        return (
+          <>
+            <span className="account-stat-figure">
+              {groups.map((group, index) => (
+                <Fragment key={index}>
+                  {index > 0 ? (
+                    <>
+                      ,<wbr />
+                    </>
+                  ) : null}
+                  {group}
+                </Fragment>
+              ))}
+            </span>{' '}
+            <span className="account-stat-unit">XLM</span>
+          </>
+        )
+      })(),
       note: usdEstimateNote(
         estimatedUsd,
         isTestnet,

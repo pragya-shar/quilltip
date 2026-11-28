@@ -206,6 +206,7 @@ function look(props: PanelNotice): Look {
         tone: 'warning',
         icon: <CircleAlert />,
         copy: props.copy,
+        amount: props.showsAmount,
       }
   }
 }

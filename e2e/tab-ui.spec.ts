@@ -30,6 +30,7 @@ const EXPECT: Record<string, string | RegExp> = {
   'home-no-tab': 'You don’t have a tab yet',
   'stats-wallet-and-tab': 'From wallets and settled tabs',
   'stats-lower-bound': 'At least',
+  'stats-worst': '123,456,789.0123456 XLM',
   'stats-updating': 'Recounting your earnings. Check again in a few minutes.',
   'home-open': 'Free to tip',
   'home-worst': 'Free to tip',
@@ -846,7 +847,7 @@ test('the stats cover the same tips in XLM, dollars and count (#552)', async ({
   await open(page, 'stats-wallet-and-tab')
   const stat = (label: string) =>
     page.locator('.account-stat').filter({ hasText: label })
-  await expect(stat('Earned (testnet)')).toContainText('114.58 XLM')
+  await expect(stat('Earned (testnet)')).toContainText('114.5760615 XLM')
   // The testnet note stays beside the dollar figure.
   await expect(stat('Earned (testnet)')).toContainText(
     '≈ $14.87, testnet, no real value'
@@ -856,7 +857,7 @@ test('the stats cover the same tips in XLM, dollars and count (#552)', async ({
     'From wallets and settled tabs'
   )
   const card = page.getByTestId('compact-earnings')
-  await expect(card).toContainText('114.58 XLM')
+  await expect(card).toContainText('114.5760615 XLM')
   await expect(card).toContainText('≈ $14.87, testnet, no real value')
   await expect(card).toContainText('9 testnet tips received')
   await expect(card).not.toContainText('At least')
@@ -869,14 +870,14 @@ test('lower bounds say "At least" on the count, the XLM and the dollars (#552)',
   const stat = (label: string) =>
     page.locator('.account-stat').filter({ hasText: label })
   await expect(stat('Earned (testnet)').locator('dd')).toHaveText(
-    'At least1,950.98 XLMat least $195.10, testnet, no real value'
+    'At least1,950.975 XLMat least $195.10, testnet, no real value'
   )
   await expect(stat('Tips received').locator('dd')).toHaveText('At least2,001')
   await expect(stat('Articles').locator('dd')).toHaveText('4')
   // The dashboard card says the same.
   const card = page.getByTestId('compact-earnings')
   await expect(card).toContainText('At least')
-  await expect(card).toContainText('1,950.98 XLM')
+  await expect(card).toContainText('1,950.975 XLM')
   await expect(card).toContainText('at least $195.10, testnet, no real value')
   await expect(card).toContainText('At least 2,001 testnet tips received')
 })
@@ -888,14 +889,14 @@ test('while the totals are rebuilt, both cards keep the previous figures and say
   const stat = (label: string) =>
     page.locator('.account-stat').filter({ hasText: label })
   await expect(stat('Earned (testnet)').locator('dd')).toHaveText(
-    '114.58 XLM≈ $13.65, testnet, no real value'
+    '114.5760615 XLM≈ $13.65, testnet, no real value'
   )
   // The previous figures do not claim tab tips.
   await expect(stat('Tips received').locator('dd')).toHaveText(
     '6Recounting your earnings. Check again in a few minutes.'
   )
   const card = page.getByTestId('compact-earnings')
-  await expect(card).toContainText('114.58 XLM')
+  await expect(card).toContainText('114.5760615 XLM')
   await expect(card).toContainText('6 testnet tips received')
   await expect(card).toContainText(
     'Recounting your earnings. Check again in a few minutes.'

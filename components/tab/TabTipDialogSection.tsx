@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   PaymentNotice,
+  TestnetLabel,
   TransactionProgress,
   XlmAmount,
 } from '@/components/payments'
@@ -12,8 +13,8 @@ import { useTabServices } from '@/hooks/tab/TabServicesContext'
 import { useTabTip, type TabTipTarget } from '@/hooks/tab/useTabTip'
 import { TAB_ACTIONS, TAB_TIP, TAB_TIP_DIALOG } from '@/lib/copy/tab'
 import { NOTICE_COPY, TAB_REFUSAL_COPY } from '@/lib/copy/payment-states'
-import { formatUsd } from '@/lib/copy/network-status'
 import { formatXlm } from '@/lib/payments/format'
+import { formatCents } from '@/lib/tip/v2/amount'
 import {
   checkTabTipAmount,
   nextLimitsChange,
@@ -68,7 +69,7 @@ function limitCopy(
     case 'below-minimum':
       return TAB_REFUSAL_COPY.belowMinimum
     case 'above-max':
-      return TAB_TIP_DIALOG.aboveMax(formatUsd(check.maxCents / 100))
+      return TAB_TIP_DIALOG.aboveMax(formatCents(check.maxCents))
     case 'daily-limit':
       return TAB_TIP_DIALOG.dailyLimit(formatXlm(check.left))
     case 'key-limit':
@@ -233,6 +234,10 @@ export function TabTipDialogSection({
         <PaymentNotice
           kind="refused"
           copy={limitCopy(check)!}
+          // The daily and device limits state an XLM amount (#676).
+          showsAmount={
+            check.reason === 'daily-limit' || check.reason === 'key-limit'
+          }
           announce
           headingLevel={4}
         />
@@ -247,7 +252,11 @@ export function TabTipDialogSection({
         </h3>
         {ready ? (
           <span className="tip-tab-free">
-            <XlmAmount amount={availability.free} /> {TAB_TIP_DIALOG.free}
+            <span>
+              <XlmAmount amount={availability.free} /> {TAB_TIP_DIALOG.free}
+            </span>
+            {/* The amount carries the network beside it (#676). */}
+            <TestnetLabel />
           </span>
         ) : null}
       </div>
@@ -306,7 +315,8 @@ export function TabTipDialogSection({
           >
             {amountCents === null
               ? TAB_TIP_DIALOG.heading
-              : TAB_TIP_DIALOG.send(formatUsd(amountCents / 100))}
+              : // The wallet button's form: "$1", "$0.10" (#676).
+                TAB_TIP_DIALOG.send(formatCents(amountCents))}
           </Button>
         </>
       ) : null}
