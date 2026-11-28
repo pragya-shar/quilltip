@@ -34,10 +34,11 @@ export const SIGN_UP_RATE_LIMITED = 'SIGN_UP_RATE_LIMITED'
 export const SIGN_UP_PER_EMAIL_LIMIT = 5
 export const SIGN_UP_PER_EMAIL_WINDOW_MS = 60 * 60 * 1000
 
-/** Same rules the sign-up and reset forms show. */
+/** Same rules the sign-up and reset forms show, and no NUL character. */
 function passwordMeetsRule(value: unknown): value is string {
   return (
     typeof value === 'string' &&
+    !value.includes('\u0000') &&
     value.length >= PASSWORD_MIN_LENGTH &&
     PASSWORD_REGEX.test(value)
   )
@@ -51,6 +52,32 @@ export const SIGN_UP_CLAIM_MS = 60 * 1000
 /** The hold on one account id (the email as given), in `rateLimits`. */
 function claimKey(email: string) {
   return `sign-up-claim:${email}`
+}
+
+/**
+ * Sign-up hands Convex Auth its password behind this prefix. `hashSecret`
+ * removes it, so the stored hash is the password's own; `verifySecret` never
+ * accepts it. The library's create path compares the given secret with an
+ * account that already has the id (`createAccountFromCredentialsImpl` in
+ * `@convex-dev/auth`), in the same transaction as its lookup. With the prefix
+ * that comparison always fails, so sign-up can only create: two sign-ups for
+ * one new email that both pass `beginSignUp` give one account, one session
+ * and one refusal, never a password check. No password can start with the
+ * prefix, because the rule refuses NUL.
+ */
+export const CREATE_ONLY_PREFIX = '\u0000create-only\u0000'
+
+/** The secret sign-up passes to Convex Auth for `password`. */
+export function signUpSecret(password: string): string {
+  return CREATE_ONLY_PREFIX + password
+}
+
+function isCreateOnly(secret: string): boolean {
+  return secret.startsWith(CREATE_ONLY_PREFIX)
+}
+
+function withoutCreateOnly(secret: string): string {
+  return isCreateOnly(secret) ? secret.slice(CREATE_ONLY_PREFIX.length) : secret
 }
 
 /**
@@ -132,8 +159,12 @@ const password = Password({
       updatedAt: now,
     }
   },
+  // The library checks the secret sign-up gives it (`signUpSecret`): the
+  // rule applies to the password behind the prefix.
   validatePasswordRequirements(value) {
-    if (!passwordMeetsRule(value)) throw new ConvexError('INVALID_PASSWORD')
+    if (!passwordMeetsRule(withoutCreateOnly(value))) {
+      throw new ConvexError('INVALID_PASSWORD')
+    }
   },
   reset: ResendPasswordReset,
   // Email verification is not enabled yet.
@@ -143,10 +174,23 @@ const password = Password({
 // merges over the provider when it materializes it.
 type CredentialsOptions = {
   authorize: NonNullable<typeof password.authorize>
-  crypto?: { hashSecret: (secret: string) => Promise<string> }
+  crypto: {
+    hashSecret: (secret: string) => Promise<string>
+    verifySecret: (secret: string, hash: string) => Promise<boolean>
+  }
 }
 const passwordOptions = (password as unknown as { options: CredentialsOptions })
   .options
+
+/** The library's scrypt, with the create-only rule of `CREATE_ONLY_PREFIX`. */
+const createOnlyCrypto: CredentialsOptions['crypto'] = {
+  hashSecret: (secret) =>
+    passwordOptions.crypto.hashSecret(withoutCreateOnly(secret)),
+  verifySecret: async (secret, hash) =>
+    isCreateOnly(secret)
+      ? false
+      : passwordOptions.crypto.verifySecret(secret, hash),
+}
 const baseAuthorize = passwordOptions.authorize
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
@@ -155,6 +199,7 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       ...password,
       options: {
         ...passwordOptions,
+        crypto: createOnlyCrypto,
         // Reset requests answer the same way for every email, so the response
         // never reveals whether an account exists.
         authorize: async (
@@ -186,14 +231,21 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
               // Sign-up only ever makes new accounts: refused before any
               // password is compared with the account's. One hash, as a new
               // account costs, so the answer takes the same time.
-              await passwordOptions.crypto?.hashSecret(secret)
+              await passwordOptions.crypto.hashSecret(secret)
               throw new ConvexError(EMAIL_IN_USE)
             }
             try {
-              return await baseAuthorize(params, ctx)
+              return await baseAuthorize(
+                { ...params, password: signUpSecret(secret) },
+                ctx
+              )
             } catch (error) {
-              // Only if the account appeared after the hold ran out: the
-              // library refuses with a plain error; answer with the code.
+              // Only if the account appeared after the hold ran out (the
+              // action stopped for longer than SIGN_UP_CLAIM_MS): the library
+              // then compares this sign-up's secret with that account's, and
+              // the create-only secret never matches (`CREATE_ONLY_PREFIX`),
+              // so it refuses with a plain error, whatever the password;
+              // answer with the code.
               if (
                 !(error instanceof ConvexError) &&
                 error instanceof Error &&
