@@ -1,6 +1,6 @@
 /**
- * The proxy's route check for an article page, passed to the page in a request
- * header so the page does not ask the backend a second time. The proxy removes
+ * The proxy's route check for an article or writer page, passed to the page in
+ * a request header so the page does not ask the backend a second time. The proxy removes
  * any copy of this header that a client sends, so only its own answer arrives.
  *
  * The value is not a secret and never an authorisation input. It only decides
@@ -28,6 +28,23 @@ export function formatArticleRoute(route: ArticleRoute): string {
   if (route.kind !== 'found') return route.kind
   // A backend without versions: the page reads the article directly.
   return route.version ? `found ${route.version}` : 'unknown'
+}
+
+/**
+ * Writer pages (#609) use the same header and values; a found writer carries
+ * no version. A reader of the article format above treats a bare "found" as
+ * no answer and asks for itself.
+ */
+export type WriterRoute = { kind: 'found' | 'missing' | 'unknown' }
+
+export function formatWriterRoute(route: WriterRoute): string {
+  return route.kind
+}
+
+export function parseWriterRoute(value: string | null): WriterRoute | null {
+  return value === 'found' || value === 'missing' || value === 'unknown'
+    ? { kind: value }
+    : null
 }
 
 export function parseArticleRoute(value: string | null): ArticleRoute | null {

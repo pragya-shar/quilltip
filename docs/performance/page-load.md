@@ -662,12 +662,31 @@ their own `loading.tsx` (`dashboard`, `write`, `drafts`, `library`,
 
 What each public page waits for on the server before its first byte:
 
-| Page                 | Waits for                                                              |
-| -------------------- | ---------------------------------------------------------------------- |
-| `/`                  | nothing (the page does not fetch)                                      |
-| `/articles`          | the first page of the article list (cached 60 s)                       |
-| `/{username}`        | the proxy's route check, then the writer and their articles (together) |
-| `/{username}/{slug}` | the proxy's route check, then the article (cached 60 s per version)    |
+| Page                 | Waits for                                                                                         |
+| -------------------- | ------------------------------------------------------------------------------------------------- |
+| `/`                  | nothing (the page does not fetch)                                                                 |
+| `/articles`          | the proxy's list check (#609), then the first page of the article list (cached 60 s)              |
+| `/{username}`        | the proxy's route check (reused 60 s per instance), then the writer and their articles (together) |
+| `/{username}/{slug}` | the proxy's route check, then the article (cached 60 s per version)                               |
+
+Backend reads in the proxy per full load, the request that reaches the
+server for a document, a client navigation or a link prefetch (Next.js
+removes the flight headers before the proxy runs, so all three are checked):
+
+| Page                      | Before #609                   | Since #609                                                     |
+| ------------------------- | ----------------------------- | -------------------------------------------------------------- |
+| `/`                       | 0                             | 0                                                              |
+| `/articles`               | 0                             | 1 (2 when the first attempt fails)                             |
+| `/{username}`             | 1, or 0 within the 60 s reuse | 1, or 0 within the 60 s reuse (2 when the first attempt fails) |
+| `/{username}/{slug}`      | 1                             | 1 (2 when the first attempt fails)                             |
+| any of these in an outage | as above                      | 0 while the outage is remembered (5 s per instance)            |
+
+So every full load of `/articles`, a writer page or an article now makes one
+backend read in the proxy. The list check adds one read per view of
+`/articles`, not per link: nothing on the page prefetches `/articles`. Its
+added first-byte time is one round trip from the server to the backend, which
+local runs cannot show: there, single reads take 0.4 to 0.8 ms. It was not
+measured on a deployment.
 
 Costs:
 
@@ -678,16 +697,69 @@ Costs:
   the press worked, until the next page arrives. Navigations into the
   signed-in sections show it as before.
 
-Each of these reads has a time limit of 1.5 s, the same as the proxy's route
-check (`lib/seo/publicReadTimeout.ts`). A read that runs out of time, or fails,
-counts as unreachable, and the page shows a fallback that reads without
-scripts: the site header, "… could not be loaded right now." and a plain "Try
-again" link to the same URL. With scripts, the live query keeps trying and
-replaces the fallback. The worst-case first byte is 1.5 s on `/articles`, 3 s
-on a writer or article page (route check, then the page's reads), and 4.5 s for
-a missing writer or article whose moved-handle lookup also runs out. Client
-navigations wait the same. A timeout is never cached; a read that finishes after its page gave up still
-fills the cache for the next reader.
+Each read has a time limit of 1.5 s (`lib/seo/publicReadTimeout.ts`), and the
+request is aborted at the limit, so a late read keeps no connection open.
+
+**Outage status (#609).** The proxy retries a failed or late check once. When
+both attempts fail it answers 503 with `Retry-After: 30` and
+`Cache-Control: no-store`, before any page renders. The body comes from the
+root layout's outage module (`lib/outage`): the site header with its way
+home, "… could not be loaded right now. Nothing was lost; please try again in
+a moment." and a plain "Try again" link to the same URL, with its own inline
+style and no scripts. It uses the same words as the in-page fallback below,
+so a reader sees one message.
+
+- A single slow query against a healthy backend is absorbed by the retry, and
+  the reader gets the page.
+- Only a timeout, a network failure or a 5xx counts toward an outage. A
+  backend that answers wrongly (a function that threw, or a 4xx such as a
+  function a backend does not have yet) declares nothing: the request goes
+  on unchecked and the page reads for itself. The `/articles` check uses an
+  existing query (`publicRoutes.publicRouteExists` with a handle no writer
+  can have), so a frontend deployed ahead of its backend never reads a
+  missing function as an outage.
+- A paused deployment counts as an outage too. It answers HTTP 200 with an
+  error body ("Server Error" followed by "Cannot run functions while this
+  deployment is paused."), so the text decides, not the status
+  (`lib/convex/pausedDeployment.ts`, server only). Any other function error
+  does not.
+- **Limit:** this covers full loads only. A page that is already open is
+  replaced by the error screen at the first live subscription that reports
+  the pause (for example the signed-in user's, which every page reads), for
+  signed-in and signed-out readers alike. A highlight saved during a pause
+  shows a failure toast with the backend's raw message; bookmarks are kept
+  in the browser and still work. Keeping an open page readable through a
+  pause is #663.
+- The readable fallback (`ReadingUnavailable`) is rendered by the server
+  pages and passed to the client components, so it adds no client bytes.
+- An outage is remembered for 5 s per server instance: every public reading
+  request then answers 503 at once, with no backend read. Only a check that
+  failed twice sets it, a 503 from the memory never renews it, and the first
+  good check after it expires ends it. **Cost:** one check that fails twice
+  on one path makes that instance answer 503 on every checked path for up to
+  5 s. That is the price of bounding prefetches.
+- A writer page inside its 60 s "found" window skips the check. With the
+  backend down it answers the page's 200 fallback until a checked request on
+  that instance declares the outage.
+- A link pressed during an outage gets the 503; the router turns any response
+  that is not RSC into a document load, which shows the same readable body. A
+  failed prefetch is dropped silently and tried again after 10 s.
+- `/` keeps 200: its page makes no server read.
+
+**Read deadline.** The proxy passes a deadline of two read limits
+(`x-quilltip-read-deadline`), and the page's reads get what is left, at least
+500 ms (`lib/seo/readDeadline.ts`). The worst-case first byte is 3 s for an
+outage (or at once while it is remembered), and 3.5 s for a page whose check
+answered at the very end of its retry. If that page's reads also miss their
+500 ms, the reader sees the in-page fallback; a reload starts a fresh
+deadline.
+
+**In-page fallback.** A read on the page that fails or runs out shows the same
+message inside the page (`ReadingUnavailable`): the site header,
+"… could not be loaded right now." and a plain "Try again" link. With
+scripts, the live query keeps trying and replaces it. A moved-handle lookup
+that runs out shows it too, never a 404, so an earlier handle never answers
+404 only because the backend was slow. A timeout is never cached.
 
 An article page uses its cached copy only for the version the route check has
 just confirmed (#613). When that check runs out of time or fails, the page
@@ -729,6 +801,80 @@ with JavaScript off on a build that has the root `app/loading.tsx`.
 profile, for comparing builds on a quiet machine: TTFB, and the time until the
 first reading link (`/`, `/articles`, a writer) or the first paragraph of prose
 (an article) is on screen, with scripts delayed, blocked or off.
+
+## Link prefetches and backend reads (#630)
+
+Links to article and writer pages do not prefetch
+(`prefetch={ARTICLE_LINK_PREFETCH}`, `lib/articles/linkPrefetch.ts`). Their
+pages are dynamic and have no loading boundary, so a prefetch fetched almost
+nothing a click could reuse (#597), while each one ran the proxy's route check
+and rendered the page.
+
+- A source guard keeps this true: `scripts/perf/link-prefetch-guard.test.ts`
+  (in `test:unit`) scans `app/`, `components/`, `lib/` and `hooks/` and fails,
+  naming the file and line, on a `Link` to an article or writer page without
+  the flag, and on a `.prefetch(…)` call (`router.prefetch`) with such a path.
+  It reads `Link` under any default import name from `next/link`, and an href
+  that is a literal path, a template or a `'/' + …` concatenation that starts
+  with a handle, an object with such a `pathname`, `articleHref(…)` and
+  similar helpers, or a name defined in the same file as such a template.
+  Files that pass a public path through a prop (the card thumbnail,
+  pagination, a writer page's tabs and NFT pages) are listed, and every
+  non-literal `href` there needs the flag.
+- Limits of the guard: it does not see an href built by a helper imported
+  from another module (`href={toArticle(u, s)}`), or a component that wraps
+  `Link` and forwards its href (other than the listed prop-fed files). It
+  does not scan a plain `<a>`, which Next.js does not prefetch. The account
+  menus' link to the reader's own writer page is not covered, by name: it
+  renders only while a menu is open.
+- A view of `/articles` with every card in view and the pointer over each link
+  makes no backend read for those links. A click makes one route check and at
+  most one article read while the server's copy of the article is under 60 s
+  old. `bun run perf:prefetch-reads` (`scripts/perf/prefetch-reads.ts`) checks
+  this in Chromium and WebKit in the Page-load Budget job, from the fixture
+  backend's read counts, from an empty server cache: for each engine it empties
+  `.next/cache/fetch-cache` and starts a fresh app, so a rerun counts as CI
+  does.
+  Other pages with such links (a writer page and its NFT tab, the dashboard,
+  the library) are covered by the source guard, not by this browser check.
+- On a shared machine another process can query the same fixture port, so
+  each run stamps a random id: the check starts the app with
+  `PERF_RUN_TOKEN`, `publicQuery` sends it on every server read
+  (`x-quilltip-perf-run`, set only when that variable is), and the fixture
+  backend counts only reads that carry it; others are printed as foreign. The
+  check also fails when the view of `/articles` shows no read of this run, so
+  a different server answering on the app's port cannot pass as zero reads.
+- A request that meets a copy older than 60 s makes two article reads: the
+  direct read that keeps every copy under 60 s old, and the cache's own
+  background refresh of the old entry. The next request uses the refreshed
+  copy. This holds for full loads and clicks alike and is not changed here
+  (#674).
+- The proxy keeps at most one route check in flight and one queued per path
+  (`lib/seo/oneReadAtATime.ts`). A request that arrives while a check runs
+  waits for the next one, which starts after it arrived, so an article hidden
+  in between is never seen as visible. A failed check fails its waiters too,
+  so an outage is still declared for every request (#609).
+- Each request has one budget for its route check: two read limits and 50 ms
+  (3,050 ms), from its arrival, on a monotonic clock. Time spent waiting in
+  the queue counts. This is the worst case for the proxy's decision; the page
+  worst case stays as above.
+- The numbers. A request waits at most 3,050 ms for its route check. One path
+  has at most one read in flight (and one queued). A burst on one path costs
+  one route read per read time, not one per request: ten requests over 1.35 s
+  on 1.4 s reads make two reads.
+- The cost. A request that arrives while a check runs waits for that check and
+  then for its own, so it can answer up to one read later. On a path whose
+  reads finish inside the limit, the two reads end within 3,000 ms of its
+  arrival, so no request runs out of time in the queue. Only when reads run
+  past the limit can a queued request run out of time; the proxy then lets it
+  through unchecked (`unknown`, never an outage), and the page makes one
+  uncached article read. The answer is never wrong. A wait in the queue never
+  counts as a backend failure, and the shared read has its own limit, not the
+  signal of any one request.
+- A later option, not taken: `skipProxyUrlNormalize: true` would let the proxy
+  see prefetch requests and answer them without a backend read for every
+  link, including links the new shell adds. It changes what every proxy rule
+  sees (raw URLs and the flight headers), so it needs its own tests first.
 
 ## Regression check
 
@@ -981,6 +1127,16 @@ of 210 KB at the time), and the check failed on the four SDK modules it pulled
 in. Payment
 code belongs behind `import()`, `next/dynamic` or `React.lazy`, loaded on the
 reader's action.
+
+**Not-found files and route groups.** A `not-found.tsx` wraps every route
+below its folder, and its client code loads with each of them, shown or not.
+`app/[username]/` has no layout, so a not-found file there wrapped the article
+route too: every article page loaded the writer-not-found screen as a second
+client entry, with its own copy of the site header (about 9.5 KB). The writer
+page and its not-found file therefore sit in the route group
+`app/[username]/(writer)/`; the article route has only its own
+`[slug]/not-found.tsx` and the root's. `scripts/perf/article-route-boundaries.test.ts`
+keeps it so.
 
 ## Re-run
 

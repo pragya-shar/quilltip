@@ -4,6 +4,7 @@
    AVIF/WebP for the rendered width, from the author's host or local art. */
 import { useState } from 'react'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { getImageProps } from 'next/image'
 import { BookmarkButton } from '@/components/library/BookmarkButton'
 import { articleHref } from '@/lib/library/bookmarks'
@@ -69,6 +70,7 @@ export function ReadingRoomCard({
   return (
     <article className="reading-room-card">
       <Link
+        prefetch={ARTICLE_LINK_PREFETCH}
         className="cover"
         href={href}
         aria-label={`Read ${article.title}`}
@@ -119,7 +121,11 @@ export function ReadingRoomCard({
           <span className="category">{bookmark.topic}</span>
         )}
         <h2>
-          <Link href={href} onClick={onNavigate}>
+          <Link
+            prefetch={ARTICLE_LINK_PREFETCH}
+            href={href}
+            onClick={onNavigate}
+          >
             {article.title}
           </Link>
         </h2>
@@ -135,7 +141,12 @@ export function ReadingRoomCard({
             <span> · {formatListingReadTime(article.readTime)}</span>
           )}
         </p>
-        <Link className="read-more" href={href} onClick={onNavigate}>
+        <Link
+          prefetch={ARTICLE_LINK_PREFETCH}
+          className="read-more"
+          href={href}
+          onClick={onNavigate}
+        >
           Read more <span aria-hidden="true">↗︎</span>
         </Link>
       </div>

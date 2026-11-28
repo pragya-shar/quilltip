@@ -129,7 +129,7 @@ describe('profile photos (#633)', () => {
   it('the profile page share image uses the check, and the editor only uploads', () => {
     const read = (path: string) =>
       readFileSync(join(__dirname, '../..', path), 'utf8')
-    expect(read('app/[username]/page.tsx')).toContain(
+    expect(read('app/[username]/(writer)/page.tsx')).toContain(
       'const avatar = shownAvatar(profile.avatar)'
     )
     const editor = read('components/profile/ProfileAvatarEditor.tsx')

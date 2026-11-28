@@ -1,10 +1,17 @@
 import type { Metadata } from 'next'
 import { notFound, redirect } from 'next/navigation'
 import { ArticlePageClient } from '@/components/articles/ArticlePageClient'
-import { getPublishedArticle, movedPublicPath } from '@/lib/seo/publicContent'
+import {
+  getPublishedArticle,
+  movedPublicPath,
+  proxyAnsweredMissing,
+} from '@/lib/seo/publicContent'
 import { renderArticleHtml } from '@/lib/tiptap/renderArticleHtml'
 import { shownCoverImage } from '@/lib/tiptap/articleImage'
-import { retryHrefFor } from '@/components/articles/ReadingUnavailable'
+import {
+  ReadingUnavailable,
+  retryHrefFor,
+} from '@/components/articles/ReadingUnavailable'
 import {
   SITE_NAME,
   articleMetaDescription,
@@ -23,6 +30,7 @@ export async function generateMetadata({
   params,
 }: ArticlePageProps): Promise<Metadata> {
   const { username, slug } = await params
+  if (await proxyAnsweredMissing()) return {}
   const article = await getPublishedArticle(username, slug)
   // Missing article (null) or backend unreachable (undefined): site defaults.
   // The page renders the not-found screen; proxy.ts sets the 404 status.
@@ -69,10 +77,15 @@ export default async function ArticlePage({
   const query = await searchParams
   const initialArticle = await getPublishedArticle(username, slug)
   if (initialArticle === null) {
+    // The proxy's check covers moved handles too: nothing more to ask.
+    if (await proxyAnsweredMissing()) notFound()
     const moved = await movedPublicPath(username, slug, query)
     // Temporary: writers can switch back to an earlier handle.
     if (moved) redirect(moved)
-    notFound()
+    // Not moved: not found. A failed lookup (undefined) shows the readable
+    // fallback instead, so an earlier handle never answers 404 only because
+    // the backend was slow (#609).
+    if (moved === null) notFound()
   }
 
   return (
@@ -89,13 +102,17 @@ export default async function ArticlePage({
           : undefined
       }
       initialBodyHtml={renderArticleHtml(initialArticle?.content)}
-      unavailableRetryHref={
-        initialArticle === undefined
-          ? retryHrefFor(
+      unavailable={
+        !initialArticle ? (
+          <ReadingUnavailable
+            what="article"
+            headingLevel={1}
+            retryHref={retryHrefFor(
               `/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`,
               query
-            )
-          : undefined
+            )}
+          />
+        ) : undefined
       }
     />
   )

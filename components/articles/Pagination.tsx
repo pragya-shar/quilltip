@@ -2,6 +2,7 @@
 
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 
 interface PaginationProps {
   currentPage: number
@@ -94,7 +95,12 @@ export default function Pagination({
     const linkHref = !disabled ? resolveLinkHref(page) : null
     if (linkHref !== null) {
       return (
-        <Link href={linkHref} className={className} aria-label={ariaLabel}>
+        <Link
+          href={linkHref}
+          prefetch={ARTICLE_LINK_PREFETCH}
+          className={className}
+          aria-label={ariaLabel}
+        >
           {children}
         </Link>
       )
