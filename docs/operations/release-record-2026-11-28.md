@@ -2,7 +2,7 @@
 
 Payments v2 went live on the Quilltip site on 2026-11-28, on **Stellar
 testnet**. Testnet XLM has no monetary value. It took three windows on the
-live Convex deployment, each run under an owner-approved window
+live Convex deployment, each approved by the owner
 ([cutover runbook](payments-v2-cutover.md), section 5.0.3). Times are UTC.
 The live contract set is recorded in
 [v2-testnet-deployment.md](../contracts/v2-testnet-deployment.md), section
@@ -12,7 +12,7 @@ The live contract set is recorded in
 
 - Release 1: tag `payments-v2-cutover.1` at `f84018dd`. A snapshot was taken
   before any change.
-- 10:27:44: backend pushed. 10:29:25: #655 merged into `main` (`61fd9b13`).
+- 10:27:44: backend pushed. 10:29:16: #655 merged into `main` (`61fd9b13`).
   By 10:33 the site was promoted and its health check passed.
 - Stage 3: live contract IDs, epoch `testnet-2026-11-28` and start ledger
   `5966155` set. 11:42: `SETTLEMENT_ENABLED=true`.
