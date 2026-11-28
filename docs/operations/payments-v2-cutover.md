@@ -24,11 +24,9 @@ Start the window only when each line is true. Section 1 has the detail.
 Payments v2 goes live as soon as these items are true; it does not wait for
 later work.
 
-1. The open payment and sign-up fixes are merged, and the release tag is on a
-   commit that contains each of them: #583, #565, #577 and #596 (the fix for
-   #584) are merged; #597 and #572 once they merge (#597 merges before #572;
-   #572 waits on a test fix tracked as #607). The
-   release commit also contains the v1 client removal (#559). The checks in
+1. The release tag is on a commit that contains each payment and sign-up
+   fix: #583, #565, #577, #596 (the fix for #584), #597 and #572, all merged.
+   The release commit also contains the v1 client removal (#559). The checks in
    section 1.3 pass on that commit. The tab debit fix (#585) is merged and
    needs no operator step: its table and field ship with the stage 1 push,
    and its test variables `TAB_DEBIT_SCAN_LIMIT` and `TAB_DEBIT_READ_BUDGET`
