@@ -1,8 +1,8 @@
 import type { Id } from '../_generated/dataModel'
 import type { MutationCtx } from '../_generated/server'
 
-// Mirrors contracts/tipping: the platform fee is rounded down and the writer
-// keeps the rest of the tip.
+// The platform fee is rounded down and the writer keeps the rest of the tip,
+// as in the contracts (contracts/shared/src/fee.rs).
 const PLATFORM_FEE_BPS = BigInt(250)
 const BPS_DENOMINATOR = BigInt(10_000)
 const STROOPS_PER_XLM = BigInt(10_000_000)

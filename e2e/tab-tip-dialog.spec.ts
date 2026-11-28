@@ -219,6 +219,28 @@ const STATES: Record<string, StateCase> = {
       ).toHaveAttribute('aria-disabled', 'true')
     },
   },
+  short: {
+    state: 'tip-short',
+    expect: async (dialog) => {
+      await expect(
+        tabSection(dialog).getByText('Your tab is short', { exact: true })
+      ).toBeVisible()
+      await expect(
+        tabSection(dialog).getByText(
+          'Tips you already sent need 0.3 XLM more than your tab holds.',
+          { exact: false }
+        )
+      ).toBeVisible()
+      await expect(
+        tabSection(dialog).getByRole('link', { name: 'Top up' })
+      ).toBeVisible()
+      // No free figure and no send button while the tab is short (#617).
+      await expect(tabSection(dialog).getByText(/free$/)).toHaveCount(0)
+      await expect(
+        tabSection(dialog).getByRole('button', { name: /from your tab$/ })
+      ).toHaveCount(0)
+    },
+  },
   'not-enough': {
     state: 'tip-over-balance',
     act: (dialog) =>

@@ -898,7 +898,7 @@ describe('settlement', () => {
     expect(again).toMatchObject({ status: 'confirmed', submitted: 4 })
   })
 
-  it('applies partial outcomes: SHORTFALL parks the pair until a deposit, KEY_EXPIRED is UNPAID, STALE counts as paid', async () => {
+  it('applies partial outcomes: a short payment parks the pair until a deposit, KEY_EXPIRED is UNPAID, STALE counts as paid', async () => {
     const t = convexTest(schema, modules)
     const fake = new FakeTab()
     const short = await seedPair(t, { ageMs: OLD, amounts: [XLM, XLM] })
@@ -913,10 +913,11 @@ describe('settlement', () => {
     const [s] = await settlements(t)
     expect(s).toMatchObject({ settled: 2, skipped: 2 })
 
-    // Paid 1.5 XLM of 2: receipt 1 settled, receipt 2 short.
+    // Paid 1.5 XLM of 2: receipt 1 settled, receipt 2 short. The balance
+    // is used up, so the pair waits for a deposit at once (#616).
     expect(await voucher(t, short.voucherId)).toMatchObject({
       paidOnChain: '15000000',
-      settleQueue: 'ready',
+      settleQueue: 'blocked',
       unsettled: true,
     })
     expect(await receipts(t, short)).toEqual(['SETTLED', 'SHORTFALL'])
@@ -935,16 +936,12 @@ describe('settlement', () => {
     expect(await receipts(t, stale)).toEqual(['SETTLED'])
     expect((await voucher(t, fine.voucherId)).settleQueue).toBe('done')
 
-    // Next run: the balance is now 0, so the pair is skipped and parked.
-    const next = await runSettlementCycle(depsFor(t, fake))
-    expect(next.status).toBe('confirmed')
-    expect(await voucher(t, short.voucherId)).toMatchObject({
-      lastSkipReason: 'SHORTFALL',
-      settleQueue: 'blocked',
-    })
+    // Next runs: nothing is due, and no transaction is spent on a skip.
     expect((await runSettlementCycle(depsFor(t, fake))).status).toBe(
       'nothing_due'
     )
+    expect((await voucher(t, short.voucherId)).lastSkipReason).toBeUndefined()
+    expect(await settlements(t)).toHaveLength(1)
     // A deposit returns it to the queue, and the rest settles.
     fake.balance.set(short.reader, XLM)
     await t.mutation(internal.chain.indexer.ingestBackfill, {

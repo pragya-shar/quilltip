@@ -213,53 +213,22 @@ const typeRecipient =
     if (blur) await field.blur()
   }
 
-/** #520's note while v1 NFT actions are paused. */
-const V1_PAUSED =
-  'NFT actions are paused for a short time while payments are updated.'
-
-const openV1Actions = async (page: Page) => {
-  await page.getByRole('tab', { name: 'Actions' }).click()
-}
-
-/** The section with no v2 NFT and no v1 panel to fall back to. */
+/** The section when this site has no v2 NFT. */
 const NFT_OFFLINE = 'Article NFTs aren’t available on this site right now.'
 
 const SCENES: Scene[] = [
   {
+    // Payments v2 off: no NFT on this site.
     id: 'v2-disabled',
     query: 'state=v2-disabled',
-    expect: 'NFT Status',
+    expect: NFT_OFFLINE,
     wide: true,
   },
   {
-    // v2 on, no NFT contract: the v1 panel while the v1 code is deployed.
+    // v2 on, no NFT contract: the same note, never a blank space.
     id: 'nft-unset',
     query: 'state=nft-unset',
-    expect: 'NFT Status',
-  },
-  {
-    // The same state once the v1 code is removed: a note, not a blank space.
-    id: 'nft-unset-without-v1',
-    query: 'state=nft-unset&bare=1',
     expect: NFT_OFFLINE,
-    wide: true,
-  },
-  {
-    id: 'v2-disabled-without-v1',
-    query: 'state=v2-disabled&bare=1',
-    expect: NFT_OFFLINE,
-  },
-  {
-    id: 'v2-disabled-v1-paused-author',
-    query: 'state=v2-disabled-unminted&v1paused=1',
-    act: openV1Actions,
-    expect: V1_PAUSED,
-  },
-  {
-    id: 'v2-disabled-v1-paused-owner',
-    query: 'state=v2-disabled&v1paused=1',
-    act: openV1Actions,
-    expect: V1_PAUSED,
   },
   {
     id: 'reader-below',
@@ -656,62 +625,6 @@ for (const width of WIDTHS) {
 // ---------------------------------------------------------------------------
 // Behaviour
 // ---------------------------------------------------------------------------
-
-// The v1 pause note (#520) and the v2 panel: for each viewer with an
-// action, exactly one of them shows. With v2 on, a v1 row has no action at
-// all (spec 6.9), so neither the note nor a v1 button belongs there.
-test.describe('v1 pause and the v2 panel', () => {
-  const cases = [
-    {
-      name: 'v2 off, eligible author: the note, no Mint',
-      query: 'state=v2-disabled-unminted&v1paused=1',
-      note: true,
-      absent: [/^Mint/],
-    },
-    {
-      name: 'v2 off, v1 owner: the note, no Transfer',
-      query: 'state=v2-disabled&v1paused=1',
-      note: true,
-      absent: [/Transfer/],
-    },
-    {
-      name: 'v2 on, eligible author: the v2 mint, no note',
-      query: 'state=author-eligible&v1paused=1',
-      present: 'Mint article NFT',
-      note: false,
-    },
-    {
-      name: 'v2 on, v1 record: the read-only label, no note, no action',
-      query: 'state=author-v1-record&v1paused=1',
-      present: 'v1 record',
-      note: false,
-      absent: [/Transfer/],
-    },
-    {
-      name: 'v2 on, v2 owner: the v2 transfer, no note',
-      query: 'state=owner&v1paused=1',
-      present: 'Transfer NFT',
-      note: false,
-    },
-  ]
-  for (const c of cases) {
-    test(c.name, async ({ page }) => {
-      await open(page, c.query)
-      if (c.note) {
-        await openV1Actions(page)
-        await expect(
-          page.getByRole('status').filter({ hasText: V1_PAUSED })
-        ).toBeVisible()
-      } else {
-        await expect(page.getByText(c.present!).first()).toBeVisible()
-        await expect(page.getByText(V1_PAUSED)).toHaveCount(0)
-      }
-      for (const name of c.absent ?? []) {
-        await expect(page.getByRole('button', { name })).toHaveCount(0)
-      }
-    })
-  }
-})
 
 test.describe('mint', () => {
   test('mints from the prepared call and shows the owner only once indexed', async ({

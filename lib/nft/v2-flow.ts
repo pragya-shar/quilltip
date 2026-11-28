@@ -119,8 +119,8 @@ export type ViewerLike = {
 
 export type NftPanel =
   | { kind: 'loading' }
-  /** v2 is off: the v1 panel renders instead. */
-  | { kind: 'v1' }
+  /** v2 is off, or no NFT contract is set: no NFT on this site. */
+  | { kind: 'unavailable' }
   | { kind: 'hidden' }
   | {
       kind: 'not-registered'
@@ -269,13 +269,13 @@ export function deriveNftPanel(input: {
 }): NftPanel {
   const clientConfigured = input.clientConfigured ?? true
   if (input.v2Enabled === undefined) return { kind: 'loading' }
-  if (!input.v2Enabled) return { kind: 'v1' }
+  if (!input.v2Enabled) return { kind: 'unavailable' }
   const { progress, viewer } = input
   if (!progress || !viewer || input.record === undefined) {
     return { kind: 'loading' }
   }
   const v1Record = v1RecordOf(input.record)
-  if (progress.state === 'DISABLED') return { kind: 'v1' }
+  if (progress.state === 'DISABLED') return { kind: 'unavailable' }
   if (progress.state === 'NOT_FOUND') return { kind: 'hidden' }
 
   // Minted: indexed rows only. The live read can know of a mint before the

@@ -70,13 +70,15 @@ function look(props: PanelNotice): Look {
         : {
             tone: 'warning',
             icon: <Wallet />,
-            copy: NOTICE_COPY.insufficientTab(
-              props.available ? formatXlm(props.available) : undefined
-            ),
+            copy: props.short
+              ? NOTICE_COPY.tabShort(formatXlm(props.short))
+              : NOTICE_COPY.insufficientTab(
+                  props.available ? formatXlm(props.available) : undefined
+                ),
             action: props.action,
             defaultLabel: NOTICE_ACTION.insufficientTab,
             primary: true,
-            amount: !!props.available,
+            amount: !!(props.available || props.short),
           }
     case 'session-key-none':
       return {

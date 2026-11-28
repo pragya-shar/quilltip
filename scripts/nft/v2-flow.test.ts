@@ -123,7 +123,7 @@ describe('deriveNftPanel', () => {
     ).toEqual({ kind: 'loading' })
   })
 
-  it('leaves v1 in place when v2 is off', () => {
+  it('is unavailable when v2 is off or no NFT contract is set', () => {
     expect(
       deriveNftPanel({
         v2Enabled: false,
@@ -132,7 +132,7 @@ describe('deriveNftPanel', () => {
         viewer: reader,
         eligibility: null,
       })
-    ).toEqual({ kind: 'v1' })
+    ).toEqual({ kind: 'unavailable' })
     expect(
       deriveNftPanel({
         v2Enabled: true,
@@ -141,7 +141,7 @@ describe('deriveNftPanel', () => {
         viewer: reader,
         eligibility: null,
       })
-    ).toEqual({ kind: 'v1' })
+    ).toEqual({ kind: 'unavailable' })
   })
 
   it('shows readers the indexed progress and no action', () => {

@@ -1,7 +1,6 @@
 'use client'
 
 import '@/components/highlights/highlights.css'
-import type { TipXlmPreset } from '@/lib/constants'
 
 import { focusLibraryHighlight } from '@/lib/library/focusHighlight'
 
@@ -16,12 +15,12 @@ import {
 } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import HighlightExtension from '@/components/editor/extensions/HighlightExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
+import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
 import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
 import { TextSelection } from '@tiptap/pm/state'
@@ -53,10 +52,6 @@ import {
   readPendingHighlightSelection,
   writePendingHighlightSelection,
 } from '@/lib/highlight/pendingHighlightSelection'
-import {
-  matchesHighlightPendingIntent,
-  readPendingTipIntent,
-} from '@/lib/tip/pendingTipIntent'
 
 interface HighlightData {
   _id: Id<'highlights'>
@@ -128,11 +123,6 @@ export function HighlightableArticle({
   const editorRef = useRef<HTMLDivElement>(null)
   const isApplyingHighlightsRef = useRef(false)
   const selectionRestoredEditorRef = useRef<Editor | null>(null)
-  const [resumeHighlightTip, setResumeHighlightTip] = useState<{
-    amountCents?: number
-    amountXlm?: TipXlmPreset
-    customAmount?: string
-  } | null>(null)
   const pendingSelectionNeedsClearRef = useRef(false)
   // During a drag, onSelectionUpdate fires on every move; if we mount the
   // popover at 3 chars, HighlightPopover's FocusScope trap steals focus from
@@ -233,9 +223,7 @@ export function HighlightableArticle({
           underline: false,
         }),
         Underline,
-        Link.configure({
-          openOnClick: false,
-        }),
+        createArticleLinkExtension({ openOnClick: false }),
         CodeBlockLowlight.configure({
           lowlight,
         }),
@@ -462,15 +450,6 @@ export function HighlightableArticle({
       setPopoverPosition(anchor)
       setSignInSelection(null)
       setSignInPromptPosition(null)
-
-      const tipIntent = readPendingTipIntent()
-      if (matchesHighlightPendingIntent(tipIntent, articleId)) {
-        setResumeHighlightTip({
-          amountCents: tipIntent.amountCents,
-          amountXlm: tipIntent.amountXlm,
-          customAmount: tipIntent.customAmount,
-        })
-      }
 
       return true
     }
@@ -811,12 +790,6 @@ export function HighlightableArticle({
               )}
               startContainerPath={`text.${selectedText.from}`}
               endContainerPath={`text.${selectedText.to}`}
-              selectionStartPosition={selectedText.from}
-              selectionEndPosition={selectedText.to}
-              resumeHighlightTip={resumeHighlightTip}
-              onHighlightTipResumeOpened={() => {
-                setResumeHighlightTip(null)
-              }}
             />
           )}
       </AnimatePresence>
