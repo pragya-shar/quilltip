@@ -13,8 +13,9 @@ const PUBLISHED = new Intl.DateTimeFormat('en', {
 
 /**
  * The opening: an article already underway. Title, byline, its first
- * paragraphs in the reading face (the first line in small capitals, the
- * last lines fading into Read more when the article goes on), Read more as
+ * paragraphs in the reading face (the first line in small capitals), then,
+ * when the article goes on, its next words in one line fading into Read
+ * more, so the fade never covers text the reader was shown. Read more as
  * a plain link and the time left. Server HTML; nothing here needs a script, and
  * nothing moves or covers it.
  */
@@ -50,6 +51,13 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
             <p key={index}>{text}</p>
           ))}
         </Prose>
+        {/* What comes next, faded: a sign the article goes on. Read more
+            continues where it starts, so it is not read here. */}
+        {article.continues && article.peek ? (
+          <p className="qt-today__peek" aria-hidden="true">
+            {article.peek}
+          </p>
+        ) : null}
       </div>
       <p className="qt-today__onward">
         {/* Continues where the opening stopped (the paragraph anchor). */}

@@ -162,6 +162,7 @@ function todayOpening(at: number, exclude: unknown) {
         ? `/${FIXTURE_WRITER}/${first.slug}#${readAnchor(opening.nextParagraph)}`
         : `/${FIXTURE_WRITER}/${first.slug}`,
       minutesLeft: minutesLeft(opening.totalWords - opening.shownWords),
+      peek: opening.peek,
     },
     more: ordered.slice(1, 13).map((article) => ({
       ...card(article),

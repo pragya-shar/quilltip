@@ -13,6 +13,7 @@ import {
   countWords,
   compareForWindow,
   firstSentence,
+  fallbackOpeningOf,
   minutesLeft,
   openingOf,
   readAnchor,
@@ -45,6 +46,9 @@ const openingValidator = v.object({
   readMoreHref: v.string(),
   /** Minutes left after the shown paragraphs; 0 when they are the whole article. */
   minutesLeft: v.number(),
+  /** The first words not shown, drawn faded under the opening; empty when
+   * the article does not continue. */
+  peek: v.string(),
 })
 
 export const openingResultValidator = v.object({
@@ -60,6 +64,8 @@ export const openingResultValidator = v.object({
 type Candidate = {
   article: Doc<'articles'>
   opening: NonNullable<ReturnType<typeof openingOf>>
+  /** The fallback opening: Read more goes to the article's top. */
+  top?: boolean
 }
 
 /**
@@ -81,7 +87,8 @@ async function candidates(
   range: { from: number | null; before: number },
   wanted: number,
   byWriter: Map<string, Candidate>,
-  pages: number
+  pages: number,
+  fallback: { newest: Candidate | null }
 ): Promise<number> {
   const seen = new Set<string>()
   let bound = { time: range.before, inclusive: false }
@@ -108,10 +115,21 @@ async function candidates(
       seen.add(article._id)
       fresh++
       if (article.publishedAt === undefined || !article.published) continue
-      if (byWriter.has(article.authorId)) continue
       if (!article.slug.trim() || !isArticleListingReady(article)) continue
       const opening = openingOf(article.content)
-      if (!opening) continue
+      if (!opening) {
+        // Not one the rule opens (one paragraph): the newest such article
+        // opens Today only when nothing else can.
+        const short = fallbackOpeningOf(article.content)
+        if (
+          short &&
+          (!fallback.newest ||
+            article.publishedAt > fallback.newest.article.publishedAt!)
+        )
+          fallback.newest = { article, opening: short }
+        continue
+      }
+      if (byWriter.has(article.authorId)) continue
       byWriter.set(article.authorId, { article, opening })
     }
     if (docs.length < CANDIDATE_PAGE) break
@@ -151,12 +169,14 @@ export const opening = query({
     // Articles published before this hour began come first, in the hour's
     // order, so the opening holds for the hour once one exists.
     const before = new Map<string, Candidate>()
+    const fallback: { newest: Candidate | null } = { newest: null }
     const used = await candidates(
       ctx,
       { from: null, before: window.startsAt },
       wanted,
       before,
-      CANDIDATE_PAGES
+      CANDIDATE_PAGES,
+      fallback
     )
     const compare = compareForWindow(window.index)
     const ranked = [...before.values()].sort((a, b) =>
@@ -172,7 +192,8 @@ export const opening = query({
         { from: window.startsAt, before: at + 1 },
         wanted,
         today,
-        CANDIDATE_PAGES - used
+        CANDIDATE_PAGES - used,
+        fallback
       )
       for (const [writer, candidate] of today)
         if (!before.has(writer)) ranked.push(candidate)
@@ -185,7 +206,12 @@ export const opening = query({
 
     let opening: (typeof openingValidator)['type'] | null = null
     const more: (typeof moreValidator)['type'][] = []
-    for (const { article, opening: text } of ordered) {
+    // With any published article, Today opens on one: when no article
+    // passes the rule, the newest one it cannot open (one paragraph) opens,
+    // and its Read more goes to the article's top.
+    const last = fallback.newest ? [{ ...fallback.newest, top: true }] : []
+    for (const { article, opening: text, top } of [...ordered, ...last]) {
+      if (top && opening) break
       if (opening && (more.length === MORE_LIMIT || skip.has(article._id)))
         break
       const writer = await ctx.db.get(article.authorId)
@@ -205,12 +231,14 @@ export const opening = query({
           readMinutes,
           paragraphs: text.paragraphs,
           continues: text.continues,
-          readMoreHref: text.continues
-            ? `${href}#${readAnchor(text.nextParagraph)}`
-            : href,
+          readMoreHref:
+            text.continues && !top
+              ? `${href}#${readAnchor(text.nextParagraph)}`
+              : href,
           minutesLeft: text.continues
             ? minutesLeft(text.totalWords - text.shownWords)
             : 0,
+          peek: text.peek,
         }
       } else {
         more.push({

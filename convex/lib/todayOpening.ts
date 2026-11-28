@@ -167,6 +167,10 @@ export function openingOf(content: unknown): {
   /** The `bodyParagraphs` index where reading continues: the first
    * paragraph not shown, or the paragraph the opening cut. */
   nextParagraph: number
+  /** The first words not shown, from where reading continues (PEEK_WORDS
+   * at most): drawn faded under the opening, so the fade never covers text
+   * the reader was shown. Empty when the article does not continue. */
+  peek: string
 } | null {
   const all = bodyParagraphs(content)
   if (all.length < MIN_PARAGRAPHS) return null
@@ -180,6 +184,7 @@ export function openingOf(content: unknown): {
     words += count
   }
   let nextParagraph = paragraphs.length
+  let cutWords = 0
   // Too little shown (a short first paragraph before a long one, or a
   // first paragraph longer than the whole opening): go on into the next
   // paragraph, cut at a sentence within what is left of OPENING_WORDS, and
@@ -188,15 +193,60 @@ export function openingOf(content: unknown): {
     const next = paragraphs.length
     const cut = cutToWords(all[next]!, OPENING_WORDS - words)
     paragraphs.push(cut)
-    words += wordCount(cut.replace(/…$/u, ''))
+    cutWords = wordCount(cut.replace(/…$/u, ''))
+    words += cutWords
     nextParagraph = next
   }
+  const continues = words < total
   return {
     paragraphs,
-    continues: words < total,
+    continues,
     totalWords: total,
     shownWords: words,
     nextParagraph,
+    peek: continues ? peekAfter(all, nextParagraph, cutWords) : '',
+  }
+}
+
+/** Words in the faded line under the opening: about one line at 390 px. */
+export const PEEK_WORDS = 12
+
+/** The first words not shown: paragraph `index` after its first `skip`
+ * words (the ones an opening cut already showed), or the next paragraph's
+ * when none are left. */
+function peekAfter(all: string[], index: number, skip: number): string {
+  const rest = (all[index] ?? '').split(' ').filter(Boolean).slice(skip)
+  const words = rest.length
+    ? rest
+    : (all[index + 1] ?? '').split(' ').filter(Boolean)
+  return words.slice(0, PEEK_WORDS).join(' ')
+}
+
+/**
+ * The opening of an article the rule cannot open (a body of one
+ * paragraph): that paragraph, up to OPENING_WORDS words, cut at a sentence.
+ * Today opens on it only when no article passes the rule, so a catalogue
+ * with any published article is never shown as empty; its Read more goes to
+ * the article's top. Null when the body has no paragraph.
+ */
+export function fallbackOpeningOf(
+  content: unknown
+): NonNullable<ReturnType<typeof openingOf>> | null {
+  const all = bodyParagraphs(content)
+  if (all.length === 0) return null
+  const total = all.reduce((sum, text) => sum + wordCount(text), 0)
+  const first = all[0]!
+  const text =
+    wordCount(first) <= OPENING_WORDS ? first : cutToWords(first, OPENING_WORDS)
+  const shown = wordCount(text.replace(/…$/u, ''))
+  const continues = shown < total
+  return {
+    paragraphs: [text],
+    continues,
+    totalWords: total,
+    shownWords: shown,
+    nextParagraph: 0,
+    peek: continues ? peekAfter(all, 0, shown) : '',
   }
 }
 

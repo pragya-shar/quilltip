@@ -11,6 +11,7 @@ import { api } from '../../convex/_generated/api'
 import {
   EXCLUDE_LIMIT,
   MORE_LIMIT,
+  PEEK_WORDS,
   WINDOW_MS,
   cleanExclude,
   compareForWindow,
@@ -104,7 +105,7 @@ describe('today.opening', () => {
     expect(result.window).toEqual(windowOf(NOW))
   })
 
-  test('never a draft, an unpublished article, a placeholder title or an article with no body', async () => {
+  test('never a draft, an unpublished article, a placeholder title or an article with no paragraph', async () => {
     const t = convexTest(schema, modules)
     await t.run(async (ctx) => {
       const day = NOW - 24 * HOUR
@@ -121,10 +122,6 @@ describe('today.opening', () => {
       const emptyAuthor = await writer(ctx, 'empty')
       await article(ctx, emptyAuthor, 'empty', 'empty', day, {
         content: { type: 'doc', content: [] },
-      })
-      const shortAuthor = await writer(ctx, 'short')
-      await article(ctx, shortAuthor, 'short', 'short', day, {
-        content: body(1, 1),
       })
       const imageAuthor = await writer(ctx, 'image')
       await article(ctx, imageAuthor, 'image', 'image', day, {
@@ -146,6 +143,57 @@ describe('today.opening', () => {
     expect(result.more).toEqual([])
   })
 
+  test('a catalogue whose only article has one paragraph opens on it, and Read more goes to its top', async () => {
+    const t = convexTest(schema, modules)
+    const id = await t.run(async (ctx) => {
+      const authorId = await writer(ctx, 'short')
+      return article(ctx, authorId, 'short', 'short', NOW - 24 * HOUR, {
+        content: body(1, 4),
+      })
+    })
+    const result = await t.query(api.today.opening, { at: NOW })
+    expect(result.opening).toMatchObject({
+      articleId: id,
+      paragraphs: [expect.stringMatching(/^Part 1: /)],
+      continues: false,
+      readMoreHref: '/short/short',
+      minutesLeft: 0,
+    })
+    expect(result.more).toEqual([])
+  })
+
+  test('a long single paragraph opens cut at a sentence, and Read more goes to the top', async () => {
+    const t = convexTest(schema, modules)
+    await t.run(async (ctx) => {
+      const authorId = await writer(ctx, 'long')
+      return article(ctx, authorId, 'long', 'long', NOW - 24 * HOUR, {
+        content: body(1, 30),
+      })
+    })
+    const result = await t.query(api.today.opening, { at: NOW })
+    expect(result.opening!.paragraphs).toHaveLength(1)
+    expect(result.opening!.paragraphs[0]).toMatch(/bread\.$/)
+    expect(result.opening!.continues).toBe(true)
+    expect(result.opening!.readMoreHref).toBe('/long/long')
+    expect(result.opening!.minutesLeft).toBeGreaterThan(0)
+  })
+
+  test('an article the rule opens comes before any one-paragraph article', async () => {
+    const t = convexTest(schema, modules)
+    const [eligible] = await catalogue(t, 1)
+    await t.run(async (ctx) => {
+      const authorId = await writer(ctx, 'short')
+      return article(ctx, authorId, 'short', 'short', NOW - HOUR, {
+        content: body(1, 4),
+      })
+    })
+    const result = await t.query(api.today.opening, { at: NOW })
+    expect(result.opening!.articleId).toBe(eligible)
+    // A one-paragraph article opens only when nothing else can; it is not
+    // listed.
+    expect(result.more).toEqual([])
+  })
+
   test('the opening has a title, a byline, its first paragraphs and a link, and nothing private', async () => {
     const t = convexTest(schema, modules)
     const [id] = await catalogue(t, 1)
@@ -162,6 +210,8 @@ describe('today.opening', () => {
       // Three paragraphs shown (0 to 2): Read more continues at the fourth.
       readMoreHref: '/writer0/a0#s-3-0',
       minutesLeft: expect.any(Number),
+      // The first words of the fourth paragraph, faded under the opening.
+      peek: expect.stringMatching(/^a0 Part 4: /),
     })
     // Whole paragraphs up to 90 words: three of 30 words (90).
     expect(result.opening!.paragraphs).toHaveLength(3)
@@ -430,6 +480,20 @@ describe('the opening rule', () => {
     expect(opening.nextParagraph).toBe(3)
   })
 
+  test('the peek is the first words not shown, from where Read more continues', () => {
+    // Whole paragraphs: the next paragraph's first words.
+    const whole = openingOf(body(12, 3))!
+    expect(whole.peek).toMatch(/^Part 4: /)
+    expect(whole.peek.split(' ')).toHaveLength(PEEK_WORDS)
+    // A cut paragraph: the words after the cut, in the same paragraph.
+    const cut = openingOf(body(2, 30))!
+    const shown = cut.paragraphs[0]!.split(' ').length
+    const first = body(2, 30).content[0]!.content[0]!.text.split(' ')
+    expect(cut.peek).toBe(first.slice(shown, shown + PEEK_WORDS).join(' '))
+    // A whole article: nothing to peek at.
+    expect(openingOf(body(2, 4))!.peek).toBe('')
+  })
+
   test('a first paragraph over 90 words is cut at a sentence', () => {
     // 30 sentences of nine words in one paragraph, then a second paragraph.
     const opening = openingOf(body(2, 30))!
@@ -532,6 +596,34 @@ describe('today.opening past the first page', () => {
     })
     const result = await t.query(api.today.opening, { at: NOW })
     expect(result.opening!.articleId).toBe(real)
+  })
+
+  test('200 newer one-paragraph articles still leave Today open, on the newest of them', async () => {
+    const t = convexTest(schema, modules)
+    const newest = await t.run(async (ctx) => {
+      const notesId = await writer(ctx, 'notes')
+      let first: Id<'articles'> | null = null
+      for (let i = 0; i < 210; i++) {
+        const id = await article(
+          ctx,
+          notesId,
+          'notes',
+          `note-${i}`,
+          NOW - 24 * HOUR - i,
+          {
+            content: body(1, 1),
+          }
+        )
+        first ??= id
+      }
+      // Older than the 200 read: not reached.
+      const writerId = await writer(ctx, 'writer')
+      await article(ctx, writerId, 'writer', 'real', NOW - 30 * 24 * HOUR)
+      return first
+    })
+    const result = await t.query(api.today.opening, { at: NOW })
+    expect(result.opening!.articleId).toBe(newest)
+    expect(result.opening!.readMoreHref).toBe('/notes/note-0')
   })
 })
 

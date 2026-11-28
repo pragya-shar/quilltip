@@ -60,6 +60,7 @@ beforeAll(async () => {
           readMinutes: 6,
           paragraphs: ['One.', 'Two.'],
           continues: true,
+          peek: 'Three.',
           minutesLeft: 4,
         } as never,
       }),

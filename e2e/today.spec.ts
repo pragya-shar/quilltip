@@ -119,6 +119,15 @@ test.describe('first visit, signed out', () => {
     // beside Read more.
     await expect(opening.locator('.qt-prose[data-lead-in]')).toHaveCount(1)
     await expect(opening.getByText(/^\d+ min left$/)).toBeVisible()
+    // Every line the opening shows is clear: only the next words, where Read
+    // more continues, fade into it, hidden from screen readers.
+    await expect(opening.locator('.qt-today__prose')).toHaveCSS(
+      'mask-image',
+      'none'
+    )
+    const peek = opening.locator('.qt-today__peek')
+    await expect(peek).toHaveAttribute('aria-hidden', 'true')
+    await expect(peek).toHaveText(/^That changed on the evening it did not/)
     // The balance item says Sign in; no rows, nothing reserved.
     await expect(
       page.getByRole('link', { name: 'Sign in' }).first()
