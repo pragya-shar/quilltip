@@ -640,13 +640,50 @@ test.describe('no page ever asks "Leave page?"', () => {
     return seen
   }
 
-  test('signing in on /signin and going back', async ({ page }) => {
-    const seen = noDialogs(page)
-    await page.goto(loginUrl('/pocket'))
-    await signIn(page)
-    await page.waitForURL((url) => url.pathname === '/pocket')
-    await page.waitForTimeout(1_000)
-    expect(seen).toEqual([])
+  test('signing in on /signin and going back, five times', async ({
+    browser,
+  }) => {
+    // Also measures how long /signin waits between the sign-in's answer
+    // reaching the page and its own navigation (a bound of 2 s; logged).
+    const waits: number[] = []
+    for (let run = 0; run < 5; run++) {
+      const context = await browser.newContext()
+      const page = await context.newPage()
+      const seen = noDialogs(page)
+      let answered = 0
+      page.on('websocket', (socket) =>
+        socket.on('framereceived', ({ payload }) => {
+          if (
+            !answered &&
+            typeof payload === 'string' &&
+            payload.includes('"ActionResponse"') &&
+            payload.includes('"success":true')
+          )
+            answered = Date.now()
+        })
+      )
+      let left = 0
+      page.on('request', (request) => {
+        if (
+          !left &&
+          request.isNavigationRequest() &&
+          new URL(request.url()).pathname === '/pocket'
+        )
+          left = Date.now()
+      })
+      await page.goto(loginUrl('/pocket'))
+      await signIn(page)
+      await page.waitForURL((url) => url.pathname === '/pocket')
+      await page.waitForTimeout(1_000)
+      expect(seen).toEqual([])
+      if (answered && left) waits.push(left - answered)
+      await context.close()
+    }
+    const sorted = [...waits].sort((a, b) => a - b)
+    console.log(
+      `sign-in answer to navigation (ms), ${test.info().project.name}: ${sorted.join(', ')}; median ${sorted[Math.floor(sorted.length / 2)]}, worst ${sorted.at(-1)}`
+    )
+    expect(waits.length).toBe(5)
   })
 
   test('creating an account on /signin and going back', async ({ page }) => {
