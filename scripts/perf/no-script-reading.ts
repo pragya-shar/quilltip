@@ -189,7 +189,8 @@ type Landing = (typeof SIGNED_OUT_LANDING)[number]
  * A protected old page that ends, for a signed-out reader, on a package's
  * page that offers sign-in itself: with scripts on and with JavaScript off,
  * the visit ends at `endsAt`, `main` holds the sign-in link back to it and
- * no money, and with no script following the link shows the sign-in form.
+ * no money, and with no script following the link opens the sign-in page,
+ * which says signing in needs JavaScript.
  */
 async function checkLanding(
   browser: Browser,
@@ -238,8 +239,8 @@ async function checkLanding(
       const after = new URL(page.url())
       if (after.pathname !== signIn)
         fail(`following the sign-in link ended at ${after.pathname}`)
-      else if (!(await shown(page.getByRole('textbox'))))
-        fail(`${signIn} shows no form field`)
+      else if (!(await shown(page.getByText(READING.authNeedsScript))))
+        fail(`${signIn} does not say that signing in needs JavaScript`)
     } finally {
       await context.close()
     }
