@@ -25,6 +25,7 @@ import type * as chain_settlerStatus from "../chain/settlerStatus.js";
 import type * as chain_submissions from "../chain/submissions.js";
 import type * as chain_tabClaims from "../chain/tabClaims.js";
 import type * as chain_tabOutside from "../chain/tabOutside.js";
+import type * as chain_tabReadiness from "../chain/tabReadiness.js";
 import type * as chain_tabReconcile from "../chain/tabReconcile.js";
 import type * as crons from "../crons.js";
 import type * as earningsTotalsBackfill from "../earningsTotalsBackfill.js";
@@ -68,6 +69,7 @@ import type * as lib_chain_submissionStore from "../lib/chain/submissionStore.js
 import type * as lib_chain_tabEventHandlers from "../lib/chain/tabEventHandlers.js";
 import type * as lib_chain_tabLedger from "../lib/chain/tabLedger.js";
 import type * as lib_chain_tabOutside from "../lib/chain/tabOutside.js";
+import type * as lib_chain_tabReadiness from "../lib/chain/tabReadiness.js";
 import type * as lib_chain_tipPrepare from "../lib/chain/tipPrepare.js";
 import type * as lib_chain_verify from "../lib/chain/verify.js";
 import type * as lib_chain_voucher from "../lib/chain/voucher.js";
@@ -150,6 +152,7 @@ declare const fullApi: ApiFromModules<{
   "chain/submissions": typeof chain_submissions;
   "chain/tabClaims": typeof chain_tabClaims;
   "chain/tabOutside": typeof chain_tabOutside;
+  "chain/tabReadiness": typeof chain_tabReadiness;
   "chain/tabReconcile": typeof chain_tabReconcile;
   crons: typeof crons;
   earningsTotalsBackfill: typeof earningsTotalsBackfill;
@@ -193,6 +196,7 @@ declare const fullApi: ApiFromModules<{
   "lib/chain/tabEventHandlers": typeof lib_chain_tabEventHandlers;
   "lib/chain/tabLedger": typeof lib_chain_tabLedger;
   "lib/chain/tabOutside": typeof lib_chain_tabOutside;
+  "lib/chain/tabReadiness": typeof lib_chain_tabReadiness;
   "lib/chain/tipPrepare": typeof lib_chain_tipPrepare;
   "lib/chain/verify": typeof lib_chain_verify;
   "lib/chain/voucher": typeof lib_chain_voucher;

@@ -274,6 +274,9 @@ export const LIVE_WINDOW_FUNCTION_SHAPES: Readonly<
   // Stage 1, step 4: read-only count of article images by host (#615).
   'articleImageHosts:countImageHosts': NO_ARGS,
   'chain/config:refreshChainConfig': NO_ARGS,
+  // Stage 6, before the switch-on: tab tip readiness and its causes (#692).
+  // An internal query: it reads the environment and the cached config only.
+  'chain/tabReadiness:read': NO_ARGS,
   // Stage 3 and section 7.2: events that waited for a variable.
   'chain/indexer:redispatch': { args: { limit: integer(1, 500) } },
   // Stage 4 and the restore.

@@ -730,6 +730,31 @@ describe('prepareDirectTip', () => {
     )
   })
 
+  it('does not depend on tab readiness: wallet tips stay available while the tab keys are not ready (#692)', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // A Tab contract is configured, but settlement is off and neither tab
+    // secret parses: tab tips are not offered.
+    vi.stubEnv('TAB_CONTRACT_ID', TOKEN)
+    vi.stubEnv('SETTLEMENT_ENABLED', 'false')
+    vi.stubEnv('TAB_SETTLER_SECRET', 'not-a-secret')
+    vi.stubEnv('TAB_ACCEPTOR_SECRET', 'not-a-secret')
+    expect((await t.query(api.chain.config.getChainConfig, {})).tabReady).toBe(
+      false
+    )
+    expect(
+      (await direct(t, s.readerId, s.articleId, 100, 'req-direct-692')).status
+    ).toBe('PREPARED')
+    expect(
+      (
+        await batch(t, s.readerId, [
+          { articleId: s.articleId },
+          { articleId: s.articleId, highlight: true },
+        ])
+      ).status
+    ).toBe('PREPARED')
+  })
+
   it('is gated by CHAIN_V2_ENABLED and needs the contract IDs', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)

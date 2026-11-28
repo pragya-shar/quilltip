@@ -1258,28 +1258,38 @@ describe('guard and configuration', () => {
         (params as { transaction: string }).transaction,
         'base64'
       )
-      const fn = ['config', 'paused', 'fee_bps', 'min_tip', 'threshold'].find(
-        (name) => bytes.includes(Buffer.from(name))
-      )
+      const fn = [
+        'get_role_member_count',
+        'get_role_member',
+        'config',
+        'paused',
+        'fee_bps',
+        'min_tip',
+        'threshold',
+      ].find((name) => bytes.includes(Buffer.from(name)))
       const retval =
-        fn === 'config'
-          ? mapOf([
-              [
-                'acceptor_keys',
-                xdr.ScVal.scvVec(
-                  keys.map((k) => xdr.ScVal.scvBytes(Buffer.from(k, 'hex')))
-                ),
-              ],
-              ['max_balance', i128(BigInt(10_000) * XLM)],
-              ['min_deposit', i128(XLM)],
-              ['token', new Address(TOKEN).toScVal()],
-              ['treasury', new Address(SETTLER.publicKey()).toScVal()],
-            ])
-          : fn === 'paused'
-            ? xdr.ScVal.scvBool(false)
-            : fn === 'fee_bps'
-              ? u32(250)
-              : i128(BigInt(1_000_000))
+        fn === 'get_role_member_count'
+          ? u32(1)
+          : fn === 'get_role_member'
+            ? new Address(SETTLER.publicKey()).toScVal()
+            : fn === 'config'
+              ? mapOf([
+                  [
+                    'acceptor_keys',
+                    xdr.ScVal.scvVec(
+                      keys.map((k) => xdr.ScVal.scvBytes(Buffer.from(k, 'hex')))
+                    ),
+                  ],
+                  ['max_balance', i128(BigInt(10_000) * XLM)],
+                  ['min_deposit', i128(XLM)],
+                  ['token', new Address(TOKEN).toScVal()],
+                  ['treasury', new Address(SETTLER.publicKey()).toScVal()],
+                ])
+              : fn === 'paused'
+                ? xdr.ScVal.scvBool(false)
+                : fn === 'fee_bps'
+                  ? u32(250)
+                  : i128(BigInt(1_000_000))
       return {
         latestLedger: LEDGER,
         results: [{ xdr: retval.toXdr('base64') }],
@@ -1294,6 +1304,7 @@ describe('guard and configuration', () => {
     )
     expect(config!.lastError ?? null).toBe(null)
     expect(config!.tabAcceptorKeys).toEqual(keys)
+    expect(config!.tabSettlers).toEqual([SETTLER.publicKey()])
     expect(errors.mock.calls.flat().join('')).not.toContain(
       'TAB_ACCEPTOR_MISMATCH'
     )

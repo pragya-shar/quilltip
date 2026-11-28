@@ -54,6 +54,15 @@
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
 }
+/* Tab tip readiness causes (#692). */
+.ops-readiness-causes {
+  margin: 0 0 6px;
+  padding-left: 1.2em;
+}
+.ops-readiness-causes code {
+  color: var(--account-muted);
+  font-size: 13px;
+}
 @media (max-width: 900px) {
   .ops-chain-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));

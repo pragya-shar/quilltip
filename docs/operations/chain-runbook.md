@@ -552,6 +552,47 @@ the set, and the contract instances are gone. The indexer stops with
 5. Run the TTL extension within 3 days.
 6. Prompt authors to enable tips again.
 
+## Tab tips not ready
+
+Opening a tab, topping up and tab tips are offered only while the
+deployment is ready for them (`convex/lib/chain/tabReadiness.ts`). While it
+is not, readers see "Quick tips are unavailable right now" before they try,
+and the server refuses those operations with `TAB_NOT_READY`. Closing a tab,
+withdrawing and revoking a key are never refused for readiness. Wallet tips
+(direct, passage and batch) do not depend on it.
+
+The public reads, `chain/config:getChainConfig` and `/api/health`, show one
+boolean, `tabReady`. It does not include `CHAIN_V2_ENABLED`, so it can be
+read before the switch-on. The cause is shown only on `/ops/chain` ("Tab
+tips") and from the command line (owner credentials):
+
+```bash
+bunx convex run chain/tabReadiness:read '{}'
+```
+
+The hourly config refresh logs one line per cause while `CHAIN_V2_ENABLED`
+is on, with the code `TAB_NOT_READY_<CAUSE>`. No line or result holds a
+secret or says what a secret contains.
+
+| Cause                 | Means                                                                                                                                                                                    | Fix                                                                                                                                                                                                       |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `settlement_off`      | `SETTLEMENT_ENABLED` is not `true`                                                                                                                                                       | Set it, if settlement is meant to run                                                                                                                                                                     |
+| `config_missing`      | No cached chain config for this epoch and Tab contract, or it lacks the acceptor keys, the settler role holders or the pause state, or the last two hourly refreshes failed to read them | Run `bunx convex run chain/config:refreshChainConfig '{}'` and read its `errors`; check `TAB_CONTRACT_ID` and `CHAIN_EPOCH`                                                                               |
+| `paused`              | The Tab contract is paused                                                                                                                                                               | Unpause after the incident ([Roles, pause and unpause](#roles-pause-and-unpause)), then refresh the config                                                                                                |
+| `settler_unset`       | `TAB_SETTLER_SECRET` is empty                                                                                                                                                            | Save the settler secret for this contract set                                                                                                                                                             |
+| `settler_malformed`   | `TAB_SETTLER_SECRET` is not a Stellar secret seed (`S…`)                                                                                                                                 | Save it again from the key directory, with no quotes or extra characters                                                                                                                                  |
+| `settler_not_listed`  | The settler key does not hold the Tab's `settler` role                                                                                                                                   | Check the roles report; grant the role to this key, or save the key that holds it; then refresh the config                                                                                                |
+| `acceptor_unset`      | `TAB_ACCEPTOR_SECRET` is empty                                                                                                                                                           | Save the acceptor secret for this contract set                                                                                                                                                            |
+| `acceptor_malformed`  | `TAB_ACCEPTOR_SECRET` is not an `S…` seed or 64 hex characters                                                                                                                           | Save it again; `chain/config:checkAcceptor` reports the same result with the derived public key                                                                                                           |
+| `acceptor_not_listed` | The acceptor key is not one of the Tab's acceptor keys                                                                                                                                   | Save the key the Tab lists, or rotate by the documented procedure ([05-flows-and-admin.md, section 5.11](../architecture/v2/05-flows-and-admin.md#511-roles-and-administration)); then refresh the config |
+
+A corrected secret counts at the next read, with no deploy: secrets are read
+from the environment each time. Role holders, acceptor keys and the pause
+state come from the hourly config refresh; run it after a chain change.
+
+Do not switch `CHAIN_V2_ENABLED` on to "try" a fix: while readiness is false
+the switch turns on no tab feature, and wallet tips are already available.
+
 ## Roles, pause and unpause
 
 Report (read-only): admin, pause state and role holders of each contract,

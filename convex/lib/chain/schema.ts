@@ -574,6 +574,15 @@ export const chainTables = {
     nftThresholdToken: v.optional(v.string()),
     /** Tab `config().acceptor_keys`, lowercase hex (current first). */
     tabAcceptorKeys: v.optional(v.array(v.string())),
+    /** Holders of the Tab's `settler` role (`get_role_member`), G addresses. */
+    tabSettlers: v.optional(v.array(v.string())),
+    /**
+     * When one refresh last read all of the Tab's state that tab readiness
+     * uses: acceptor keys, settler role holders and pause. A failed read
+     * keeps the previous values; readiness counts them only while this is
+     * recent against `refreshedAt` (`TAB_STATE_MAX_AGE_MS`).
+     */
+    tabStateReadAt: v.optional(v.number()),
     paused: v.object({
       core: v.optional(v.boolean()),
       tab: v.optional(v.boolean()),
