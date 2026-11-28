@@ -200,8 +200,9 @@ It rebuilds the arguments it sends from the checked values.
 
 It runs only when all of these hold:
 
-- `QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL` is set in the shell, never in
-  a `.env` file, to exactly `upbeat-mockingbird-579`;
+- `QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL` is exactly
+  `upbeat-mockingbird-579`, given on the command line, never in a `.env`
+  file;
 - `CONVEX_DEPLOY_KEY` is a development deploy key for that deployment, and
   no other Convex target is set (`CONVEX_DEPLOYMENT`, a URL for another
   deployment, `CONVEX_SELF_HOSTED_URL` and similar);
@@ -221,17 +222,20 @@ commits are removed. Every check and run appends a line to
 
 The deploy key can run any function. The tool limits what it sends, not what
 the key allows. Use a development deploy key that the owner keeps for these
-runs in the password manager, enter it per shell, and never store it in a
-file.
+runs in the password manager. Give the key and the approval on the command
+line of each run, as below, never with `export` and never in a file: then no
+other command in the shell receives them. The tool refuses either one in a
+`.env` file in the checkout, because Bun loads those files on its own.
 
 ```bash
-unset CONVEX_DEPLOYMENT CONVEX_DEPLOYMENT_TOKEN CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY QUILLTIP_LIVE_WINDOW_APPROVAL
+unset CONVEX_DEPLOYMENT CONVEX_DEPLOYMENT_TOKEN CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY QUILLTIP_LIVE_WINDOW_APPROVAL QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL CONVEX_DEPLOY_KEY
 export QUILLTIP_NETWORK_GUARD_OPT_IN=testnet NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
-read -rs CONVEX_DEPLOY_KEY && export CONVEX_DEPLOY_KEY
-export QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL=upbeat-mockingbird-579
-npx bun@1.4.4 scripts/live-read.ts check
-npx bun@1.4.4 scripts/live-read.ts run chain/tabReconcile:run '{"reader":"G…"}'
-unset QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL CONVEX_DEPLOY_KEY
+read -rs LIVE_READ_KEY # a shell variable only: not exported
+CONVEX_DEPLOY_KEY="$LIVE_READ_KEY" QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL=upbeat-mockingbird-579 \
+  npx bun@1.4.4 scripts/live-read.ts check
+CONVEX_DEPLOY_KEY="$LIVE_READ_KEY" QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL=upbeat-mockingbird-579 \
+  npx bun@1.4.4 scripts/live-read.ts run chain/tabReconcile:run '{"reader":"G…"}'
+unset LIVE_READ_KEY
 ```
 
 `check` lists the functions, or checks one command with

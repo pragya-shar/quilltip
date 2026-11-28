@@ -1726,7 +1726,8 @@ npx bun@1.4.4 scripts/live-read.ts run chain/tabReconcile:run '{"reader":"G…"}
 ```
 
 It needs `QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL=upbeat-mockingbird-579`
-and a development deploy key for the live deployment in the shell, and it
+and a development deploy key for the live deployment, both given on the
+command line of the run (never exported or in a file), and it
 refuses any argument other than `reader`, so it cannot apply. An apply is a
 window operation: a new window approval (section 5.0.3), then
 `bun scripts/live-window.ts run convex-run chain/tabReconcile:run '{"reader":"G…","apply":true,"note":"<ticket or reason>"}'`.
