@@ -134,7 +134,7 @@ describe('10,000 copies of "5!" and 167-sentence quotes', () => {
       codes.push((out as { code: string }).code)
     }
     const [resolveMs, resolved] = await timed(() =>
-      w.t.mutation(api.shares.resolve, { code: codes[0]! })
+      w.t.query(api.shares.resolve, { code: codes[0]! })
     )
     expect(resolved).toMatchObject({ status: 'exact' })
     expect(resolveMs).toBeLessThan(BUDGET_MS)
@@ -153,7 +153,7 @@ describe('10,000 copies of "5!" and 167-sentence quotes', () => {
     )
     await replace(w, w.ids.article, doc(paragraph(lateMiss)))
     const [missMs, missed] = await timed(() =>
-      w.t.mutation(api.shares.resolve, { code: codes[1]! })
+      w.t.query(api.shares.resolve, { code: codes[1]! })
     )
     expect(missed).toBeNull()
     expect(missMs).toBeLessThan(BUDGET_MS)
@@ -206,7 +206,7 @@ describe('one paragraph of "中." joined by hard breaks', () => {
     const heavy = doc(paragraph(plain), brokenParagraph(MAX_SHAREABLE_BREAKS))
     await replace(w, w.ids.article, heavy)
     const [resolveMs, resolved] = await timed(() =>
-      w.t.mutation(api.shares.resolve, { code })
+      w.t.query(api.shares.resolve, { code })
     )
     expect(resolved).toMatchObject({ status: 'exact' })
     expect(resolveMs).toBeLessThan(BUDGET_MS)
@@ -237,7 +237,7 @@ describe('one paragraph of "中." joined by hard breaks', () => {
       doc(paragraph(plain), brokenParagraph(20_000))
     )
     const [resolveMs, resolved] = await timed(() =>
-      w.t.mutation(api.shares.resolve, { code })
+      w.t.query(api.shares.resolve, { code })
     )
     expect(resolved).toBeNull()
     expect(resolveMs).toBeLessThan(BUDGET_MS)
@@ -271,7 +271,7 @@ describe('one paragraph with a long run of combining marks', () => {
     })
     await replace(w, w.ids.article, doc(paragraph(plain), paragraph(marks)))
     const [resolveMs, resolved] = await timed(() =>
-      w.t.mutation(api.shares.resolve, { code })
+      w.t.query(api.shares.resolve, { code })
     )
     expect(resolved).toBeNull()
     expect(resolveMs).toBeLessThan(BUDGET_MS)
@@ -307,7 +307,7 @@ describe('one paragraph with a long run of combining marks', () => {
     expect(createMs).toBeLessThan(BUDGET_MS)
     const { code } = created as { code: string }
     const [resolveMs, resolved] = await timed(() =>
-      w.t.mutation(api.shares.resolve, { code })
+      w.t.query(api.shares.resolve, { code })
     )
     expect(resolved).toMatchObject({ status: 'exact' })
     expect(resolveMs).toBeLessThan(BUDGET_MS)
