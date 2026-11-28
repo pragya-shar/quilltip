@@ -26,6 +26,10 @@ import {
  * run with both off shows the outside image does load, so the checks can see
  * a load.
  *
+ *   bun run test:e2e:fixtures --suite article-images
+ *
+ * or by hand:
+ *
  *   bun e2e/fixtures/article-images/server.mjs
  *   ARTICLE_IMAGES_FIXTURES=1 QUILLTIP_E2E_FIXTURES=1 bunx playwright test --config e2e/fixtures/article-images/playwright.config.ts
  */
