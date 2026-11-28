@@ -76,7 +76,7 @@ export function AppMobileMenu({
       ref={dialogRef}
       id={id}
       popover="auto"
-      className="app-mobile-menu site-chrome"
+      className="app-mobile-menu site-chrome ui-light"
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       onClose={onClose}
