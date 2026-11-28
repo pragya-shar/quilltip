@@ -25,6 +25,8 @@ export const fixtureBackendBehaviour: {
   delayMs: number
   /** When set, only these query paths are slow; the rest answer at once. */
   slowPaths?: string[]
+  /** When set, only these query paths answer wrongly; the rest answer. */
+  wrongPaths?: string[]
   reads: number
   open: number
 } = { mode: 'normal', delayMs: 0, reads: 0, open: 0 }
@@ -43,7 +45,7 @@ export function startFixtureBackend(port: number): Server {
       response.on('finish', settle)
       response.on('close', settle)
       if (mode === 'silent') return
-      if (mode === 'wrong') {
+      if (mode === 'wrong' && !fixtureBackendBehaviour.wrongPaths) {
         response.writeHead(560, { 'content-type': 'application/json' })
         response.end(
           JSON.stringify({
@@ -70,6 +72,19 @@ export function startFixtureBackend(port: number): Server {
       }
       if (mode === 'slow' && (!slowPaths || slowPaths.includes(body.path)))
         await new Promise((r) => setTimeout(r, delayMs))
+      if (
+        mode === 'wrong' &&
+        fixtureBackendBehaviour.wrongPaths?.includes(body.path)
+      ) {
+        response.writeHead(560, { 'content-type': 'application/json' })
+        response.end(
+          JSON.stringify({
+            status: 'error',
+            errorMessage: 'Fixture function failed',
+          })
+        )
+        return
+      }
       const args = Array.isArray(body.args) ? (body.args[0] ?? {}) : body.args
       const answer = answerFixtureQuery(body.path, args)
       response.writeHead(answer ? 200 : 560, {
