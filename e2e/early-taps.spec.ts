@@ -453,6 +453,50 @@ test.describe('landing reading link from the first paint', () => {
     await toArticles(page)
   })
 
+  /** Resolves once React has attached its handlers to the hero link. */
+  const hydrated = (page: Page) =>
+    expect
+      .poll(() => reactAttached(page, '.hero-actions a[href="/articles"]'), {
+        timeout: 15_000,
+      })
+      .toBe(true)
+  const heroLink = (page: Page) =>
+    page.locator('.hero-actions').getByRole('link', { name: READ })
+
+  test('a hero link focused before the scripts run keeps focus, and Enter opens the article list', async ({
+    page,
+  }) => {
+    await recordConvexMessages(page)
+    const release = await holdPageScripts(page)
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    await heroLink(page).focus()
+    release()
+    await hydrated(page)
+    // The opening would have started by now; it leaves the reader's focus.
+    await page.waitForTimeout(300)
+    await expect(stage(page)).toHaveCount(0)
+    await expect(heroLink(page)).toBeFocused()
+    await page.keyboard.press('Enter')
+    await toArticles(page)
+  })
+
+  test('a press on the hero link that spans the scripts loading opens the article list', async ({
+    page,
+  }) => {
+    await recordConvexMessages(page)
+    const release = await holdPageScripts(page)
+    await page.goto('/', { waitUntil: 'domcontentloaded' })
+    const box = (await heroLink(page).boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.down()
+    release()
+    await hydrated(page)
+    await page.waitForTimeout(300)
+    await expect(stage(page)).toHaveCount(0)
+    await page.mouse.up()
+    await toArticles(page)
+  })
+
   test('through the opening, exactly one reading link can be reached', async ({
     page,
     browserName,
