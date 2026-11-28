@@ -13,7 +13,7 @@ describe('the back control never leaves the site', () => {
     expect(h.canGoBack()).toBe(false)
   })
 
-  it('goes forward again after Back', () => {
+  it('after Forward, back is the link form', () => {
     const h = createAppHistory()
     h.arrive('/', 1)
     h.arrive('/shelf', 2)
@@ -21,8 +21,38 @@ describe('the back control never leaves the site', () => {
     h.arrive('/', 2)
     h.popstate()
     h.arrive('/shelf', 2)
-    expect(h.pages()).toEqual(['/', '/shelf'])
-    expect(h.canGoBack()).toBe(true)
+    // What is behind a page reached by Forward is not known.
+    expect(h.pages()).toEqual(['/shelf'])
+    expect(h.canGoBack()).toBe(false)
+  })
+
+  it('never takes a page it does not hold as one more step', () => {
+    // Back to the first page, a replace, then Back again: the entry behind
+    // /a is the other site.
+    let h = createAppHistory()
+    h.arrive('/a', 2)
+    h.arrive('/b', 3)
+    h.popstate()
+    h.arrive('/a', 3)
+    h.arrive('/c', 3)
+    h.popstate()
+    h.arrive('/a', 3)
+    expect(h.canGoBack()).toBe(false)
+    // A reload at /c, then Back twice.
+    h = createAppHistory()
+    h.arrive('/c', 4)
+    h.popstate()
+    h.arrive('/b', 4)
+    h.popstate()
+    h.arrive('/a', 4)
+    expect(h.pages()).toEqual(['/a'])
+    expect(h.canGoBack()).toBe(false)
+    // A hash-only Back (no change of path), then a replace.
+    h = createAppHistory()
+    h.arrive('/a', 2)
+    h.popstate()
+    h.arrive('/b', 2)
+    expect(h.canGoBack()).toBe(false)
   })
 
   it('a jump back of several steps never leaves the site', () => {
