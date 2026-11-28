@@ -4,8 +4,6 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/system/components/Button'
 import { Icon } from '@/system/components/Icon'
 import { KeepButton } from '@/system/components/KeepButton'
-import { MoneyFigure } from '@/system/components/MoneyFigure'
-import { TestnetNote } from '@/system/components/TestnetNote'
 import { TipControl } from '@/system/components/TipControl'
 import { DoneIcon, TipIcon } from '@/system/icons'
 import { Dock } from '@/shell/Dock'
@@ -14,6 +12,7 @@ import { declaredSheet } from '@/shell/sheets'
 import { sheetStack } from '@/shell/sheetStack'
 import { openSignIn } from '@/shell/signIn'
 import { preloadSheet } from '@/shell/sheets/loadSheet'
+import { BalanceCaption } from './BalanceCaption'
 import { LiveArrivalSlot } from './LiveArrivalSlot'
 import { RECEIPT_SHEET, type ReceiptProps } from './receipt'
 import type { ChosenPassage } from '@/hooks/read/usePassageSelection'
@@ -334,7 +333,7 @@ export function TipBar({
   } else if (tip.blocked === 'price') {
     control = (
       <p className="qt-read__dock-line">
-        The dollar value is not available right now.
+        Dollar amounts are not available right now, so tipping is paused.
       </p>
     )
   } else {
@@ -422,34 +421,14 @@ export function TipBar({
               window.location.assign(signInHref(returnTo))
             }}
           />
+          {showsMoney ? <BalanceCaption available={available} compact /> : null}
         </div>
       ) : null}
+      {showsMoney && !passage ? (
+        // The dock's first row: the balance, the way to the balance sheet.
+        <BalanceCaption available={available} />
+      ) : null}
       <div className="qt-read__dock-row">
-        {showsMoney && !passage ? (
-          // The way to the balance on a pushed screen, where the bar is
-          // hidden: the caption opens the balance sheet.
-          <div className="qt-read__wallet">
-            <button
-              type="button"
-              className="qt-read__wallet-open"
-              aria-label={
-                available
-                  ? `${available.spoken ?? available.display} ready to tip. Open balance`
-                  : 'Balance. Open balance'
-              }
-              onClick={() => sheetStack.open('pocket')}
-            >
-              <MoneyFigure
-                size="s"
-                value={available}
-                status={available ? 'ready' : 'unavailable'}
-                label={available ? 'ready to tip' : undefined}
-                unavailableText="Balance"
-              />
-            </button>
-            <TestnetNote>Testnet</TestnetNote>
-          </div>
-        ) : null}
         <div className="qt-read__control">{control}</div>
       </div>
     </Dock>

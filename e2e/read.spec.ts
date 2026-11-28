@@ -137,8 +137,12 @@ test('the article reads in full with its title, byline and end', async ({
     })
   ).toHaveAttribute('href', '/noor/the-last-keeper')
   // Signed in with a balance: the caption states it once, with testnet.
-  await expect(page.locator('.qt-read__wallet')).toContainText('$18.40')
-  await expect(page.locator('.qt-read__wallet')).toContainText('Testnet')
+  await expect(
+    page.locator('.qt-read__dock .qt-balance-caption')
+  ).toContainText('$18.40')
+  await expect(
+    page.locator('.qt-read__dock .qt-balance-caption')
+  ).toContainText('Testnet')
   await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
 })
 
@@ -465,7 +469,9 @@ test('signed out, the tip opens sign-in with the intent and sends nothing', asyn
     'href',
     `/login?next=${encodeURIComponent(ARTICLE_PATH)}`
   )
-  await expect(page.locator('.qt-read__wallet')).toHaveCount(0)
+  await expect(page.locator('.qt-read__dock .qt-balance-caption')).toHaveCount(
+    0
+  )
 
   // A high cap offers $1 and up: the default is $1.
   await open(page, '&pay=signed-out&offer=high')
@@ -544,7 +550,25 @@ test('the reader comes back to their place, with a tick and nothing chosen', asy
   await open(page)
   // The middle of the article: a place is kept between 3% and 95% read.
   await pointAt(page, 'Ten to the school')
-  await page.waitForTimeout(400)
+  // Wait until the scroll and the saved place both hold.
+  await settled(page)
+  let lastAt: number | null = null
+  await expect
+    .poll(
+      async () => {
+        const at = await page.evaluate(
+          () =>
+            (JSON.parse(
+              localStorage.getItem('quilltip:reading-position:v2') ?? '[]'
+            )[0]?.at as number | undefined) ?? null
+        )
+        const held = at !== null && at === lastAt
+        lastAt = at
+        return held
+      },
+      { intervals: [300] }
+    )
+    .toBe(true)
   const before = await page.evaluate(() => window.scrollY)
   expect(before).toBeGreaterThan(400)
   // Today's "Your place" reads the sentence and the share read from here.
@@ -623,14 +647,17 @@ test('every control on the tip bar is at least 44 by 44', async ({ page }) => {
     .locator('.qt-read__dock')
     .locator('button, a')
     .evaluateAll((els) =>
-      els.map((el) => {
-        const r = el.getBoundingClientRect()
-        return {
-          name: el.textContent || el.getAttribute('aria-label'),
-          w: r.width,
-          h: r.height,
-        }
-      })
+      // Rendered controls only: the caption is hidden from 1024 px.
+      els
+        .filter((el) => el.getClientRects().length > 0)
+        .map((el) => {
+          const r = el.getBoundingClientRect()
+          return {
+            name: el.textContent || el.getAttribute('aria-label'),
+            w: r.width,
+            h: r.height,
+          }
+        })
     )
   for (const size of sizes) {
     expect(size.w, `${size.name}`).toBeGreaterThanOrEqual(44)
@@ -1036,7 +1063,7 @@ test('with no price known, the dock says so plainly and offers no tip', async ({
 }) => {
   await open(page, '&pay=no-price')
   await expect(page.locator('.qt-read__dock')).toContainText(
-    'The dollar value is not available right now.'
+    'Dollar amounts are not available right now, so tipping is paused.'
   )
   await expect(tipButton(page)).toHaveCount(0)
   await expect(page.locator('.qt-read__dock')).not.toContainText(
@@ -1142,11 +1169,33 @@ test('the balance caption opens the balance, and says what it holds', async ({
   page,
 }) => {
   await open(page)
+  const caption = page.locator('.qt-read__dock .qt-balance-caption')
+  if (!touch(page)) {
+    // From 1024 px the rail shows the balance; the dock does not.
+    await expect(caption).toBeHidden()
+    return
+  }
+  await expect(caption).toContainText('ready to tip')
+  // A chosen line: the compact caption beside its actions, same name.
+  await tapLine(page, 'person next to')
+  const compact = page.locator(
+    '.qt-read__line-actions .qt-balance-caption[data-compact]'
+  )
+  await expect(compact).toBeVisible()
+  await expect(compact).not.toContainText('ready to tip')
+  await expect(
+    compact.getByRole('button', {
+      name: 'about 18 dollars 40 ready to tip. Open balance',
+    })
+  ).toBeVisible()
+  await tapLine(page, 'person next to')
   const open_ = page.getByRole('button', {
     name: 'about 18 dollars 40 ready to tip. Open balance',
   })
   await expect(open_).toBeVisible()
-  await expect(page.locator('.qt-read__wallet')).toContainText('≈')
+  await expect(
+    page.locator('.qt-read__dock .qt-balance-caption')
+  ).toContainText('≈')
   await press(page, open_)
   await expect(balanceOpen(page).first()).toBeVisible()
 })

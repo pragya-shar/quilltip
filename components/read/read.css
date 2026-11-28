@@ -297,6 +297,7 @@
   }
   .qt-read__line-actions {
     display: flex;
+    align-items: center;
     gap: var(--qt-space-2);
   }
   .qt-read__chip {
@@ -324,33 +325,6 @@
     align-items: flex-end;
     gap: var(--qt-space-3);
     min-width: 0;
-  }
-  .qt-read__wallet {
-    display: grid;
-    flex: none;
-    gap: var(--qt-space-1);
-    padding-block-end: var(--qt-space-1);
-  }
-  .qt-read__wallet .qt-testnet {
-    margin: 0;
-  }
-  /* The balance caption is the way to the balance sheet: a quiet button. */
-  .qt-read__wallet-open {
-    display: inline-flex;
-    align-items: center;
-    min-block-size: var(--qt-hit);
-    min-inline-size: var(--qt-hit);
-    margin: 0;
-    padding: 0;
-    border: 0;
-    background: none;
-    color: inherit;
-    font: inherit;
-    text-align: start;
-    cursor: pointer;
-  }
-  .qt-read__wallet-open:active {
-    opacity: 0.7;
   }
   /* A plain line where no control can help (no price known). */
   .qt-read__dock-line {
