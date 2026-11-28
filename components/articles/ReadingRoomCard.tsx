@@ -11,6 +11,7 @@ import { buildArticlesBrowseHref } from '@/lib/articles/buildArticlesBrowseHref'
 import { articleCategoryLabel } from '@/lib/articles/browseDiscovery'
 import type { ArticleForDisplay } from '@/types/index'
 import { formatListingReadTime } from '@/lib/articles/articleListingMeta'
+import { shownCoverImage } from '@/lib/tiptap/articleImage'
 import { ArticleCoverDoodles } from './ArticleCoverDoodles'
 
 const artwork = ['words', 'window', 'room', 'recipe']
@@ -34,10 +35,9 @@ export function ReadingRoomCard({
   const [failedImage, setFailedImage] = useState<string | null>(null)
   const [loadedImage, setLoadedImage] = useState<string | null>(null)
   const fallback = `/prototype/articles/${artwork[index % artwork.length]}-museum.jpg`
-  const image =
-    article.coverImage && failedImage !== article.coverImage
-      ? article.coverImage
-      : fallback
+  // A cover from another host counts as none (#615).
+  const coverImage = shownCoverImage(article.coverImage)
+  const image = coverImage && failedImage !== coverImage ? coverImage : fallback
   // The first row is on screen at load: it shows at once (no load reveal), so
   // the largest paint does not wait for the page script.
   const firstRow = index < 3

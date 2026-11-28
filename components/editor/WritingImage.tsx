@@ -9,13 +9,14 @@ import { useConvex } from 'convex/react'
 import { ResizableImage, parseNumericAttr } from './extensions/ResizableImage'
 import { WritingDialog } from './WritingDialog'
 import { getArticleAppearance } from '@/lib/editor/articleAppearance'
+import { isArticleImageShown } from '@/lib/tiptap/articleImage'
 import {
   validateImageUploadFile,
   compressImage,
   uploadFile,
 } from '@/lib/upload'
 
-function WritingImageView({
+export function WritingImageView({
   node,
   editor,
   selected,
@@ -103,14 +104,21 @@ function WritingImageView({
           onClick={details}
           disabled={!editor.isEditable}
         >
-          {/* User-uploaded image URLs are displayed directly in the editor. */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            ref={image}
-            src={node.attrs.src}
-            alt={node.attrs.alt ?? ''}
-            draggable={false}
-          />
+          {/* Only this deployment's storage and the listed hosts (#615). */}
+          {isArticleImageShown(node.attrs.src) ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              ref={image}
+              src={node.attrs.src}
+              alt={node.attrs.alt ?? ''}
+              draggable={false}
+            />
+          ) : (
+            <span className="writing-image-hidden">
+              This image is not shown. Images must be uploaded or come from an
+              allowed host. Choose it to replace or remove it.
+            </span>
+          )}
         </button>
         {node.attrs.title && <figcaption>{node.attrs.title}</figcaption>}
         {editor.isEditable && (

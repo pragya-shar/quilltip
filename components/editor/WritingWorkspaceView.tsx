@@ -39,6 +39,7 @@ import {
   estimateArticleReadingMinutes,
   estimateReadingMinutesFromWordCount,
 } from '@/lib/reading-time'
+import { shownCoverImage } from '@/lib/tiptap/articleImage'
 
 export function WritingWorkspaceView({
   workspace: w,
@@ -129,7 +130,7 @@ export function WritingWorkspaceView({
     const article = doc.createElement('article')
     article.innerHTML = w.editor?.getHTML() || ''
     doc.body.append(title, subtitle, article)
-    if (w.coverImage) {
+    if (shownCoverImage(w.coverImage)) {
       const cover = doc.createElement('img')
       cover.src = w.coverImage
       cover.alt = style.coverAlt
@@ -811,7 +812,16 @@ export function WritingWorkspaceView({
             }}
           />
           <div id="cover-preview">
-            {w.coverImage && <img src={w.coverImage} alt={style.coverAlt} />}
+            {shownCoverImage(w.coverImage) ? (
+              <img src={w.coverImage} alt={style.coverAlt} />
+            ) : (
+              w.coverImage && (
+                <p className="writing-image-hidden">
+                  This cover is not shown. Covers must be uploaded or come from
+                  an allowed host.
+                </p>
+              )
+            )}
           </div>
           <button
             type="button"

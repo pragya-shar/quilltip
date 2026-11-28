@@ -12,6 +12,8 @@ import {
 import { WritingDialog } from './WritingDialog'
 import type { WritingWorkspace } from './useWritingWorkspace'
 import type { ArticleStyle } from '@/lib/editor/articleAppearance'
+import { imageSourceRefusal } from '@/lib/security/imageSources'
+import { isArticleImageShown } from '@/lib/tiptap/articleImage'
 
 export function WritingMedia({
   workspace: w,
@@ -164,7 +166,12 @@ export function WritingMedia({
               setError('Enter a valid https:// image address.')
               return
             }
-            insertImage(url)
+            // The same list the readers and the publish check use (#615).
+            if (!isArticleImageShown(url.trim())) {
+              setError(imageSourceRefusal(url.trim()))
+              return
+            }
+            insertImage(url.trim())
           }
         }}
       >

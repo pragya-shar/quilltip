@@ -1170,6 +1170,14 @@
   display: block;
   border-radius: 0;
 }
+.writing-workspace .writing-image-hidden {
+  display: block;
+  padding: 16px;
+  border: 1px dashed #66003340;
+  color: var(--wine);
+  font-size: 14px;
+  line-height: 1.5;
+}
 .writing-workspace .writing-image-tools {
   display: flex;
   align-items: center;

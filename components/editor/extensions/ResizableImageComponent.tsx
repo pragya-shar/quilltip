@@ -3,6 +3,7 @@
 import { NodeViewWrapper, ReactNodeViewProps } from '@tiptap/react'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { parseNumericAttr } from './ResizableImage'
+import { isArticleImageShown } from '@/lib/tiptap/articleImage'
 
 const MIN_WIDTH = 100
 const MAX_WIDTH = 1200
@@ -222,6 +223,21 @@ export default function ResizableImageComponent({
 
   const focusRing =
     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background'
+
+  // Only this deployment's storage and the listed hosts (#615): a reader
+  // sees nothing, a writer a note in the image's place.
+  if (!isArticleImageShown(src)) {
+    return editor.isEditable ? (
+      <NodeViewWrapper as="figure" className="resizable-image-wrapper m-0">
+        <p className="rounded-lg border border-dashed p-4 text-sm">
+          This image is not shown. Images must be uploaded or come from an
+          allowed host.
+        </p>
+      </NodeViewWrapper>
+    ) : (
+      <NodeViewWrapper as="figure" data-article-image-hidden="" hidden />
+    )
+  }
 
   return (
     <NodeViewWrapper as="figure" className="resizable-image-wrapper m-0">

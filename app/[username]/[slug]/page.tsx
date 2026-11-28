@@ -3,6 +3,7 @@ import { notFound, redirect } from 'next/navigation'
 import { ArticlePageClient } from '@/components/articles/ArticlePageClient'
 import { getPublishedArticle, movedPublicPath } from '@/lib/seo/publicContent'
 import { renderArticleHtml } from '@/lib/tiptap/renderArticleHtml'
+import { shownCoverImage } from '@/lib/tiptap/articleImage'
 import { retryHrefFor } from '@/components/articles/ReadingUnavailable'
 import {
   SITE_NAME,
@@ -30,7 +31,9 @@ export async function generateMetadata({
   const authorName = article.author.name || article.author.username
   const description = articleMetaDescription(article)
   const url = articlePath(article.author.username, article.slug)
-  const images = article.coverImage ? [{ url: article.coverImage }] : undefined
+  // A cover from another host counts as none (#615).
+  const cover = shownCoverImage(article.coverImage)
+  const images = cover ? [{ url: cover }] : undefined
 
   return {
     title: `${article.title} · ${SITE_NAME}`,
@@ -76,7 +79,15 @@ export default async function ArticlePage({
     <ArticlePageClient
       username={username}
       slug={slug}
-      initialArticle={initialArticle ?? undefined}
+      initialArticle={
+        initialArticle
+          ? // A cover from another host is not sent to the page (#615).
+            {
+              ...initialArticle,
+              coverImage: shownCoverImage(initialArticle.coverImage),
+            }
+          : undefined
+      }
       initialBodyHtml={renderArticleHtml(initialArticle?.content)}
       unavailableRetryHref={
         initialArticle === undefined

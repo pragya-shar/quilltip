@@ -6,6 +6,10 @@ import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
 import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
 import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
+import {
+  HIDDEN_ARTICLE_IMAGE,
+  isArticleImageShown,
+} from '@/lib/tiptap/articleImage'
 
 /** Read-only image node matching editor `resizableImage` output (no React node view). */
 const ReadOnlyResizableImage = Node.create({
@@ -27,6 +31,10 @@ const ReadOnlyResizableImage = Node.create({
     return [{ tag: 'img[src]:not([src^="data:"])' }]
   },
   renderHTML({ HTMLAttributes }) {
+    // Only this deployment's storage and the listed hosts (#615).
+    if (!isArticleImageShown(HTMLAttributes.src)) {
+      return [...HIDDEN_ARTICLE_IMAGE] as DOMOutputSpec
+    }
     const image: DOMOutputSpec = [
       'img',
       mergeAttributes(
