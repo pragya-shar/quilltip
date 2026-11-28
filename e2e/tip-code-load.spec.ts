@@ -10,6 +10,29 @@ import { installVarialEmulator } from './helpers/varialEmulator'
  */
 const UNUSED = 'GBZXN7PIRZGNMHGA7MUUUF4GWPY5AYPV6LY4UV2GL6VJGIQRXFDNMADI'
 
+/**
+ * The chunks the entry imports statically: the page cannot render without
+ * them, so a page-load failure blocks only the chunks outside this set.
+ */
+async function staticChunks(page: Page): Promise<Set<string>> {
+  const seen = new Set<string>()
+  const queue = ['/page.js']
+  while (queue.length) {
+    const file = queue.pop()!
+    const text = await (await page.request.get(file)).text()
+    for (const match of text.matchAll(
+      /(?:^|[;\n])\s*import\s*(?:[^'"()]*?from\s*)?["']\.\/(chunk-[a-z0-9]+\.js)["']/g
+    )) {
+      const chunk = `/${match[1]}`
+      if (!seen.has(chunk)) {
+        seen.add(chunk)
+        queue.push(chunk)
+      }
+    }
+  }
+  return seen
+}
+
 async function openOffline(page: Page) {
   await page.addInitScript(installVarialEmulator, {
     mode: 'connected' as const,
@@ -61,10 +84,14 @@ test('tip buttons that fail to load at page load leave the article, and Try agai
     mode: 'connected' as const,
     address: UNUSED,
   })
-  // Offline before the page renders: the tip buttons' own code never loads.
+  // Offline before the tip code loads: the page's own chunks load, the
+  // tip buttons' chunks never do.
+  const keep = await staticChunks(page)
   const failed: string[] = []
   await page.route('**/chunk-*.js', (route) => {
-    failed.push(new URL(route.request().url()).pathname)
+    const path = new URL(route.request().url()).pathname
+    if (keep.has(path)) return route.continue()
+    failed.push(path)
     return route.abort('internetdisconnected')
   })
   await page.goto('/')
