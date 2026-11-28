@@ -22,6 +22,7 @@ import { isHexOfLength } from './lib/chain/ids'
 import {
   MAX_KEY_LIFETIME_LEDGERS,
   currentLedgerEstimate,
+  expireUnacceptedTabTips,
   insertTabAccount,
   pairOutstanding,
   prepareTabTip,
@@ -472,6 +473,19 @@ export const sweepUnpaid = internalMutation({
       now,
     })
   },
+})
+
+/**
+ * Expires tab tips that were prepared but never accepted (#706). The
+ * `expire unaccepted tab tips` cron runs it; see `expireUnacceptedTabTips`.
+ */
+export const expireUnacceptedTips = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) =>
+    expireUnacceptedTabTips(ctx, {
+      now: Date.now(),
+      limit: Math.min(Math.max(1, Math.floor(args.limit ?? 100)), 500),
+    }),
 })
 
 /**

@@ -552,6 +552,17 @@ export const STATUS_LABEL: Record<PaymentPhase, string> = {
   'void-reset': 'Cleared by reset',
 }
 
+// Tip kinds in the tip history ------------------------------------------------
+
+/** What was tipped, and how it was paid (#707). */
+export const TIP_KIND_COPY = {
+  article: 'Article tip',
+  passage: 'Passage tip',
+  direct: 'from a wallet',
+  batch: 'in a batch',
+  tab: 'from a tab',
+} as const
+
 // Notices ----------------------------------------------------------------------
 
 export const NOTICE_COPY = {

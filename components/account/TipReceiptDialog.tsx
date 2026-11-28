@@ -1,5 +1,8 @@
 'use client'
-import type { TipActivityItem } from '@/lib/account/tipActivity'
+import {
+  isUnacceptedTabTip,
+  type TipActivityItem,
+} from '@/lib/account/tipActivity'
 import {
   Dialog,
   DialogContent,
@@ -12,15 +15,24 @@ import {
   RESULT_COPY,
   STATUS_LABEL,
   TAB_TIP_RESULT,
+  TIP_KIND_COPY,
 } from '@/lib/copy/payment-states'
 import { TAB_HISTORY } from '@/lib/copy/tab'
-import { recordedUsdNote } from '@/lib/copy/network-status'
+import {
+  formatXlmFromStroops,
+  recordedUsdNote,
+} from '@/lib/copy/network-status'
 
 /**
  * A row's status in words. v1 statuses keep their labels; v2 statuses use
  * the payment state kit's (`STATUS_LABEL`), as the tip flows show them.
  */
-export function tipStatusLabel(status: string, mismatchReason?: string) {
+export function tipStatusLabel(
+  status: string,
+  mismatchReason?: string,
+  channel?: TipActivityItem['channel']
+) {
+  if (isUnacceptedTabTip({ channel, status })) return TAB_HISTORY.notSent
   const labels: Record<string, string> = {
     CONFIRMED: 'Confirmed',
     PENDING: 'Pending',
@@ -59,6 +71,36 @@ export function tipGenerationLabel(
     : null
 }
 
+/** "Passage tip, from a tab": what was tipped, and how it was paid. */
+export function tipKindLabel(
+  item: Pick<TipActivityItem, 'kind' | 'channel'>
+): string {
+  const kind = TIP_KIND_COPY[item.kind]
+  return item.channel ? `${kind}, ${TIP_KIND_COPY[item.channel]}` : kind
+}
+
+/**
+ * The row's status in the history: a confirmed wallet tip, and a tab tip
+ * that settled on chain to the writer, read "Received" for the writer (#707).
+ */
+export function historyStatusLabel(
+  item: Pick<
+    TipActivityItem,
+    'status' | 'direction' | 'mismatchReason' | 'channel'
+  >,
+  readerTabShort = false
+): string {
+  if (item.status === 'CONFIRMED')
+    return item.direction === 'sent' ? 'Sent' : 'Received'
+  if (item.direction === 'received' && item.status === 'SETTLED')
+    return 'Received'
+  return tipStatusLabel(
+    shownTipStatus(item, readerTabShort),
+    item.mismatchReason,
+    item.channel
+  )
+}
+
 /**
  * The status to show for a row. An accepted tab tip that its reader sent
  * from a short tab waits for a top-up, like one a settlement attempt has
@@ -79,8 +121,11 @@ export function shownTipStatus(
 export function receiptStatusNote(
   item: Pick<TipActivityItem, 'status' | 'mismatchReason'> & {
     direction?: TipActivityItem['direction']
+    channel?: TipActivityItem['channel']
   }
 ): string | null {
+  if (isUnacceptedTabTip(item))
+    return `${TAB_HISTORY.notSent}. ${TAB_HISTORY.notSentDetail}`
   const audience = item.direction === 'received' ? 'writer' : 'reader'
   switch (item.status) {
     case 'CONFIRMED':
@@ -160,7 +205,7 @@ export function TipReceiptDialog({
         >
           <DialogTitle>Tip receipt</DialogTitle>
           <DialogDescription className="account-muted">
-            {tipStatusLabel(status!, item.mismatchReason)} ·{' '}
+            {tipStatusLabel(status!, item.mismatchReason, item.channel)} ·{' '}
             {new Date(item.createdAt).toLocaleDateString('en-US', {
               dateStyle: 'long',
             })}
@@ -184,15 +229,26 @@ export function TipReceiptDialog({
                 <dd>USD amount needs review</dd>
               </div>
             )}
-            {item.stellarAmountXlm && (
+            <div>
+              <dt>Kind</dt>
+              <dd>{tipKindLabel(item)}</dd>
+            </div>
+            {item.stellarAmountXlm ? (
               <div>
                 <dt>XLM</dt>
                 <dd>{item.stellarAmountXlm}</dd>
               </div>
-            )}
+            ) : item.channel === 'tab' && item.grossBaseUnits ? (
+              <div>
+                <dt>XLM</dt>
+                <dd>{formatXlmFromStroops(item.grossBaseUnits)}</dd>
+              </div>
+            ) : null}
             <div>
               <dt>Status</dt>
-              <dd>{tipStatusLabel(status!, item.mismatchReason)}</dd>
+              <dd>
+                {tipStatusLabel(status!, item.mismatchReason, item.channel)}
+              </dd>
             </div>
             {tipGenerationLabel(item) && (
               <div>

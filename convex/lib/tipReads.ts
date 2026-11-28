@@ -13,6 +13,18 @@
  *   out until an operator resolves it (`reviewResolution`): `credit_decoded`
  *   counts it with the decoded on-chain amounts, `no_credit` keeps it out.
  *   The decoded values are stored next to the expected ones (`onChain*`).
+ *   A tab tip (`channel: 'tab'`) has no transaction of its own and never gets
+ *   `verifiedAt`: it counts once its receipt settled on chain, which the
+ *   indexer applies from the pair's `TabSettled` payment (`SETTLED` with
+ *   `earningsAppliedAt`, set with the earnings credit in `setReceiptStatus`).
+ *   A receipt only partly paid stays out until it is `SETTLED`, although the
+ *   lifetime count includes it from its first paid part (#707).
+ * - **Not governed here.** `verifiedTipFilter` and `isVerifiedTip`
+ *   (`lib/verifiedTips.ts`: `CONFIRMED` with `verifiedAt`) are a separate
+ *   rule, used by the article, highlight and user tip stats, the v1 NFT
+ *   threshold, the v1 cleanup and the earnings backfill. The v2 NFT threshold
+ *   is decided by the contract from `Core.article_total`, which tab tips
+ *   never reach.
  * - **Amounts.** v2 base-unit amounts are the recorded on-chain values
  *   (`grossBaseUnits`, `feeBaseUnits`, `netBaseUnits` from the `Tipped` event),
  *   never a client value.
@@ -43,14 +55,36 @@ export function contractVersionOf(tip: {
   return tip.contractVersion ?? 'v1'
 }
 
-/** True when the payment of this row happened and was verified by the server. */
-export function countsAsPaid(tip: {
+type PaidFields = {
   status: string
   verifiedAt?: number
   contractVersion?: ContractVersion
+  channel?: 'direct' | 'batch' | 'tab'
+  earningsAppliedAt?: number
   needsReview?: boolean
   reviewResolution?: 'credit_decoded' | 'no_credit'
-}): boolean {
+}
+
+/**
+ * True for a tab tip whose receipt settled on chain: the settlement credited
+ * its earnings (`earningsAppliedAt`) when it set `SETTLED`.
+ */
+export function isSettledTabTip(tip: PaidFields): boolean {
+  return (
+    contractVersionOf(tip) === 'v2' &&
+    tip.channel === 'tab' &&
+    tip.status === 'SETTLED' &&
+    typeof tip.earningsAppliedAt === 'number' &&
+    tip.earningsAppliedAt > 0
+  )
+}
+
+/**
+ * True when the payment of this row happened and the server verified it from
+ * chain data: a verified transaction, or a tab receipt settled on chain.
+ */
+export function countsAsPaid(tip: PaidFields): boolean {
+  if (isSettledTabTip(tip)) return true
   if (typeof tip.verifiedAt !== 'number' || tip.verifiedAt <= 0) return false
   if (contractVersionOf(tip) === 'v2') {
     if (tip.needsReview === true || tip.reviewResolution === 'no_credit') {
@@ -64,14 +98,20 @@ export function countsAsPaid(tip: {
 /**
  * True when the payment of a counted row reached `authorId`. For v2
  * `MISMATCH`, the on-chain author received it, so it is the expected author's
- * only when that author's linked address equals the on-chain address.
+ * only when that author's linked address equals the on-chain address. A
+ * settled tab tip paid the address recorded at prepare, whose earnings the
+ * settlement credited to `authorId`.
  */
 export function paidToExpectedAuthor(
   tip: TipRow,
   authorStellarAddress: string | null | undefined
 ): boolean {
   if (!countsAsPaid(tip)) return false
-  if (contractVersionOf(tip) === 'v1' || tip.status === 'CONFIRMED') {
+  if (
+    contractVersionOf(tip) === 'v1' ||
+    tip.status === 'CONFIRMED' ||
+    isSettledTabTip(tip)
+  ) {
     return true
   }
   return (
