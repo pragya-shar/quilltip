@@ -1,8 +1,9 @@
 /**
  * The fixture suites that `scripts/run-fixture-e2e.ts` runs, and the
  * `--suite` selection. CI runs them as parallel shards; the shard list in
- * `.github/workflows/ci.yml` must name every suite here
- * (`scripts/ci/fixture-shards.test.ts`). The rebuilt surfaces' suites come
+ * `scripts/ci/shards.ts` must name every suite here
+ * (`scripts/ci/fixture-shards.test.ts`), and `scripts/ci/plan.ts` runs only
+ * the shards a change can affect. The rebuilt surfaces' suites come
  * from `e2e/suites/` (one file per package) and run together in one shard,
  * selected as `--suite @surfaces`.
  */
