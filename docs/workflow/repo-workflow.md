@@ -74,7 +74,13 @@ can affect, and pushes run everything; [how CI decides](ci-pipeline.md).
 `Required` aggregates every job and fails when one did not pass or was skipped
 without a plan to skip it. The audit is a required job; its severity/exception
 rules are defined in the [audit policy](../../security/dependency-review.md).
-PR hygiene runs on PRs. `bun scripts/ci/local.ts` runs the same steps locally.
+PR hygiene runs on PRs. `bun scripts/ci/local.ts` runs the steps CI would plan
+for the checkout's changes locally, read from the workflow, on one production
+build per build setting (`--jobs production` for only the production-build
+checks; `--list` prints the steps, `--all` runs everything). It leaves out
+runner setup (actions, installs, failure-only steps) and needs Bun 1.4.4, the
+installed dependencies and the Playwright browsers; its header lists the rest.
+Run it under a shared machine's lock for heavy jobs.
 Local success does not establish remote CI or deployment success.
 
 ## Using Codex and Claude Code

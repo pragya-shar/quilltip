@@ -3,20 +3,37 @@
  * `.github/workflows/ci.yml`, so the two cannot drift
  * (docs/workflow/ci-pipeline.md).
  *
- *   bun scripts/ci/local.ts                  what this checkout changes (commits and
- *                                            uncommitted files), as CI would plan it
- *   bun scripts/ci/local.ts --base <rev>     plan against another base (default: the
- *                                            merge base with origin/overhaul/v3)
- *   bun scripts/ci/local.ts --jobs app --shards system,balance
+ *   bun scripts/ci/local.ts
+ *       what this checkout changes (commits and uncommitted files, against
+ *       the merge base with origin/overhaul/v3), as CI would plan it
+ *   bun scripts/ci/local.ts --base <rev>     plan against another base
+ *   bun scripts/ci/local.ts --jobs app --shards system,surfaces
+ *       every app job and the named shards, whatever changed
+ *   bun scripts/ci/local.ts --jobs production
+ *       only the production-build checks
  *   bun scripts/ci/local.ts --all            every job and every shard
  *   bun scripts/ci/local.ts ... --list       print the steps, run nothing
  *
  * `--jobs` takes job ids from ci.yml, or `app` for every job that builds or
  * checks the app; `--shards` takes fixture shards (scripts/ci/shards.ts);
- * either one replaces the plan. Setup steps (checkout, Bun, `bun install`,
- * browser and tool installs, artifact uploads, failure-only steps) are left
- * to the machine: run `bun install` and `bunx playwright install` first. A
- * production build is made once per set of build settings and shared by
+ * either one replaces the plan. On a shared machine, run it under the
+ * machine's lock for heavy jobs: it builds the app and runs browsers.
+ *
+ * Left out, because they set up a CI runner: `uses:` actions (checkout, Bun
+ * setup, tool installs, artifact uploads), steps named "Install ..." (system
+ * packages, browsers, the Rust toolchain, the Stellar CLI), `bun install`,
+ * and steps that run only on failure. No CI step reads a secret. For the
+ * result to mean what CI's does, the machine needs:
+ * - Bun 1.4.4 and `bun install --frozen-lockfile` on this checkout;
+ * - Playwright's browsers for the chosen jobs (`bunx playwright install
+ *   chromium webkit`, plus `firefox` for the tab and tab-ui shards);
+ * - for the contract jobs: the toolchain in contracts/rust-toolchain.toml with
+ *   the wasm32v1-none target, cargo-audit 0.23.0, cargo-deny 0.20.2, Docker,
+ *   and Stellar CLI 30.0.1.
+ * CI runs every job but Font Fallbacks on Linux. On macOS, engine rendering
+ * and fonts differ, so a layout or pixel check can pass or fail differently.
+ *
+ * A production build is made once per set of build settings and shared by
  * every check that needs it, in place of one per job. Each job's steps stop
  * at its first failure, as in CI, and the run ends with a table of every step.
  */

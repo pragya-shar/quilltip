@@ -86,9 +86,12 @@ runs passed while a job it skipped failed on the base branch's push run.
 the checkout's changes (commits and uncommitted files, against the merge base
 with `origin/overhaul/v3`) turn on, then prints a table of every step. It makes
 each production build once and runs every check that reads that build after
-it. `--all` runs everything; `--jobs` and `--shards` choose; `--list` prints the
-steps without running them. Install dependencies and Playwright browsers first;
-it leaves runner setup to the machine.
+it. `--all` runs everything; `--jobs` (ids, or `app`) and `--shards` choose;
+`--list` prints the steps without running them. It leaves out runner setup:
+actions, "Install ..." steps, `bun install` and failure-only steps; no CI step
+reads a secret. The script's header lists what the machine needs for the
+result to mean what CI's does. On a shared machine, run it under the machine's
+lock for heavy jobs.
 
 ## Failure output
 
