@@ -5,15 +5,7 @@ import { useActivity } from '@/hooks/payments/useActivity'
 import { useBalance } from '@/hooks/payments/useBalance'
 import { useEarnings } from '@/hooks/payments/useEarnings'
 import { formatMoney, formatTokenAmount } from '@/lib/payments/money'
-import { sheetStack } from '@/shell/sheetStack'
-import type { MoneyAct, PocketSource } from './source'
-
-const ADD_MONEY_ACT: MoneyAct = {
-  label: 'Add money',
-  state: { phase: 'idle' },
-  start: () => void sheetStack.open('add-money'),
-  reset: () => {},
-}
+import type { PocketSource } from './source'
 
 /**
  * The balance on the money layer (hooks/payments). Only the balance's own
@@ -32,8 +24,8 @@ export const liveSource: PocketSource = {
   useBalance,
   useEarnings,
   useActivity,
-  // Adding money is its own sheet (components/pocket/sheets/AddMoney.tsx):
-  // the act only says that it exists here and opens that sheet.
-  useAddMoney: () => ADD_MONEY_ACT,
+  // Adding money is its own sheet (components/pocket/sheets/AddMoney.tsx),
+  // reached through the "Add testnet money" link, which opens it.
+  useAddMoney: () => null,
   useWithdraw: () => null,
 }

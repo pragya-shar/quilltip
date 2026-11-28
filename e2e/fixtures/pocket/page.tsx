@@ -32,6 +32,8 @@ import {
   type Role,
   type Scenario,
 } from './scenarios'
+import { AddMoneyServicesProvider } from '../../../components/pocket/money/services'
+import { emulatedServices } from '../add-money/emulated'
 import { ArticleStandIn } from './ArticleStandIn'
 import { ElsewherePage } from './ElsewherePage'
 import { TodayStandIn } from './TodayStandIn'
@@ -42,8 +44,10 @@ import { TodayStandIn } from './TodayStandIn'
 //   ?scenario=  one of SCENARIOS (default ready)
 //   ?role=      both (default), reader, writer
 //   ?auth=      signed-in (default), signed-out, loading
-//   ?act=       add, add-fail, withdraw: a stand-in money act, to drive the
-//               sheets' phases and focus (no such act ships yet)
+//   ?act=       add, add-fail, withdraw, withdraw-fail: a stand-in money
+//               act, to drive the sheets' phases and focus. Add money's
+//               own sheet runs on the emulated wallet and network
+//               (e2e/fixtures/add-money/emulated.ts).
 //   ?paged      lists come in pages of two ("Show more")
 //   ?earnings=, ?earnings-later=  loading or unavailable, from the start
 //               or after a first answer
@@ -226,9 +230,9 @@ const source: PocketSource = {
       'Withdraw $0.6825',
       'Withdrawing $0.6825',
       '$0.6825 sent to your wallet',
-      false
+      actKind === 'withdraw-fail'
     )
-    return actKind === 'withdraw' ? act : null
+    return actKind === 'withdraw' || actKind === 'withdraw-fail' ? act : null
   },
 }
 
@@ -254,18 +258,20 @@ const Page = pages[location.pathname] ?? pages['/']!
 
 createRoot(document.getElementById('root')!).render(
   <BalanceSourceContext.Provider value={useFakeBalance}>
-    <PocketSourceContext.Provider value={source}>
-      <AppShell
-        beside={
-          <>
-            <SheetHost />
-            <ToastRegion />
-          </>
-        }
-      >
-        <Page />
-      </AppShell>
-    </PocketSourceContext.Provider>
+    <AddMoneyServicesProvider services={emulatedServices}>
+      <PocketSourceContext.Provider value={source}>
+        <AppShell
+          beside={
+            <>
+              <SheetHost />
+              <ToastRegion />
+            </>
+          }
+        >
+          <Page />
+        </AppShell>
+      </PocketSourceContext.Provider>
+    </AddMoneyServicesProvider>
   </BalanceSourceContext.Provider>
 )
 
