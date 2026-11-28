@@ -131,7 +131,9 @@
   /* Before auth is known: "Sign in", or "Balance" when a session token is
    * held (set before paint by shell/prePaint.ts). */
   :root:not([data-session='held']) .qt-balance-slot [data-when='held'],
-  :root[data-session='held'] .qt-balance-slot [data-when='signed-out'] {
+  :root[data-session='held'] .qt-balance-slot [data-when='signed-out'],
+  :root:not([data-session='held']) [data-session-switch] > [data-when='held'],
+  :root[data-session='held'] [data-session-switch] > [data-when='signed-out'] {
     display: none;
   }
   .qt-navbar__item[data-balance][aria-expanded='true'],

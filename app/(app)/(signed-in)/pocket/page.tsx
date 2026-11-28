@@ -13,10 +13,6 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 }
 
-/** With no script nobody is signed in, and who is here is never known:
- * the waiting figure goes, and the page asks the person to sign in. */
-const NO_SCRIPT_STYLE = '.qt-pocket[aria-busy="true"]{display:none}'
-
 /**
  * The Pocket as a page: where a link to it lands, and where the balance item
  * goes with no script. In the application the item opens the Pocket as a
@@ -26,25 +22,28 @@ export default function PocketPage() {
   return (
     <PushedScreen>
       <PushedHeader fallbackHref="/" backLabel="Back to Today" />
-      <div className="qt-page qt-placeholder">
+      <div className="qt-page qt-placeholder" data-session-switch="">
         <Heading level={1} variant="title">
           Balance
         </Heading>
-        <PocketContent />
-        <noscript>
-          <style>{NO_SCRIPT_STYLE}</style>
-          <div className="qt-pocket">
-            <EmptyState
-              icon={BalanceIcon}
-              title="Sign in to tip and keep your lines."
-              action={
-                <Button variant="primary" href={POCKET.signIn}>
-                  Sign in
-                </Button>
-              }
-            />
-          </div>
-        </noscript>
+        {/* Who is here is known only after a script runs. Until then, and
+            with no script, the page asks to sign in, unless the pre-paint
+            script saw a session token (data-session="held"): then the
+            balance shows, waiting neutrally while auth loads. */}
+        <div data-when="held">
+          <PocketContent />
+        </div>
+        <div className="qt-pocket" data-when="signed-out">
+          <EmptyState
+            icon={BalanceIcon}
+            title="Sign in to tip and keep your lines."
+            action={
+              <Button variant="primary" href={POCKET.signIn}>
+                Sign in
+              </Button>
+            }
+          />
+        </div>
       </div>
     </PushedScreen>
   )
