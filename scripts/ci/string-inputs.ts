@@ -61,6 +61,18 @@ const SETUP_FILE = 'vitest setupFiles'
 export const STRING_INPUTS: readonly StringInput[] = [
   // Fixture suites.
   { from: 'e2e/fixtures/*/server.mjs', constructs: 1, why: SERVER },
+  // Files of those shapes that read nothing: a first read must be listed.
+  { from: 'e2e/fixtures/tab/server.mjs', constructs: 0, why: 'reads no file' },
+  {
+    from: 'e2e/fixtures/avatar/server.mjs',
+    constructs: 0,
+    why: 'reads no file',
+  },
+  {
+    from: 'e2e/fixtures/balance/playwright.config.ts',
+    constructs: 0,
+    why: 'has no globalSetup',
+  },
   { from: 'playwright.config.ts', constructs: 1, why: GLOBAL_SETUP },
   { from: 'e2e/**/*.config.ts', constructs: 1, why: GLOBAL_SETUP },
   {
@@ -139,8 +151,9 @@ export const STRING_INPUTS: readonly StringInput[] = [
 ]
 
 /**
- * The entry for a file: the one naming it exactly, else a glob entry when
- * the file has constructs (a glob covers only files that read something).
+ * The entry for a file: the one naming it exactly, else a glob entry that
+ * matches it. A glob entry's count holds for every file it matches, so a
+ * matching file that reads nothing, or more, needs an exact entry.
  */
 export function entryFor(
   file: string,
@@ -150,6 +163,5 @@ export function entryFor(
 ): StringInput | undefined {
   const exact = entries.find((e) => e.from === file)
   if (exact) return exact
-  if (count === 0) return undefined
   return entries.find((e) => /[*{]/.test(e.from) && matches(file, [e.from]))
 }
