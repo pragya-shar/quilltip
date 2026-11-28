@@ -51,7 +51,7 @@ afterEach(() => {
 })
 
 describe('content security policy on proxy responses', () => {
-  it.each(['/', '/login', '/articles'])(
+  it.each(['/', '/pocket', '/articles'])(
     '%s allows scripts only from self and the response nonce',
     async (path) => {
       const response = await pageResponse(path)
@@ -65,7 +65,7 @@ describe('content security policy on proxy responses', () => {
   )
 
   it('forwards the same nonce to the page renderer', async () => {
-    const response = await pageResponse('/login')
+    const response = await pageResponse('/pocket')
     const policy = response.headers.get('content-security-policy')!
     const nonce = policy.match(/'nonce-([^']+)'/)![1]
     // NextResponse.next({ request }) passes overridden request headers to the

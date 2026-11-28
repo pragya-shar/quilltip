@@ -97,7 +97,7 @@ test('reset requests answer the same for known and unknown emails', async () => 
   expect(lastCode()).toMatch(/^\d{8}$/)
   // The link carries the code, never the email address.
   expect(sent[0]?.text).toContain(
-    `https://app.example.test/reset-password#code=${lastCode()}`
+    `https://app.example.test/signin/reset#code=${lastCode()}`
   )
   expect(sent[0]?.text).not.toContain(encodeURIComponent(EMAIL))
 })
@@ -279,7 +279,7 @@ test('the reset link always uses SITE_URL', async () => {
   await signIn(t, { email: EMAIL, flow: 'reset', redirectTo: '/elsewhere' })
   const text = sent.at(-1)?.text ?? ''
   expect(text).toContain(
-    `https://app.example.test/reset-password#code=${lastCode()}`
+    `https://app.example.test/signin/reset#code=${lastCode()}`
   )
   expect(text).not.toContain('elsewhere')
   expect(text).not.toContain('?code=')

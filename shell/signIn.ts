@@ -1,3 +1,4 @@
+import { parseIntent, type SignInIntent } from '@/lib/auth/intent'
 import { getSafeReturnPath } from '@/lib/auth/safeReturnPath'
 import { SIGN_IN_PATH } from './navigation'
 import { knownSheet, sheetStack } from './sheetStack'
@@ -8,15 +9,24 @@ export const SIGN_IN_SHEET = 'sign-in'
 
 /**
  * Asks the person to sign in, over the current page. Pass what they were
- * doing (`intent`, for example the tip they pressed) so the sheet can show
- * it again after sign-in; account creation never sends money by itself
- *. Returns false while no sign-in sheet is registered: the caller then
- * follows its link to the sign-in page.
+ * doing as an intent built by `tipIntent`, `keepIntent`, `publishIntent` or
+ * `followIntent` (lib/auth/intent), so the sheet can show it and the page
+ * can take it back after sign-in; nothing is sent by signing in. An intent
+ * that was not built there is refused: an error in development, and in
+ * production the sheet opens without it. Returns false while no sign-in
+ * sheet is registered: the caller then follows its link to the sign-in page.
  */
-export function openSignIn(intent?: unknown): boolean {
+export function openSignIn(intent?: SignInIntent | null): boolean {
   // Registered by loaded code, or declared in shell/sheets: either counts.
   if (!knownSheet(SIGN_IN_SHEET)) return false
-  return sheetStack.open(SIGN_IN_SHEET, { intent })
+  const kept = intent ? parseIntent(intent) : null
+  if (intent && !kept) {
+    const message =
+      'openSignIn: that intent is not valid. Build it with tipIntent, keepIntent, publishIntent or followIntent from lib/auth/intent.'
+    if (process.env.NODE_ENV !== 'production') throw new Error(message)
+    console.error(message)
+  }
+  return sheetStack.open(SIGN_IN_SHEET, kept ? { intent: kept } : {})
 }
 
 /**

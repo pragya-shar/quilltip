@@ -47,8 +47,8 @@ describe('the places', () => {
     expect(signInPathFromRoutes(path.join(tmpdir(), 'no-such-dir'))).toBe(
       '/login'
     )
-    // This tree: the sign-in page has not shipped.
-    expect(signInPathFromRoutes()).toBe(POCKET.signIn)
+    // This tree: the sign-in page has shipped.
+    expect(signInPathFromRoutes()).toBe('/signin')
   })
 
   it('light at most one place for any path, and none on a pushed screen', () => {

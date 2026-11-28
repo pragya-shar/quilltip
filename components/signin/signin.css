@@ -1,0 +1,121 @@
+/*
+ * Sign in: the sheet, the /signin page and the form they share. Tokens
+ * only; state in data-* attributes.
+ */
+@layer surfaces {
+  .qt-signin,
+  .qt-signin__form {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-4);
+    min-width: 0;
+  }
+  .qt-signin__notice {
+    border-radius: var(--qt-radius-card);
+  }
+  .qt-signin__status {
+    margin: 0;
+    min-height: var(--qt-hit);
+    font-size: var(--qt-text-ui-l);
+    line-height: var(--qt-lh-ui-l);
+    font-weight: var(--qt-weight-ui-strong);
+    border-radius: var(--qt-radius-tag);
+  }
+  .qt-signin__row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--qt-space-2) var(--qt-space-4);
+  }
+  .qt-signin__text-button {
+    min-height: var(--qt-hit);
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--qt-ink);
+    font: inherit;
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: underline;
+    text-decoration-color: var(--qt-line-strong);
+    text-underline-offset: 0.2em;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .qt-signin__switch,
+  .qt-signin__fine,
+  .qt-signin__terms {
+    margin: 0;
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    color: var(--qt-ink-2);
+  }
+  .qt-signin__fine,
+  .qt-signin__terms {
+    font-size: var(--qt-text-ui-s);
+  }
+
+  /* The sheet: what the person was doing, then the form. */
+  .qt-signin-sheet {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-4);
+    min-width: 0;
+  }
+  .qt-signin-sheet__line {
+    margin: 0;
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-line);
+    line-height: var(--qt-lh-line);
+    color: var(--qt-ink);
+    overflow-wrap: anywhere;
+  }
+  .qt-signin-sheet__line > span {
+    text-decoration: underline;
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.18em;
+  }
+  .qt-signin-sheet__lead {
+    margin: 0;
+    font-size: var(--qt-text-ui);
+    line-height: var(--qt-lh-ui);
+    color: var(--qt-ink-2);
+  }
+
+  /* /signin */
+  .qt-signin-page {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-6);
+    max-width: 28rem;
+  }
+  .qt-signin-page__noscript {
+    display: flex;
+    flex-direction: column;
+    gap: var(--qt-space-3);
+  }
+}
+
+@layer surfaces {
+  /* /signin with a session token held: the form waits, unseen, until auth
+     answers (a signed-in arrival leaves at once). Space is kept. */
+  :root[data-session='held'] .qt-signin-page__live[data-state='loading'],
+  .qt-signin-page__live[data-state='leaving'] {
+    visibility: hidden;
+  }
+  /* A press held before the page script runs: answered from the next
+     frame with "One moment…", and no second press. */
+  .qt-signin__held,
+  .qt-signin__form[data-held-submit] .qt-signin__ready {
+    display: none;
+  }
+  .qt-signin__form[data-held-submit] .qt-signin__held {
+    display: inline;
+  }
+  .qt-signin__form[data-held-submit] [type='submit'] {
+    opacity: 0.65;
+    pointer-events: none;
+    cursor: wait;
+  }
+}
