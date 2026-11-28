@@ -811,16 +811,22 @@ nothing a click could reuse (#597), while each one ran the proxy's route check
 and rendered the page.
 
 - A source guard keeps this true: `scripts/perf/link-prefetch-guard.test.ts`
-  (in `test:unit`) scans `app/` and `components/` for `Link` elements whose
-  `href` is an article or writer path and fails on any without the flag,
-  naming the file and line. It reads literal paths, templates that start with
-  a handle (`/${…}`), `articleHref(…)` and similar helpers, and names defined
-  in the same file as such a template. A text scan cannot follow a prop, so
-  files that pass a public path through a prop (the card thumbnail,
+  (in `test:unit`) scans `app/`, `components/`, `lib/` and `hooks/` and fails,
+  naming the file and line, on a `Link` to an article or writer page without
+  the flag, and on a `.prefetch(…)` call (`router.prefetch`) with such a path.
+  It reads `Link` under any default import name from `next/link`, and an href
+  that is a literal path, a template or a `'/' + …` concatenation that starts
+  with a handle, an object with such a `pathname`, `articleHref(…)` and
+  similar helpers, or a name defined in the same file as such a template.
+  Files that pass a public path through a prop (the card thumbnail,
   pagination, a writer page's tabs and NFT pages) are listed, and every
-  non-literal `href` there needs the flag. Not covered, by name: the account
-  menus' link to the reader's own writer page, which renders only while a
-  menu is open.
+  non-literal `href` there needs the flag.
+- Limits of the guard: it does not see an href built by a helper imported
+  from another module (`href={toArticle(u, s)}`), or a component that wraps
+  `Link` and forwards its href (other than the listed prop-fed files). It
+  does not scan a plain `<a>`, which Next.js does not prefetch. The account
+  menus' link to the reader's own writer page is not covered, by name: it
+  renders only while a menu is open.
 - A view of `/articles` with every card in view and the pointer over each link
   makes no backend read for those links. A click makes one route check and at
   most one article read while the server's copy of the article is under 60 s

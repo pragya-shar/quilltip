@@ -1,17 +1,40 @@
 // A source guard for #630: every `next/link` Link to a public article or
-// writer page carries `prefetch={ARTICLE_LINK_PREFETCH}`. Each prefetch of
-// such a page runs the proxy's route check and renders the page, so one
-// unflagged card costs backend reads for every card in view.
+// writer page carries `prefetch={ARTICLE_LINK_PREFETCH}`, and no code calls
+// `.prefetch(…)` with such a path. Each prefetch of such a page runs the
+// proxy's route check and renders the page, so one unflagged card costs
+// backend reads for every card in view.
+//
+// It scans app/, components/, lib/ and hooks/ (.ts and .tsx). It reads the
+// Link element under any default import name from `next/link`, and an href
+// that is a literal path, a template or a `'/' + …` concatenation starting
+// with a handle, an object with such a `pathname`, `articleHref(…)` and
+// similar helpers, or a name defined in the same file as such a template.
+//
+// Limits, by design of a text scan:
+// - an href built by a helper imported from another module
+//   (`href={toArticle(u, s)}`) is not seen;
+// - a component that wraps Link and forwards its href is not seen at its
+//   call sites, except the prop-fed files listed in HREF_PROP_FILES;
+// - a plain `<a>` is not scanned: Next.js does not prefetch it.
 
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { join, relative } from 'path'
 
 export type LinkFinding = { file: string; line: number; href: string }
 
+/** `Link` and any default import name of `next/link` in the source. */
+export function linkNames(source: string): string[] {
+  const names = new Set(['Link'])
+  const imports =
+    /import\s+([A-Za-z_$][\w$]*)\s*(?:,\s*\{[^}]*\})?\s*from\s*['"]next\/link['"]/g
+  for (const match of source.matchAll(imports)) names.add(match[1]!)
+  return [...names]
+}
+
 /** Opening `<Link …>` tags of a source file, with their offset. */
 export function linkTags(source: string): { tag: string; at: number }[] {
   const tags: { tag: string; at: number }[] = []
-  const start = /<Link\b/g
+  const start = new RegExp(`<(?:${linkNames(source).join('|')})\\b`, 'g')
   let match: RegExpExecArray | null
   while ((match = start.exec(source))) {
     // Contexts inside the tag: braces of code and template literals. A `>`
@@ -100,11 +123,23 @@ export function isPublicPagePath(
   source: string,
   routes: ReadonlySet<string>
 ): boolean {
+  href = href.trim()
+  // An object href: its pathname decides.
+  if (href.startsWith('{')) {
+    const pathname = valueAfter(href, /\bpathname\s*:\s*/)
+    return pathname !== null && isPublicPagePath(pathname, source, routes)
+  }
   // A literal path.
   const literal = /^["'](\/[^"']*)["']$/.exec(href)
   if (literal) {
     const first = literal[1]!.split(/[/?#]/)[1] ?? ''
     return first !== '' && !first.startsWith('#') && !routes.has(first)
+  }
+  // A concatenation that starts with a literal: '/' + username, '/x/' + y.
+  const head = /^(["'`])(\/[^"'`$]*)\1\s*\+/.exec(href)
+  if (head) {
+    const first = head[2]!.slice(1).split(/[/?#]/)[0]!
+    return first === '' || !routes.has(first)
   }
   // A template whose first segment is code: /${username}, /${a}/${b}.
   if (/^`\/\$\{/.test(href)) return true
@@ -122,6 +157,50 @@ export function isPublicPagePath(
     `(?:const|let|function)\\s+${name}\\b[\\s\\S]{0,400}?\`\\/\\$\\{`
   )
   return definition.test(source)
+}
+
+/**
+ * The expression after `key` in `code`, up to the next top-level `,` or the
+ * end of the enclosing braces or parentheses.
+ */
+export function valueAfter(code: string, key: RegExp): string | null {
+  const match = key.exec(code)
+  if (!match) return null
+  let depth = 0
+  let quote: string | null = null
+  let i = match.index + match[0].length
+  const begin = i
+  for (; i < code.length; i++) {
+    const c = code[i]!
+    if (quote) {
+      if (c === '\\') i++
+      else if (c === quote) quote = null
+    } else if (c === '"' || c === "'" || c === '`') quote = c
+    else if (c === '{' || c === '(' || c === '[') depth++
+    else if (c === '}' || c === ')' || c === ']') {
+      if (depth === 0) break
+      depth--
+    } else if (c === ',' && depth === 0) break
+  }
+  return code.slice(begin, i).trim()
+}
+
+/** `.prefetch(path)` calls (router.prefetch) with a public page path. */
+export function findPrefetchCalls(
+  file: string,
+  source: string,
+  routes: ReadonlySet<string>
+): LinkFinding[] {
+  const findings: LinkFinding[] = []
+  const call = /\.prefetch\(\s*/g
+  let match: RegExpExecArray | null
+  while ((match = call.exec(source))) {
+    const arg = valueAfter(source.slice(match.index), /\.prefetch\(\s*/)
+    if (!arg || !isPublicPagePath(arg, source, routes)) continue
+    const line = source.slice(0, match.index).split('\n').length
+    findings.push({ file, line, href: `.prefetch(${arg})` })
+  }
+  return findings
 }
 
 /** Whether the tag turns prefetch off. */
@@ -164,23 +243,30 @@ export function appRoutes(appDir: string): Set<string> {
   return routes
 }
 
-/** All .tsx files under `dirs`, relative to `root`. */
+/** All .ts and .tsx files under `dirs`, relative to `root`. */
 export function sourceFiles(root: string, dirs: string[]): string[] {
   const files: string[] = []
   const walk = (dir: string) => {
     for (const name of readdirSync(dir)) {
       const path = join(dir, name)
       if (statSync(path).isDirectory()) walk(path)
-      else if (name.endsWith('.tsx')) files.push(relative(root, path))
+      else if (/\.tsx?$/.test(name) && !/\.d\.ts$/.test(name))
+        files.push(relative(root, path))
     }
   }
   for (const dir of dirs) walk(join(root, dir))
   return files.sort()
 }
 
-export function scan(root: string, dirs = ['app', 'components']) {
+export const SCANNED_DIRS = ['app', 'components', 'lib', 'hooks']
+
+export function scan(root: string, dirs = SCANNED_DIRS) {
   const routes = appRoutes(join(root, 'app'))
-  return sourceFiles(root, dirs).flatMap((file) =>
-    findUnflaggedLinks(file, readFileSync(join(root, file), 'utf8'), routes)
-  )
+  return sourceFiles(root, dirs).flatMap((file) => {
+    const source = readFileSync(join(root, file), 'utf8')
+    return [
+      ...findUnflaggedLinks(file, source, routes),
+      ...findPrefetchCalls(file, source, routes),
+    ]
+  })
 }

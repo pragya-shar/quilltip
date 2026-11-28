@@ -4,10 +4,13 @@ import { fileURLToPath } from 'url'
 import { describe, expect, it } from 'vitest'
 import {
   appRoutes,
+  findPrefetchCalls,
   findUnflaggedLinks,
   HREF_PROP_FILES,
   KNOWN_UNFLAGGED,
   scan,
+  SCANNED_DIRS,
+  sourceFiles,
 } from './link-prefetch-guard'
 
 /**
@@ -96,6 +99,65 @@ describe('the link prefetch guard', () => {
       )
     ).toEqual([])
     expect(check('<Link href={`/${u}`} prefetch={false}>x</Link>')).toEqual([])
+  })
+
+  it.each([
+    [
+      'a Link under another import name',
+      "import NextLink from 'next/link'\n<NextLink href={`/${u}`}>x</NextLink>",
+    ],
+    ['a concatenation from /', "<Link href={'/' + username}>x</Link>"],
+    [
+      'a concatenation of two segments',
+      "<Link href={'/' + u + '/' + s}>x</Link>",
+    ],
+    [
+      'an object with a public pathname',
+      '<Link href={{ pathname: `/${u}`, query: { tab: t } }}>x</Link>',
+    ],
+  ])('finds %s without the flag', (_, source) => {
+    expect(check(source)).toHaveLength(1)
+    const flagged = source.replace(
+      /href=/,
+      'prefetch={ARTICLE_LINK_PREFETCH} href='
+    )
+    expect(check(flagged)).toEqual([])
+  })
+
+  it.each([
+    [
+      'a concatenation into a route',
+      "<Link href={'/articles?page=' + n}>x</Link>",
+    ],
+    ['an editor concatenation', "<Link href={'/write?id=' + id}>x</Link>"],
+    [
+      'an object with a route pathname',
+      "<Link href={{ pathname: '/settings', query }}>x</Link>",
+    ],
+  ])('leaves %s alone', (_, source) => {
+    expect(check(source)).toEqual([])
+  })
+
+  it('finds a prefetch call with a public path, with its line', () => {
+    const calls = (source: string) =>
+      findPrefetchCalls('lib/x.ts', source, routes).map(
+        ({ line, href }) => `${line}: ${href}`
+      )
+    expect(
+      calls('const r = useRouter()\nr.prefetch(`/${a.username}/${a.slug}`)')
+    ).toEqual(['2: .prefetch(`/${a.username}/${a.slug}`)'])
+    expect(calls("router.prefetch('/' + username, { kind })")).toHaveLength(1)
+    expect(calls("router.prefetch('/settings')")).toEqual([])
+  })
+
+  it('scans lib/ and hooks/, .ts files included', () => {
+    expect(SCANNED_DIRS).toEqual(['app', 'components', 'lib', 'hooks'])
+    const files = sourceFiles(ROOT, SCANNED_DIRS)
+    expect(files.some((f) => f.startsWith('lib/') && f.endsWith('.ts'))).toBe(
+      true
+    )
+    expect(files.some((f) => f.startsWith('hooks/'))).toBe(true)
+    expect(files.some((f) => f.endsWith('.d.ts'))).toBe(false)
   })
 
   it('requires the flag on every non-literal href in a prop-fed file', () => {
