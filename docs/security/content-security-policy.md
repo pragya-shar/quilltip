@@ -87,17 +87,18 @@ thumbnails in the older editor's video dialog), and `images.unsplash.com`,
 `plus.unsplash.com` and `arweave.net` (images in existing articles; no code
 adds them). The same list sets `img-src`, the image optimizer's
 `remotePatterns` in `next.config.ts`, the article renderers and the publish
-check in Convex. Uploads, covers and avatars set through the upload path
-are `ctx.storage.getUrl` addresses, `<CONVEX_CLOUD_URL>/api/storage/<id>`
-(`users.updateProfile` stores any avatar string, so for an avatar set another
-way only this policy applies); the app reads the same
+check in Convex. Uploads, covers and profile photos are `ctx.storage.getUrl`
+addresses, `<CONVEX_CLOUD_URL>/api/storage/<id>`. Profile photos are uploaded
+only: `users.updateProfile` accepts an address in this deployment's storage
+and nothing else, and `UserAvatar` shows the initials for a stored photo
+outside the list. The app reads that
 origin from `NEXT_PUBLIC_CONVEX_URL`, so the two must name the same
 deployment. An article image from another host is not rendered, and an
 article holding one cannot be published until the image is uploaded or
 replaced; drafts save as they are. A cover from another host counts as no
 cover in the article cards and the article page's metadata.
-`articleImageHosts:countImageHosts`
-reports image hosts across a deployment's articles.
+`articleImageHosts:countImageHosts` reports image, cover and profile photo
+hosts across a deployment.
 
 ## Not tightened
 

@@ -32,7 +32,6 @@ import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
 import { useRouter } from 'next/navigation'
 import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
-import { shownCoverImage } from '@/lib/tiptap/articleImage'
 
 // The collapsed details panel sits below the article. The server renders it
 // into the HTML; its accordion, highlight notes and date code load while the
@@ -140,7 +139,9 @@ export function ArticlePageClient({
     title: article.title,
     content: article.content,
     excerpt: article.excerpt,
-    coverImage: shownCoverImage(article.coverImage),
+    // No outside cover reaches here: getArticleBySlug leaves it out for
+    // readers and the server page scrubs initialArticle (#633).
+    coverImage: article.coverImage,
     publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
     author: {
       id: article.author.id,

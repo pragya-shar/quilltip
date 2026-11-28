@@ -124,8 +124,25 @@ describe('one deployment origin for images in every place (#615)', () => {
     expect(read('lib/tiptap/articleImage.ts')).toContain(
       'isAllowedImageSource(src, process.env.NEXT_PUBLIC_CONVEX_URL)'
     )
+    expect(read('lib/profile/shownAvatar.ts')).toContain(
+      'isOwnStorageAvatar(trimmed, process.env.NEXT_PUBLIC_CONVEX_URL)'
+    )
     expect(read('convex/lib/articleImages.ts')).toContain(
       'const convexUrl = process.env.CONVEX_CLOUD_URL'
     )
+    expect(read('convex/users.ts')).toContain(
+      'isOwnStorageAddress(args.avatar.trim(), process.env.CONVEX_CLOUD_URL)'
+    )
   })
+})
+
+// The readers, cards and avatars import imageSources; the refusal text is
+// for the writing editor and Convex only (lib/security/imageSourceRefusal).
+it('imageSources carries no refusal text', () => {
+  const source = readFileSync(
+    join(__dirname, '../../lib/security/imageSources.ts'),
+    'utf8'
+  )
+  expect(source).not.toContain('cannot be used')
+  expect(source).not.toContain('must be uploaded')
 })

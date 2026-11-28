@@ -7,6 +7,8 @@ import { isArticleListingReady } from './lib/articleListingReady'
 import { syncAvatarUploadReference } from './lib/uploadReferences'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import { profileBioError, profileNameError } from '../lib/profile/profileRules'
+import { isOwnStorageAddress } from '../lib/security/imageSources'
+import { AVATAR_SOURCE_REFUSAL } from '../lib/security/imageSourceRefusal'
 
 // Get the current authenticated user
 export const getCurrentUser = query({
@@ -80,6 +82,15 @@ export const updateProfile = mutation({
     if (bio !== undefined) {
       const message = profileBioError(bio)
       if (message) throw new ConvexError(message)
+    }
+    // A profile photo is an upload: only an address in this deployment's own
+    // storage (lib/security/imageSources.ts, #633). The mutation is public, so
+    // a direct call is held to the same rule. An empty address removes it.
+    if (
+      args.avatar?.trim() &&
+      !isOwnStorageAddress(args.avatar.trim(), process.env.CONVEX_CLOUD_URL)
+    ) {
+      throw new ConvexError(AVATAR_SOURCE_REFUSAL)
     }
 
     const updates: {

@@ -12,8 +12,12 @@ import {
 import { WritingDialog } from './WritingDialog'
 import type { WritingWorkspace } from './useWritingWorkspace'
 import type { ArticleStyle } from '@/lib/editor/articleAppearance'
-import { imageSourceRefusal } from '@/lib/security/imageSources'
+import { imageSourceRefusal } from '@/lib/security/imageSourceRefusal'
 import { isArticleImageShown } from '@/lib/tiptap/articleImage'
+import {
+  youtubeVideoId,
+  youtubeWatchAddress,
+} from '@/lib/tiptap/youtubeExtension'
 
 export function WritingMedia({
   workspace: w,
@@ -81,14 +85,14 @@ export function WritingMedia({
         (p) => setProgress(p.percentage),
         controller.signal
       )
-      if (!result.success || !result.url)
-        throw new Error(result.error || 'Upload failed.')
+      if (!result.success || !result.url) {
+        // lib/upload gives a refusal's own words, or a plain line.
+        setError(result.error || 'The upload failed. Try again.')
+        return
+      }
       insertImage(result.url)
     } catch (e) {
-      if (!isAbortError(e))
-        setError(
-          e instanceof Error ? e.message : 'Could not upload this image.'
-        )
+      if (!isAbortError(e)) setError('Could not upload this image. Try again.')
     } finally {
       setBusy(false)
       abort.current = null
@@ -137,27 +141,24 @@ export function WritingMedia({
           e.preventDefault()
           setError('')
           if (w.showBodyYouTubeDialog) {
-            let valid = false
-            try {
-              const parsed = new URL(url)
-              valid =
-                ['https:', 'http:'].includes(parsed.protocol) &&
-                [
-                  'www.youtube.com',
-                  'youtube.com',
-                  'youtu.be',
-                  'www.youtube-nocookie.com',
-                ].includes(parsed.hostname)
-            } catch {}
+            // A video is kept by its id; the readers and this editor build
+            // the frame on the no-cookie host (lib/tiptap/youtubeExtension).
+            const id = youtubeVideoId(url)
             if (
-              !valid ||
+              !id ||
               !w.editor
                 ?.chain()
                 .focus()
-                .setYoutubeVideo({ src: url, width, height })
+                .setYoutubeVideo({
+                  src: youtubeWatchAddress(id),
+                  width,
+                  height,
+                })
                 .run()
             ) {
-              setError('Use a youtube.com or youtu.be video link.')
+              setError(
+                'Use the address of a YouTube video: a watch, youtu.be, shorts or live link. Playlists and channels cannot be added.'
+              )
               return
             }
             close()

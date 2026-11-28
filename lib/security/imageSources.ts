@@ -86,11 +86,8 @@ export function imageSources(convexUrl: string | undefined): ImageSource[] {
   return [...(own ? [own] : []), ...LISTED_IMAGE_SOURCES]
 }
 
-/** Whether an image at `src` may load: an absolute address on a source. */
-export function isAllowedImageSource(
-  src: unknown,
-  convexUrl: string | undefined
-): boolean {
+/** Whether `src` is an absolute address on one of `sources`. */
+function onSource(src: unknown, sources: readonly ImageSource[]): boolean {
   if (typeof src !== 'string') return false
   let url: URL
   try {
@@ -99,13 +96,21 @@ export function isAllowedImageSource(
     return false
   }
   if (url.username || url.password) return false
-  return imageSources(convexUrl).some(
+  return sources.some(
     (source) =>
       url.protocol === `${source.protocol}:` &&
       url.hostname === source.hostname &&
       url.port === source.port &&
       url.pathname.startsWith(source.pathPrefix)
   )
+}
+
+/** Whether an image at `src` may load: an absolute address on a source. */
+export function isAllowedImageSource(
+  src: unknown,
+  convexUrl: string | undefined
+): boolean {
+  return onSource(src, imageSources(convexUrl))
 }
 
 function sourceOrigin(source: ImageSource): string {
@@ -129,17 +134,15 @@ export function imageRemotePatterns(convexUrl: string | undefined) {
   }))
 }
 
-/** The listed hosts, as the editor and the publish check name them. */
-export function listedImageHostsText(): string {
-  const hosts = LISTED_IMAGE_SOURCES.map((source) => source.hostname)
-  return `${hosts.slice(0, -1).join(', ')} or ${hosts[hosts.length - 1]}`
-}
-
-/** The refusal for an image from another host, in the editor and on publish. */
-export function imageSourceRefusal(src: unknown): string {
-  if (typeof src !== 'string' || !src.trim()) {
-    return `An image in this article has no address. Remove it, or upload the image. Images must be uploaded, or come from ${listedImageHostsText()}.`
-  }
-  const shown = src.length > 120 ? `${src.slice(0, 117)}...` : src
-  return `This image cannot be used: ${shown}. Images must be uploaded, or come from ${listedImageHostsText()}.`
+/**
+ * Whether `src` is an upload in this deployment's own storage (#633). Saving
+ * a profile photo accepts only these: photos are uploaded, never pasted. The
+ * readers still show a stored photo on a listed host (`isAllowedImageSource`).
+ */
+export function isOwnStorageAddress(
+  src: unknown,
+  convexUrl: string | undefined
+): boolean {
+  const own = ownImageSource(convexUrl)
+  return own !== null && onSource(src, [own])
 }

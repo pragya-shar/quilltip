@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values'
 import { getArticlePreview } from './articlePreview'
 
 export function isPlaceholderListingTitle(title: string): boolean {
@@ -40,9 +41,9 @@ export function assertArticleListingReady(article: {
 }): void {
   const title = article.title.trim()
   if (title.length === 0 || isPlaceholderListingTitle(title)) {
-    throw new Error('Cannot publish: add a real title (not "Untitled")')
+    throw new ConvexError('Cannot publish: add a real title (not "Untitled")')
   }
   if (!article.authorUsername?.trim()) {
-    throw new Error('Cannot publish: author username is required')
+    throw new ConvexError('Cannot publish: author username is required')
   }
 }

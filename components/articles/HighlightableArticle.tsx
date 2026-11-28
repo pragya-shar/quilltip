@@ -21,7 +21,7 @@ import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import HighlightExtension from '@/components/editor/extensions/HighlightExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
 import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
-import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
+import { createReaderYoutubeNode } from '@/lib/tiptap/youtubeEmbed'
 import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
 import { TextSelection } from '@tiptap/pm/state'
 import { useMutation } from 'convex/react'
@@ -228,7 +228,7 @@ export function HighlightableArticle({
           lowlight,
         }),
         ResizableImage,
-        createYoutubeExtension(),
+        createReaderYoutubeNode(),
         ...(editable ? [EditorKeymap] : []),
         ...(highlightsActive
           ? [
