@@ -12,6 +12,9 @@ export const routes: PerfRoutes = {
     // To be set from the first CI measurement.
     { route: '/', access: 'public', budgetKb: 195 },
   ],
+  // Its first response with no script is checked on a production build
+  // (scripts/today/app-check.ts, e2e/today-app.spec.ts).
+  noScript: ['/'],
   pageLoad: [
     {
       name: 'today',
