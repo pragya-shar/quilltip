@@ -12,6 +12,24 @@ export type SignOutCleanup = {
   run: () => void | Promise<void>
 }
 
+/**
+ * Something a package does with the server while the person is still
+ * signed in, just before the session ends (Pocket: revoke this browser's
+ * quick-tip keys, so the server stops taking them at once). Best effort:
+ * every action runs at once, each within a short limit; one that throws or
+ * runs late is dropped, and the sign-out never waits past the limit. Not
+ * run when no session token is held (the session already ended): pair it
+ * with a cleanup for what this browser must forget either way. Import the
+ * package's code lazily:
+ *
+ *   { name: 'quick-tip keys',
+ *     run: ({ userId }) => import('@/hooks/pocket/quickTips').then((m) => m.revokeKeys(userId)) }
+ */
+export type SignOutAction = {
+  name: string
+  run: (who: SignOutWho) => Promise<void>
+}
+
 /** Who is signing out, given to every warning check. */
 export type SignOutWho = {
   /** The signed-in user's id, asked when the sign-out starts; null when it
