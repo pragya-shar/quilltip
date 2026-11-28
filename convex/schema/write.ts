@@ -32,7 +32,12 @@ export const writeTables = {
     /** The first non-empty paragraph, cut on a word (`firstLineOf`). */
     firstLine: v.string(),
     words: v.number(),
-    updatedAt: v.number(),
+    /**
+     * Drafts only: the article's `updatedAt`. A published row has none, since
+     * writers of a published article that do not sync (tip counters, the
+     * permanent copy, NFTs) move it; a published row orders by `publishedAt`.
+     */
+    updatedAt: v.optional(v.number()),
     publishedAt: v.union(v.number(), v.null()),
     slug: v.string(),
   })

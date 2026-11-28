@@ -3,8 +3,15 @@
  * the desk lists, so a desk page reads small rows and never an article
  * document. `syncDeskRow` is the only writer. Call it in the same mutation
  * as every write that inserts or deletes an article or changes its title,
- * content, published state, publish time, slug or `updatedAt`; it is safe to
- * call any number of times and writes only when a field differs.
+ * content, published state, publish time, slug, or a draft's `updatedAt`;
+ * it is safe to call any number of times and writes only when a field
+ * differs.
+ *
+ * The rule that keeps a row equal to its article: a field belongs in a row
+ * only if every writer of that field calls `syncDeskRow`. So a published
+ * row holds no `updatedAt` (tip counters, the permanent copy and the NFT
+ * writers move it without syncing), and no handle (the desk reads it from
+ * the user row).
  */
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx } from '../../_generated/server'
@@ -30,7 +37,7 @@ export function deskFieldsOf(article: Doc<'articles'>): DeskFields {
     title: article.title,
     firstLine: firstLineOf(article.content),
     words: wordsOf(article.content),
-    updatedAt: article.updatedAt,
+    updatedAt: article.published === true ? undefined : article.updatedAt,
     publishedAt: article.publishedAt ?? null,
     slug: article.slug,
   }
@@ -66,9 +73,16 @@ export async function syncDeskRow(
   const fields = deskFieldsOf(article)
   if (row) {
     if (same(row, fields)) return false
+    // An undefined field is removed by a patch: a published row loses its
+    // `updatedAt`.
     await ctx.db.patch(row._id, fields)
     return true
   }
-  await ctx.db.insert('deskRows', { articleId, ...fields })
+  const { updatedAt, ...rest } = fields
+  await ctx.db.insert('deskRows', {
+    articleId,
+    ...rest,
+    ...(updatedAt === undefined ? {} : { updatedAt }),
+  })
   return true
 }

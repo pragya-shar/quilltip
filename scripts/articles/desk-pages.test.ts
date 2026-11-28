@@ -148,7 +148,13 @@ async function expectRowsMatch(w: World) {
   for (const article of articles) {
     const row = rows.find((r) => r.articleId === article._id)
     expect(row, article.title).toBeDefined()
-    expect(row).toMatchObject(deskFieldsOf(article))
+    // Exactly the article's fields: none missing, none extra (an undefined
+    // field, a published row's `updatedAt`, must be absent).
+    const { _id, _creationTime, articleId, ...fields } = row!
+    void _id
+    void _creationTime
+    expect(articleId).toBe(article._id)
+    expect(fields).toEqual(JSON.parse(JSON.stringify(deskFieldsOf(article))))
   }
 }
 
@@ -409,6 +415,23 @@ describe('the rows stay equal to their articles', () => {
     await w.writer.mutation(api.articles.deleteArticle, { id: b! })
     await expectRowsMatch(w)
     expect((await draftPages(w.writer)).items.map((d) => d._id)).toEqual([a])
+  })
+
+  test('a published row carries no updatedAt; a draft row always does', async () => {
+    const w = await setup()
+    tRef = w.t
+    const [a, b] = await makeDrafts(w.writer, 2)
+    await publish(w.writer, a!)
+    // A writer that moves updatedAt without syncing the row.
+    await w.t.run((ctx) =>
+      ctx.db.patch(a!, { totalTipsUsd: 1, updatedAt: Date.now() + 5 })
+    )
+    const rows = await w.t.run((ctx) => ctx.db.query('deskRows').collect())
+    const published = rows.find((r) => r.articleId === a)!
+    const draft = rows.find((r) => r.articleId === b)!
+    expect('updatedAt' in published).toBe(false)
+    expect(draft.updatedAt).toEqual(expect.any(Number))
+    await expectRowsMatch(w)
   })
 
   test("another writer's rows never appear, and signed out is an empty page", async () => {

@@ -469,7 +469,8 @@ async function rowsRemain(
 ): Promise<boolean> {
   if (isDone || page.length < numItems) return !isDone
   const last = page[page.length - 1]!
-  const rows = await peek(last[key], PEEK_ROWS)
+  // Draft rows always hold `updatedAt` (`deskFieldsOf`).
+  const rows = await peek(last[key] ?? null, PEEK_ROWS)
   const after = (row: Doc<'deskRows'>) =>
     row[key] !== last[key] || row._creationTime < last._creationTime
   return rows.some(after) || rows.length === PEEK_ROWS
@@ -544,7 +545,8 @@ export const deskDrafts = query({
         title: row.title,
         firstLine: row.firstLine,
         words: row.words,
-        updatedAt: row.updatedAt,
+        // Every draft row has one (`deskFieldsOf`).
+        updatedAt: row.updatedAt ?? 0,
       })),
     }
   },
