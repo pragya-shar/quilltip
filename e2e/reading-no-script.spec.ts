@@ -13,7 +13,15 @@ test.skip(
   'Needs a production build (bun scripts/app-checks/run.ts)'
 )
 
-const READING = [
+const READING: {
+  path: string
+  heading: string
+  text: string
+  /** Where the text is: the fixture's articles share their first lines,
+   * so on Today the opening article holds it, not the list under it. */
+  within?: string
+  links: { name: string; href: string }[]
+}[] = [
   {
     path: '/system/reading',
     heading: 'What my grandmother’s ledger taught me about money',
@@ -22,6 +30,14 @@ const READING = [
       { name: 'Back to reading', href: '/' },
       { name: 'Read more articles', href: '/articles' },
     ],
+  },
+  {
+    // Today, on the fixture backend's articles (scripts/perf/convex-fixture.ts).
+    path: '/',
+    heading: 'The Lamp on Orchard Street',
+    text: 'The lamp on Orchard Street came on every evening at a quarter past six',
+    within: 'article[aria-labelledby="today-title"]',
+    links: [{ name: 'Fixture Writer', href: '/fixture-writer' }],
   },
 ]
 
@@ -48,7 +64,8 @@ for (const page of READING) {
     await expect(
       tab.getByRole('heading', { level: 1, name: page.heading })
     ).toBeVisible()
-    await expect(tab.getByText(page.text)).toBeVisible()
+    const where = page.within ? tab.locator(page.within) : tab.locator('body')
+    await expect(where.getByText(page.text)).toBeVisible()
     for (const link of page.links) {
       const el = tab.getByRole('link', { name: link.name })
       await expect(el).toBeVisible()

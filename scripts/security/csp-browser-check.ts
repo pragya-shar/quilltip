@@ -46,7 +46,8 @@ async function main(): Promise<number> {
     await waitForApp()
     // The first request to a route compiles its server data; warm the routes
     // so a cold start cannot race the spec's first assertions.
-    for (const path of ['/', '/articles', '/wallet/practice']) {
+    // The same routes the spec loads (`/articles` and `/login` now only redirect).
+    for (const path of ['/', '/signin', '/wallet/practice']) {
       await fetch(`${BASE_URL}${path}`).catch(() => {})
     }
     return await run(

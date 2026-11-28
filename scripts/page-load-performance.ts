@@ -10,7 +10,7 @@ import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-// Measures page load for the landing page, an article, a profile and
+// Measures page load for Today, an article, a profile and
 // (optionally) the signed-in dashboard, on desktop and throttled mobile.
 // Every run uses a fresh browser context, so each load starts with a cold cache.
 
@@ -243,7 +243,7 @@ export function buildPerformanceReportMarkdown(report: {
     `- **Tool:** ${report.tool}`,
     `- **Runs:** ${report.runs} cold loads per page and device; tables show the median`,
     `- **Goal:** median load event, largest contentful paint (LCP) and, where measured, content ready all at or under ${TARGET_MS} ms`,
-    '- **Content ready:** time until the page can be used: the landing intro has finished, or the dashboard stats have loaded',
+    '- **Content ready:** time until the page can be used: Today’s opening is shown, or the dashboard stats have loaded',
     '',
     '## Devices and networks',
     '',
@@ -369,7 +369,7 @@ function buildHelpText(): string {
     `  --base-url <url>       Site to measure. Default: ${DEFAULT_BASE_URL}`,
     `  --out <path>           Markdown report path. Default: ${DEFAULT_OUTPUT_PATH}`,
     `  --runs <n>             Cold loads per page and device. Default: ${DEFAULT_RUNS}`,
-    '  --article-path <path>  Article route. Default: first article on /articles',
+    '  --article-path <path>  Article route. Default: Today’s opening',
     "  --profile-path <path>  Profile route. Default: the article's writer",
     '  --commit <sha>         Commit the measured site serves (check the hosting\n' +
       '                         dashboard). Default for remote sites: unknown',
@@ -424,12 +424,12 @@ async function discoverArticlePath(
   const context = await browser.newContext()
   try {
     const page = await context.newPage()
-    await page.goto(new URL('/articles', baseUrl).toString(), {
+    await page.goto(new URL('/', baseUrl).toString(), {
       waitUntil: 'load',
       timeout: 60_000,
     })
     await page
-      .locator('.reading-room-card a[href^="/"]')
+      .locator('.qt-today__opening a[href^="/"]')
       .first()
       .waitFor({ timeout: 30_000 })
       .catch(() => {})
@@ -445,7 +445,7 @@ async function discoverArticlePath(
     const articlePath = pickArticlePathFromLinks(links)
     if (!articlePath) {
       throw new Error(
-        'Could not find an article on /articles. Pass --article-path /writer/slug.'
+        'Could not find an article on Today. Pass --article-path /writer/slug.'
       )
     }
     return articlePath
@@ -580,11 +580,11 @@ async function run(options: CliOptions): Promise<void> {
     }
 
     const targets: MeasurementTarget[] = [
-      // First visits play a skippable intro; the page stays inert until it ends.
+      // Today: the opening is in the first response.
       {
-        name: 'landing',
+        name: 'today',
         path: '/',
-        contentSelector: '[data-opening-ready="true"]',
+        contentSelector: '.qt-today__opening h1',
       },
       { name: 'article', path: articlePath },
       { name: 'profile', path: profilePath },

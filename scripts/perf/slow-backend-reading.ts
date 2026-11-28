@@ -13,9 +13,10 @@
 // - the page answers 200 (an existing article must not answer 404 because
 //   the backend was slow), with `noindex` and `no-store`;
 // - with JavaScript off, in Chromium and WebKit, at 375 px, the page shows a
-//   heading that it could not be loaded, a "Try again" link and the way home
-//   (READING.wayHome: today the header's wordmark link; the header's other
-//   links sit in its menu at this width).
+//   heading that it could not be loaded, a "Try again" link and the way home:
+//   the one a package declares for that path (`wayHome` in
+//   scripts/perf/routes), else READING.wayHome (the legacy header's wordmark
+//   link; that header's other links sit in its menu at this width).
 // Then, with the backend answering again, each page shows its content: a
 // timed-out read was not cached.
 
@@ -26,7 +27,8 @@ import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
 import { fixtureArticlePath } from './convex-fixture'
 import { fixtureBackendBehaviour, startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
-import { READING, wayHomeOn } from './no-script-reading'
+import { READING, wayHomeOn, type WayHome } from './no-script-reading'
+import { SURFACE_WAY_HOME } from './routes'
 
 /** Rendering and CI noise on top of the read limits. */
 const MARGIN_MS = 1000
@@ -40,6 +42,11 @@ const PAGES = [
   { path: READING.article, readsInSequence: 2, content: READING.prose },
 ]
 const FALLBACK_TEXT = 'could not be loaded right now'
+
+/** The way home a package declares for a page, else the legacy header's. */
+const wayHomeFor = (path: string): WayHome =>
+  SURFACE_WAY_HOME.find((entry) => entry.path === path)?.wayHome ??
+  READING.wayHome
 const RETRY_LINK = 'Try again'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -57,9 +64,22 @@ type Behaviour = 'silent' | 'slow' | 'error'
  * cached real content, as it should.
  */
 function coldPath(path: string, run: number) {
-  if (path === READING.list) return `${path}?tag=cold-${run}`
+  if (path === READING.list && path !== '/') return `${path}?tag=cold-${run}`
   if (path === READING.article) return fixtureArticlePath(2 + run)
   return path // The writer's reads are not cached.
+}
+
+/**
+ * Today (`/`) keys its cache by the minute, not the address, so its cold
+ * load is a reader with a skip list (the `qt_opened` cookie): Today reads
+ * that one directly and never caches it. A Convex-id-shaped value per run.
+ */
+function coldCookie(path: string, run: number) {
+  if (path !== '/') return null
+  return {
+    name: 'qt_opened',
+    value: `coldreadrun${String(run).padStart(8, '0')}`,
+  }
 }
 
 const boundFor = (readsInSequence: number) =>
@@ -76,7 +96,7 @@ async function timedFetch(path: string, limitMs: number) {
   return { response, body, firstByte, whole: performance.now() - started }
 }
 
-async function readableWithoutScripts(page: Page) {
+async function readableWithoutScripts(page: Page, wayHome: WayHome) {
   const visible = (locator: ReturnType<Page['locator']>) =>
     locator
       .first()
@@ -88,8 +108,8 @@ async function readableWithoutScripts(page: Page) {
     missing.push(`no heading "… ${FALLBACK_TEXT}."`)
   if (!(await visible(page.getByRole('link', { name: RETRY_LINK }))))
     missing.push(`no "${RETRY_LINK}" link`)
-  if (!(await visible(wayHomeOn(page, READING.wayHome))))
-    missing.push(`no way home (${READING.wayHome.name})`)
+  if (!(await visible(wayHomeOn(page, wayHome))))
+    missing.push(`no way home (${wayHome.name})`)
   return missing
 }
 
@@ -148,6 +168,8 @@ async function main() {
               viewport: { width: 375, height: 812 },
               javaScriptEnabled: false,
             })
+            const cookie = coldCookie(path, run)
+            if (cookie) await context.addCookies([{ ...cookie, url: BASE_URL }])
             const page = await context.newPage()
             const label = `${behaviour} backend, ${name}, javascript off, ${path}`
             const loaded = await page
@@ -160,7 +182,7 @@ async function main() {
                 () => false
               )
             const missing = loaded
-              ? await readableWithoutScripts(page)
+              ? await readableWithoutScripts(page, wayHomeFor(path))
               : ['the page did not load']
             console.log(
               `${label.padEnd(56)} ${missing.length ? 'FAILS' : 'reads'}`

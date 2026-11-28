@@ -28,7 +28,7 @@ const SIGNED_IN_PAGES = [
 ]
 
 /** Pages that should carry no such form. */
-const READING_PAGES = ['/', '/articles', FIXTURE_ARTICLE_PATH, '/support']
+const READING_PAGES = ['/', FIXTURE_ARTICLE_PATH, '/support']
 
 /** Field types and autocomplete tokens that carry a secret or personal data. */
 const PERSONAL_TYPES = ['password', 'email', 'tel']
