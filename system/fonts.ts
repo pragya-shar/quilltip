@@ -4,11 +4,15 @@ import localFont from 'next/font/local'
 /**
  * The one web font: Literata for reading, display and money figures
  * (variable: optical size 12 to 60 and weight 400 to 700; see
- * system/fonts/README.md). Self-hosted, `display: swap`. Until it arrives,
- * text paints in Times New Roman at Literata's metrics, one face per weight
- * band (system/font-fallbacks.css; next/font's own fallback has one face
- * only, and bold titles re-wrapped at the swap), so text keeps its lines:
- * no layout shift. The browser picks the optical size from the font size.
+ * system/fonts/README.md). Self-hosted, `display: optional`: a page view
+ * that starts painting before Literata arrives (the block period is about
+ * 100 ms) stays in the fallback for the whole view, so the text being read
+ * never changes face or line breaks; Literata shows from the next view that
+ * finds it loaded or cached. The fallback is Times New Roman at Literata's
+ * metrics, one face per weight band (system/font-fallbacks.css; next/font's
+ * own fallback has one face only), so a reader who stays in it sees nearly
+ * the same line lengths. The browser picks the optical size from the font
+ * size.
  *
  * The roman Latin file (60 KB) is preloaded; the italic (62 KB) is its own
  * family and loads only when a page draws italic text. The Latin Extended
@@ -21,7 +25,7 @@ export const readingFace = localFont({
   weight: '400 700',
   style: 'normal',
   variable: '--qt-face-read',
-  display: 'swap',
+  display: 'optional',
   preload: true,
   adjustFontFallback: false,
   fallback: [],
@@ -33,7 +37,7 @@ export const readingItalicFace = localFont({
   weight: '400 700',
   style: 'italic',
   variable: '--qt-face-read-italic',
-  display: 'swap',
+  display: 'optional',
   preload: false,
   adjustFontFallback: false,
   fallback: [],
@@ -43,7 +47,7 @@ const readingExtFace = localFont({
   src: './fonts/literata-latin-ext-normal.woff2',
   weight: '400 700',
   style: 'normal',
-  display: 'swap',
+  display: 'optional',
   preload: false,
   adjustFontFallback: false,
   fallback: [],
@@ -62,7 +66,7 @@ const readingExtItalicFace = localFont({
   src: './fonts/literata-latin-ext-italic.woff2',
   weight: '400 700',
   style: 'italic',
-  display: 'swap',
+  display: 'optional',
   preload: false,
   adjustFontFallback: false,
   fallback: [],

@@ -128,10 +128,11 @@
   .qt-rail__item[data-balance] .qt-money__figure {
     font-size: var(--qt-text-ui-l);
   }
-  /* Before auth is known: "Sign in", or "Balance" when a session token is
-   * held (set before paint by shell/prePaint.ts). */
-  :root:not([data-session='held']) .qt-balance-slot [data-when='held'],
-  :root[data-session='held'] .qt-balance-slot [data-when='signed-out'],
+  /* Before auth is known: the "Sign in" link, or the "Balance" link when a
+   * session token is held (set before paint by shell/prePaint.ts). */
+  .qt-balance-switch {
+    display: contents;
+  }
   :root:not([data-session='held']) [data-session-switch] > [data-when='held'],
   :root[data-session='held'] [data-session-switch] > [data-when='signed-out'] {
     display: none;

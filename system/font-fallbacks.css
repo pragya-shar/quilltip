@@ -1,7 +1,9 @@
 /*
- * Metric-matched fallback faces for Literata: text paints in Times New Roman
- * (or Liberation Serif, with the same advance widths) until Literata
- * arrives, at Literata's width and line metrics, so the swap moves nothing.
+ * Metric-matched fallback faces for Literata. The reading faces load with
+ * font-display: optional (system/fonts.ts): a page view that starts painting
+ * before Literata arrives stays in these faces for the whole view, so text
+ * never moves when the font lands. These values keep a reader who stays in
+ * the fallback on nearly the same line lengths as Literata.
  *
  * One face per weight band, because Literata's weights differ in width;
  * from 550 the source is the bold file, because WebKit and Chromium draw a
@@ -11,13 +13,12 @@
  * (hhea ascent, descent and line gap, and the average advance of its
  * letter-frequency string), from Literata instanced at the band's weight:
  * optical size 18 below 550 (reading text), 28 from 550 (titles). The bands
- * below 550 are then set 2.1 percent narrower. Measured in Chromium and
- * WebKit with the computed values, the fallback ran 1.4 percent wider than
- * Literata on average at 21 px (1.3 at 19 px) and 1.8 percent on the reading
- * page's near-full line: enough for a line that nearly fills the measure to
- * wrap a word early. A fallback a hair narrow cannot add a line. The
- * Latin Extended face sits before these in the family list
- * (system/fonts.ts). Checked by scripts/perf/font-fallback-check.ts.
+ * below 550 are then set 1.9 percent narrower, the best fit measured in
+ * Chromium and WebKit at 19 and 21 px: the computed values ran 1.4 percent
+ * wider on average, and the ratio for one line varies by about 1.4 percent
+ * either way with its letters, so no value breaks every line as Literata
+ * does. The Latin Extended face sits before these in the family list
+ * (system/fonts.ts). Reported by scripts/perf/font-fallback-check.ts.
  */
 @font-face {
   font-family: 'Quilltip Read Fallback';
@@ -26,9 +27,9 @@
     local('Liberation Serif'), local('LiberationSerif');
   font-weight: 400 424;
   font-style: normal;
-  size-adjust: 115.44%;
-  ascent-override: 101.95%;
-  descent-override: 26.68%;
+  size-adjust: 115.67%;
+  ascent-override: 101.75%;
+  descent-override: 26.63%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -38,9 +39,9 @@
     local('Liberation Serif'), local('LiberationSerif');
   font-weight: 425 474;
   font-style: normal;
-  size-adjust: 116.77%;
-  ascent-override: 100.79%;
-  descent-override: 26.38%;
+  size-adjust: 117%;
+  ascent-override: 100.59%;
+  descent-override: 26.33%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -50,9 +51,9 @@
     local('Liberation Serif'), local('LiberationSerif');
   font-weight: 475 549;
   font-style: normal;
-  size-adjust: 118.1%;
-  ascent-override: 99.67%;
-  descent-override: 26.08%;
+  size-adjust: 118.34%;
+  ascent-override: 99.47%;
+  descent-override: 26.03%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -98,9 +99,9 @@
     local('Liberation Serif Italic'), local('LiberationSerif-Italic');
   font-weight: 400 424;
   font-style: italic;
-  size-adjust: 109.95%;
-  ascent-override: 107.05%;
-  descent-override: 28.01%;
+  size-adjust: 110.17%;
+  ascent-override: 106.84%;
+  descent-override: 27.95%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -110,9 +111,9 @@
     local('Liberation Serif Italic'), local('LiberationSerif-Italic');
   font-weight: 425 474;
   font-style: italic;
-  size-adjust: 111.51%;
-  ascent-override: 105.54%;
-  descent-override: 27.62%;
+  size-adjust: 111.73%;
+  ascent-override: 105.33%;
+  descent-override: 27.57%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -122,9 +123,9 @@
     local('Liberation Serif Italic'), local('LiberationSerif-Italic');
   font-weight: 475 549;
   font-style: italic;
-  size-adjust: 113.05%;
-  ascent-override: 104.11%;
-  descent-override: 27.24%;
+  size-adjust: 113.28%;
+  ascent-override: 103.9%;
+  descent-override: 27.18%;
   line-gap-override: 0%;
 }
 @font-face {
