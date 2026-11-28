@@ -250,12 +250,18 @@ test('show password sits on the password field, and shows it', async ({
   const dialog = await openFromTip(page)
   const password = dialog.getByLabel('Password', { exact: true })
   const show = dialog.getByRole('button', { name: 'Show password' })
-  const field = (await password.boundingBox())!
+  // The field's frame (the input sits inset inside it).
+  const frame = (await dialog
+    .locator('.qt-signin__password .qt-field__control')
+    .boundingBox())!
   const toggle = (await show.boundingBox())!
-  // In the label's row, just above the field, at its trailing edge.
-  expect(toggle.y + toggle.height).toBeLessThanOrEqual(field.y + 4)
-  expect(toggle.y + toggle.height).toBeGreaterThan(field.y - 30)
-  expect(toggle.x + toggle.width).toBeCloseTo(field.x + field.width, -1)
+  // In the label's row, just above the field, at its trailing edge (its
+  // hit area runs a few pixels past the edge; its text ends at the edge).
+  expect(toggle.y + toggle.height).toBeLessThanOrEqual(frame.y + 4)
+  expect(toggle.y + toggle.height).toBeGreaterThan(frame.y - 30)
+  expect(
+    Math.abs(toggle.x + toggle.width - (frame.x + frame.width))
+  ).toBeLessThanOrEqual(12)
   await password.fill('Correct1horse')
   await press(show)
   await expect(password).toHaveAttribute('type', 'text')
@@ -529,14 +535,28 @@ test.describe('nothing moves under the pointer', () => {
   // An invalid last field, then a press on the button: the field blurs as
   // the press starts, and nothing may appear then and move the button.
   // Errors come with the press itself, so the press lands.
+  // Where layout puts the button. A press may scale it about its centre
+  // (the pressed state, a transform); only a change of place moves it
+  // from under the pointer.
+  const placeOf = (button: Locator) =>
+    button.evaluate((el: HTMLElement) => {
+      let x = 0
+      let y = 0
+      let at: HTMLElement | null = el
+      while (at) {
+        x += at.offsetLeft
+        y += at.offsetTop
+        at = at.offsetParent as HTMLElement | null
+      }
+      return { x, y, width: el.offsetWidth, height: el.offsetHeight }
+    })
+
   async function pressStays(page: Page, button: Locator, landed: Locator) {
-    const before = (await button.boundingBox())!
-    await page.mouse.move(
-      before.x + before.width / 2,
-      before.y + before.height / 2
-    )
+    const before = await placeOf(button)
+    const box = (await button.boundingBox())!
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
     await page.mouse.down()
-    const during = (await button.boundingBox())!
+    const during = await placeOf(button)
     await page.mouse.up()
     expect(during).toEqual(before)
     await expect(landed).toBeVisible()
