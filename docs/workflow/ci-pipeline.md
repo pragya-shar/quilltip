@@ -92,14 +92,17 @@ from `import.meta.url`, a template `import()`, a child process.
 - Each file that has one needs an entry in `STRING_INPUTS` that names what it
   reads, as globs, and says how many constructs the file has. A glob entry
   covers files of one standard shape (every fixture server's one font read,
-  every Playwright config's `globalSetup`), with the same count for each.
+  every Playwright config's `globalSetup`), with the same count for every file
+  it matches; a matching file with a different count, none included, needs an
+  exact entry.
 - An entry's `to` globs become inputs of every job whose inputs hold the file.
   `paths` globs count only when a file there is added or deleted: the route
   trees read which pages exist, not what they say.
 - An entry applies to its file whether or not the scan finds a construct, so a
   read the constructs miss is listed by hand with an entry for that file.
-- The inputs grow to a fixed point: the code files a `to` glob reaches are
-  added with everything they import, and scanned in turn (the `lib/` files
+- The inputs grow to a fixed point: the code files that any content glob of a
+  set reaches (an entry's `to` globs and the set's own patterns) are added
+  with everything they import, and scanned in turn (the `lib/` files
   that `convex/` imports are inputs of the local-network job this way).
 - A file with constructs and no entry, or a count that differs from its entry,
   makes its job's inputs unknown, so the job runs.
@@ -122,6 +125,17 @@ from `import.meta.url`, a template `import()`, a child process.
   elsewhere. Such an input needs an entry in `STRING_INPUTS` by hand.
 - A file reached only through a `paths` glob is not followed: its contents are
   not an input.
+- A file that swaps one read for another, keeping its count, stays covered by
+  its entry: the count catches a read added or removed, not a read changed.
+- Constructs the scan does not match, none of which the scanned files use
+  today: async `stat`, `access`, `exec`, `execFile` and `fork`, `new Glob`
+  imported from `bun`, Bun shell commands, `import()` of a variable, imports
+  under another name, `fs.cpSync`, `realpathSync`, and
+  `createRequire().resolve`.
+- A problem in the shard list (a shard naming a missing suite, a suite whose
+  server is gone, a shard with no suite, a suite in no shard) makes What
+  changed plan everything, run the suites in no shard as one more shard, and
+  print each problem with the entry to change.
 
 ## Run the same steps locally
 

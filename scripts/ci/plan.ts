@@ -31,8 +31,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { SURFACE_SUITES } from '../../e2e/suites'
 import { FIXTURES, SURFACES_GROUP, type Fixture } from '../fixture-suites'
-import { SHARDS, type Shard } from './shards'
-import { constructCount, entryFor } from './string-inputs'
+import { SHARDS, shardProblems, type Shard } from './shards'
+import {
+  STRING_INPUTS,
+  constructCount,
+  entryFor,
+  type StringInput,
+} from './string-inputs'
 
 const root = path.resolve(import.meta.dirname, '../..')
 
@@ -125,6 +130,8 @@ export type Plan = {
   contracts: Decision
   contractsIntegration: Decision
   shards: { shard: Shard; decision: Decision; suites: string[] }[]
+  /** Sentences printed with the plan, such as problems in the shard list. */
+  notes?: string[]
 }
 
 /**
@@ -248,6 +255,7 @@ export function decide(changes: readonly Change[], context: Context): Plan {
     ? hit(changes, {
         files: integration.files,
         patterns: [...CONTRACTS_INTEGRATION, ...integration.patterns],
+        paths: integration.paths,
       })
     : undefined
   const contractsIntegration = forced
@@ -637,7 +645,8 @@ export function topLevel(rev: string): Set<string> {
 export function withStringInputs(
   inputs: Inputs,
   source: (file: string) => string | undefined = readSource,
-  only: Iterable<string> = inputs.files
+  only: Iterable<string> = inputs.files,
+  entries: readonly StringInput[] = STRING_INPUTS
 ): { inputs: Inputs; uncovered: string[] } {
   const patterns = [...inputs.patterns]
   const paths = [...(inputs.paths ?? [])]
@@ -645,7 +654,7 @@ export function withStringInputs(
   for (const file of only) {
     const text = source(file)
     const count = text === undefined ? 0 : constructCount(text)
-    const entry = entryFor(file, count, matches)
+    const entry = entryFor(file, count, matches, entries)
     if (entry) {
       patterns.push(...(entry.to ?? []))
       paths.push(...(entry.paths ?? []))
@@ -682,11 +691,20 @@ const CODE = /\.(m?[jt]sx?|cjs)$/
  * inputs named as strings, until nothing new appears. Globs read by name only
  * (`paths`) are not followed: their contents are not inputs.
  */
+/** What the input checks read; the tests pass a tree of their own. */
+export type Deps = {
+  source: (file: string) => string | undefined
+  closure: (entries: string[]) => Promise<Set<string>>
+  tracked: readonly string[]
+  entries: readonly StringInput[]
+}
+
 export async function toFixedPoint(
   inputs: Inputs,
-  tracked: readonly string[] = trackedFiles()
+  deps: Deps
 ): Promise<{ inputs: Inputs; uncovered: string[] }> {
-  let current = withStringInputs(inputs)
+  const { source, closure: importClosure, tracked, entries } = deps
+  let current = withStringInputs(inputs, source, inputs.files, entries)
   const uncovered = [...current.uncovered]
   for (let round = 0; round < 10; round++) {
     const files = current.inputs.files
@@ -702,7 +720,7 @@ export async function toFixedPoint(
     if (added.length === 0)
       return { inputs: current.inputs, uncovered: uncovered.sort() }
     const grown = { ...current.inputs, files: new Set([...files, ...added]) }
-    current = withStringInputs(grown, readSource, added)
+    current = withStringInputs(grown, source, added, entries)
     uncovered.push(...current.uncovered)
   }
   throw new Error('inputs did not reach a fixed point in 10 rounds')
@@ -721,68 +739,142 @@ function readSource(file: string): string | undefined {
 /** What made an input set unknown, by set: uncovered files or an error. */
 export type Problems = Map<string, string[]>
 
-/** Everything `decide` needs from the code; a part that fails is `undefined`. */
-export async function computeContext(
-  base: string,
+/** Input sets as computed, before their string-named inputs are checked. */
+export type RawInputs = {
+  suites: ReadonlyMap<string, Inputs | undefined>
+  integration: Inputs | undefined
+  shared: Inputs | undefined
+  /** Why a set could not be computed, by set. */
+  reasons?: ReadonlyMap<string, string>
+}
+
+/**
+ * Each set grown to a fixed point and checked for inputs named as strings.
+ * A set that could not be computed, or that has a file with no entry or a
+ * count its entry does not expect, is `undefined` (its job runs) and is
+ * listed in `problems`.
+ */
+export async function checkInputs(
+  raw: RawInputs,
+  deps: Deps,
   problems: Problems = new Map()
-): Promise<Context> {
+): Promise<Pick<Context, 'suiteInputs' | 'integration' | 'shared'>> {
   const note = (name: string, lines: string[]) => {
     problems.set(name, [...(problems.get(name) ?? []), ...lines])
     console.error(`${name}: ${lines.join('; ')}`)
   }
-  const unknown = (name: string) => (error: unknown) => {
-    note(name, [
-      `inputs unknown: ${error instanceof Error ? error.message : error}`,
-    ])
-    return undefined
-  }
-  const [suites, integrationFiles, sharedFiles] = await Promise.all([
-    allSuiteInputs(FIXTURES, (line) => {
-      const [name, ...rest] = line.split(': ')
-      note(name!, [`inputs unknown: ${rest.join(': ')}`])
-    }),
-    integrationInputs().catch(unknown('contracts-integration')),
-    sharedInputs().catch(unknown('shared')),
-  ])
-  const tracked = trackedFiles()
-  // A string-named input with no entry, or a changed count: that set is
-  // unknown, so its job runs.
   const checked = async (name: string, inputs: Inputs | undefined) => {
-    if (!inputs) return undefined
+    if (!inputs) {
+      note(name, [
+        `inputs unknown: ${raw.reasons?.get(name) ?? 'not computed'}`,
+      ])
+      return undefined
+    }
     try {
-      const result = await toFixedPoint(inputs, tracked)
+      const result = await toFixedPoint(inputs, deps)
       if (result.uncovered.length === 0) return result.inputs
       note(
         name,
         result.uncovered.map((u) => `${u}: update scripts/ci/string-inputs.ts`)
       )
     } catch (error) {
-      unknown(name)(error)
+      note(name, [
+        `inputs unknown: ${error instanceof Error ? error.message : error}`,
+      ])
     }
     return undefined
   }
-  const suiteInputs = new Map(
-    await Promise.all(
-      [...suites].map(
-        async ([name, inputs]) => [name, await checked(name, inputs)] as const
-      )
-    )
-  )
-  const asInputs = (files: Set<string> | undefined) =>
-    files && { files, patterns: [] }
+  const suiteInputs = new Map<string, Inputs | undefined>()
+  for (const [name, inputs] of raw.suites) {
+    suiteInputs.set(name, await checked(name, inputs))
+  }
   return {
     suiteInputs,
-    integration: await checked(
-      'contracts-integration',
-      asInputs(integrationFiles)
-    ),
-    shared: await checked('shared', asInputs(sharedFiles)),
-    knownRoots: topLevel(base),
+    integration: await checked('contracts-integration', raw.integration),
+    shared: await checked('shared', raw.shared),
   }
+}
+
+/** Everything `decide` needs from the code; a part that fails is `undefined`. */
+export async function computeContext(
+  base: string,
+  problems: Problems = new Map()
+): Promise<Context> {
+  const reasons = new Map<string, string>()
+  const unknown = (name: string) => (error: unknown) => {
+    reasons.set(name, error instanceof Error ? error.message : String(error))
+    return undefined
+  }
+  const [suites, integrationFiles, sharedFiles] = await Promise.all([
+    allSuiteInputs(FIXTURES, (line) => {
+      const [name, ...rest] = line.split(': ')
+      reasons.set(name!, rest.join(': '))
+    }),
+    integrationInputs().catch(unknown('contracts-integration')),
+    sharedInputs().catch(unknown('shared')),
+  ])
+  const asInputs = (files: Set<string> | undefined) =>
+    files && { files, patterns: [] }
+  const checked = await checkInputs(
+    {
+      suites,
+      integration: asInputs(integrationFiles),
+      shared: asInputs(sharedFiles),
+      reasons,
+    },
+    {
+      source: readSource,
+      closure: importClosure,
+      tracked: trackedFiles(),
+      entries: STRING_INPUTS,
+    },
+    problems
+  )
+  return { ...checked, knownRoots: topLevel(base) }
 }
 
 // ---------------------------------------------------------------------------
 // Output.
+
+/** Every engine a shard uses. */
+const ALL_ENGINES = 'chromium firefox webkit'
+
+/**
+ * The plan when the shard list has problems: everything, with one more shard
+ * for the suites in no shard, and the problems as notes. A shard that names
+ * a missing suite cannot run it; the note says which entry to remove.
+ */
+export function withShardCheck(
+  plan: Plan,
+  problems: readonly string[],
+  unsharded: readonly string[]
+): Plan {
+  if (problems.length === 0) return plan
+  const reason = 'the shard list has problems, so everything runs'
+  const full = fullPlan(reason)
+  if (unsharded.length > 0) {
+    full.shards.push({
+      shard: {
+        shard: 'unsharded',
+        suites: unsharded.join(','),
+        browsers: ALL_ENGINES,
+      },
+      decision: run('in no shard'),
+      suites: [...unsharded],
+    })
+  }
+  return { ...full, notes: [...problems] }
+}
+
+/** The shard list's problems in this tree, and the suites in no shard. */
+export function shardCheck(): { problems: string[]; unsharded: string[] } {
+  const problems = shardProblems(SHARDS, FIXTURES, SURFACE_SUITES, (file) =>
+    existsSync(path.join(root, file))
+  )
+  const sharded = new Set(SHARDS.flatMap((s) => shardSuiteNames(s)))
+  const unsharded = FIXTURES.map((f) => f.name).filter((n) => !sharded.has(n))
+  return { problems, unsharded }
+}
 
 export function table(plan: Plan): string {
   const rows: [string, Decision][] = [
@@ -804,6 +896,7 @@ export function table(plan: Plan): string {
     ...rows.map(
       ([name, d]) => `| ${name} | ${d.run ? 'yes' : 'no'} | ${cell(d.reason)} |`
     ),
+    ...(plan.notes ?? []).flatMap((note, i) => (i === 0 ? ['', note] : [note])),
   ].join('\n')
 }
 
@@ -899,6 +992,8 @@ async function main(argv: string[]): Promise<void> {
     plan = fullPlan('planning failed, so everything runs')
   }
 
+  const check = shardCheck()
+  plan = withShardCheck(plan, check.problems, check.unsharded)
   const text = `${table(plan)}\n\n${changes.length} changed files.`
   console.log(text)
   if (argv.includes('--github')) {
