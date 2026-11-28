@@ -1,3 +1,5 @@
+// Imported by Convex functions and by the app (and the v3 shell's publish
+// check): keep it free of browser, Next and Node-only imports.
 /**
  * Where images load from (#615): this deployment's own Convex origin, read
  * from configuration, and the listed hosts. One list for every place that
