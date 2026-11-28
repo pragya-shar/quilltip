@@ -272,6 +272,52 @@ describe('counts', () => {
 })
 
 describe('addresses', () => {
+  it('refuses an address that normalises past the cap or to another host', () => {
+    // 400 "é" percent-encode to 2,400 characters: the editor's stored form
+    // must not pass there and fail here.
+    const long = `https://example.com/${'é'.repeat(400)}`
+    expect(long.length).toBeLessThan(READING_LIMITS.urlLength)
+    expect(safeLinkHref(long)).toBeNull()
+    expect(safeLinkHref('/..//evil.example/x')).toBeNull()
+    expect(safeLinkHref('/a/..//evil.example/x')).toBeNull()
+    expect(safeImageSrc(`/images/${'é'.repeat(400)}.png`, SOURCES)).toBeNull()
+  })
+
+  it('is idempotent: an accepted address is accepted again unchanged', () => {
+    const inputs = [
+      'https://example.com/',
+      'HTTPS://Example.COM/a/./b/../c?q=1#x',
+      'https://example.com/café?q=é#é',
+      `https://example.com/${'é'.repeat(300)}`,
+      'http://example.com:80/x',
+      'https://xn--caf-dma.example/x',
+      'https://café.example/x',
+      'mailto:a@e.example?subject=x',
+      '/a/./b/../c?x=1#s-2-0',
+      '/café/x',
+      '/a/%2e%2e/b',
+      '/..//evil.example/x',
+      '#s-2-0',
+      `/${'a'.repeat(2047)}`,
+    ]
+    for (const input of inputs) {
+      const once = safeLinkHref(input)
+      if (once === null) continue
+      expect(safeLinkHref(once), input).toBe(once)
+      expect(once.length).toBeLessThanOrEqual(READING_LIMITS.urlLength)
+      expect(once.startsWith('//'), input).toBe(false)
+    }
+    for (const input of [
+      `${SOURCES.storageOrigin}/api/storage/a%20b`,
+      `${SOURCES.storageOrigin}/api/storage/café`,
+      '/images/café.png?v=1',
+    ]) {
+      const once = safeImageSrc(input, SOURCES)
+      expect(once, input).not.toBeNull()
+      expect(safeImageSrc(once, SOURCES), input).toBe(once)
+    }
+  })
+
   it('takes images only from this deployment’s storage and the site’s image paths', () => {
     expect(
       safeImageSrc(`${SOURCES.storageOrigin}/api/storage/a1?t=1#x`, SOURCES)

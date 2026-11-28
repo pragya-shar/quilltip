@@ -1,9 +1,7 @@
 // @vitest-environment happy-dom
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { generateHTML, generateJSON } from '@tiptap/html/server'
 import { expect, it } from 'vitest'
-import { ArticleReadOnlyBody } from '../../../components/articles/ArticleReadOnlyBody'
+import { renderReadingHtml } from '../../../lib/tiptap/renderReadingHtml'
 import { getReadOnlyExtensions } from '../../../lib/tiptap/readExtensions'
 import type { JSONContent } from '@tiptap/core'
 
@@ -76,9 +74,12 @@ it('serializes and parses rich article JSON with Tiptap and Happy DOM 21', () =>
   checkHtml(generateHTML(generateJSON(html, extensions), extensions))
 })
 
-it('renders exact rich content in the shared read-only article body', () => {
-  const body = checkHtml(
-    renderToStaticMarkup(createElement(ArticleReadOnlyBody, { content }))
-  )
+it('renders exact rich content in the reading renderer', () => {
+  // The reader shows only the site's own images and this deployment's
+  // uploads, so the image is a site path here.
+  const reading = structuredClone(content)
+  reading.content![2]!.attrs!.src = '/images/image.png'
+  const { html } = renderReadingHtml(reading, { storageOrigin: null })
+  const body = checkHtml(html!)
   expect(body.querySelector('p')?.style.textAlign).toBe('')
 })

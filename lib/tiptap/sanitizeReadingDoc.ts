@@ -112,17 +112,34 @@ export function safeLinkHref(value: unknown): string | null {
   if (/^#[\w-]+$/.test(href)) return href
   const url = parse(href)
   if (!url) return null
+  let out: string | null
   if (href.startsWith('/')) {
     // `//host` parses to another origin and is refused here.
-    return url.origin === ORIGIN ? url.pathname + url.search + url.hash : null
+    out = url.origin === ORIGIN ? url.pathname + url.search + url.hash : null
+  } else if (url.origin === ORIGIN) {
+    // A relative path, or the placeholder origin itself, is not a link.
+    out = null
+  } else if (url.protocol === 'mailto:') {
+    out = MAIL_ADDRESS.test(url.pathname) ? `mailto:${url.pathname}` : null
+  } else if (url.protocol !== 'https:' && url.protocol !== 'http:') {
+    out = null
+  } else {
+    out = url.username || url.password ? null : url.href
   }
-  // A relative path, or the placeholder origin itself, is not a link.
-  if (url.origin === ORIGIN) return null
-  if (url.protocol === 'mailto:')
-    return MAIL_ADDRESS.test(url.pathname) ? `mailto:${url.pathname}` : null
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') return null
-  if (url.username || url.password) return null
-  return url.href
+  return normalisedLink(out)
+}
+
+/**
+ * The normalised address, only when it would be accepted again unchanged:
+ * within the cap after percent-encoding (an editor's long address must not
+ * pass there and fail here), and never a path a browser reads as another
+ * host (`/..//host` normalises to `//host`). So `safeLinkHref` is
+ * idempotent: f(f(x)) === f(x) for every accepted value.
+ */
+function normalisedLink(out: string | null): string | null {
+  if (out === null || out.length > READING_LIMITS.urlLength) return null
+  if (out.startsWith('//') || out.startsWith('/\\')) return null
+  return out
 }
 
 /**
@@ -138,18 +155,24 @@ export function safeImageSrc(
   if (!src) return null
   const url = parse(src)
   if (!url || url.username || url.password) return null
+  let out: string | null
   if (url.origin === ORIGIN)
-    return src.startsWith('/') &&
+    out =
+      src.startsWith('/') &&
       SITE_IMAGE_PATHS.some((path) => url.pathname.startsWith(path))
-      ? url.pathname
-      : null
+        ? url.pathname
+        : null
   // Written in full: a protocol-relative address is refused.
-  return sources.storageOrigin !== null &&
-    src.startsWith(`${sources.storageOrigin}/`) &&
-    url.origin === sources.storageOrigin &&
-    url.pathname.startsWith(STORAGE_PATH)
-    ? url.origin + url.pathname
-    : null
+  else
+    out =
+      sources.storageOrigin !== null &&
+      src.startsWith(`${sources.storageOrigin}/`) &&
+      url.origin === sources.storageOrigin &&
+      url.pathname.startsWith(STORAGE_PATH)
+        ? url.origin + url.pathname
+        : null
+  // Accepted again unchanged: within the cap once percent-encoded.
+  return out !== null && out.length <= READING_LIMITS.urlLength ? out : null
 }
 
 /** The only embed address the reading view renders. */
