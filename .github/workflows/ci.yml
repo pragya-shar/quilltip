@@ -461,7 +461,7 @@ jobs:
             browsers: chromium webkit
           # Every state in Chromium; the transfer footer's layout in WebKit.
           - shard: nft-v2
-            suites: nft-v2
+            suites: nft-v2,tip-code-split
             browsers: chromium webkit
           # The tab session-key suite runs in all three engines.
           - shard: tab

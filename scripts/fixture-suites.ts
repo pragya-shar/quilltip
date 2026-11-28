@@ -74,6 +74,16 @@ export const FIXTURES = [
     },
   },
   {
+    // Tip code that fails to load (#669): the v2 tip fixture built with code
+    // splitting, chunk requests aborted. Chromium and WebKit (its own config).
+    name: 'tip-code-split',
+    server: 'e2e/fixtures/tips-v2/server-split.mjs',
+    port: 4191,
+    spec: 'e2e/tip-code-load.spec.ts',
+    config: 'e2e/fixtures/tips-v2/playwright.split.config.ts',
+    env: {},
+  },
+  {
     // The v2 article NFT: mint at the threshold and transfer, every state
     // in Chromium; the transfer footer's layout check in WebKit too (its
     // own config).
