@@ -16,7 +16,7 @@ type Backend = {
 let runSeq = 0
 async function open(
   page: Page,
-  screen: 'tip' | 'balance' | 'earnings' | 'app',
+  screen: 'tip' | 'balance' | 'earnings' | 'app' | 'account',
   seed: string,
   run = `${Date.now()}-${++runSeq}`,
   extra = ''
@@ -314,6 +314,32 @@ test.describe('passage tip from the balance', () => {
     expect(state.receipts.filter((r) => r.reader === 'a')).toHaveLength(1)
     expect(state.receipts.filter((r) => r.reader === 'b')).toHaveLength(0)
   })
+})
+
+test.describe('no sideways scroll on a phone', () => {
+  // Every screen the money layer adds, and the old dashboard's section row
+  // its pages sit under, at the narrow phone widths.
+  for (const width of [360, 390, 412])
+    test(`at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 })
+      for (const [screen, seed] of [
+        ['tip', 'reader-ready'],
+        ['balance', 'reader-history'],
+        ['earnings', 'writer-failed'],
+        ['app', 'reader-ready'],
+        ['account', 'reader-history'],
+      ] as const) {
+        await open(page, screen, seed)
+        await page.waitForLoadState('networkidle')
+        const fit = await page.evaluate(() => ({
+          scroll: document.documentElement.scrollWidth,
+          width: document.documentElement.clientWidth,
+        }))
+        expect(fit.scroll, `${screen} at ${width}`).toBeLessThanOrEqual(
+          fit.width
+        )
+      }
+    })
 })
 
 test.describe('balance screen', () => {

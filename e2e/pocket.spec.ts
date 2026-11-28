@@ -849,13 +849,16 @@ test.describe('focus, contrast and fit', () => {
     expect(await auditHitAreas(page)).toEqual([])
   })
 
-  test('no horizontal scroll at 360, 375 and 390', async ({ page }) => {
+  test('no horizontal scroll at 360, 375, 390 and 412', async ({ page }) => {
     test.skip(wide(), 'phone widths')
-    for (const width of [360, 375, 390]) {
+    for (const width of [360, 375, 390, 412]) {
       await page.setViewportSize({ width, height: 800 })
       for (const path of [
         '/pocket?scenario=ready',
         '/pocket?scenario=failed',
+        '/pocket?scenario=awkward',
+        '/pocket?scenario=no-price',
+        '/pocket?scenario=ready&role=writer',
       ]) {
         await page.goto(path)
         const page1 = await horizontalOverflow(page)
