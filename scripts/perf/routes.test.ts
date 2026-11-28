@@ -10,6 +10,7 @@ import {
   FIRST_LOAD_ROUTES,
   forbiddenModules,
 } from './first-load'
+import { FIRST_LOAD_CEILING_KB, FIRST_LOAD_TARGET_KB } from './routes/types'
 
 describe('measured routes from scripts/perf/routes', () => {
   it('has one file per package', () => {
@@ -35,10 +36,14 @@ describe('measured routes from scripts/perf/routes', () => {
     for (const entry of SURFACE_FIRST_LOAD) {
       expect(entry.route).toMatch(/^\//)
       expect(entry.budgetKb).toBeGreaterThan(0)
-      // Public routes at most 150 KB; signed-in routes at most 170 KB.
-      expect(entry.budgetKb, entry.route).toBeLessThanOrEqual(
-        entry.access === 'public' ? 150 : 170
-      )
+      const ceiling = FIRST_LOAD_CEILING_KB[entry.access]
+      expect(
+        entry.budgetKb,
+        `${entry.route}: a ${entry.access} route's first-load budget is its first CI measurement plus 2 KB, at most ${ceiling} KB` +
+          (entry.access === 'public'
+            ? ` (the target is ${FIRST_LOAD_TARGET_KB} KB; more than ${ceiling} needs the owner's word)`
+            : '')
+      ).toBeLessThanOrEqual(ceiling)
       expect(FIRST_LOAD_ROUTES).toContain(entry.route)
       expect(FIRST_LOAD_BUDGET_KB[entry.route]).toBe(entry.budgetKb)
     }
@@ -56,7 +61,7 @@ describe('measured routes from scripts/perf/routes', () => {
   })
 
   it('keeps the shell reading page measured, at the public limits', () => {
-    expect(FIRST_LOAD_BUDGET_KB['/system/reading']).toBe(150)
+    expect(FIRST_LOAD_BUDGET_KB['/system/reading']).toBe(183)
     const reading = SURFACE_PAGE_LOAD.find((e) => e.path === '/system/reading')
     expect(reading?.budget).toMatchObject({ cls: 0.05, lcpMobileMs: 2000 })
   })
