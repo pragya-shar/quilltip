@@ -199,11 +199,18 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: var(--qt-weight-ui-strong);
+    /* Hidden, not only transparent, until it shows: no reader, finder or
+     * contrast audit meets an invisible title. */
+    visibility: hidden;
     opacity: 0;
-    transition: opacity var(--qt-dur-quick) var(--qt-ease-out);
+    transition:
+      opacity var(--qt-dur-quick) var(--qt-ease-out),
+      visibility 0s linear var(--qt-dur-quick);
   }
   .qt-pushed__title[data-shown] {
+    visibility: visible;
     opacity: 1;
+    transition: opacity var(--qt-dur-quick) var(--qt-ease-out);
   }
   .qt-pushed__progress {
     position: absolute;

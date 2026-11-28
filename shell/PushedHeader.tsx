@@ -130,7 +130,7 @@ export function PushedHeader({
         <Icon icon={variant === 'close' ? CloseIcon : BackIcon} size={24} />
       </Link>
       {title ? (
-        <p className="qt-pushed__title" data-shown={titled || undefined}>
+        <p className="qt-pushed__title" data-shown={titled ? '' : undefined}>
           {title}
         </p>
       ) : null}

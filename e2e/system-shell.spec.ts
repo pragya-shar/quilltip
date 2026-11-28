@@ -293,6 +293,18 @@ test('an address change inside the view keeps the sheet open and the history ent
 })
 
 /** Every text block's place in the page's layout (not on screen). */
+/** The sample article ends within one screen at 768 and 1440: more text,
+ * so a scroll stays clear of the page's end, where the header shows. */
+const lengthen = (page: Page) =>
+  page.evaluate(() => {
+    const main = document.querySelector('main')!
+    for (let i = 0; i < 12; i += 1) {
+      const p = document.createElement('p')
+      p.textContent = 'More of the article, for room to scroll. '.repeat(20)
+      main.append(p)
+    }
+  })
+
 const textLayout = (page: Page) =>
   page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>('main p, main h1, main h2')]
@@ -315,6 +327,7 @@ const pushedHeader = (page: Page) => page.locator('.qt-pushed__header')
 async function openReading(page: Page) {
   await page.goto('/reading')
   await expect(pushedHeader(page)).toHaveAttribute('data-watching', '')
+  await lengthen(page)
 }
 
 test('the pushed header leaves on a scroll down and returns on the reader’s scroll up, moving no text', async ({
@@ -582,10 +595,9 @@ test('a converted balance reads about, and every state keeps the slot width', as
     'signed-out',
   ]) {
     await page.goto(`/shelf?balance=${state}`)
-    const box = await nav(page)
-      .locator('.qt-balance-slot:visible')
-      .boundingBox()
-    widths.push(Math.round(box!.width))
+    const slot = nav(page).locator('.qt-balance-slot:visible')
+    await expect(slot).toBeVisible()
+    widths.push(Math.round((await slot.boundingBox())!.width))
   }
   expect(new Set(widths).size).toBe(1)
 })
@@ -594,6 +606,7 @@ test('the docked tip bar opens and closes its amounts without moving the page', 
   page,
 }) => {
   await page.goto('/reading')
+  await lengthen(page)
   await page.evaluate(() => window.scrollTo(0, 900))
   await page.waitForTimeout(200)
   const at = () => page.evaluate(() => Math.round(window.scrollY))
