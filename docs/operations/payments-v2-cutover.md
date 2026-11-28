@@ -16,6 +16,8 @@ Specification:
 and
 [07-security-and-recovery.md, section 7.4](../architecture/v2/07-security-and-recovery.md#74-failure-recovery).
 Day-to-day contract operations are in the [chain runbook](chain-runbook.md).
+The live cutover's record is in
+[release record, 2026-11-28](release-record-2026-11-28.md).
 Tracking issue: #451.
 
 ## Go or no-go
@@ -650,6 +652,14 @@ Push between two settler runs (every 10 minutes). A settlement that the
 earlier code records just before the push is not held back from the reader's
 free balance until its `TabSettled` event is indexed. At stage 1 no tab exists
 yet, so the condition holds.
+
+After every backend push to the live deployment, run
+`chain/config:refreshChainConfig`, then read `chain/tabReadiness:read`.
+Until the first refresh after a push, the readiness gate reports
+`config_missing`, because the pushed code reads Tab state that only the
+refresh stores. Switch v2 on only when the read reports `"ready": true` with
+no cause (stage 6, **Tab readiness first**). With v2 off the refresh logs no
+`TAB_NOT_READY_*` line, so this read is the check.
 
 Use the same key for the stage 0 export, the stage 1 and stage 4
 `convex run` calls and any restore (section 6.2), so that every command
