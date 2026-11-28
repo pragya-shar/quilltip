@@ -18,6 +18,21 @@ import {
 
 export const PASSWORD_RESET_RATE_LIMITED = 'PASSWORD_RESET_RATE_LIMITED'
 export const PASSWORD_RESET_INVALID_CODE = 'PASSWORD_RESET_INVALID_CODE'
+/** Sign-up with an email that already has an account. */
+export const EMAIL_IN_USE = 'EMAIL_IN_USE'
+/** Too many sign-up attempts with one email (convex/signUpCheck.ts). */
+export const SIGN_UP_RATE_LIMITED = 'SIGN_UP_RATE_LIMITED'
+
+/** Same rules the sign-up and reset forms show. */
+function validatePassword(value: unknown) {
+  if (
+    typeof value !== 'string' ||
+    value.length < PASSWORD_MIN_LENGTH ||
+    !PASSWORD_REGEX.test(value)
+  ) {
+    throw new ConvexError('INVALID_PASSWORD')
+  }
+}
 
 const password = Password({
   // Profile mapping for user creation
@@ -36,16 +51,7 @@ const password = Password({
       updatedAt: now,
     }
   },
-  // Same rules the sign-up and reset forms show.
-  validatePasswordRequirements(value) {
-    if (
-      !value ||
-      value.length < PASSWORD_MIN_LENGTH ||
-      !PASSWORD_REGEX.test(value)
-    ) {
-      throw new ConvexError('INVALID_PASSWORD')
-    }
-  },
+  validatePasswordRequirements: validatePassword,
   reset: ResendPasswordReset,
   // Email verification is not enabled yet.
 })
@@ -54,6 +60,7 @@ const password = Password({
 // merges over the provider when it materializes it.
 type CredentialsOptions = {
   authorize: NonNullable<typeof password.authorize>
+  crypto: { hashSecret: (secret: string) => Promise<string> }
 }
 const passwordOptions = (password as unknown as { options: CredentialsOptions })
   .options
@@ -65,12 +72,36 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
       ...password,
       options: {
         ...passwordOptions,
-        // Reset requests answer the same way for every email, so the response
-        // never reveals whether an account exists.
+        // Sign-up refuses an email that has an account before any password
+        // check. Reset requests answer the same way for every email, so the
+        // response never reveals whether an account exists.
         authorize: async (
           params: Parameters<typeof baseAuthorize>[0],
           ctx: Parameters<typeof baseAuthorize>[1]
         ) => {
+          if (params.flow === 'signUp') {
+            // For an email that has an account, Convex Auth's sign-up checks
+            // the typed password against it and signs in on a match, outside
+            // the sign-in attempt limit. So sign-up refuses such an email
+            // before the library sees the password: sign-in is the only
+            // place a password is checked.
+            validatePassword(params.password)
+            const email = String(params.email ?? '')
+            const verdict: 'ok' | 'exists' | 'limited' = await ctx.runMutation(
+              internal.signUpCheck.checkAttempt,
+              { email }
+            )
+            if (verdict === 'limited') {
+              throw new ConvexError(SIGN_UP_RATE_LIMITED)
+            }
+            if (verdict === 'exists') {
+              // Hash once, as a new account does, so this answer takes about
+              // as long as a sign-up that creates an account.
+              await passwordOptions.crypto.hashSecret(String(params.password))
+              throw new ConvexError(EMAIL_IN_USE)
+            }
+            return baseAuthorize(params, ctx)
+          }
           if (params.flow === 'reset-verification') {
             try {
               return await baseAuthorize(params, ctx)
