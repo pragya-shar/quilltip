@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as articleImageHosts from "../articleImageHosts.js";
 import type * as articleTipVerify from "../articleTipVerify.js";
 import type * as articles from "../articles.js";
 import type * as arweave from "../arweave.js";
@@ -32,6 +33,7 @@ import type * as highlights from "../highlights.js";
 import type * as http from "../http.js";
 import type * as legacyTipCleanup from "../legacyTipCleanup.js";
 import type * as lib_articleBrowseSort from "../lib/articleBrowseSort.js";
+import type * as lib_articleImages from "../lib/articleImages.js";
 import type * as lib_articleListing from "../lib/articleListing.js";
 import type * as lib_articleListingReady from "../lib/articleListingReady.js";
 import type * as lib_articlePreview from "../lib/articlePreview.js";
@@ -129,6 +131,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  articleImageHosts: typeof articleImageHosts;
   articleTipVerify: typeof articleTipVerify;
   articles: typeof articles;
   arweave: typeof arweave;
@@ -153,6 +156,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   legacyTipCleanup: typeof legacyTipCleanup;
   "lib/articleBrowseSort": typeof lib_articleBrowseSort;
+  "lib/articleImages": typeof lib_articleImages;
   "lib/articleListing": typeof lib_articleListing;
   "lib/articleListingReady": typeof lib_articleListingReady;
   "lib/articlePreview": typeof lib_articlePreview;

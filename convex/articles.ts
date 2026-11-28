@@ -36,6 +36,7 @@ import {
   syncReadingRoomArticle,
 } from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
+import { assertPublishableImages } from './lib/articleImages'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import {
   permanentStorageEnabled,
@@ -908,6 +909,10 @@ export const createArticle = mutation({
       if (!tiptapJsonHasNonEmptyText(args.content)) {
         throw new Error('Cannot publish: article body is empty')
       }
+      assertPublishableImages({
+        content: args.content,
+        coverImage: args.coverImage,
+      })
     }
 
     const user = await ctx.db.get(userId)
@@ -1160,6 +1165,7 @@ export const publishArticle = mutation({
     if (!tiptapJsonHasNonEmptyText(article.content)) {
       throw new Error('Cannot publish: article body is empty')
     }
+    assertPublishableImages(article)
 
     assertArticleListingReady({
       title: article.title,
