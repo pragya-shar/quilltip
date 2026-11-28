@@ -17,12 +17,13 @@ basket, refusals that have no kit notice, and reloads.
   `e2e/tips-v2.spec.ts`.
 - Lifecycle rules: [06-app-integration.md, section 6.1](../architecture/v2/06-app-integration.md#61-transaction-lifecycle).
 
-## Switch
+## Entry points
 
-`TipButton` and `HighlightTipButton` read `chain.config.getChainConfig`. With
-`v2Enabled` they render the v2 flow; otherwise the v1 flow (`TipButtonV1`,
-`HighlightTipButtonV1`) runs unchanged until cutover removes it (#451). Both
-flows load with `import()`, so the article page's first load holds neither.
+`TipButton` and `HighlightTipButton` render the v2 flow. The article tip area
+and `HighlightTipGate` read `chain.articles.getArticleTipAvailability` first:
+with payments v2 off (`disabled`) or paused, they show "Tips are paused for a
+short time while payments are updated." instead of a button. The flow loads
+with `import()`, so the article page's first load does not hold it.
 
 ## Surfaces
 

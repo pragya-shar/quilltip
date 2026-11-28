@@ -8,7 +8,6 @@ import {
   getSafeReturnPath,
 } from '@/lib/auth/safeReturnPath'
 import { clearPendingHighlightSelection } from '@/lib/highlight/pendingHighlightSelection'
-import { clearPendingTipIntent } from '@/lib/tip/pendingTipIntent'
 
 export function AuthReturnLinksInner({
   variant,
@@ -19,7 +18,6 @@ export function AuthReturnLinksInner({
   const returnTo = getSafeReturnPath(searchParams.get('returnTo'))
 
   const handleCancel = () => {
-    clearPendingTipIntent()
     clearPendingHighlightSelection()
   }
 

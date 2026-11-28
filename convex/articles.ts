@@ -36,6 +36,7 @@ import {
   syncReadingRoomArticle,
 } from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
+import { storedArticleContent } from './lib/articleContent'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import {
   permanentStorageEnabled,
@@ -899,13 +900,14 @@ export const createArticle = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
+    const content = storedArticleContent(args.content)
 
     // Validate input
     validateArticleInput(args)
 
     if (args.published) {
       assertPublishableArticleTitle(args.title)
-      if (!tiptapJsonHasNonEmptyText(args.content)) {
+      if (!tiptapJsonHasNonEmptyText(content)) {
         throw new Error('Cannot publish: article body is empty')
       }
     }
@@ -932,7 +934,7 @@ export const createArticle = mutation({
     const articleId = await ctx.db.insert('articles', {
       slug: finalSlug,
       title: args.title,
-      content: args.content,
+      content,
       excerpt: args.excerpt,
       coverImage: args.coverImage,
       published: args.published || false,
@@ -944,18 +946,21 @@ export const createArticle = mutation({
       tags: args.tags || [],
       searchContent: buildSearchContent(args.title, args.excerpt, {
         tags: args.tags,
-        content: args.content,
+        content,
       }),
       viewCount: 0,
       highlightCount: 0,
       tipCount: 0,
       totalTipsUsd: 0,
-      readTime: estimateArticleReadingMinutes(args.content),
+      readTime: estimateArticleReadingMinutes(content),
       createdAt: now,
       updatedAt: now,
     })
 
-    await syncArticleUploadReferences(ctx, articleId, null, args)
+    await syncArticleUploadReferences(ctx, articleId, null, {
+      ...args,
+      content,
+    })
 
     if (args.published) {
       const row = await ctx.db.get(articleId)
@@ -982,6 +987,10 @@ export const updateArticle = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
+    const content =
+      args.content === undefined
+        ? undefined
+        : storedArticleContent(args.content)
 
     const article = await ctx.db.get(args.id)
     if (!article) throw new Error('Article not found')
@@ -1025,9 +1034,9 @@ export const updateArticle = mutation({
       }
     }
 
-    if (args.content !== undefined) {
-      updates.content = args.content
-      updates.readTime = estimateArticleReadingMinutes(args.content)
+    if (content !== undefined) {
+      updates.content = content
+      updates.readTime = estimateArticleReadingMinutes(content)
     }
 
     if (args.excerpt !== undefined) updates.excerpt = args.excerpt
@@ -1037,7 +1046,7 @@ export const updateArticle = mutation({
     if (
       args.title !== undefined ||
       args.excerpt !== undefined ||
-      args.content !== undefined ||
+      content !== undefined ||
       args.tags !== undefined
     ) {
       updates.searchContent = buildSearchContent(
@@ -1045,7 +1054,7 @@ export const updateArticle = mutation({
         args.excerpt !== undefined ? args.excerpt : article.excerpt,
         {
           tags: args.tags !== undefined ? args.tags : article.tags,
-          content: args.content !== undefined ? args.content : article.content,
+          content: content !== undefined ? content : article.content,
         }
       )
     }
@@ -1310,6 +1319,7 @@ export const saveDraft = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
+    const content = storedArticleContent(args.content)
 
     // Validate input
     validateArticleInput(args)
@@ -1336,8 +1346,8 @@ export const saveDraft = mutation({
         searchContent: string
       } = {
         title: args.title,
-        content: args.content,
-        readTime: estimateArticleReadingMinutes(args.content),
+        content,
+        readTime: estimateArticleReadingMinutes(content),
         excerpt: args.excerpt,
         coverImage: args.coverImage,
         tags: args.tags,
@@ -1345,7 +1355,7 @@ export const saveDraft = mutation({
         updatedAt: Date.now(),
         searchContent: buildSearchContent(args.title, args.excerpt, {
           tags: args.tags,
-          content: args.content,
+          content,
         }),
       }
 
@@ -1386,7 +1396,7 @@ export const saveDraft = mutation({
       const articleId = await ctx.db.insert('articles', {
         slug: finalSlug,
         title: args.title,
-        content: args.content,
+        content,
         excerpt: args.excerpt,
         coverImage: args.coverImage,
         writerNotes: args.writerNotes,
@@ -1398,17 +1408,20 @@ export const saveDraft = mutation({
         tags: args.tags || [],
         searchContent: buildSearchContent(args.title, args.excerpt, {
           tags: args.tags,
-          content: args.content,
+          content,
         }),
         viewCount: 0,
         highlightCount: 0,
         tipCount: 0,
         totalTipsUsd: 0,
-        readTime: estimateArticleReadingMinutes(args.content),
+        readTime: estimateArticleReadingMinutes(content),
         createdAt: now,
         updatedAt: now,
       })
-      await syncArticleUploadReferences(ctx, articleId, null, args)
+      await syncArticleUploadReferences(ctx, articleId, null, {
+        ...args,
+        content,
+      })
       return articleId
     }
   },

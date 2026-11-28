@@ -235,7 +235,6 @@ export function HighlightDetailsPanel({
                   articleSlug={articleSlug}
                   articleTitle={articleTitle}
                   authorName={authorName || 'Author'}
-                  authorStellarAddress={authorStellarAddress}
                   highlightText={highlight.text}
                   startOffset={highlight.startOffset}
                   endOffset={highlight.endOffset}

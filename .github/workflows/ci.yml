@@ -362,14 +362,6 @@ jobs:
           cargo deny --locked check
           cargo deny --locked --manifest-path tab/fuzz/Cargo.toml --config deny.toml check
 
-      # The v1 tipping contract keeps its own lockfile and toolchain until cutover.
-      - name: Build and test the v1 tipping contract
-        working-directory: contracts/tipping
-        run: |
-          rustup toolchain install
-          cargo build --locked --target wasm32v1-none --release
-          cargo test --locked
-
       - name: Check test snapshots are committed
         working-directory: .
         run: |
@@ -377,7 +369,7 @@ jobs:
           if [ -n "$changes" ]; then
             echo "$changes"
             git --no-pager diff --stat -- contracts
-            echo "::error::Contract tests changed or added files under contracts/. Run the tests in contracts/ (and contracts/tipping/) and commit the result."
+            echo "::error::Contract tests changed or added files under contracts/. Run the tests in contracts/ and commit the result."
             exit 1
           fi
 

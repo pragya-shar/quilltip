@@ -2,9 +2,10 @@
  * Encode and decode parity for every Stellar SDK path the app uses.
  *
  * `fixtures/sdk-baseline.json` holds the observations recorded with the
- * previous SDK major (14.6.1). This suite recomputes them through the
- * application code (client builders, NFT client, memo helper, practice flow
- * and the Horizon verifier) and compares the result with the baseline.
+ * previous SDK major (14.6.1). This suite recomputes the ones whose code is
+ * still in the app (the practice flow and the Horizon verifier) and compares
+ * them with the baseline. The v1 client builders were removed with the v1
+ * tip code; their recorded observations stay in the file for reference.
  *
  * Re-record only on purpose: `STELLAR_BASELINE=record bun run test:unit`.
  *
@@ -22,8 +23,6 @@ const FIXTURE_DIR = join(__dirname, 'fixtures')
 const BASELINE_PATH = join(FIXTURE_DIR, 'sdk-baseline.json')
 const RECORD = process.env.STELLAR_BASELINE === 'record'
 
-const TIPPING_CONTRACT_ID =
-  'CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY'
 const NFT_CONTRACT_ID =
   'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
 const FIXED_NOW_MS = 1_780_000_000_000
@@ -57,7 +56,6 @@ function seedKeypair(fill: number) {
   )
 }
 const tipper = seedKeypair(1)
-const author = seedKeypair(2)
 const secondAuthor = seedKeypair(3)
 const feeSource = seedKeypair(4)
 
@@ -110,71 +108,6 @@ function jsonSafe(value: unknown): unknown {
     })
   )
 }
-
-// ---------------------------------------------------------------------------
-// Local fakes for Horizon and RPC. prepareTransaction returns the transaction
-// unchanged, so the observed XDR is exactly what the builder produced.
-// ---------------------------------------------------------------------------
-const rpcState = vi.hoisted(() => ({
-  simulateRetval: null as unknown,
-  sent: [] as string[],
-  getTransactionReturn: null as unknown,
-}))
-
-vi.mock('@/lib/convex-http-client', () => ({
-  getConvexHttpClient: () => ({
-    query: async () => ({ priceUsd: 0.25, source: 'Fixture', ageMs: 0 }),
-  }),
-}))
-
-vi.mock('../../lib/stellar/sdk-loader', async () => {
-  const sdk = await vi.importActual<typeof import('@stellar/stellar-sdk')>(
-    '@stellar/stellar-sdk'
-  )
-  const hexOf = (bytes: Uint8Array) =>
-    Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
-  const base64Of = (tx: unknown) => {
-    const writable = tx as { toXdr?: () => string; toXDR?: () => string }
-    return writable.toXdr ? writable.toXdr() : writable.toXDR!()
-  }
-  class FakeHorizonServer {
-    async loadAccount(accountId: string) {
-      return new sdk.Account(accountId, '123456789')
-    }
-    async submitTransaction(tx: { hash: () => Uint8Array }) {
-      return { hash: hexOf(tx.hash()) }
-    }
-  }
-  class FakeRpcServer {
-    async prepareTransaction<T>(tx: T): Promise<T> {
-      return tx
-    }
-    async simulateTransaction() {
-      return {
-        id: '1',
-        latestLedger: 1,
-        events: [],
-        _parsed: true,
-        transactionData: new sdk.SorobanDataBuilder(),
-        minResourceFee: '100',
-        result: { auth: [], retval: rpcState.simulateRetval },
-      }
-    }
-    async sendTransaction(tx: { hash: () => Uint8Array }) {
-      rpcState.sent.push(base64Of(tx))
-      return { status: 'PENDING', hash: hexOf(tx.hash()) }
-    }
-    async getTransaction() {
-      return { status: 'SUCCESS', returnValue: rpcState.getTransactionReturn }
-    }
-  }
-  const wrapped = {
-    ...sdk,
-    Horizon: { ...sdk.Horizon, Server: FakeHorizonServer },
-    rpc: { ...sdk.rpc, Server: FakeRpcServer },
-  }
-  return { loadStellarSdk: async () => wrapped }
-})
 
 // ---------------------------------------------------------------------------
 // Observation builders
@@ -365,131 +298,8 @@ async function verifyCases(record: TestnetTransaction): Promise<VerifyCases> {
 
 async function buildObservations(): Promise<Observations> {
   vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET')
-  vi.stubEnv('NEXT_PUBLIC_TIPPING_CONTRACT_ID', TIPPING_CONTRACT_ID)
-  vi.stubEnv('NEXT_PUBLIC_NFT_CONTRACT_ID', NFT_CONTRACT_ID)
 
-  const { stellarClient } = await import('../../lib/stellar/client')
-  const { nftClient } = await import('../../lib/stellar/nft-client')
-  const { createMemo } = await import('../../lib/stellar/memo-utils')
   const practice = await import('../../lib/stellar/practice')
-  const { isValidStellarAccountId } =
-    await import('../../lib/stellar/is-valid-stellar-account-id')
-
-  const timeBounds = {
-    minTime: String(FIXED_NOW_MS / 1000 - 30),
-    maxTime: String(FIXED_NOW_MS / 1000 + 180),
-  }
-
-  const articleTip = await stellarClient.buildTipTransaction(
-    tipper.publicKey(),
-    {
-      tipper: tipper.publicKey(),
-      articleSymbol: 'a1b2c3d4e5',
-      authorAddress: author.publicKey(),
-      amountStroops: 4_200_000,
-      contractId: TIPPING_CONTRACT_ID,
-      timeBounds,
-    }
-  )
-  const highlightTip = await stellarClient.buildHighlightTipTransaction(
-    tipper.publicKey(),
-    {
-      highlightId: 'hl-0001',
-      articleSymbol: 'a1b2c3d4e5',
-      authorAddress: author.publicKey(),
-      amountStroops: 9_999_999,
-      contractId: TIPPING_CONTRACT_ID,
-      timeBounds,
-    }
-  )
-  const articleBatch = await stellarClient.buildArticleBatchTipTransaction(
-    tipper.publicKey(),
-    [
-      {
-        articleId: 'article-one',
-        authorAddress: author.publicKey(),
-        amountCents: 25,
-      },
-      {
-        articleId: 'article-two',
-        authorAddress: secondAuthor.publicKey(),
-        amountCents: 100,
-      },
-    ]
-  )
-  const highlightBatch = await stellarClient.buildHighlightBatchTipTransaction(
-    tipper.publicKey(),
-    [
-      {
-        articleId: 'article-one',
-        highlightId: 'hl-1',
-        authorAddress: author.publicKey(),
-        amountCents: 5,
-      },
-      {
-        articleId: 'article-two',
-        highlightId: 'hl-2',
-        authorAddress: secondAuthor.publicKey(),
-        amountCents: 50,
-      },
-    ]
-  )
-  const extendTtl = await stellarClient.buildExtendContractTTLTransaction(
-    tipper.publicKey()
-  )
-
-  // Sign locally, then derive the hash through the client and submit to the
-  // fake RPC server, which only records the envelope.
-  const signedArticleTip = parseTransaction(articleTip.xdr)
-  signedArticleTip.sign(tipper)
-  const signedXdr = toBase64(signedArticleTip)
-  const derivedHash = await stellarClient.deriveTipTransactionHash(signedXdr)
-  rpcState.sent.length = 0
-  const receipt = await stellarClient.submitTipTransaction(signedXdr)
-
-  rpcState.simulateRetval = RealSdk.nativeToScVal(
-    [
-      {
-        tipper: tipper.publicKey(),
-        amount: BigInt(4_200_000),
-        timestamp: BigInt(1_780_000_000),
-      },
-    ],
-    {
-      type: {
-        tipper: ['symbol', 'address'],
-        amount: ['symbol', 'i128'],
-        timestamp: ['symbol', 'u64'],
-      },
-    }
-  )
-  const articleTips = await stellarClient.getArticleTips('article-one')
-
-  rpcState.simulateRetval = RealSdk.nativeToScVal(BigInt(100_000_000), {
-    type: 'i128',
-  })
-  const tipThreshold = await nftClient.getTipThreshold()
-  rpcState.simulateRetval = RealSdk.nativeToScVal(true)
-  const minted = await nftClient.isArticleMinted('article-one')
-
-  const mint = await nftClient.buildMintTransaction(author.publicKey(), {
-    articleId: 'a1b2c3d4e5',
-    authorAddress: author.publicKey(),
-    tipAmount: 100_000_000,
-    metadataUrl: 'https://quilltip.me/api/nft/metadata/a1b2c3d4e5',
-  } as Parameters<typeof nftClient.buildMintTransaction>[1])
-  const signedMint = parseTransaction(mint.xdr)
-  signedMint.sign(author)
-  rpcState.getTransactionReturn = RealSdk.nativeToScVal(BigInt(7), {
-    type: 'u64',
-  })
-  const mintResult = await nftClient.submitMintTransaction(toBase64(signedMint))
-
-  const memos = await Promise.all([
-    createMemo({ type: 'article', id: 'k57abcdefghijklmnopqrstuvwxyz0123' }),
-    createMemo({ type: 'highlight', id: 'short' }),
-    createMemo({ type: 'nft', id: 'n1', arweaveTxId: 'x'.repeat(43) }),
-  ])
 
   const practiceTx = practice.buildPractice(
     new RealSdk.Account(tipper.publicKey(), SEQUENCE)
@@ -516,47 +326,11 @@ async function buildObservations(): Promise<Observations> {
 
   return jsonSafe({
     build: {
-      articleTip: { ...articleTip, tx: describeTransaction(articleTip.xdr) },
-      highlightTip: {
-        ...highlightTip,
-        tx: describeTransaction(highlightTip.xdr),
-      },
-      articleBatch: {
-        ...articleBatch,
-        tx: describeTransaction(articleBatch.xdr),
-      },
-      highlightBatch: {
-        ...highlightBatch,
-        tx: describeTransaction(highlightBatch.xdr),
-      },
-      extendTtl: { ...extendTtl, tx: describeTransaction(extendTtl.xdr) },
-      mint: { ...mint, tx: describeTransaction(mint.xdr) },
       practice: {
         xdr: toBase64(practiceTx),
         tx: describeTransaction(toBase64(practiceTx)),
       },
     },
-    submit: {
-      signedXdr,
-      derivedHash,
-      receipt,
-      sentEnvelope: rpcState.sent[0],
-      mintResult,
-    },
-    read: { articleTips, tipThreshold, minted },
-    memos: memos.map((memo) => {
-      const object = memo as unknown as {
-        toXdrObject?: () => unknown
-        toXDRObject?: () => unknown
-      }
-      return {
-        type: memo.type,
-        value: String(memo.value),
-        xdr: toBase64(
-          object.toXdrObject ? object.toXdrObject() : object.toXDRObject!()
-        ),
-      }
-    }),
     practice: {
       validHash: hex(practiceValid.hash()),
       unsigned: rejection(() =>
@@ -569,13 +343,6 @@ async function buildObservations(): Promise<Observations> {
         )
       ),
     },
-    accountIds: [
-      tipper.publicKey(),
-      ` ${author.publicKey()} `,
-      TIPPING_CONTRACT_ID,
-      'GABC',
-      '',
-    ].map(isValidStellarAccountId),
     verification,
   }) as Observations
 }
@@ -599,12 +366,15 @@ describe('Stellar SDK encode and decode parity', () => {
   const baseline = (): Observations =>
     JSON.parse(readFileSync(BASELINE_PATH, 'utf8')) as Observations
 
-  it.each(['build', 'submit', 'read', 'memos', 'practice', 'accountIds'])(
-    '%s matches the recorded baseline',
-    (section) => {
-      expect(observed[section]).toEqual(baseline()[section])
-    }
-  )
+  it('builds the practice transaction as recorded', () => {
+    const build = (o: Observations) =>
+      (o.build as Record<string, unknown>).practice
+    expect(build(observed)).toEqual(build(baseline()))
+  })
+
+  it('validates practice signatures as recorded', () => {
+    expect(observed.practice).toEqual(baseline().practice)
+  })
 
   it.each(testnet.transactions.map((record) => record.function))(
     'verifies the %s testnet transaction as recorded',
@@ -626,10 +396,5 @@ describe('Stellar SDK encode and decode parity', () => {
       expect(cases.wrongAmount).toMatchObject({ reason: 'amount_mismatch' })
       expect(cases.wrongAuthor).toMatchObject({ reason: 'author_mismatch' })
     }
-  })
-
-  it('derives the transaction hash as lowercase hex', () => {
-    const submit = observed.submit as { derivedHash: string }
-    expect(submit.derivedHash).toMatch(/^[0-9a-f]{64}$/)
   })
 })

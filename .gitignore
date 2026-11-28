@@ -51,7 +51,6 @@ next-env.d.ts
 /playwright-report/
 
 # contracts
-contracts/tipping/target
 contracts/target
 
 # stellar
@@ -65,15 +64,11 @@ docs/tranche-2.md
 docs/tranche-2-evidence.md
 docs/contract-evidence.md
 docs/eng-245-pr198-evidence.md
-docs/eng-235-batch-evidence.local.*
-docs/eng-236-batch-evidence.local.*
 docs/tipping-verification-plan.md
 docs/final-gtm-plan.md
 docs/superpowers/
 
 # local operator inputs
-scripts/eng-235-batch-input.local.json
-scripts/eng-236-batch-input.local.json
 
 .agents/*
 certificates

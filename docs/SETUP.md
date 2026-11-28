@@ -112,6 +112,26 @@ controls:
    backend even with that variable, and deploy work refuses to run while the
    variable is set. Never put it in a shared `.env` file.
 
+   The one exception is an approved maintenance window, for the payments v2
+   cutover only. `bun scripts/live-window.ts` runs a fixed list of operations on the
+   live deployment when `QUILLTIP_LIVE_WINDOW_APPROVAL` is set in the shell to
+   `<deployment>@<release commit>@<YYYY-MM-DDTHH:MMZ>+<hours>h` (at most 4
+   hours). It refuses unless the checkout is clean and at that commit, the
+   window is open, the value is in no `.env` file and no committed file, a
+   development deploy key for that deployment is the only Convex target, and
+   the Stellar checks pass for TESTNET. Each use prints a warning and appends a
+   line to `~/.quilltip/live-window.log` (or `QUILLTIP_LIVE_WINDOW_LOG`, outside
+   the repository). Each run pushes code it builds from the approved commit's
+   git objects in a private folder, not the checkout.
+   `bun scripts/live-window.ts check` evaluates the approval without
+   any network call. Every other tool refuses to run while the variable is set,
+   and `guard:convex` still refuses every live deploy. A replace-all import
+   also needs `QUILLTIP_LIVE_WINDOW_RESTORE=<deployment>@sha256:<digest>` for
+   the reviewed restore file. The operations and the
+   procedure are in the
+   [cutover runbook](operations/payments-v2-cutover.md#503-live-window-approval);
+   the rules are in `scripts/lib/live-window.ts`.
+
 The guard reads these Stellar variables:
 
 | Variable                                               | Read by                        | Accepted values                                                                                                       |
@@ -164,8 +184,8 @@ own HTTP-action origin, provided by Convex and used in `convex/auth.config.ts`.
 | Feature                | Local Next.js environment                                                                                                | Convex deployment environment                                      |
 | ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
 | App/auth               | Generated Convex URL                                                                                                     | `SITE_URL`; Auth signing configuration                             |
-| Article/highlight tips | `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`                                                        | `TIPPING_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`                   |
-| NFT (v1)               | `NEXT_PUBLIC_NFT_CONTRACT_ID`; optional `NEXT_PUBLIC_NFT_METADATA_URL`                                                   | Check the affected backend function's requirements                 |
+| Article/highlight tips | `NEXT_PUBLIC_CORE_CONTRACT_ID`, `NEXT_PUBLIC_TOKEN_CONTRACT_ID`                                                          | `CHAIN_V2_ENABLED`, `CORE_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`  |
+| Article NFT            | `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`                                                                                    | `NFT_CONTRACT_ID`; `SITE_URL` sets each token's metadata URL       |
 | Permanent publishing   | `ARWEAVE_ENABLED=false` by default                                                                                       | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY` when intentionally enabled |
 | Product analytics      | `NEXT_PUBLIC_ANALYTICS_ENABLED=false` by default; server-only `ANALYTICS_POSTHOG_KEY`, optional `ANALYTICS_POSTHOG_HOST` | None                                                               |
 | Password reset         | None                                                                                                                     | `AUTH_RESEND_KEY`, `AUTH_EMAIL_FROM`; uses `SITE_URL` for the link |
@@ -175,10 +195,8 @@ and `STELLAR_NETWORK` take `TESTNET`, `MAINNET`, or `LOCAL`; the guard refuses
 `MAINNET`. Network settings (wallet network, passphrase, Horizon and RPC defaults,
 Stellar CLI network name) come from one module, `convex/lib/stellarNetwork.ts`,
 used by the browser config, the wallet adapter, the backend, and scripts. Tip
-flows on the backend accept only `TESTNET`. When the
-XLM price cache is unavailable, the browser uses a fixed practice rate on
-`TESTNET` and refuses to quote on any other network. Missing backend
-contract configuration blocks quote preparation before wallet approval.
+flows on the backend accept only `TESTNET`. Missing backend contract
+configuration blocks quote preparation before wallet approval.
 Arweave wallet configuration is required by `convex/arweave.ts` when enabled,
 including for small uploads; keep it only on the backend. The public query
 `permanentStorage:isEnabled` returns `true` only when both `ARWEAVE_ENABLED`
@@ -265,9 +283,7 @@ cutover. Its Convex variables, all testnet:
 
 The Next.js side reads `NEXT_PUBLIC_CORE_CONTRACT_ID`,
 `NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` and
-`NEXT_PUBLIC_TOKEN_CONTRACT_ID`. The v2 NFT name differs from
-`NEXT_PUBLIC_NFT_CONTRACT_ID`, which the v1 NFT code reads until it is
-removed. `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` must name the same contract as
+`NEXT_PUBLIC_TOKEN_CONTRACT_ID`. `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` must name the same contract as
 the backend's `NFT_CONTRACT_ID`; while it is unset or different, the article
 NFT panel says minting and transfers are not available on this site instead
 of offering them. The cutover order is in
@@ -360,7 +376,7 @@ real Convex Auth on the anonymous local backend `anonymous-agent`: it starts the
 backend, sets a new signing key, builds and serves the app, and creates its own
 account. It refuses a checkout whose `.env.local` selects another deployment,
 because `convex dev` rewrites that file. CI runs it as `Playwright (local auth)`.
-`bun run test:contracts` runs `cargo test` for each contract. Each crate pins its
+`bun run test:contracts` runs `cargo test` for the contract workspace. Each crate pins its
 Rust toolchain (1.94.1) and the `wasm32v1-none` target in `rust-toolchain.toml`;
 build a contract with `cargo build --locked --target wasm32v1-none --release`
 inside its directory. Live-route Playwright suites use an existing server rather than launching

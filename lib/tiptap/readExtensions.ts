@@ -2,9 +2,9 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
+import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
 import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 
 /** Read-only image node matching editor `resizableImage` output (no React node view). */
@@ -57,10 +57,7 @@ export function getReadOnlyExtensions() {
       underline: false,
     }),
     Underline,
-    Link.configure({
-      openOnClick: true,
-      HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
-    }),
+    createArticleLinkExtension({ openOnClick: true }),
     CodeBlockLowlight.configure({
       lowlight,
     }),

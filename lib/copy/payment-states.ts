@@ -547,6 +547,12 @@ export const NOTICE_COPY = {
       ? `Your tab has ${available} free after tips still settling. Top up or choose a smaller tip.`
       : 'Top up your tab or choose a smaller tip.',
   }),
+  tabShort: (short?: string): CopyBlock => ({
+    title: 'Your tab is short',
+    detail: short
+      ? `Tips you already sent need ${short} more than your tab holds. They settle after you top up, and quick tips work again then.`
+      : 'Tips you already sent need more than your tab holds. They settle after you top up, and quick tips work again then.',
+  }),
   sessionKeyNone: {
     title: 'Quick tips aren’t set up on this device',
     detail:
