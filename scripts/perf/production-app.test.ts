@@ -5,7 +5,12 @@ import { createServer, type Server } from 'http'
 import { createServer as createTcpServer } from 'net'
 import { tmpdir } from 'os'
 import { join } from 'path'
-import { perfPort, startProductionApp } from './production-app'
+import { lookup } from 'dns/promises'
+import {
+  nextStartCommand,
+  perfPort,
+  startProductionApp,
+} from './production-app'
 
 /**
  * startProductionApp (production-app.ts) stops a check that would otherwise
@@ -28,7 +33,7 @@ createServer(async (req, res) => {
   if (req.url === '/perf-backend-probe' && BACKEND)
     await fetch(BACKEND).catch(() => {})
   res.end(MODE === 'other' ? '<html>another app</html>' : '<html>' + BUILD + '</html>')
-}).listen(Number(PORT), '127.0.0.1')
+}).listen(Number(PORT), MODE === 'ipv4-only' ? '127.0.0.1' : undefined)
 `
 )
 
@@ -112,6 +117,21 @@ test('it stops when another server already answers on the port', async () => {
   ).rejects.toThrow('Another server already answers')
 })
 
+test('next start listens on all interfaces', () => {
+  const args = nextStartCommand(4000)
+  expect(args).not.toContain('-H')
+  expect(args).not.toContain('--hostname')
+})
+
+const localhostFirst = await lookup('localhost')
+test.skipIf(localhostFirst.family !== 6)(
+  'it stops when the server does not answer at localhost (::1)',
+  async () => {
+    await expect(start('ipv4-only')).rejects.toThrow('not at localhost')
+    await expectGone(lastPort)
+  }
+)
+
 test('it stops when the server exits before it answers', async () => {
   await expect(start('exit')).rejects.toThrow('exited (code 3)')
 })
@@ -120,9 +140,8 @@ test('it stops when the port accepts connections but never answers', async () =>
   // The stand-in cannot bind this port and exits; requests to it hang.
   const silent = createTcpServer(() => {})
   const port = await perfPort('UNSET_PORT_FOR_TEST')
-  await new Promise<void>((resolve) =>
-    silent.listen(port, '127.0.0.1', resolve)
-  )
+  // On every interface, as a server holding the port would be.
+  await new Promise<void>((resolve) => silent.listen(port, resolve))
   cleanups.push(() => silent.close())
   await expect(start('ours', { port })).rejects.toThrow('exited')
 }, 15_000)

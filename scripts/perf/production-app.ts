@@ -11,6 +11,7 @@
 //   NEXT_PUBLIC_CONVEX_URL, so the build and the check must agree on it.
 
 import { spawn, type ChildProcess } from 'child_process'
+import { promises as dns } from 'dns'
 import { readFileSync } from 'fs'
 import type { Server } from 'http'
 import { createServer, type AddressInfo } from 'net'
@@ -123,15 +124,7 @@ export async function startProductionApp(
   let backendRequests = 0
   options.backend?.on('request', () => (backendRequests += 1))
 
-  const [file, ...args] = options.command ?? [
-    'bunx',
-    'next',
-    'start',
-    '-p',
-    String(port),
-    '-H',
-    '127.0.0.1',
-  ]
+  const [file, ...args] = options.command ?? nextStartCommand(port)
   // Its own process group: `bunx` starts next-server as a grandchild, which a
   // signal to `bunx` alone would leave serving.
   const app = spawn(file, args, {
@@ -180,6 +173,7 @@ export async function startProductionApp(
         stop(
           `The server on ${baseUrl} serves another build than .next/BUILD_ID (${buildId}).`
         )
+      await expectLocalhost(port, baseUrl, stop)
       if (options.backend)
         await expectBackend(baseUrl, () => backendRequests, stop)
       return app
@@ -187,6 +181,30 @@ export async function startProductionApp(
     await new Promise((resolve) => setTimeout(resolve, 500))
   }
   return stop(`The app did not start on ${baseUrl}`)
+}
+
+/**
+ * `next start` on all interfaces. Next.js serves a rewrite (the proxy's 404
+ * for a missing writer or article) by requesting it from itself at
+ * localhost, which resolves to ::1 first on Linux runners; bound to
+ * 127.0.0.1 alone, those answers fail with 500.
+ */
+export function nextStartCommand(port: number): [string, ...string[]] {
+  return ['bunx', 'next', 'start', '-p', String(port)]
+}
+
+/** The app must also answer at the address localhost resolves to first. */
+async function expectLocalhost(
+  port: number,
+  baseUrl: string,
+  stop: (reason: string) => never
+) {
+  const { address, family } = await dns.lookup('localhost')
+  const host = family === 6 ? `[${address}]` : address
+  if (!(await answers(`http://${host}:${port}/login`)))
+    stop(
+      `The app answers on ${baseUrl} but not at localhost (${address}), where Next.js requests its own rewrites. Start it on all interfaces.`
+    )
 }
 
 /**
