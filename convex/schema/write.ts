@@ -16,4 +16,48 @@ export const writeTables = {
   })
     .index('by_author_client', ['authorId', 'clientId'])
     .index('by_article', ['articleId']),
+
+  /**
+   * One small row per article for the desk (`convex/lib/write/deskRow.ts`):
+   * what the desk lists, so its pages never read article documents. Written
+   * in the same mutation as every write that changes one of these fields,
+   * and removed with the article.
+   */
+  deskRows: defineTable({
+    articleId: v.id('articles'),
+    authorId: v.id('users'),
+    published: v.boolean(),
+    /** As stored; '' for an untitled draft. */
+    title: v.string(),
+    /** The first non-empty paragraph, cut on a word (`firstLineOf`). */
+    firstLine: v.string(),
+    words: v.number(),
+    /**
+     * Drafts only: the article's `updatedAt`. A published row has none, since
+     * writers of a published article that do not sync (tip counters, the
+     * permanent copy, NFTs) move it; a published row orders by `publishedAt`.
+     */
+    updatedAt: v.optional(v.number()),
+    publishedAt: v.union(v.number(), v.null()),
+    slug: v.string(),
+  })
+    .index('by_article', ['articleId'])
+    .index('by_author_published_updated', [
+      'authorId',
+      'published',
+      'updatedAt',
+    ])
+    .index('by_author_published_at', ['authorId', 'published', 'publishedAt']),
+
+  /** The desk rows backfill's position (one row, key `desk`). */
+  deskRowBackfills: defineTable({
+    key: v.literal('desk'),
+    phase: v.union(v.literal('articles'), v.literal('rows')),
+    cursor: v.union(v.string(), v.null()),
+    rows: v.number(),
+    changed: v.number(),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index('by_key', ['key']),
 }

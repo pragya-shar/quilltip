@@ -19,11 +19,20 @@
  * `articles.saveDraft` and `articles.publishArticle` stay as they are for the
  * pages that still use them.
  */
+import {
+  paginationOptsValidator,
+  paginationResultValidator,
+} from 'convex/server'
 import { ConvexError, v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
-import { mutation, query, type MutationCtx } from './_generated/server'
+import {
+  internalMutation,
+  mutation,
+  query,
+  type MutationCtx,
+} from './_generated/server'
 import { publishContentAnchor } from './articles'
 import {
   buildSearchContent,
@@ -41,6 +50,7 @@ import { ARTICLE_SCHEMA } from './lib/chain/ids'
 import { syncReadingRoomArticle } from './lib/readingRoomIndex'
 import { scheduleShareReconcile } from './shares'
 import { nextUpdatedAt } from './lib/write/clock'
+import { syncDeskRow } from './lib/write/deskRow'
 import { tiptapJsonHasNonEmptyText } from './lib/tiptapContent'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
 import {
@@ -52,6 +62,8 @@ import {
   wordsOf,
 } from './lib/write/document'
 import { permanentStorageEnabled } from './permanentStorage'
+import { chainOrNull, registrationOf } from './publishing'
+import { verifiedStellarAddress } from './lib/walletVerification'
 import { estimateArticleReadingMinutes } from '../lib/reading-time'
 import { isArticleLocked } from '../lib/articles/publishedLock'
 
@@ -240,6 +252,7 @@ export const saveDraft = mutation({
       const after = await ctx.db.get(article._id)
       if (after)
         await syncArticleUploadReferences(ctx, article._id, article, after)
+      await syncDeskRow(ctx, article._id)
       return { id: article._id, updatedAt, created: false }
     }
 
@@ -304,6 +317,7 @@ export const saveDraft = mutation({
       })
     }
     await syncArticleUploadReferences(ctx, id, null, { content: args.content })
+    await syncDeskRow(ctx, id)
     return { id, updatedAt: now, created: true }
   },
 })
@@ -402,6 +416,7 @@ export const publish = mutation({
       await replaceTagLinksForArticle(ctx, published)
       await syncReadingRoomArticle(ctx, published._id, published)
     }
+    await syncDeskRow(ctx, article._id)
     // Shares made while the article was published before are checked against
     // the text now published (none exist for a first publish).
     await scheduleShareReconcile(ctx, article._id)
@@ -420,6 +435,288 @@ export const publish = mutation({
       contentHash: anchor.contentHash,
       contentVersion: anchor.contentVersion,
       updatedAt,
+    }
+  },
+})
+
+/** Desk rows one page returns at most; the desk asks for 20. */
+export const DESK_PAGE_MAX = 50
+/**
+ * Published rows one page returns at most: each reads its tips state (up to
+ * 20 registration rows and one submission), so a page stays small.
+ */
+export const DESK_PUBLISHED_PAGE_MAX = 20
+
+const EMPTY_PAGE = { page: [], isDone: true, continueCursor: '' }
+
+/** Rows the "anything left?" peek reads at most. */
+const PEEK_ROWS = 64
+
+/**
+ * Whether rows remain after a full page, so a list that ends exactly at a
+ * page's end says `isDone` and the desk never offers "Show more" for an
+ * empty page. A function may run only one paginated read, so this peeks
+ * with a plain indexed read of at most `PEEK_ROWS` rows at or below the last
+ * row's sort key, in the same order, for one that comes after it. If every
+ * row read sorts before it (a long run of equal keys), rows may remain.
+ */
+async function rowsRemain(
+  page: Doc<'deskRows'>[],
+  numItems: number,
+  isDone: boolean,
+  key: 'updatedAt' | 'publishedAt',
+  peek: (value: number | null, take: number) => Promise<Doc<'deskRows'>[]>
+): Promise<boolean> {
+  if (isDone || page.length < numItems) return !isDone
+  const last = page[page.length - 1]!
+  // Draft rows always hold `updatedAt` (`deskFieldsOf`).
+  const rows = await peek(last[key] ?? null, PEEK_ROWS)
+  const after = (row: Doc<'deskRows'>) =>
+    row[key] !== last[key] || row._creationTime < last._creationTime
+  return rows.some(after) || rows.length === PEEK_ROWS
+}
+
+function pageOpts(
+  opts: { numItems: number; cursor: string | null },
+  max: number
+) {
+  const n = Number.isFinite(opts.numItems) ? Math.floor(opts.numItems) : max
+  return { ...opts, numItems: Math.min(max, Math.max(1, n)) }
+}
+
+const tipsValidator = v.union(
+  v.object({ state: v.literal('unavailable') }),
+  v.object({ state: v.literal('not_registered') }),
+  v.object({ state: v.literal('pending') }),
+  v.object({ state: v.literal('held_for_review') }),
+  v.object({ state: v.literal('registered'), payoutOutdated: v.boolean() })
+)
+
+/**
+ * The caller's drafts, the most recently updated first, a page at a time
+ * (at most `DESK_PAGE_MAX` rows). Reads only desk rows, never an article
+ * document, so every page stays small whatever the drafts weigh. Signed
+ * out: an empty, finished page.
+ */
+export const deskDrafts = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(
+    v.object({
+      _id: v.id('articles'),
+      title: v.string(),
+      firstLine: v.string(),
+      words: v.number(),
+      updatedAt: v.number(),
+    })
+  ),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return EMPTY_PAGE
+    const opts = pageOpts(args.paginationOpts, DESK_PAGE_MAX)
+    const result = await ctx.db
+      .query('deskRows')
+      .withIndex('by_author_published_updated', (q) =>
+        q.eq('authorId', userId).eq('published', false)
+      )
+      .order('desc')
+      .paginate(opts)
+    const remain = await rowsRemain(
+      result.page,
+      opts.numItems,
+      result.isDone,
+      'updatedAt',
+      (value, take) =>
+        ctx.db
+          .query('deskRows')
+          .withIndex('by_author_published_updated', (q) =>
+            q
+              .eq('authorId', userId)
+              .eq('published', false)
+              .lte('updatedAt', value as number)
+          )
+          .order('desc')
+          .take(take)
+    )
+    return {
+      ...result,
+      isDone: !remain,
+      page: result.page.map((row) => ({
+        _id: row.articleId,
+        title: row.title,
+        firstLine: row.firstLine,
+        words: row.words,
+        // Every draft row has one (`deskFieldsOf`).
+        updatedAt: row.updatedAt ?? 0,
+      })),
+    }
+  },
+})
+
+/**
+ * The caller's published articles, the most recently published first, a
+ * page at a time (at most `DESK_PUBLISHED_PAGE_MAX`), each with its tips
+ * state by the rules of `publishing.registrationState`, without an address,
+ * hash or next step. Reads desk rows, the caller's user row, and per row
+ * its registration rows. Signed out: an empty, finished page.
+ */
+export const deskPublished = query({
+  args: { paginationOpts: paginationOptsValidator },
+  returns: paginationResultValidator(
+    v.object({
+      _id: v.id('articles'),
+      title: v.string(),
+      slug: v.string(),
+      authorUsername: v.string(),
+      publishedAt: v.union(v.number(), v.null()),
+      tips: tipsValidator,
+    })
+  ),
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return EMPTY_PAGE
+    const opts = pageOpts(args.paginationOpts, DESK_PUBLISHED_PAGE_MAX)
+    const [result, user] = await Promise.all([
+      ctx.db
+        .query('deskRows')
+        .withIndex('by_author_published_at', (q) =>
+          q.eq('authorId', userId).eq('published', true)
+        )
+        .order('desc')
+        .paginate(opts),
+      ctx.db.get(userId),
+    ])
+    const remain = await rowsRemain(
+      result.page,
+      opts.numItems,
+      result.isDone,
+      'publishedAt',
+      (value, take) =>
+        ctx.db
+          .query('deskRows')
+          .withIndex('by_author_published_at', (q) =>
+            q
+              .eq('authorId', userId)
+              .eq('published', true)
+              .lte('publishedAt', value)
+          )
+          .order('desc')
+          .take(take)
+    )
+    const chain = chainOrNull()
+    const wallet = chain ? verifiedStellarAddress(user, chain.passphrase) : null
+    const page = []
+    for (const row of result.page) {
+      const state = await registrationOf(
+        ctx,
+        { _id: row.articleId, published: true },
+        chain,
+        wallet
+      )
+      page.push({
+        _id: row.articleId,
+        title: row.title,
+        slug: row.slug,
+        authorUsername: user?.username ?? '',
+        publishedAt: row.publishedAt,
+        tips:
+          state.state === 'registered'
+            ? {
+                state: 'registered' as const,
+                payoutOutdated: state.payoutOutdated,
+              }
+            : { state: state.state },
+      })
+    }
+    return { ...result, isDone: !remain, page }
+  },
+})
+
+/** Articles one backfill step reads: each can be up to 1 MiB. */
+export const DESK_BACKFILL_ARTICLES = 8
+/** Desk rows one backfill step checks in its second phase. */
+export const DESK_BACKFILL_ROWS = 100
+
+/**
+ * Writes the desk row of every article, then removes desk rows whose article
+ * is gone; a page per step, rescheduling itself until done. Each row is
+ * synced as a save would sync it, so a second run, or a run beside live
+ * saves, changes nothing. A finished run does nothing until `restart`. A
+ * step of a logged window on a deployment; not run by a cron.
+ */
+export const backfillDeskRows = internalMutation({
+  args: { restart: v.optional(v.boolean()) },
+  returns: v.object({
+    phase: v.union(v.literal('articles'), v.literal('rows')),
+    rows: v.number(),
+    changed: v.number(),
+    done: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const now = Date.now()
+    const find = () =>
+      ctx.db
+        .query('deskRowBackfills')
+        .withIndex('by_key', (q) => q.eq('key', 'desk'))
+        .unique()
+    let state = await find()
+    if (!state || args.restart) {
+      const fresh = {
+        key: 'desk' as const,
+        phase: 'articles' as const,
+        cursor: null,
+        rows: 0,
+        changed: 0,
+        startedAt: now,
+        updatedAt: now,
+      }
+      if (state) await ctx.db.replace(state._id, fresh)
+      else await ctx.db.insert('deskRowBackfills', fresh)
+      state = (await find())!
+    }
+    if (state.finishedAt !== undefined) {
+      return {
+        phase: state.phase,
+        rows: state.rows,
+        changed: state.changed,
+        done: true,
+      }
+    }
+    let ids: Id<'articles'>[]
+    let isDone: boolean
+    let continueCursor: string
+    if (state.phase === 'articles') {
+      const page = await ctx.db
+        .query('articles')
+        .paginate({ numItems: DESK_BACKFILL_ARTICLES, cursor: state.cursor })
+      ids = page.page.map((a) => a._id)
+      ;({ isDone, continueCursor } = page)
+    } else {
+      const page = await ctx.db
+        .query('deskRows')
+        .paginate({ numItems: DESK_BACKFILL_ROWS, cursor: state.cursor })
+      ids = page.page.map((r) => r.articleId)
+      ;({ isDone, continueCursor } = page)
+    }
+    let changed = 0
+    for (const id of ids) if (await syncDeskRow(ctx, id)) changed++
+    const next = !isDone
+      ? { phase: state.phase, cursor: continueCursor }
+      : state.phase === 'articles'
+        ? { phase: 'rows' as const, cursor: null }
+        : null
+    await ctx.db.patch(state._id, {
+      ...(next ?? { cursor: null, finishedAt: now }),
+      rows: state.rows + ids.length,
+      changed: state.changed + changed,
+      updatedAt: now,
+    })
+    if (next)
+      await ctx.scheduler.runAfter(0, internal.write.backfillDeskRows, {})
+    return {
+      phase: state.phase,
+      rows: state.rows + ids.length,
+      changed: state.changed + changed,
+      done: next === null,
     }
   },
 })
