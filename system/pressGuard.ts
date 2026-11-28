@@ -1,56 +1,53 @@
 /**
- * Presses that land while a sheet or dialog goes away. A tap inside a sheet
- * (its Close, an action, a Cancel, the scrim, a drag down) is often followed
- * at once by a second tap, or by the rest of the same gesture, and it lands
- * on the sliding panel or on whatever was under it: under a sheet sits the
- * tip button. A lost press is safe; a doubled press can send money.
+ * Presses that land while a sheet or dialog goes away. A tap on a modal
+ * (its Close, an action, a Cancel, the scrim, a drag down) is often
+ * followed at once by a second tap, or by the rest of the same gesture, and
+ * it lands on whatever was under the modal: under a sheet sits the tip
+ * button. A lost press is safe; a doubled press can send money.
  *
- * The rule (`useModal`, through `createPressWindow`): when a modal closes
- * within PRESS_WINDOW_MS of a pointer press anywhere inside it (or on its
- * scrim or handle), pointer presses on the page are swallowed for
- * PRESS_HOLD_MS, whoever closed it (the control's own handler, a result, a
- * change of page). Never after a close by the keyboard (a key pressed in
- * the modal after its last pointer press), and never after a close with no
- * pointer press inside it in that time (a timer, a change of page). A modal
- * that opens releases the hold, so its own presses land.
- *
- * Only pointer presses: a click from Enter or Space (`detail === 0`) always
- * passes, so a keyboard user's next press is never lost.
+ * The rule, with no conditions on why the modal closed:
+ * 1. When any modal closes or unmounts, for any reason, at time T, a hold
+ *    runs until T + PRESS_HOLD_MS.
+ * 2. During a hold, a pointer click does nothing, anywhere on the page,
+ *    unless its target is inside a modal that opened after T.
+ * 3. Keyboard and assistive-technology clicks (`detail === 0`) always work.
+ * 4. Holds extend: a second close at T2 moves the end to T2 +
+ *    PRESS_HOLD_MS, and the exception then needs a modal opened after T2.
+ * 5. The hold starts with the close itself (`useModal`'s layout-effect
+ *    cleanup), so there is no moment between the modal leaving the page and
+ *    the hold.
  */
 
-/** How long presses are held after a modal closes. */
+/** How long pointer clicks are held after a modal closes. */
 export const PRESS_HOLD_MS = 400
 
-/** How recent a pointer press inside the modal must be for its close to
- * hold presses. */
-export const PRESS_WINDOW_MS = 1000
-
+// Holds and opens in the order they happened (a counter, not a time: a
+// modal opened in the same commit as a close is after it).
+let order = 0
+let heldAt = 0
 let until = 0
 let installed = false
+const openedAt = new WeakMap<Element, number>()
 
-/**
- * One modal's recent input: its last pointer press and its last key inside
- * it. `holds(now)` says whether its close now holds presses. Pure; `now`
- * is a time in ms (performance.now()).
- */
-export function createPressWindow() {
-  let pressAt = -Infinity
-  let keyAt = -Infinity
-  return {
-    press(now: number) {
-      pressAt = now
-    },
-    key(now: number) {
-      keyAt = now
-    },
-    holds(now: number): boolean {
-      return now - pressAt <= PRESS_WINDOW_MS && pressAt >= keyAt
-    },
-  }
+function now() {
+  return performance.now()
+}
+
+/** Whether a pointer click on `target` at `at` passes: no hold, or a
+ * target inside a modal opened after the hold began. Pure on its inputs. */
+export function clickPasses(
+  target: EventTarget | null,
+  at: number,
+  detail: number
+): boolean {
+  if (detail === 0 || at >= until) return true
+  const modal = target instanceof Element ? target.closest('dialog') : null
+  const opened = modal ? openedAt.get(modal) : undefined
+  return opened !== undefined && opened > heldAt
 }
 
 function swallow(event: MouseEvent) {
-  if (event.detail === 0 || !pressesHeld()) return
+  if (clickPasses(event.target, now(), event.detail)) return
   event.preventDefault()
   event.stopImmediatePropagation()
 }
@@ -61,18 +58,26 @@ function install() {
   window.addEventListener('click', swallow, true)
 }
 
-/** Holds pointer presses for `ms` from now. */
+/** A modal closed or unmounted: hold pointer clicks for `ms` from now. */
 export function holdPresses(ms = PRESS_HOLD_MS) {
   install()
-  until = Math.max(until, performance.now() + ms)
+  heldAt = ++order
+  until = Math.max(until, now() + ms)
 }
 
-/** Whether a pointer press now would be swallowed. */
+/** A modal opened: its own clicks pass during a hold that began before. */
+export function noteModalOpened(modal: Element) {
+  install()
+  openedAt.set(modal, ++order)
+}
+
+/** Whether a pointer click on the page now would be swallowed. */
 export function pressesHeld(): boolean {
-  return typeof performance !== 'undefined' && performance.now() < until
+  return typeof performance !== 'undefined' && now() < until
 }
 
-/** Ends a hold: a modal opens (its presses must land), or a test. */
-export function releasePresses() {
+/** For tests: no hold. */
+export function resetPresses() {
+  heldAt = ++order
   until = 0
 }

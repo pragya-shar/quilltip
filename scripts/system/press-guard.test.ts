@@ -1,54 +1,66 @@
+// @vitest-environment happy-dom
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  PRESS_WINDOW_MS,
-  createPressWindow,
+  PRESS_HOLD_MS,
+  clickPasses,
   holdPresses,
+  noteModalOpened,
   pressesHeld,
-  releasePresses,
+  resetPresses,
 } from '@/system/pressGuard'
 
 afterEach(() => {
   vi.restoreAllMocks()
-  releasePresses()
+  resetPresses()
 })
 
-describe('whether a modal close holds presses', () => {
-  it('holds after a pointer press inside it, whoever closes it', () => {
-    const w = createPressWindow()
-    w.press(1000)
-    // The control's own handler at once, a result 300 ms later, the stack.
-    expect(w.holds(1000)).toBe(true)
-    expect(w.holds(1300)).toBe(true)
-    expect(w.holds(1000 + PRESS_WINDOW_MS)).toBe(true)
-  })
+const at = (ms: number) => vi.spyOn(performance, 'now').mockReturnValue(ms)
 
-  it('never holds with no recent press inside it', () => {
-    const w = createPressWindow()
-    expect(w.holds(1000)).toBe(false) // a timer, a change of page
-    w.press(1000)
-    expect(w.holds(1000 + PRESS_WINDOW_MS + 1)).toBe(false)
-  })
-
-  it('never holds after a keyboard close', () => {
-    const w = createPressWindow()
-    w.press(1000)
-    w.key(1200) // Escape, or Enter on a button
-    expect(w.holds(1200)).toBe(false)
-    // A press after the key counts again.
-    w.press(1300)
-    expect(w.holds(1350)).toBe(true)
-  })
-})
-
-describe('the hold', () => {
-  it('holds pointer presses for a moment, and a release ends it', () => {
-    vi.spyOn(performance, 'now').mockReturnValue(1000)
-    holdPresses(400)
+describe('the press hold', () => {
+  it('holds every pointer click on the page for 400 ms after a close', () => {
+    const page = document.createElement('button')
+    at(1000)
+    holdPresses()
+    expect(clickPasses(page, 1000, 1)).toBe(false)
+    expect(clickPasses(page, 1000 + PRESS_HOLD_MS - 1, 1)).toBe(false)
+    expect(clickPasses(page, 1000 + PRESS_HOLD_MS, 1)).toBe(true)
     expect(pressesHeld()).toBe(true)
-    releasePresses()
-    expect(pressesHeld()).toBe(false)
-    holdPresses(400)
-    vi.spyOn(performance, 'now').mockReturnValue(1401)
-    expect(pressesHeld()).toBe(false)
+  })
+
+  it('always lets a keyboard or assistive click through', () => {
+    const page = document.createElement('button')
+    at(1000)
+    holdPresses()
+    expect(clickPasses(page, 1001, 0)).toBe(true)
+  })
+
+  it('lets through only a modal opened after the close', () => {
+    const before = document.createElement('dialog')
+    const after = document.createElement('dialog')
+    const inBefore = before.appendChild(document.createElement('button'))
+    const inAfter = after.appendChild(document.createElement('button'))
+    at(900)
+    noteModalOpened(before) // the lower sheet, open under the one that closed
+    at(1000)
+    holdPresses()
+    at(1050)
+    noteModalOpened(after)
+    expect(clickPasses(inBefore, 1060, 1)).toBe(false)
+    expect(clickPasses(inAfter, 1060, 1)).toBe(true)
+  })
+
+  it('extends with each close, and the exception moves with it', () => {
+    const page = document.createElement('button')
+    const b = document.createElement('dialog')
+    const inB = b.appendChild(document.createElement('button'))
+    at(1000)
+    holdPresses()
+    at(1100)
+    noteModalOpened(b)
+    at(1300)
+    holdPresses() // a second close, 300 ms later
+    expect(clickPasses(page, 1650, 1)).toBe(false)
+    expect(clickPasses(inB, 1650, 1)).toBe(false) // opened before the second
+    expect(clickPasses(page, 1700, 1)).toBe(true)
   })
 })

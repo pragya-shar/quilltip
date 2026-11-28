@@ -342,29 +342,32 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
    "Focus is on the body" is no test: in Safari a press on plain text leaves
    it there too. The change is read once, by focus: no live region repeats
    it. `TipControl` does all of this; a surface's own money sheets must too.
-6. **A press while a sheet closes reaches nothing.** What the shell
-   guarantees, for every `Sheet`, `Dialog` and modal built on `useModal`
-   (`@/system/pressGuard`):
-   - When it closes within 1 s of a pointer press anywhere inside it (an
-     action, a Cancel, its Close, the scrim, the drag handle), pointer
-     presses on what was under it are swallowed for 400 ms, whoever closed
-     it: the control's own handler, a result, `sheetStack`, a change of
-     page. A double tap on a sheet's button never reaches the tip button
-     under it.
-   - Never after a close by the keyboard (a key pressed in it after its
-     last pointer press), and never after a close with no pointer press
-     inside it in the last second (a timer, a change of page). A close
-     with no key at all, such as Android's back gesture (a `cancel` event),
-     holds when a pointer press inside it was recent.
-   - A press counts from its end too (a pointer up or a click), so a long
-     press followed by a quick tap is held.
-   - A modal that opens takes its own presses at once, also right after
-     another closed.
-   - Key presses (clicks with no pointer, `detail === 0`) always pass.
+6. **No pointer press lands for 400 ms after a modal closes.** What the
+   shell guarantees, for every `Sheet`, `Dialog` and modal built on
+   `useModal` (`@/system/pressGuard`), with no conditions on why it closed:
+   - When any modal closes or unmounts, for any reason (its Close, a
+     button, the scrim, a drag, Escape, a result, `sheetStack`, a change of
+     page, an error boundary), a hold runs for 400 ms.
+   - During the hold, a pointer click anywhere on the page does nothing,
+     unless it is inside a modal that opened after that close. A sheet left
+     open under the one that closed is held too.
+   - Keyboard and assistive-technology clicks (`detail === 0`: Enter,
+     Space, a screen reader) always work.
+   - Holds extend: another close inside the hold moves its end to 400 ms
+     after that close, and only a modal opened after it is let through.
+   - The hold starts with the close itself, in the commit that removes the
+     modal, so no click falls between the modal leaving the page and the
+     hold.
+
+   A pointer press in the 400 ms after a keyboard close is lost too: a lost
+   press is safe, a doubled press can send money. Not covered: a control
+   that acts on `pointerdown` instead of `click`; a change of content inside
+   a modal that stays open (hold your own presses there); a second finger
+   held down across the close on a touch screen (not checked on a phone).
 
    Drop a guard of your own; `pressesHeld()` says whether a hold is in
    force. The tests: `scripts/system/sheet-press-guard.test.ts` (the real
-   `Sheet`) and `scripts/system/press-guard.test.ts`.
+   `Sheet` and `Dialog`) and `scripts/system/press-guard.test.ts`.
 
 7. **A new path closes the sheets.** When the path changes, every open
    sheet closes: a link followed from a sheet never leaves it over the new

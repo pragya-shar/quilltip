@@ -808,7 +808,7 @@ test('a press just after a sheet closes reaches nothing under it', async ({
   await expect(count).toHaveAttribute('data-press-count', '2')
 })
 
-test('a press just after a sheet closes by itself reaches its target', async ({
+test('after any close, a pointer press is held for a moment, then lands', async ({
   page,
 }) => {
   await open(page)
@@ -820,31 +820,17 @@ test('a press just after a sheet closes by itself reaches its target', async ({
   await press(page, page.getByRole('button', { name: 'Open the sheet' }))
   await expect(sheet).toBeVisible()
   await page.waitForTimeout(700)
-  // Closed by script, as a path change or a finished result closes it.
+  // Closed by script, long after the press that opened it, as a path change
+  // or a finished result closes it: every close holds.
   await sheet.evaluate((el) =>
     el.dispatchEvent(new Event('cancel', { cancelable: true }))
   )
   await press(page, tip)
   await expect(sheet).toBeHidden()
-  await expect(count).toHaveAttribute('data-press-count', '1')
-
-  // A press inside the sheet, then the sheet closes by itself soon after
-  // (a result arriving): the next tap is held, as the same gesture, and a
-  // moment later lands.
-  await page.waitForTimeout(1100) // the tip control's own latch
-  await press(page, page.getByRole('button', { name: 'Open the sheet' }))
-  await expect(sheet).toBeVisible()
-  await press(page, sheet.getByText('Drag the top of the sheet down'))
-  await page.waitForTimeout(300)
-  await sheet.evaluate((el) =>
-    el.dispatchEvent(new Event('cancel', { cancelable: true }))
-  )
-  await press(page, tip)
-  await expect(sheet).toBeHidden()
-  await expect(count).toHaveAttribute('data-press-count', '1')
+  await expect(count).toHaveAttribute('data-press-count', '0')
   await page.waitForTimeout(500)
   await press(page, tip)
-  await expect(count).toHaveAttribute('data-press-count', '2')
+  await expect(count).toHaveAttribute('data-press-count', '1')
 })
 
 test('a failure toast is announced as an alert, others politely', async ({
