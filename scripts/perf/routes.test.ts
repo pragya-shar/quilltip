@@ -69,9 +69,10 @@ describe('measured routes from scripts/perf/routes', () => {
       expect(
         entry.budgetKb,
         `${entry.route}: a ${entry.access} route's first-load budget is its first CI measurement plus 2 KB, at most ${ceiling} KB` +
+          ` (more than ${ceiling} needs the owner's word` +
           (entry.access === 'public'
-            ? ` (the target is ${FIRST_LOAD_TARGET_KB} KB; more than ${ceiling} needs the owner's word)`
-            : '')
+            ? `; the target is ${FIRST_LOAD_TARGET_KB} KB)`
+            : ')')
       ).toBeLessThanOrEqual(ceiling)
       expect(FIRST_LOAD_ROUTES).toContain(entry.route)
       expect(FIRST_LOAD_BUDGET_KB[entry.route]).toBe(entry.budgetKb)
