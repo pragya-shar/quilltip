@@ -1,8 +1,9 @@
 'use client'
 
-import { createContext, useEffect, useState } from 'react'
-import { useConvexAuth, useQuery } from 'convex/react'
+import { createContext, useEffect, useState, useSyncExternalStore } from 'react'
+import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
+import { figuresShown, paymentsStore } from '@/lib/payments/store'
 import { readPlaces, type ReadingPlace } from './readingPlace'
 
 /** The draft the "Your draft" row opens. */
@@ -41,17 +42,35 @@ function useStoredPlaces(): ReadingPlace[] | undefined {
   return places
 }
 
-/** The live source: Convex auth, the latest-draft query, the browser's places. */
+/**
+ * The live source. Who is signed in comes from the payments store, the
+ * shell's one reading of it (`PaymentsShell` keeps it in step with auth).
+ * The draft is the person's own, so it shows only while the store is bound
+ * to the session the token names (`figuresShown`), as the balance does:
+ * until then it is not known yet, and with the engine failed there is none.
+ */
 export function useLiveTodayRows(): TodayRowsReading {
-  const { isAuthenticated, isLoading } = useConvexAuth()
+  const session = useSyncExternalStore(
+    paymentsStore.subscribe,
+    paymentsStore.get,
+    paymentsStore.get
+  )
+  const auth = session.auth
   // One indexed read of the caller's own newest draft: id, title, words.
-  const latest = useQuery(api.today.latestDraft, isAuthenticated ? {} : 'skip')
+  const latest = useQuery(
+    api.today.latestDraft,
+    auth === 'signed-in' ? {} : 'skip'
+  )
   const places = useStoredPlaces()
+  const bound = figuresShown(session)
   return {
-    auth: isLoading ? 'loading' : isAuthenticated ? 'signed-in' : 'signed-out',
+    auth,
     places,
-    draft:
-      latest === undefined
+    draft: !bound
+      ? session.engine === 'failed'
+        ? null
+        : undefined
+      : latest === undefined
         ? undefined
         : latest && {
             id: latest.id,
