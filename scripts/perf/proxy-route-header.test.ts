@@ -38,16 +38,19 @@ const load = (path: string, headers: Record<string, string> = {}) =>
     })
   )
 
-test.each(['/articles', '/login', '/fixture-writer', '/'])(
-  'a full load of %s passes on no route header',
-  async (path) => {
-    const { names, route } = passed(await load(path))
-    // The proxy did pass the request's headers on, just not this one.
-    expect(names).toContain('accept')
-    expect(names).not.toContain(ARTICLE_ROUTE_HEADER)
-    expect(route).toBeNull()
-  }
-)
+test.each([
+  '/articles',
+  '/login',
+  '/fixture-writer',
+  '/dashboard/feedback',
+  '/',
+])('a full load of %s passes on no route header', async (path) => {
+  const { names, route } = passed(await load(path))
+  // The proxy did pass the request's headers on, just not this one.
+  expect(names).toContain('accept')
+  expect(names).not.toContain(ARTICLE_ROUTE_HEADER)
+  expect(route).toBeNull()
+})
 
 test("an article load passes on only the proxy's own answer", async () => {
   const { names, route } = passed(await load('/fixture-writer/an-article'))
@@ -56,10 +59,25 @@ test("an article load passes on only the proxy's own answer", async () => {
   expect(route).toBe('unknown')
 })
 
-test('a request marked as RSC passes on no route header', async () => {
-  const { names, route } = passed(
-    await load('/fixture-writer/an-article', { rsc: '1' })
+test.each([
+  ['a navigation', { rsc: '1' }],
+  ['a prefetch', { rsc: '1', 'next-router-prefetch': '1' }],
+])(
+  '%s request marked as RSC passes on no route header',
+  async (_kind, headers) => {
+    const { names, route } = passed(
+      await load('/fixture-writer/an-article', headers)
+    )
+    expect(names).not.toContain(ARTICLE_ROUTE_HEADER)
+    expect(route).toBeNull()
+  }
+)
+
+test('a forged "missing" on an article load is replaced by the proxy\'s answer', async () => {
+  const { route } = passed(
+    await load('/fixture-writer/an-article', {
+      [ARTICLE_ROUTE_HEADER]: 'missing',
+    })
   )
-  expect(names).not.toContain(ARTICLE_ROUTE_HEADER)
-  expect(route).toBeNull()
+  expect(route).toBe('unknown')
 })

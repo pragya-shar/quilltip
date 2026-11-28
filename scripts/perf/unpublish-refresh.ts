@@ -185,10 +185,19 @@ async function main() {
       for (const kind of ['page', 'navigation'] as const)
         await expectLoad(`silent backend, ${name}`, path, kind, {
           status: 200,
-          // The fallback's text is rendered on the server for a page load;
-          // a navigation's payload carries the state, and the browser draws it.
-          ...(kind === 'page' ? { has: [FALLBACK_TEXT] } : {}),
-          lacks: [PROSE],
+          // The fallback's text is rendered on the server for a page load. A
+          // navigation's payload carries the state instead (a retry link and
+          // no article), and the client component draws the text.
+          ...(kind === 'page'
+            ? { has: [FALLBACK_TEXT], lacks: [PROSE] }
+            : {
+                has: [
+                  '"initialArticle":"$undefined"',
+                  '"initialBodyHtml":"$undefined"',
+                  '"unavailableRetryHref":',
+                ],
+                lacks: [PROSE],
+              }),
           maxMs: TROUBLE_BOUND_MS,
         })
     fixtureBackendBehaviour.mode = 'normal'
