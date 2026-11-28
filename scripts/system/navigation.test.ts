@@ -1,4 +1,8 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { signInPathFromRoutes } from '@/lib/routing/signInPath'
 import { PLACES, POCKET, isActive, type Place } from '@/shell/navigation'
 import { APP_ROUTE_SEGMENTS } from '@/lib/routing/publicContentPath'
 import { handleFormatError } from '@/lib/profile/handleRules'
@@ -13,7 +17,25 @@ describe('the places', () => {
   })
 
   it('send the balance to the Pocket, or to sign in', () => {
+    // No sign-in page in the shell yet: the legacy one.
     expect(POCKET).toEqual({ href: '/pocket', signIn: '/login' })
+  })
+
+  it('send sign-in to the shell page once it is in the route tree', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'routes-'))
+    try {
+      expect(signInPathFromRoutes(dir)).toBe('/login')
+      mkdirSync(path.join(dir, '(public)', 'signin'), { recursive: true })
+      writeFileSync(path.join(dir, '(public)', 'signin', 'page.tsx'), '')
+      expect(signInPathFromRoutes(dir)).toBe('/signin')
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+    expect(signInPathFromRoutes(path.join(tmpdir(), 'no-such-dir'))).toBe(
+      '/login'
+    )
+    // This tree: the sign-in page has not shipped.
+    expect(signInPathFromRoutes()).toBe(POCKET.signIn)
   })
 
   it('light at most one place for any path, and none on a pushed screen', () => {

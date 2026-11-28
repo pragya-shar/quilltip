@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { signInPathFromRoutes } from '../lib/routing/signInPath'
 
 // Public reading in the application shell works with no script: the
 // article is in the first response, visible, with plain links. Runs against
@@ -85,6 +86,6 @@ test('/shelf: with no script, the balance item is a link to sign in', async ({
   const nav = page.getByRole('navigation', { name: 'Main' })
   const item = nav.getByRole('link', { name: 'Sign in' })
   await expect(item).toBeVisible()
-  await expect(item).toHaveAttribute('href', '/login')
+  await expect(item).toHaveAttribute('href', signInPathFromRoutes())
   await expect(nav.getByText('Balance', { exact: true })).toBeHidden()
 })
