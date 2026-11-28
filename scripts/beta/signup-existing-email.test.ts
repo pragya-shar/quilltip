@@ -8,10 +8,7 @@ import { exportJWK, exportPKCS8, generateKeyPair } from 'jose'
 import { beforeAll, describe, expect, test } from 'vitest'
 import schema from '../../convex/schema'
 import { api } from '../../convex/_generated/api'
-import {
-  SIGN_UP_GLOBAL_LIMIT,
-  SIGN_UP_PER_EMAIL_LIMIT,
-} from '../../convex/auth'
+import { SIGN_UP_PER_EMAIL_LIMIT } from '../../convex/auth'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const newTest = () => convexTest(schema, modules)
@@ -87,11 +84,17 @@ async function windowsPass(t: T) {
 }
 
 describe('sign-up with an existing email', () => {
-  test('an existing email gets one answer over many sign-up attempts', async () => {
+  test('an existing email never gets a session from sign-up, over 30 attempts', async () => {
     const t = await withAccount()
-    for (let i = 0; i < 8; i++) {
-      expect(await signUp(t, WRONG(i))).toEqual(EMAIL_IN_USE)
+    const answers = []
+    for (let i = 0; i < 30; i++) answers.push(await signUp(t, WRONG(i)))
+    answers.push(await signUp(t, PASSWORD))
+    // Refused until the count is used up, then limited; never a session.
+    for (const answer of answers) {
+      expect([EMAIL_IN_USE, LIMITED]).toContainEqual(answer)
     }
+    // The window passes: the right password still gets the refusal.
+    await windowsPass(t)
     expect(await signUp(t, PASSWORD)).toEqual(EMAIL_IN_USE)
   })
 
@@ -167,7 +170,24 @@ describe('ordinary flows still work', () => {
 })
 
 describe('sign-up attempts', () => {
+  test('a password that breaks the rule gets one answer for every email and spends nothing', async () => {
+    const t = await withAccount()
+    for (let i = 0; i < SIGN_UP_PER_EMAIL_LIMIT + 2; i++) {
+      expect(await signUp(t, 'short')).toEqual({ error: 'INVALID_PASSWORD' })
+      expect(await signUp(t, 'short', 'fresh@example.test')).toEqual({
+        error: 'INVALID_PASSWORD',
+      })
+    }
+    // Nothing was counted: the existing email still gets its refusal and
+    // the new email still signs up.
+    expect(await signUp(t, PASSWORD)).toEqual(EMAIL_IN_USE)
+    expect(gotTokens(await signUp(t, PASSWORD, 'fresh@example.test'))).toBe(
+      true
+    )
+  })
+
   test('the per-email limit applies with and without an account, and recovers', async () => {
+    expect(SIGN_UP_PER_EMAIL_LIMIT).toBe(5)
     const t = await withAccount()
     // The account's own sign-up counted once.
     for (let i = 1; i < SIGN_UP_PER_EMAIL_LIMIT; i++) {
@@ -179,12 +199,13 @@ describe('sign-up attempts', () => {
 
     // An email without an account: the same answer once its count is used.
     const fresh = 'fresh@example.test'
-    for (let i = 0; i < SIGN_UP_PER_EMAIL_LIMIT; i++) {
-      // A password that breaks the rule is refused, and counted.
-      expect(await signUp(t, 'short', fresh)).toEqual({
-        error: 'INVALID_PASSWORD',
+    await t.run(async (ctx) => {
+      await ctx.db.insert('rateLimits', {
+        key: `sign-up:${fresh}`,
+        windowStart: Date.now(),
+        count: SIGN_UP_PER_EMAIL_LIMIT,
       })
-    }
+    })
     expect(await signUp(t, PASSWORD, fresh)).toEqual(LIMITED)
     // The sign-up limit never touches sign-in.
     expect(gotTokens(await signIn(t, PASSWORD))).toBe(true)
@@ -194,19 +215,45 @@ describe('sign-up attempts', () => {
     expect(gotTokens(await signUp(t, PASSWORD, fresh))).toBe(true)
   })
 
-  test('the global limit applies to every email, and recovers', async () => {
-    const t = await withAccount()
-    await t.run(async (ctx) => {
-      const row = await ctx.db
-        .query('rateLimits')
-        .withIndex('by_key', (q) => q.eq('key', 'sign-up:global'))
-        .unique()
-      await ctx.db.patch(row!._id, { count: SIGN_UP_GLOBAL_LIMIT })
-    })
-    expect(await signUp(t, PASSWORD)).toEqual(LIMITED)
-    expect(await signUp(t, PASSWORD, 'new@example.test')).toEqual(LIMITED)
-    expect(gotTokens(await signIn(t, PASSWORD))).toBe(true)
-    await windowsPass(t)
-    expect(gotTokens(await signUp(t, PASSWORD, 'new@example.test'))).toBe(true)
+  test('there is no count across emails', async () => {
+    const t = newTest()
+    for (let i = 0; i < 4 * SIGN_UP_PER_EMAIL_LIMIT; i++) {
+      expect(
+        gotTokens(await signUp(t, PASSWORD, `user${i}@example.test`))
+      ).toBe(true)
+    }
+    const keys = await t.run(async (ctx) =>
+      (await ctx.db.query('rateLimits').collect()).map((r) => r.key)
+    )
+    expect(keys.every((k) => /^sign-up:user\d+@example\.test$/.test(k))).toBe(
+      true
+    )
+  })
+})
+
+describe('two sign-ups for one new email at the same moment', () => {
+  test('one account; the other gets the same refusal or the same account', async () => {
+    for (let i = 0; i < 3; i++) {
+      const t = newTest()
+      const email = `race${i}@example.test`
+      const [first, second] = await Promise.all([
+        signUp(t, PASSWORD, email),
+        signUp(t, WRONG(i), email),
+      ])
+      expect(gotTokens(first)).toBe(true)
+      // Never a plain library error, never a session with another password.
+      expect(second).toEqual(EMAIL_IN_USE)
+      const [a, b] = await Promise.all([
+        signUp(t, PASSWORD, `same${email}`),
+        signUp(t, PASSWORD, `same${email}`),
+      ])
+      // The same person sending twice: both reach the one new account.
+      expect(gotTokens(a) && gotTokens(b)).toBe(true)
+      expect(userOf(a)).toBe(userOf(b))
+      const accounts = await t.run((ctx) =>
+        ctx.db.query('authAccounts').collect()
+      )
+      expect(accounts).toHaveLength(2)
+    }
   })
 })

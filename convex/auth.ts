@@ -26,12 +26,22 @@ export const PASSWORD_RESET_INVALID_CODE = 'PASSWORD_RESET_INVALID_CODE'
 export const EMAIL_IN_USE = 'EMAIL_IN_USE'
 export const SIGN_UP_RATE_LIMITED = 'SIGN_UP_RATE_LIMITED'
 
-// Sign-up attempts, counted whether or not the email has an account, so the
-// count tells nothing about which emails have one.
-export const SIGN_UP_PER_EMAIL_LIMIT = 10
+// Sign-up attempts per email, counted whether or not the email has an
+// account, so the count tells nothing about which emails have one. There is
+// no count across all emails: it would let one caller stop every sign-up.
+// Convex functions do not see the caller's address, so nothing here limits
+// one caller across many emails.
+export const SIGN_UP_PER_EMAIL_LIMIT = 5
 export const SIGN_UP_PER_EMAIL_WINDOW_MS = 60 * 60 * 1000
-export const SIGN_UP_GLOBAL_LIMIT = 300
-export const SIGN_UP_GLOBAL_WINDOW_MS = 10 * 60 * 1000
+
+/** Same rules the sign-up and reset forms show. */
+function passwordMeetsRule(value: unknown): value is string {
+  return (
+    typeof value === 'string' &&
+    value.length >= PASSWORD_MIN_LENGTH &&
+    PASSWORD_REGEX.test(value)
+  )
+}
 
 /**
  * Before a sign-up: counts the attempt, then says whether a password
@@ -51,13 +61,6 @@ export const beginSignUp = internalMutation({
       SIGN_UP_PER_EMAIL_WINDOW_MS
     )
     if (!perEmail.ok) return 'limited'
-    const global = await consumeFixedWindow(
-      ctx,
-      'sign-up:global',
-      SIGN_UP_GLOBAL_LIMIT,
-      SIGN_UP_GLOBAL_WINDOW_MS
-    )
-    if (!global.ok) return 'limited'
     const account = await ctx.db
       .query('authAccounts')
       .withIndex('providerAndAccountId', (q) =>
@@ -85,15 +88,8 @@ const password = Password({
       updatedAt: now,
     }
   },
-  // Same rules the sign-up and reset forms show.
   validatePasswordRequirements(value) {
-    if (
-      !value ||
-      value.length < PASSWORD_MIN_LENGTH ||
-      !PASSWORD_REGEX.test(value)
-    ) {
-      throw new ConvexError('INVALID_PASSWORD')
-    }
+    if (!passwordMeetsRule(value)) throw new ConvexError('INVALID_PASSWORD')
   },
   reset: ResendPasswordReset,
   // Email verification is not enabled yet.
@@ -103,6 +99,7 @@ const password = Password({
 // merges over the provider when it materializes it.
 type CredentialsOptions = {
   authorize: NonNullable<typeof password.authorize>
+  crypto?: { hashSecret: (secret: string) => Promise<string> }
 }
 const passwordOptions = (password as unknown as { options: CredentialsOptions })
   .options
@@ -130,15 +127,40 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
             }
           }
           if (params.flow === 'signUp') {
+            // The rule first: a password that breaks it gets the same answer
+            // for every email and does not spend the count.
+            const secret = params.password
+            if (!passwordMeetsRule(secret)) {
+              throw new ConvexError('INVALID_PASSWORD')
+            }
             const email = typeof params.email === 'string' ? params.email : ''
             const state = await ctx.runMutation(internal.auth.beginSignUp, {
               email,
             })
             if (state === 'limited') throw new ConvexError(SIGN_UP_RATE_LIMITED)
-            // Refused before the library compares any password with the
-            // account's: sign-up only ever makes new accounts.
-            if (state === 'in-use') throw new ConvexError(EMAIL_IN_USE)
-            return baseAuthorize(params, ctx)
+            if (state === 'in-use') {
+              // Sign-up only ever makes new accounts: refused before any
+              // password is compared with the account's. One hash, as a new
+              // account costs, so the answer takes the same time.
+              await passwordOptions.crypto?.hashSecret(secret)
+              throw new ConvexError(EMAIL_IN_USE)
+            }
+            try {
+              return await baseAuthorize(params, ctx)
+            } catch (error) {
+              // The check and the library's account creation are separate
+              // transactions: a sign-up running at the same moment can make
+              // the account in between. The library then refuses with a
+              // plain error; answer with the same code.
+              if (
+                !(error instanceof ConvexError) &&
+                error instanceof Error &&
+                error.message.endsWith(' already exists')
+              ) {
+                throw new ConvexError(EMAIL_IN_USE)
+              }
+              throw error
+            }
           }
           if (params.flow !== 'reset') return baseAuthorize(params, ctx)
           if (!passwordResetConfigured()) {
