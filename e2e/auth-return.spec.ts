@@ -628,3 +628,54 @@ test('on the sign-in page, a stored token the backend rejects shows the form', a
   await expect(page.getByLabel('Email')).toBeVisible({ timeout: PROMPT_MS })
   await expect(page).toHaveURL(loginUrl('/pocket'))
 })
+
+test.describe('no page ever asks "Leave page?"', () => {
+  /** Fails the test on any dialog: "Leave page?" is a dialog too. */
+  const noDialogs = (page: Page) => {
+    const seen: string[] = []
+    page.on('dialog', (dialog) => {
+      seen.push(`${dialog.type()}: ${dialog.message()}`)
+      void dialog.dismiss().catch(() => {})
+    })
+    return seen
+  }
+
+  test('signing in on /signin and going back', async ({ page }) => {
+    const seen = noDialogs(page)
+    await page.goto(loginUrl('/pocket'))
+    await signIn(page)
+    await page.waitForURL((url) => url.pathname === '/pocket')
+    await page.waitForTimeout(1_000)
+    expect(seen).toEqual([])
+  })
+
+  test('creating an account on /signin and going back', async ({ page }) => {
+    const seen = noDialogs(page)
+    await page.goto(
+      `/signin?mode=create&returnTo=${encodeURIComponent('/pocket')}`
+    )
+    await page
+      .getByLabel('Email')
+      .fill(`new-${Date.now().toString(36)}@example.test`)
+    await page
+      .getByLabel('Password', { exact: true })
+      .fill('a new passphrase for this run')
+    await page.getByRole('button', { name: 'Create account' }).click()
+    await page.waitForURL((url) => url.pathname === '/pocket')
+    await page.waitForTimeout(1_000)
+    expect(seen).toEqual([])
+  })
+
+  test('asking for a reset code and leaving the reset page', async ({
+    page,
+  }) => {
+    const seen = noDialogs(page)
+    await page.goto('/signin/reset')
+    await page.getByLabel('Email', { exact: true }).fill(account.email)
+    await page.getByRole('button', { name: 'Send a code' }).click()
+    await page.waitForTimeout(500)
+    await page.goto('/signin')
+    await page.waitForTimeout(500)
+    expect(seen).toEqual([])
+  })
+})
