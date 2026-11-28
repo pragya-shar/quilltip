@@ -3,12 +3,12 @@ import { v } from 'convex/values'
 import type { Id } from './_generated/dataModel'
 import { handleKey } from '../lib/profile/handleRules'
 
-async function hasPublishedArticle(
+async function publishedArticle(
   ctx: QueryCtx,
   authorId: Id<'users'>,
   slug: string
 ) {
-  const article = await ctx.db
+  return ctx.db
     .query('articles')
     .withIndex('by_slug', (q) => q.eq('slug', slug))
     .filter((q) =>
@@ -18,8 +18,15 @@ async function hasPublishedArticle(
       )
     )
     .first()
-  return article !== null
 }
+
+/**
+ * Names the stored copy of an article. It changes on every write to the row
+ * (each write sets `updatedAt`, including publish and every path that hides an
+ * article), and an article that later takes the same slug has another id.
+ */
+const articleVersion = (article: { _id: string; updatedAt: number }) =>
+  `${article._id}:${article.updatedAt}`
 
 /**
  * Used by the request proxy before a writer or article page renders:
@@ -27,12 +34,14 @@ async function hasPublishedArticle(
  * - moved: the handle is a writer's earlier handle, or differs only in letter
  *   case; redirect to their current handle.
  * - missing: answer 404.
- * Drafts count as missing. Returns no other data.
+ * Drafts count as missing. A found article also carries its version, which
+ * the article page uses to tell whether its cached copy is still current.
+ * Returns no other data.
  */
 export const resolvePublicRoute = query({
   args: { username: v.string(), slug: v.optional(v.string()) },
   returns: v.union(
-    v.object({ kind: v.literal('found') }),
+    v.object({ kind: v.literal('found'), version: v.optional(v.string()) }),
     v.object({ kind: v.literal('missing') }),
     v.object({ kind: v.literal('moved'), username: v.string() })
   ),
@@ -43,8 +52,9 @@ export const resolvePublicRoute = query({
       .first()
     if (exact) {
       if (slug === undefined) return { kind: 'found' as const }
-      return (await hasPublishedArticle(ctx, exact._id, slug))
-        ? { kind: 'found' as const }
+      const article = await publishedArticle(ctx, exact._id, slug)
+      return article
+        ? { kind: 'found' as const, version: articleVersion(article) }
         : { kind: 'missing' as const }
     }
 
@@ -62,10 +72,7 @@ export const resolvePublicRoute = query({
       target = retired ? await ctx.db.get(retired.userId) : null
     }
     if (!target) return { kind: 'missing' as const }
-    if (
-      slug !== undefined &&
-      !(await hasPublishedArticle(ctx, target._id, slug))
-    )
+    if (slug !== undefined && !(await publishedArticle(ctx, target._id, slug)))
       return { kind: 'missing' as const }
     return { kind: 'moved' as const, username: target.username }
   },
@@ -86,6 +93,6 @@ export const publicRouteExists = query({
       .first()
     if (!author) return false
     if (slug === undefined) return true
-    return hasPublishedArticle(ctx, author._id, slug)
+    return (await publishedArticle(ctx, author._id, slug)) !== null
   },
 })

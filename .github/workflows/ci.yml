@@ -162,6 +162,11 @@ jobs:
       - name: Check reading with a slow backend
         run: bun run perf:slow-backend-reading
 
+      # An unpublished, replaced or moved article leaves the page at once
+      # (scripts/perf/unpublish-refresh.ts).
+      - name: Check that an unpublished article leaves the page
+        run: bun run perf:unpublish-refresh
+
   # Text keeps its lines when the web fonts replace the metric-matched
   # fallback faces (app/font-fallbacks.css), in Chromium and WebKit. It runs
   # on macOS, which has Arial and Times New Roman, as Safari readers do. On

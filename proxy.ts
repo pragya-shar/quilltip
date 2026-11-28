@@ -8,6 +8,10 @@ import {
   NONCE_HEADER,
 } from '@/lib/security/contentSecurityPolicy'
 import { PUBLIC_READ_TIMEOUT_MS } from '@/lib/seo/publicReadTimeout'
+import {
+  ARTICLE_ROUTE_HEADER,
+  formatArticleRoute,
+} from '@/lib/seo/articleRoute'
 
 const ROUTE_CHECK_TIMEOUT_MS = PUBLIC_READ_TIMEOUT_MS
 
@@ -28,7 +32,7 @@ const ACCOUNT_FONT_PRELOAD =
 const ACCOUNT_FONT_PATHS = new Set(['/settings', '/welcome'])
 
 type RouteCheck =
-  | { kind: 'found' }
+  | { kind: 'found'; version?: string }
   | { kind: 'missing' }
   | { kind: 'moved'; username: string }
 
@@ -39,10 +43,14 @@ type RouteCheck =
  * do, #428.) Any failure lets the request through unchanged.
  */
 /**
- * Recent "found" answers, per server instance. A found writer or article page
- * renders normally, so reusing the answer briefly only skips a backend round
- * trip before the HTML starts. Missing and moved answers are never reused, so
- * new articles and handle changes take effect at once.
+ * Recent "found" answers for writer pages, per server instance. A found writer
+ * page renders normally and reads the writer itself, so reusing the answer
+ * briefly only skips a backend round trip before the HTML starts. Missing and
+ * moved answers are never reused, so handle changes take effect at once.
+ *
+ * Article pages always ask: the answer carries the article's version, which
+ * decides whether the page may use its cached copy, so an article that was
+ * unpublished, deleted or replaced leaves the page at once.
  */
 const FOUND_TTL_MS = 60_000
 const FOUND_CACHE_LIMIT = 500
@@ -77,8 +85,8 @@ async function checkPublicContent(
   if (request.headers.get('rsc') === '1') return null
   const target = publicContentPath(request.nextUrl.pathname)
   if (!target) return null
-  const key = foundKey(target)
-  if (wasRecentlyFound(key)) return { kind: 'found' }
+  const key = target.slug === undefined ? foundKey(target) : null
+  if (key && wasRecentlyFound(key)) return { kind: 'found' }
 
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
@@ -88,7 +96,7 @@ async function checkPublicContent(
         timer = setTimeout(() => resolve(null), ROUTE_CHECK_TIMEOUT_MS)
       }),
     ])
-    if (check?.kind === 'found') rememberFound(key)
+    if (key && check?.kind === 'found') rememberFound(key)
     return check
   } catch {
     return null
@@ -128,6 +136,14 @@ export async function proxy(request: NextRequest) {
         })
       : null
   const requestHeaders = new Headers(request.headers)
+  // Only the proxy's own answer may reach the article page.
+  requestHeaders.delete(ARTICLE_ROUTE_HEADER)
+  const articleRoute =
+    publicContentPath(pathname)?.slug !== undefined &&
+    (check?.kind === 'found' || check?.kind === 'missing')
+      ? formatArticleRoute(check)
+      : null
+  if (articleRoute) requestHeaders.set(ARTICLE_ROUTE_HEADER, articleRoute)
   if (csp) {
     requestHeaders.set('Content-Security-Policy', csp)
     // Server components read the nonce here for scripts Next.js does not
@@ -195,11 +211,12 @@ export const config = {
   matcher: [
     /*
      * Match all request paths except for the ones starting with:
-     * - api (API routes)
+     * - api/ (API routes; writers may have a handle that starts with "api",
+     *   and their pages need the proxy's headers and checks)
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
      */
-    '/((?!api|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api/|_next/static|_next/image|favicon.ico).*)',
   ],
 }

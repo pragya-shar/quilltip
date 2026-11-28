@@ -91,13 +91,22 @@ with every byte that finishes before the paint (see below).
   - The tip flow loads after the page (the tip skeleton shows until then, as
     before). The Stellar config check no longer imports a schema library
     (about 30 KB).
-  - The public article read is cached for 60 s and the proxy reuses a "found"
-    route check for 60 s per instance, so article HTML no longer waits for two
-    backend round trips (about 500 ms to under 20 ms on a warm cache).
-    Missing articles are never cached, and no cached copy is used once it is
-    more than 60 s old, so an unpublished article leaves the server HTML within
-    a minute. The page subscribes to the live article on load, so edits still
-    appear at once.
+  - The public article read is cached for 60 s, so article HTML on a warm
+    cache waits for one backend round trip instead of two. That round trip is
+    the proxy's route check, which reads two index entries and returns the
+    article's version (its id and `updatedAt`). The page uses its cached copy
+    only while that version matches, so an unpublished, edited or replaced
+    article and a changed handle take effect on the next load (#613). Missing
+    articles are never cached, and no copy is used once it is more than 60 s
+    old, which bounds tip totals and the writer's name. Client navigations skip
+    the proxy's check, so the page asks for the version itself. The page
+    subscribes to the live article on load, so edits also appear at once in an
+    open tab.
+  - Cost of #613: before it, the proxy reused a "found" check for 60 s per
+    instance, so a warm load made no backend call (about 500 ms to under 20 ms
+    for the two calls together). A warm load now makes the route check every
+    time. Writer pages still reuse a "found" check, because the page reads the
+    writer itself.
 - **Every page:** the root 404 screen imported the writer-not-found page and the
   full site header, so every route downloaded dialog and menu code. That
   screen now loads on demand.
@@ -652,7 +661,7 @@ What each public page waits for on the server before its first byte:
 | `/`                  | nothing (the page does not fetch)                                      |
 | `/articles`          | the first page of the article list (cached 60 s)                       |
 | `/{username}`        | the proxy's route check, then the writer and their articles (together) |
-| `/{username}/{slug}` | the proxy's route check (reused 60 s), then the article (cached 60 s)  |
+| `/{username}/{slug}` | the proxy's route check, then the article (cached 60 s per version)    |
 
 Costs:
 
