@@ -196,6 +196,14 @@ export function answerFixtureQuery(
           : { kind: 'missing' },
       }
     }
+    // The proxy's /articles check (#609) asks for a handle no writer can have.
+    case 'publicRoutes:publicRouteExists':
+      return {
+        value:
+          args.username === writerHandle &&
+          (args.slug === undefined ||
+            publishedBySlug(writerHandle, args.slug) !== null),
+      }
     case 'articles:getArticleBySlug':
       return {
         value: publishedBySlug(args.username, args.slug),

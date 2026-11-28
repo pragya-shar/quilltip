@@ -7,6 +7,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import {
   RESULT_COPY,
   STATUS_LABEL,
@@ -235,7 +236,11 @@ export function TipReceiptDialog({
               </a>
             )}
             {item.articleHref && (
-              <Link className="account-text-link" href={item.articleHref}>
+              <Link
+                className="account-text-link"
+                href={item.articleHref}
+                prefetch={ARTICLE_LINK_PREFETCH}
+              >
                 Read article
               </Link>
             )}

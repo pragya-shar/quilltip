@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { formatDistanceToNow } from 'date-fns'
 import type { Id } from '@/types/convex'
 import { WorkStatusBadge } from '@/components/dashboard/WorkStatusBadge'
@@ -31,6 +32,8 @@ export function RecentWorkRow({ item }: { item: CreatorWorkItem }) {
   return (
     <Link
       href={getWorkHref(item)}
+      // A published article is a public page; a draft opens the editor.
+      prefetch={item.published ? ARTICLE_LINK_PREFETCH : null}
       className="group block rounded-lg border border-transparent px-3 py-3 transition-colors hover:border-border hover:bg-muted/40"
     >
       <div className="flex items-start justify-between gap-3">

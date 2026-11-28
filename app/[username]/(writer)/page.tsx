@@ -5,8 +5,12 @@ import {
   getPublicProfile,
   getPublicProfileArticles,
   movedPublicPath,
+  proxyAnsweredMissing,
 } from '@/lib/seo/publicContent'
-import { retryHrefFor } from '@/components/articles/ReadingUnavailable'
+import {
+  ReadingUnavailable,
+  retryHrefFor,
+} from '@/components/articles/ReadingUnavailable'
 import { parseProfilePage } from '@/lib/profile/profileArticles'
 import { parseProfileTab } from '@/lib/profile/profileTab'
 import {
@@ -27,6 +31,7 @@ export async function generateMetadata({
   params,
 }: ProfilePageProps): Promise<Metadata> {
   const { username } = await params
+  if (await proxyAnsweredMissing()) return {}
   const profile = await getPublicProfile(username)
   // Unknown writer (null) or backend unreachable (undefined): site defaults.
   // The page renders not-found.tsx; proxy.ts sets the 404 status.
@@ -69,6 +74,8 @@ export default async function ProfilePage({
 }: ProfilePageProps) {
   const { username } = await params
   const query = await searchParams
+  // The proxy already answered "missing", moved handles included (#609).
+  if (await proxyAnsweredMissing()) notFound()
   const page = parseProfilePage(query.page)
   const onArticlesTab = parseProfileTab(firstValue(query.tab)) === 'articles'
   // Render the writer and their first articles in the HTML. These reads are
@@ -86,21 +93,33 @@ export default async function ProfilePage({
     const moved = await movedPublicPath(username, undefined, query)
     // Temporary: writers can switch back to an earlier handle.
     if (moved) redirect(moved)
-    notFound()
+    // A failed lookup (undefined) shows the readable fallback, never a 404.
+    if (moved === null) notFound()
   }
   const initialArticles = profile ? articles : undefined
-  // Out of time or unreachable: the writer, or their articles on this tab.
-  const unavailable =
-    profile === undefined || (onArticlesTab && initialArticles === undefined)
+  // Out of time or unreachable: the writer (or the moved-handle lookup), or
+  // their articles on this tab.
+  // The fallbacks are rendered here, on the server, so they add nothing to
+  // the client bundle (#609).
+  const retryHref = retryHrefFor(`/${encodeURIComponent(username)}`, query)
   return (
     <ProfilePageClient
       username={username}
-      initialProfile={profile}
+      initialProfile={profile ?? undefined}
       initialArticles={initialArticles}
-      unavailableRetryHref={
-        unavailable
-          ? retryHrefFor(`/${encodeURIComponent(username)}`, query)
-          : undefined
+      unavailable={
+        !profile ? (
+          <ReadingUnavailable
+            what="writer"
+            retryHref={retryHref}
+            headingLevel={1}
+          />
+        ) : undefined
+      }
+      articlesUnavailable={
+        onArticlesTab && initialArticles === undefined ? (
+          <ReadingUnavailable what="articles" retryHref={retryHref} />
+        ) : undefined
       }
     />
   )
