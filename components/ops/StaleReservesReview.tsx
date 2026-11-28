@@ -17,6 +17,24 @@ export function StaleReservesReview() {
   return (
     <section className="ops-review" aria-labelledby="ops-reserves-title">
       <h2 id="ops-reserves-title">Settlement reserves without their event</h2>
+      {stale.required.length > 0 ? (
+        <article className="ops-review-item">
+          <h3>Waiting for a reconciliation</h3>
+          <p className="ops-chain-note">
+            A balance event came after more settlements than one update can
+            read, so it was not applied. These tabs take no quick tip until they
+            are reconciled.
+          </p>
+          <ul>
+            {stale.required.map((row) => (
+              <li key={row.tabAccountId} className="ops-chain-note">
+                {row.readerAddress} · {row.status} · event {row.eventId} ·
+                ledger {row.ledger} · since {new Date(row.since).toISOString()}
+              </li>
+            ))}
+          </ul>
+        </article>
+      ) : null}
       {stale.rows.length === 0 ? (
         <p className="account-muted">
           No tab has held a settled amount for more than {hours} hour

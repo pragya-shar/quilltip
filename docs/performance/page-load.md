@@ -622,6 +622,93 @@ fall in bands under 2000 ms (`<1000`, `1000-1499`, `1500-1999`), and 75
 percent of its CLS events in `<0.05` or `0.05-0.099`. The privacy page says
 that page-speed ratings are recorded with consent.
 
+## Public reading without scripts (#428)
+
+A reader whose scripts never run (JavaScript off, a script blocked, a
+connection that drops the script files) can find and read a public article.
+
+**Before:** the only loading boundary was `app/loading.tsx` at the root, around
+every page. React sends a boundary's content later as a hidden segment
+(`<div hidden id="S:…">`) when the page waits for data or when the content is
+larger than its chunk size (12,800 bytes), and an inline script reveals it in
+an animation frame. So `/`, `/articles` and a writer's page arrived as "Loading
+page…" plus hidden content:
+
+- with JavaScript off they never showed anything else;
+- in WebKit, which does not paint the near-empty fallback, the reveal waited
+  for the page's scripts.
+
+**Now:** the public reading pages (`/`, `/articles`, `/{username}`,
+`/{username}/{slug}`) have no loading boundary above them, so their content is
+in the first HTML. The signed-in sections keep the same loading state, from
+their own `loading.tsx` (`dashboard`, `write`, `drafts`, `library`,
+`settings`, `welcome`, `ops`, `profile`, all rendering
+`components/layout/RouteLoading.tsx`).
+
+What each public page waits for on the server before its first byte:
+
+| Page                 | Waits for                                                              |
+| -------------------- | ---------------------------------------------------------------------- |
+| `/`                  | nothing (the page does not fetch)                                      |
+| `/articles`          | the first page of the article list (cached 60 s)                       |
+| `/{username}`        | the proxy's route check, then the writer and their articles (together) |
+| `/{username}/{slug}` | the proxy's route check (reused 60 s), then the article (cached 60 s)  |
+
+Costs:
+
+- The first byte waits for these reads; on a cache miss that is one backend
+  round trip on `/articles` and an article, and two on a writer's page.
+- A client-side navigation into a public page, or into a small or auth page,
+  no longer shows "Loading page…": the current page stays, with no sign that
+  the press worked, until the next page arrives. Navigations into the
+  signed-in sections show it as before.
+
+Each of these reads has a time limit of 1.5 s, the same as the proxy's route
+check (`lib/seo/publicReadTimeout.ts`). A read that runs out of time, or fails,
+counts as unreachable, and the page shows a fallback that reads without
+scripts: the site header, "… could not be loaded right now." and a plain "Try
+again" link to the same URL. With scripts, the live query keeps trying and
+replaces the fallback. The worst-case first byte is 1.5 s on `/articles`, 3 s
+on a writer or article page (route check, then the page's reads), and 4.5 s for
+a missing writer or article whose moved-handle lookup also runs out. A timeout
+is never cached; a read that finishes after its page gave up still fills the
+cache for the next reader.
+
+The fallback answers 200, because a page cannot set its own status once it
+renders. It carries `<meta name="robots" content="noindex">`, and dynamic
+pages send `Cache-Control: no-store`, so neither search engines nor caches keep
+it. An existing article never answers 404 because the backend was slow.
+
+`bun run perf:no-script-reading` (`scripts/perf/no-script-reading.ts`) checks
+this in Chromium and WebKit, with JavaScript off and with `/_next/static`
+scripts blocked:
+
+- the home page links to the article list;
+- the list links to an article by its title, and following the link opens it;
+- the article shows its title as a heading and its prose;
+- the writer's page shows the writer and the article;
+- an unknown article and an unknown writer answer 404 without article text;
+- with scripts on, `/dashboard` sends a signed-out reader to `/login`;
+- `/reset-password`, `/login` and `/register` each show a form field;
+- an unpublished article of the fixture writer answers 404, and no public list
+  names it.
+
+`bun run perf:slow-backend-reading` (`scripts/perf/slow-backend-reading.ts`)
+checks `/articles`, a writer's page and an article with the fixture backend
+silent, slower than the limit, and failing: the first byte and the whole page
+arrive within the bound, the page answers 200 with `noindex` and `no-store`,
+and with JavaScript off, in Chromium and WebKit, it shows the fallback. Then,
+with the backend answering again, each page shows its content.
+
+The routes and texts are in one object (`READING`), and the assertions use
+roles and text only. The check runs in the Page-load Budget CI job, and fails
+with JavaScript off on a build that has the root `app/loading.tsx`.
+
+`scripts/perf/first-link.ts` measures the time to reading on a slow phone
+profile, for comparing builds on a quiet machine: TTFB, and the time until the
+first reading link (`/`, `/articles`, a writer) or the first paragraph of prose
+(an article) is on screen, with scripts delayed, blocked or off.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without
