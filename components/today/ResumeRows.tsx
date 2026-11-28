@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
+import { AppLink } from '@/system/components/AppLink'
 import { useContext, useEffect, useLayoutEffect, useState } from 'react'
 import { Icon } from '@/system/components/Icon'
 import { PendingIcon, WriteIcon } from '@/system/icons'
@@ -109,9 +108,8 @@ export function ResumeRows() {
     >
       <div className="qt-today__slot" data-slot="place">
         {showPlace && place ? (
-          <Link
+          <AppLink
             href={place.href}
-            prefetch={prefetchFor(place.href)}
             className="qt-today__row"
             aria-label={`Your place: ${place.title}, ${Math.round(place.percent * 100)}% read`}
           >
@@ -121,14 +119,13 @@ export function ResumeRows() {
             <span className="qt-today__row-meta">
               {Math.round(place.percent * 100)}%
             </span>
-          </Link>
+          </AppLink>
         ) : null}
       </div>
       <div className="qt-today__slot" data-slot="draft">
         {showDraft && draft ? (
-          <Link
+          <AppLink
             href={draftHref}
-            prefetch={prefetchFor(draftHref)}
             className="qt-today__row"
             aria-label={`Your draft: ${draft.title}, ${draft.words} ${draft.words === 1 ? 'word' : 'words'}`}
           >
@@ -138,7 +135,7 @@ export function ResumeRows() {
             <span className="qt-today__row-meta">
               {draft.words} {draft.words === 1 ? 'word' : 'words'}
             </span>
-          </Link>
+          </AppLink>
         ) : null}
       </div>
     </div>

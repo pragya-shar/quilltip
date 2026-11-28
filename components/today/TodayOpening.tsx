@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
+import { AppLink } from '@/system/components/AppLink'
 import { Avatar } from '@/system/components/Avatar'
 import { Button } from '@/system/components/Button'
 import { Heading } from '@/system/components/Heading'
@@ -29,13 +28,9 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
       <p className="qt-today__byline">
         <Avatar name={article.author.name} size={30} decorative />
         <span className="qt-today__byline-text">
-          <Link
-            href={writerHref}
-            prefetch={prefetchFor(writerHref)}
-            className="qt-today__writer"
-          >
+          <AppLink href={writerHref} className="qt-today__writer">
             {article.author.name}
-          </Link>
+          </AppLink>
           <span className="qt-today__meta">
             {article.readMinutes} min
             <span aria-hidden="true"> · </span>

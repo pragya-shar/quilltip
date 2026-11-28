@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
+import { AppLink } from '@/system/components/AppLink'
 import { Avatar } from '@/system/components/Avatar'
 import { Heading } from '@/system/components/Heading'
 import type { TodayMoreItem } from './types'
@@ -30,14 +29,13 @@ export function MoreToday({ items }: { items: TodayMoreItem[] }) {
                 <span className="qt-visually-hidden">, </span>
                 {item.readMinutes} min
               </span>
-              <Link
+              <AppLink
                 href={item.href}
-                prefetch={prefetchFor(item.href)}
                 className="qt-today__item-link"
                 aria-label={`Read more: ${item.title}`}
               >
                 Read more
-              </Link>
+              </AppLink>
             </p>
           </li>
         ))}

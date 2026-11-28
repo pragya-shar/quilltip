@@ -1,12 +1,11 @@
 // @vitest-environment node
 /**
- * Today never prefetches a page the old layout still serves (articles,
- * writers, the writing desk): a prefetch there would fetch the other root
- * layout for nothing. The shell's rule is `prefetchFor` (lib/routing/
- * legacyRoutes.ts); here Today is rendered against the real route tree and
- * every link it draws is checked.
+ * Today never prefetches a page the old layout still serves, or a writer or
+ * an article behind the route check, on render: its links go through the
+ * shell's AppLink (lib/routing/legacyRoutes.ts decides). Here Today is
+ * rendered against the real route tree and every link it draws is checked;
+ * scripts/system/legacy-routes.test.ts holds every surface to AppLink.
  */
-import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { createElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -30,6 +29,10 @@ vi.mock('next/link', () => ({
       { ...rest, href, 'data-prefetch': String(prefetch) },
       children
     ),
+}))
+
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ prefetch: () => {} }),
 }))
 
 const root = path.resolve(__dirname, '../..')
@@ -99,17 +102,4 @@ test('a rendered Today prefetches no page the old layout serves', () => {
     ])
   )
   for (const link of pages) expect(link.prefetch, link.href).toBe('false')
-})
-
-test('every link Today draws decides its prefetch by the shell’s rule', () => {
-  const dir = path.join(root, 'components/today')
-  const missing: string[] = []
-  for (const file of readdirSync(dir).filter((f) => f.endsWith('.tsx'))) {
-    const text = readFileSync(path.join(dir, file), 'utf8')
-    if (!text.includes("from 'next/link'")) continue
-    const links = text.match(/<Link\b/g)?.length ?? 0
-    const decided = text.match(/prefetch=\{prefetchFor\(/g)?.length ?? 0
-    if (decided < links) missing.push(`${file}: ${links - decided} of ${links}`)
-  }
-  expect(missing).toEqual([])
 })
