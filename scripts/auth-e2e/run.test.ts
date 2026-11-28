@@ -1,12 +1,12 @@
 import { afterEach, expect, test } from 'vitest'
 import { spawn } from 'child_process'
-import { mkdtempSync, writeFileSync } from 'fs'
+import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { createServer, type Server } from 'http'
 import { createServer as createTcpServer } from 'net'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { perfPort } from '../perf/production-app'
-import { startApp } from './run'
+import { redactFailureNotes, startApp } from './run'
 
 /**
  * The sign-in suite's runner (run.ts) serves its build through the perf
@@ -149,3 +149,23 @@ setInterval(() => {}, 1000)
   await expectGone(backendPort)
   await expectGone(appPort)
 }, 30_000)
+
+test("the failure notes CI uploads do not hold the run's password", () => {
+  const results = mkdtempSync(join(tmpdir(), 'auth-e2e-results-'))
+  const testDir = join(results, 'auth-return-signs-in-iphone-webkit')
+  mkdirSync(testDir)
+  const password = 'Aa1f00dfeed5eed'
+  // The page snapshot, as Playwright writes it after the wrong-password test.
+  const note = join(testDir, 'error-context.md')
+  writeFileSync(
+    note,
+    `- textbox "Email": reader@example.test\n- textbox "Password": ${password}x\n`
+  )
+  const trace = join(testDir, 'trace.zip')
+  writeFileSync(trace, password)
+  redactFailureNotes(results, password)
+  expect(readFileSync(note, 'utf8')).not.toContain(password)
+  expect(readFileSync(note, 'utf8')).toContain('reader@example.test')
+  // Only the notes are uploaded; other files stay as they are.
+  expect(readFileSync(trace, 'utf8')).toBe(password)
+})

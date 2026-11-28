@@ -25,6 +25,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -220,6 +221,23 @@ export function startApp(
   })
 }
 
+/**
+ * Removes `secret` from the failure notes Playwright writes (each failed
+ * test's error-context.md under test-results). Their page snapshot lists the
+ * value of every input, a password input too, and CI uploads the notes.
+ */
+export function redactFailureNotes(dir: string, secret: string) {
+  if (!secret || !existsSync(dir)) return
+  const files = readdirSync(dir, { recursive: true, encoding: 'utf8' })
+  for (const file of files) {
+    if (!file.endsWith('error-context.md')) continue
+    const path = join(dir, file)
+    const text = readFileSync(path, 'utf8')
+    if (text.includes(secret))
+      writeFileSync(path, text.replaceAll(secret, '[this run’s password]'))
+  }
+}
+
 /** A new RS256 key for Convex Auth, as scripts/generateKeys.mjs writes it. */
 async function signingKey(): Promise<{ privateKey: string; jwks: string }> {
   const keys = await crypto.subtle.generateKey(
@@ -396,6 +414,7 @@ async function main(): Promise<number> {
         },
       }
     )
+    redactFailureNotes(resolve(repoRoot, 'test-results'), account.password)
     return result.status ?? 1
   } finally {
     for (const child of children.reverse()) child.kill()
