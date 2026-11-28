@@ -94,6 +94,16 @@ describe('article links (#612)', () => {
     ])
   })
 
+  it('passes openOnClick to the link extension as given', () => {
+    // The writing editors are editable: a click there must not open the link.
+    expect(
+      createArticleLinkExtension({ openOnClick: false }).options
+    ).toMatchObject({ openOnClick: false })
+    expect(
+      createArticleLinkExtension({ openOnClick: true }).options
+    ).toMatchObject({ openOnClick: true })
+  })
+
   it('the server renderer renders the fixed rel and target and no stored class', () => {
     expect(anchors(renderArticleHtml(doc)!)).toEqual(expected)
   })
