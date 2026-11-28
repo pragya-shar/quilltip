@@ -2000,6 +2000,19 @@ export async function applyPairSettlement(
     ...(args.eventId ? { settledEventId: args.eventId } : {}),
     now: args.now,
   })
+  // A short payment used the reader's whole balance or the key's headroom:
+  // nothing more is payable until the reader deposits, so the pair waits as
+  // after a `SHORTFALL` skip. Not when this is an older payment than the
+  // pair's paid amount, or a newer absolute balance is already applied
+  // (a deposit after the payment may cover the rest).
+  if (
+    args.paidAfter < args.cumulative &&
+    args.paidAfter === newPaid &&
+    account &&
+    !balanceAppliedSince(account, args.eventId, sourceLedger)
+  ) {
+    await refreshSettleQueue(ctx, voucher._id, args.now, { block: true })
+  }
   await recomputePairEarnings(ctx, voucher._id, args.now)
   // The settler's record of a payment can arrive after an absolute balance
   // from a later ledger: that balance already includes the debit.
@@ -2009,6 +2022,25 @@ export async function applyPairSettlement(
       voucherId: voucher._id,
     })
   }
+}
+
+/**
+ * Whether the account's applied absolute balance is from after a payment:
+ * after its event (`eventId`), or from its ledger or a later one
+ * (`sourceLedger`, the settler's record). Unknown counts as after, so a
+ * pair is never parked on a guess.
+ */
+function balanceAppliedSince(
+  account: Pick<Doc<'tabAccounts'>, 'balanceEventId' | 'balanceLedger'>,
+  eventId: string | undefined,
+  sourceLedger: number | undefined
+): boolean {
+  if (!account.balanceEventId) return false
+  if (eventId !== undefined) return account.balanceEventId > eventId
+  if (sourceLedger === undefined || account.balanceLedger === undefined) {
+    return true
+  }
+  return account.balanceLedger >= sourceLedger
 }
 
 type ClosedState = 'UNPAID' | 'VOID_RESET' | 'REJECTED'

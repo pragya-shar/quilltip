@@ -398,7 +398,10 @@ these holds:
 
 **Pairs that cannot settle now.** They never take a place in a batch:
 
-- A pair skipped as `SHORTFALL` waits until the reader deposits again.
+- A pair skipped as `SHORTFALL`, or paid short (`paid_after < cumulative`:
+  the balance or the key's headroom ran out), waits until the reader deposits
+  again. A short payment parks it at once, unless an absolute balance from
+  after the payment is already applied.
 - A pair whose settle window has ended becomes `UNPAID`, once the indexer has
   applied every ledger up to the end of the window.
 - A pair whose voucher fails the pre-checks, or fails simulation on its own
