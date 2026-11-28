@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  SIGN_OUT_BEFORE,
   SIGN_OUT_PACKAGES,
   SIGN_OUT_WARNINGS,
+  runBeforeSignOut,
   runSignOutCleanups,
   signOutWarnings,
 } from '@/shell/signOut'
@@ -94,5 +96,44 @@ describe('sign-out warnings', () => {
 
   it('has a warnings list in every package file', () => {
     expect(SIGN_OUT_WARNINGS).toEqual([])
+  })
+})
+
+describe('actions before sign-out', () => {
+  it('runs every action at once with who is signing out, and drops one that fails or runs late', async () => {
+    const started: string[] = []
+    const t0 = Date.now()
+    const unfinished = await runBeforeSignOut(
+      [
+        {
+          name: 'revoke',
+          run: async ({ userId }) => void started.push(`revoke ${userId}`),
+        },
+        {
+          name: 'fails',
+          run: async () => {
+            started.push('fails')
+            throw new Error('offline')
+          },
+        },
+        {
+          name: 'late',
+          run: () => {
+            started.push('late')
+            return new Promise((done) => setTimeout(done, 2000))
+          },
+        },
+      ],
+      { userId: 'user-1' },
+      100
+    )
+    expect(started).toEqual(['revoke user-1', 'fails', 'late'])
+    expect(unfinished.sort()).toEqual(['fails', 'late'])
+    // Never past the limit, whatever an action does.
+    expect(Date.now() - t0).toBeLessThan(1000)
+  })
+
+  it('has none registered yet', () => {
+    expect(SIGN_OUT_BEFORE).toEqual([])
   })
 })
