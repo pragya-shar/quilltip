@@ -396,9 +396,9 @@ test('a scroll by script never brings the pushed header back', async ({
   await page.mouse.move(200, 400)
   await page.mouse.wheel(0, 1200)
   await expect(header).toHaveAttribute('data-hidden', '')
-  // Later than the reader's own input counts (INTENT_MS, 300 ms): a place
-  // restored or an anchor landed, above where the reader is.
-  await page.waitForTimeout(400)
+  // Once the reader's gesture has ended: a place restored or an anchor
+  // landed, above where the reader is.
+  await expect(header).not.toHaveAttribute('data-scrolling', '')
   await page.evaluate(() => window.scrollTo(0, window.scrollY - 400))
   await page.waitForTimeout(400)
   await expect(header).toHaveAttribute('data-hidden', '')
