@@ -105,6 +105,8 @@ export const TIP_CODE_FAILED = {
   title: 'The tip form couldn’t load',
   detail: 'Check your connection, then try again. Nothing was sent.',
   retry: 'Try again',
+  /** In place of a tip button on the article page. */
+  inline: 'Tips couldn’t load.',
 } as const
 
 export const BASKET_COPY = {

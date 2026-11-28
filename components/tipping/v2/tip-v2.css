@@ -285,7 +285,22 @@
   display: grid;
   gap: 12px;
 }
-/* The tip form's code failed to load: the dialog says so; the article stays. */
+/* Tip code failed to load: the tip control says so; the article stays. */
+.tip-v2-code-failed-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.tip-v2-code-failed-inline .tip-v2-retry {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 600;
+}
 .tip-v2-code-failed {
   display: grid;
   gap: 8px;

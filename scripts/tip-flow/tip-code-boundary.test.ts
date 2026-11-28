@@ -73,6 +73,52 @@ describe('tip form code that fails to load (#669)', () => {
     await act(async () => root.unmount())
   })
 
+  it('stands in for the tip button on the page with one line and a retry', async () => {
+    let online = false
+    const loader = retryableLazy(() =>
+      online
+        ? Promise.resolve({
+            default: () => createElement('button', null, 'Tip article'),
+          })
+        : Promise.reject(
+            new Error('Failed to fetch dynamically imported module')
+          )
+    )
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        createElement(
+          'article',
+          null,
+          createElement('p', null, 'Article text'),
+          createElement(TipCodeBoundary, {
+            variant: 'inline',
+            onRetry: loader.retry,
+            children: () =>
+              createElement(
+                Suspense,
+                { fallback: null },
+                createElement(loader.Component)
+              ),
+          })
+        )
+      )
+    })
+    await settle()
+    const alert = host.querySelector('[role="alert"]')
+    expect(alert?.tagName).toBe('P')
+    expect(alert?.textContent).toContain(TIP_CODE_FAILED.inline)
+    expect(host.textContent).toContain('Article text')
+    online = true
+    await act(async () => host.querySelector('button')!.click())
+    await settle()
+    expect(host.querySelector('[role="alert"]')).toBeNull()
+    expect(host.textContent).toContain('Tip article')
+    await act(async () => root.unmount())
+  })
+
   it('a plain lazy import stays rejected, which is why retry makes a new one', async () => {
     let calls = 0
     const loader = retryableLazy(() => {
