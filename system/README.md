@@ -208,6 +208,32 @@ surface edits only its own file; it never edits `proxy.ts`,
 - The tip control, menus, sheets and the payments runtime attach to text
   that is already there. They never wrap it.
 
+## Reading faces never change inside a page view
+
+- Literata (roman, italic and their Latin Extended faces) loads with
+  `font-display: optional`. A page view that starts painting before a face
+  arrives (the block period is about 100 ms) stays in the metric-matched
+  fallback for the whole view, and through client navigations in the same
+  document: measured in Chromium and WebKit. The face shows from the next
+  full load that finds it in the cache, from the first frame.
+- Only the roman Latin file (60 KB) is preloaded. On a first view, Chromium
+  uses a face that was not preloaded only from the cache, so italic text
+  shows in the fallback italic beside the real roman for that view; WebKit
+  uses the italic when it arrives within the block period. Nothing moves
+  either way.
+- Do not preload more font files from a surface: the italic and the two Latin
+  Extended files would add about 160 KB to every page that loads them.
+- Follow-up, not built: preloads a page asks for when its server-rendered
+  text needs them (an italic mark, letters outside basic Latin), for example
+  `readingFontPreloads({ italic, extended })` for the article view and Today.
+  next/font does not expose a font file's address, so it needs either a
+  second `localFont` call per route (a preload for the whole route, not per
+  document) or the files at a stable path.
+- `bun run perf:font-fallbacks` holds every package's `fontFallback` route
+  to 0 px of movement when the fonts arrive late, also with the roman on time
+  and the italic late, and reports each reading face's width against its
+  fallback (within 2.5 percent).
+
 ## Landmarks on a public page
 
 What a test or an assistive technology finds, so selectors are written
