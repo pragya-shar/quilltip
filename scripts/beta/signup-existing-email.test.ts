@@ -61,7 +61,7 @@ async function withAccount() {
 }
 
 describe('sign-up with an existing email', () => {
-  test('the right password after 30 wrong sign-up tries gives no session', async () => {
+  test('an existing email gets one answer over many sign-up attempts', async () => {
     const t = await withAccount()
     for (let i = 0; i < 30; i++) {
       const wrong = await signUp(t, WRONG(i))
@@ -70,10 +70,9 @@ describe('sign-up with an existing email', () => {
     expect(await signUp(t, PASSWORD)).not.toEqual({ tokens: true })
   })
 
-  test('after the sign-in lockout, sign-up with the right password gives no session', async () => {
+  test('an existing email gets one answer after the sign-in limit is reached', async () => {
     const t = await withAccount()
     for (let i = 0; i < 10; i++) await signIn(t, WRONG(i))
-    // The sign-in limit holds for the right password.
     const locked = await signIn(t, PASSWORD)
     expect('tokens' in locked).toBe(false)
     expect(await signUp(t, PASSWORD)).not.toEqual({ tokens: true })

@@ -80,11 +80,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
           ctx: Parameters<typeof baseAuthorize>[1]
         ) => {
           if (params.flow === 'signUp') {
-            // For an email that has an account, Convex Auth's sign-up checks
-            // the typed password against it and signs in on a match, outside
-            // the sign-in attempt limit. So sign-up refuses such an email
-            // before the library sees the password: sign-in is the only
-            // place a password is checked.
+            // Sign-up only creates accounts. An email that already has one is
+            // refused here, before the library sees the password, so sign-in
+            // is the only flow that checks a password.
             validatePassword(params.password)
             const email = String(params.email ?? '')
             const verdict: 'ok' | 'exists' | 'limited' = await ctx.runMutation(
