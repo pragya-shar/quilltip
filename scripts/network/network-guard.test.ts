@@ -2112,9 +2112,11 @@ describe('window CLI', () => {
       logFails?: boolean
       spawn?: (args: string[]) => void
       stage?: (file: string) => { path: string; cleanup: () => void }
+      buildFails?: boolean
     } = {}
   ) {
     const spawned: string[][] = []
+    const built: string[] = []
     const logged: LiveWindowLogEntry[] = []
     const out: string[] = []
     for (const method of ['log', 'warn', 'error'] as const) {
@@ -2127,6 +2129,18 @@ describe('window CLI', () => {
       { ...WINDOW_ENV, ...options.env },
       {
         facts: () => ({ ...WINDOW_FACTS, ...options.facts }),
+        build: () => {
+          built.push('build')
+          if (options.buildFails) {
+            throw new NetworkGuardError('live window build', [
+              { code: 'LIVE_WINDOW_BUILD', message: 'cannot build' },
+            ])
+          }
+          return { tree: 'f'.repeat(40) }
+        },
+        close: () => {
+          built.push('close')
+        },
         spawn: (args, capture) => {
           spawned.push(args)
           options.spawn?.(args)
@@ -2150,8 +2164,24 @@ describe('window CLI', () => {
         stage: options.stage ?? stageRestoreCopy,
       }
     )
-    return { code, spawned, logged, out: out.join('\n') }
+    return { code, spawned, logged, built, out: out.join('\n') }
   }
+
+  it('builds once per run from the approved commit, and runs nothing when the build fails', () => {
+    const failed = cli(['run', 'deploy'], { buildFails: true })
+    expect(failed.code).toBe(1)
+    expect(failed.spawned).toEqual([])
+    expect(failed.built).toEqual(['build', 'close'])
+    expect(failed.logged.map((e) => [e.event, e.codes ?? []])).toEqual([
+      ['allowed', []],
+      ['finished', ['LIVE_WINDOW_BUILD']],
+    ])
+    expect(failed.out).toContain('Nothing was run.')
+    // No build in dry mode or for a dashboard step.
+    for (const argv of [['check'], ['check', 'deploy'], ['run', 'pause']]) {
+      expect(cli(argv).built).toEqual([])
+    }
+  })
 
   it('check is a dry mode: no Convex call, one log line', () => {
     const result = cli(['check'])
@@ -2187,7 +2217,14 @@ describe('window CLI', () => {
     ]) {
       expect(result.out).toContain(text)
     }
-    expect(result.logged.map((e) => e.event)).toEqual(['allowed', 'finished'])
+    expect(result.logged.map((e) => e.event)).toEqual([
+      'allowed',
+      'built',
+      'finished',
+    ])
+    expect(result.logged[1]).toMatchObject({ tree: 'f'.repeat(40) })
+    // One build per run, removed at the end.
+    expect(result.built).toEqual(['build', 'close'])
     expect(JSON.stringify(result.logged)).not.toContain('key-material')
     expect(result.out).not.toContain('key-material')
   })
@@ -2292,6 +2329,7 @@ describe('window CLI', () => {
       expect(fs.existsSync(seen[0]?.file as string)).toBe(false)
       expect(result.logged).toEqual([
         expect.objectContaining({ event: 'allowed', sha256: digest }),
+        expect.objectContaining({ event: 'built', sha256: digest }),
         expect.objectContaining({
           event: 'finished',
           sha256: digest,
@@ -2413,6 +2451,7 @@ describe('window log and local facts', () => {
       codes: [],
       exitCode: null,
       sha256: null,
+      tree: null,
     })
     expect(
       guardError(() =>
@@ -2718,6 +2757,37 @@ describe('window approval: review gaps', () => {
     }
   })
 
+  it('checks the window again after the build, before any Convex command', () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const spawned: string[][] = []
+    let calls = 0
+    const code = runLiveWindowCli(
+      ['run', 'env-set', 'CHAIN_V2_ENABLED', 'true'],
+      WINDOW_ENV,
+      {
+        // Open when the run starts; ended once the build is done.
+        facts: () => ({
+          ...WINDOW_FACTS,
+          now: calls++ < 2 ? WINDOW_NOW : new Date('2026-12-15T05:00:00Z'),
+        }),
+        build: () => ({ tree: 'f'.repeat(40) }),
+        close: () => {},
+        spawn: (args) => {
+          spawned.push(args)
+          return { status: 0, output: '' }
+        },
+        log: () => {},
+        sha256: sha256File,
+        stage: stageRestoreCopy,
+      }
+    )
+    vi.restoreAllMocks()
+    expect(code).toBe(1)
+    expect(spawned).toEqual([])
+  })
+
   it('checks the window again after the deploy dry run', () => {
     vi.spyOn(console, 'log').mockImplementation(() => {})
     vi.spyOn(console, 'warn').mockImplementation(() => {})
@@ -2725,11 +2795,14 @@ describe('window approval: review gaps', () => {
     const spawned: string[][] = []
     let calls = 0
     const code = runLiveWindowCli(['run', 'deploy'], WINDOW_ENV, {
-      // Open for the first evaluation, ended after the dry run.
+      // Open for the first evaluation and after the build, ended after the
+      // dry run.
       facts: () => ({
         ...WINDOW_FACTS,
-        now: calls++ < 1 ? WINDOW_NOW : new Date('2026-12-15T05:00:00Z'),
+        now: calls++ < 3 ? WINDOW_NOW : new Date('2026-12-15T05:00:00Z'),
       }),
+      build: () => ({ tree: 'f'.repeat(40) }),
+      close: () => {},
       spawn: (args) => {
         spawned.push(args)
         return { status: 0, output: `https://${LIVE}.convex.cloud\n` }
