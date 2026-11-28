@@ -1469,3 +1469,229 @@ test('the tip control comes back when the connection does', async ({
   )
   expect((await server(page)).requests).toBe(1)
 })
+
+// The tip bar's money layer loads after the page (`?tipbar=` delays or
+// fails it in the fixture). Until then the bar draws the server's first
+// paint and takes a press, shown as taken, sent once the layer is ready.
+const liveIn = (page: Page) =>
+  expect(page.locator('.qt-read__dock-row[data-live]')).toHaveCount(1, {
+    timeout: 10_000,
+  })
+const taken = (page: Page) => page.locator('.qt-read__control[data-taken]')
+/** The bar's layout box (no transforms) and where the text starts. */
+const barBox = (page: Page) =>
+  page.evaluate(() => {
+    const dock = document.querySelector<HTMLElement>('.qt-read__dock')!
+    const control = dock.querySelector<HTMLElement>('.qt-read__control')!
+    return {
+      dock: dock.offsetHeight,
+      control: control.offsetHeight,
+      controlWidth: control.offsetWidth,
+      text: document.getElementById('read-body')!.offsetTop,
+    }
+  })
+
+test('a press before the money layer loads is taken at once and sent once', async ({
+  page,
+}) => {
+  await open(page, '&tipbar=delay-1000')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
+  const before = await barBox(page)
+  await press(page, tipButton(page))
+  // Taken, not sending: nothing has gone to the server.
+  await expect(taken(page)).toHaveCount(1)
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toHaveText(
+    /Tip Tomás\s*\$1/
+  )
+  expect((await server(page)).requests).toBe(0)
+  await liveIn(page)
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  expect((await server(page)).accepted).toHaveLength(1)
+  await expect(taken(page)).toHaveCount(0)
+  // The control keeps its box (the receipt row above it is new after Sent).
+  const after = await barBox(page)
+  expect([after.control, after.controlWidth, after.text]).toEqual([
+    before.control,
+    before.controlWidth,
+    before.text,
+  ])
+  await page.waitForTimeout(1500)
+  expect((await server(page)).accepted).toHaveLength(1)
+})
+
+test('a double tap before the money layer loads sends one tip', async ({
+  page,
+}) => {
+  await open(page, '&tipbar=delay-1000')
+  await press(page, tipButton(page))
+  const box = (await page
+    .locator('.qt-read__dock .qt-tip__button')
+    .boundingBox())!
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+  if (touch(page)) await page.touchscreen.tap(x, y)
+  else await page.mouse.click(x, y)
+  await liveIn(page)
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  await page.waitForTimeout(1000)
+  expect((await server(page)).accepted).toHaveLength(1)
+})
+
+test('a press that waits past 3 s for the money layer is dropped and says so', async ({
+  page,
+}) => {
+  await open(page, '&tipbar=delay-5000')
+  await press(page, tipButton(page))
+  await expect(taken(page)).toHaveCount(1)
+  await expect(
+    page
+      .locator('.qt-read__dock')
+      .getByRole('button', { name: 'Nothing sent. Tap to tip $1' })
+  ).toBeVisible({ timeout: 4000 })
+  await expect(taken(page)).toHaveCount(0)
+  // The layer arrives later: the dropped press is never sent.
+  await liveIn(page)
+  await page.waitForTimeout(1000)
+  expect((await server(page)).requests).toBe(0)
+  // A new press now is a tip.
+  await press(
+    page,
+    tipButton(page).or(
+      page
+        .locator('.qt-read__dock')
+        .getByRole('button', { name: /^Nothing sent/ })
+    )
+  )
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  expect((await server(page)).accepted).toHaveLength(1)
+})
+
+test('when the money layer fails to load, the bar says so, sends nothing and tries again', async ({
+  page,
+}) => {
+  await open(page, '&tipbar=fail-800')
+  const before = await barBox(page)
+  await press(page, tipButton(page))
+  await expect(taken(page)).toHaveCount(1)
+  const retry = page.locator('.qt-read__dock').getByRole('button', {
+    name: 'Try again',
+  })
+  await expect(page.locator('.qt-read__dock')).toContainText(
+    'Tipping did not load.'
+  )
+  await expect(taken(page)).toHaveCount(0)
+  expect(await barBox(page)).toEqual(before)
+  await press(page, retry)
+  await liveIn(page)
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
+  await page.waitForTimeout(500)
+  expect((await server(page)).requests).toBe(0)
+})
+
+test('signed out, a press before the money layer loads opens sign-in with the intent', async ({
+  page,
+}) => {
+  await open(page, '&pay=signed-out&tipbar=delay-5000')
+  const link = page
+    .locator('.qt-read__dock')
+    .getByRole('link', { name: 'Tip Tomás', exact: true })
+  await press(page, link)
+  await expect(page).toHaveURL(/\/(login|signin)\?returnTo=/)
+  const stored = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('quilltip:sign-in-intent') ?? 'null')
+  )
+  expect(stored).toMatchObject({
+    v: 1,
+    intent: {
+      kind: 'tip',
+      path: ARTICLE_PATH,
+      articleId: ARTICLE._id,
+      // The amount the server stated, as a ceiling.
+      amount: { cents: 100, display: '$1.00', short: '$1' },
+      writer: 'Tomás Reyes',
+    },
+  })
+  expect((await server(page)).requests).toBe(0)
+})
+
+test('by keyboard, Enter before the money layer loads is the same press', async ({
+  page,
+}) => {
+  await open(page, '&tipbar=delay-1000')
+  await tipButton(page).focus()
+  await page.keyboard.press('Enter')
+  await expect(taken(page)).toHaveCount(1)
+  // A second Enter while it is taken does nothing.
+  await page.keyboard.press('Enter')
+  await liveIn(page)
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  await page.waitForTimeout(1000)
+  expect((await server(page)).accepted).toHaveLength(1)
+})
+
+test('a chosen line pressed before the money layer loads is the line tipped', async ({
+  page,
+}) => {
+  await open(page, '&tipbar=delay-1500')
+  await tapLine(page, 'person next to')
+  await expect(tipButton(page)).toHaveAccessibleName('Tip this line $1')
+  await press(page, tipButton(page))
+  await expect(taken(page)).toHaveCount(1)
+  await liveIn(page)
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  const { accepted } = await server(page)
+  expect(accepted.map((tip) => tip.target.passage?.text)).toEqual([LINES.gate])
+})
+
+/** Text to match with or without the spaces between a label's parts. */
+const loose = (text: string) =>
+  new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/ /g, '\\s*'))
+
+test('the bar keeps its box when the money layer arrives, in every state', async ({
+  page,
+}) => {
+  // What can change after load: the words and the amount, never the box.
+  const cases = [
+    { pay: '', before: 'Tip Tomás $1', after: 'Tip Tomás $1' },
+    {
+      pay: '&pay=needs-funds',
+      before: 'Tip Tomás $1',
+      after: 'Add money to tip $1',
+    },
+    {
+      pay: '&pay=no-price',
+      before: 'Tip Tomás $1',
+      after: 'Dollar amounts are not available right now',
+    },
+    {
+      pay: '&pay=own-article',
+      before: 'Tip Tomás $1',
+      after: 'This is your article.',
+    },
+    {
+      pay: '&pay=unavailable',
+      before: 'Tip Tomás $1',
+      after: 'Tipping is not available now',
+    },
+    { pay: '&pay=signed-out', before: 'Tip Tomás', after: 'Tip Tomás $0.10' },
+  ]
+  for (const { pay, before, after } of cases) {
+    await open(page, `${pay}&tipbar=delay-800`)
+    const row = page.locator('.qt-read__dock .qt-read__dock-row')
+    await expect(row, pay).toContainText(before.replace(/\s*\$.*/, ''))
+    const first = await barBox(page)
+    await liveIn(page)
+    await expect(row, pay).toContainText(loose(after))
+    expect(await barBox(page), pay || 'default').toEqual(first)
+  }
+})

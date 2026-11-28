@@ -335,15 +335,42 @@
     font-family: var(--qt-font-ui);
     font-size: var(--qt-text-ui);
   }
+  /* One box for every state of the bar, before and after the money layer
+   * loads: the tip control's height, whatever is in it. */
   .qt-read__control {
     flex: 1;
     min-width: 0;
+    min-height: var(--qt-control-h-l);
     display: flex;
+    align-items: center;
     justify-content: flex-end;
   }
-  .qt-read__control > .qt-tip {
+  .qt-read__control .qt-tip {
     flex: 1;
     min-width: 0;
+  }
+  /* Before the session is known: the link or the control, by the shell's
+   * pre-paint marker (shell.css); they take the control's place. */
+  .qt-read__switch,
+  .qt-read__when {
+    display: contents;
+  }
+  /* A press taken before the money layer was ready: held pressed until it
+   * is sent or dropped. */
+  .qt-read__control[data-taken] .qt-tip__button {
+    transform: scale(0.96);
+    cursor: progress;
+  }
+  /* Inside the control's box a line takes no padding of its own, so it is
+   * never taller than the control it stands in for. */
+  .qt-read__control .qt-read__dock-line {
+    padding-block: 0;
+  }
+  .qt-read__dock-retry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--qt-space-3);
   }
 
   /* Signed out: the same button, as a link to sign in. */

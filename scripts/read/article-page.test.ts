@@ -159,7 +159,38 @@ describe('the article route and an article that cannot take a tip', () => {
     tipState.articleTippable.mockResolvedValue(true)
     const html = renderToStaticMarkup(await ArticlePage(args))
     expect(html).not.toContain('Tips are not on for this article.')
-    expect(html).toMatch(/qt-tip\b/)
+    expect(html).toContain('qt-read__control')
+  })
+
+  it("draws the tip bar's first paint from the server, with no session known", async () => {
+    reads.article.mockResolvedValue(article)
+    tipState.articleTippable.mockResolvedValue(true)
+    const { createElement } = await import('react')
+    const { BalanceSourceContext } = await import('@/shell/balance')
+    const page = await ArticlePage(args)
+    const html = renderToStaticMarkup(
+      createElement(
+        BalanceSourceContext.Provider,
+        {
+          value: () => ({
+            auth: 'loading' as const,
+            available: null,
+            status: 'loading' as const,
+          }),
+        },
+        page
+      )
+    )
+    // The shell's pre-paint marker shows one: the plain sign-in link (and
+    // with no script, always the link), or the tip control.
+    const bar = html.slice(html.indexOf('data-session-switch'))
+    expect(bar).toMatch(
+      /data-when="signed-out"[^>]*><a class="qt-read__signin" href="\/login\?returnTo=/
+    )
+    expect(bar).toContain('data-when="held"')
+    expect(bar).toMatch(/qt-tip\b/)
+    // The server's label: the writer's first name and the default amount.
+    expect(bar).toMatch(/Tip [^<]+<\/span> <span class="qt-tip__amount">\$1</)
   })
 })
 

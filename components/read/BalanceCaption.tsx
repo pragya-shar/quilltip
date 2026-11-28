@@ -6,7 +6,7 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TestnetNote } from '@/system/components/TestnetNote'
 import { ForwardIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
-import type { Money } from '@/hooks/read/payments'
+import type { MoneyValue } from '@/system/money/figure'
 
 /**
  * The balance in the dock, as the way to the balance sheet on a pushed
@@ -19,7 +19,7 @@ export function BalanceCaption({
   available,
   compact = false,
 }: {
-  available: Money | null
+  available: MoneyValue | null
   compact?: boolean
 }) {
   return (

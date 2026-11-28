@@ -7,6 +7,7 @@ import { PushedHeader } from '@/shell/PushedHeader'
 import { PushedScreen } from '@/shell/PushedScreen'
 import { CoverImage } from './CoverImage'
 import { ReaderIsland } from './ReaderIsland'
+import { tipFirstPaint } from './tipFirstPaint'
 import { ReadingProgress } from './ReadingProgress'
 import {
   READ_BODY_ID,
@@ -132,7 +133,9 @@ export function ArticleView({ article, bodyHtml, readNext }: ArticleViewProps) {
             </ul>
           </section>
         ) : null}
-        <ReaderIsland article={article} />
+        {/* The tip bar's first paint, from the server: no payments code
+            loads with the page. */}
+        <ReaderIsland article={article} tip={tipFirstPaint(article.id)} />
       </div>
     </PushedScreen>
   )

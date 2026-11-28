@@ -2,20 +2,28 @@
 
 import type { Id } from '@/convex/_generated/dataModel'
 import dynamic from 'next/dynamic'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ComponentType,
+} from 'react'
 import { Button } from '@/system/components/Button'
 import { useBalanceReading } from '@/shell/balance'
 import { useKeptLines } from '@/hooks/read/useKeptLines'
 import { EmptyState } from '@/system/components/EmptyState'
 import { showToast } from '@/system/toast'
 import { usePassageActions } from '@/hooks/passages/usePassageActions'
-import { articleIdOf } from '@/hooks/read/payments'
 import { useTippedLines } from '@/hooks/read/tippedLines'
 import { useArticleView } from '@/hooks/read/useArticleView'
 import type { ChosenLine, LineEngineApi } from './LineEngine'
+import type { LiveTipProps, LiveTipValue } from './LiveTip'
+import { loadLiveTip } from './liveTipLoader'
 import type { PaintedSpan } from './paintPassages'
 import { READ_BODY_ID, type ReadArticle } from './readModel'
 import { TipBar, type SentTip } from './TipBar'
+import type { TipFirstPaint } from './tipFirstPaint'
 
 /**
  * The lines (choosing, marks, the tick, anchors, the place, resumed
@@ -34,7 +42,14 @@ const body = () => document.getElementById(READ_BODY_ID)
  * note if the article changed since the page was rendered. The lines
  * themselves (`LineEngine`) load after the page is interactive.
  */
-export function ReaderIsland({ article }: { article: ReadArticle }) {
+export function ReaderIsland({
+  article,
+  tip,
+}: {
+  article: ReadArticle
+  /** The tip bar's first paint, from the server. */
+  tip: TipFirstPaint
+}) {
   // Lines tipped on this visit, marked from the press, and the reader's
   // earlier tips on this article, from the money layer's read.
   const [tippedHere, setTipped] = useState<PaintedSpan[]>([])
@@ -85,6 +100,23 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
     ))
       node.hidden = true
   }, [gone])
+
+  // The tip bar's money layer loads after the page (never in its first
+  // load); until it reports, the bar draws the server's first paint and
+  // takes a press to hand over once it is ready.
+  const [Live, setLive] = useState<ComponentType<LiveTipProps> | null>(null)
+  const [live, setLiveValue] = useState<LiveTipValue | null>(null)
+  const [liveFailed, setLiveFailed] = useState(false)
+  const loadLive = useCallback(() => {
+    setLiveFailed(false)
+    loadLiveTip().then(
+      (module) => setLive(() => module.LiveTip),
+      () => setLiveFailed(true)
+    )
+  }, [])
+  useEffect(() => {
+    if (tip.control) loadLive()
+  }, [tip.control, loadLive])
 
   const [arrivalArmed, setArrivalArmed] = useState(false)
   const arrivalDone = useCallback(() => setArrivalArmed(false), [])
@@ -179,9 +211,16 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
         api={engine}
       />
       {/* An id that is not a document id gets no tip control. */}
-      {articleIdOf(article.id) ? (
+      {tip.control && Live ? (
+        <Live article={article} passage={passage} onLive={setLiveValue} />
+      ) : null}
+      {tip.control ? (
         <TipBar
           article={article}
+          firstPaint={tip}
+          live={live}
+          liveFailed={liveFailed}
+          onRetryLive={loadLive}
           passage={passage}
           onClear={clear}
           kept={Boolean(keptHere)}
