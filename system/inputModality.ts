@@ -8,6 +8,9 @@
 let last: 'keyboard' | 'pointer' = 'pointer'
 let listening = false
 let pressed: { el: HTMLElement; at: number } | null = null
+// When a pointer last went down or up, anywhere: a press, or the end of a
+// drag.
+let pointerAt = -Infinity
 
 /** What counts as the control a press was on. */
 const CONTROL =
@@ -27,6 +30,7 @@ function listen() {
     'pointerdown',
     (event) => {
       last = 'pointer'
+      pointerAt = performance.now()
       // Safari does not focus a pressed button or link, so a modal it
       // opens has no focused opener: remember the control instead.
       const target = event.target as Element | null
@@ -35,6 +39,13 @@ function listen() {
         control instanceof HTMLElement
           ? { el: control, at: performance.now() }
           : null
+    },
+    true
+  )
+  document.addEventListener(
+    'pointerup',
+    () => {
+      pointerAt = performance.now()
     },
     true
   )
@@ -54,6 +65,15 @@ export function recentlyPressed(withinMs = 2000): HTMLElement | null {
   listen()
   if (!pressed || performance.now() - pressed.at > withinMs) return null
   return pressed.el.isConnected ? pressed.el : null
+}
+
+/**
+ * Whether a pointer went down or up within `withinMs`: what happens now
+ * follows a press (or the end of a drag), not a script or a timer.
+ */
+export function pointerJustUsed(withinMs = 500): boolean {
+  listen()
+  return performance.now() - pointerAt <= withinMs
 }
 
 /** Starts listening early, before the first press that opens anything. */

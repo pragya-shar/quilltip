@@ -8,7 +8,9 @@
  *
  * Only pointer presses: a click from Enter or Space (`detail === 0`) always
  * passes, so a keyboard user's next press is never lost. `useModal` holds
- * presses when a pointer closed it (not after Escape or a key); a surface
+ * presses when a pointer closed it, a press or a drag that ended within
+ * 500 ms (not after Escape or a key, and not a close by a script or a
+ * timer, whose next tap is the person's own); a surface
  * with a guard of its own drops it and, if it needs to know, asks
  * `pressesHeld()`.
  */

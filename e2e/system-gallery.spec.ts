@@ -802,6 +802,27 @@ test('a press just after a sheet closes reaches nothing under it', async ({
   await expect(count).toHaveAttribute('data-press-count', '2')
 })
 
+test('a press just after a sheet closes by itself reaches its target', async ({
+  page,
+}) => {
+  await open(page)
+  const count = page.locator('[data-press-count]')
+  const tip = page
+    .getByRole('group', { name: 'Tip Lena Park' })
+    .getByRole('button', { name: 'Tip Lena $1' })
+  const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
+  await press(page, page.getByRole('button', { name: 'Open the sheet' }))
+  await expect(sheet).toBeVisible()
+  await page.waitForTimeout(700)
+  // Closed by script, as a path change or a finished result closes it.
+  await sheet.evaluate((el) =>
+    el.dispatchEvent(new Event('cancel', { cancelable: true }))
+  )
+  await press(page, tip)
+  await expect(sheet).toBeHidden()
+  await expect(count).toHaveAttribute('data-press-count', '1')
+})
+
 test('a failure toast is announced as an alert, others politely', async ({
   page,
 }) => {

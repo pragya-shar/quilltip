@@ -4,6 +4,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 import {
   focusDestination,
   inputModality,
+  pointerJustUsed,
   recentlyPressed,
   watchInputModality,
 } from '../inputModality'
@@ -123,9 +124,11 @@ export function useModal(
       if (openCount === 0) delete root.dataset.scrollLocked
       dialog.dataset.closing = ''
       modalStack.remove(dialog)
-      // Closed by a press (not a key), and a real close, not an effect
-      // re-run (React StrictMode opens it again in the same task).
-      const byPointer = inputModality() === 'pointer'
+      // Closed by a press or a drag (not a key, and not a script or a
+      // timer: closeAll on a path change, a sheet that closes itself after a
+      // result), and a real close, not an effect re-run (React StrictMode
+      // opens it again in the same task).
+      const byPointer = inputModality() === 'pointer' && pointerJustUsed()
       queueMicrotask(() => {
         if (byPointer && dialog.dataset.closing !== undefined) holdPresses()
       })
