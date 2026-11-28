@@ -88,10 +88,7 @@ const ssr = await Bun.build({
         }))
       },
     },
-    stand(
-      path.join(here, 'ssr-auth.ts'),
-      path.join(root, 'e2e/fixtures/pocket/ssr-navigation.ts')
-    ),
+    stand(path.join(here, 'ssr-auth.ts'), path.join(here, 'ssr-navigation.ts')),
   ],
 })
 if (!ssr.success) throw new AggregateError(ssr.logs)
