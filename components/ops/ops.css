@@ -25,7 +25,10 @@
 }
 .ops-chain-item dd[data-status='LAGGING'],
 .ops-chain-item dd[data-status='BEHIND_RETENTION'],
-.ops-chain-item dd[data-status='RESET_DETECTED'] {
+.ops-chain-item dd[data-status='RESET_DETECTED'],
+.ops-chain-item dd[data-status='ALERT'],
+.ops-chain-item dd[data-status='WARNING'],
+.ops-chain-item dd[data-status='UNKNOWN'] {
   color: var(--account-wine);
 }
 .ops-chain-item dd.ops-chain-note {
@@ -119,4 +122,46 @@
 }
 .ops-reserves-table td:nth-child(2) {
   white-space: normal;
+}
+/* Tab activity not accepted here (#647). */
+/* Beats the account surface's paragraph reset. */
+.ops-review p.ops-review-lead {
+  max-width: 68ch;
+  margin: 0 0 16px;
+  color: var(--account-muted);
+}
+.ops-review-code {
+  display: block;
+  margin-top: 2px;
+  color: var(--account-muted);
+  font-size: 13px;
+}
+.ops-outside-table {
+  min-width: 60rem;
+}
+.ops-review-scroll:focus-visible {
+  outline: 2px solid var(--account-wine);
+  outline-offset: 4px;
+}
+.ops-outside-table td code {
+  font-size: 13px;
+}
+/* Headings, ages, amounts, ledgers and hashes stay on one line; IDs wrap.
+   The table scrolls inside its box on a narrow screen. */
+.ops-outside-table th,
+.ops-outside-table td:nth-child(2),
+.ops-outside-table td:nth-child(n + 4):nth-child(-n + 7),
+.ops-outside-table td:last-child,
+.ops-outside-table .ops-outside-kind {
+  white-space: nowrap;
+}
+.ops-outside-table td:first-child {
+  min-width: 12rem;
+}
+.ops-outside-table td:nth-child(3) {
+  min-width: 9rem;
+}
+.ops-outside-table td:nth-child(8) {
+  min-width: 11rem;
+  overflow-wrap: normal;
 }

@@ -123,6 +123,7 @@ function eventId(ledger: number): string {
 }
 
 type ScEntry = [string, xdr.ScVal]
+type EventOptions = { ledger?: number; id?: string }
 
 /** A Tab event in the `getEvents` shape: topics, then a map of fields. */
 function tabEvent(
@@ -176,14 +177,17 @@ const ev = {
     keyId: number,
     validUntil = VALID_UNTIL,
     spendLimit = BigInt(50) * XLM,
-    o = {}
+    {
+      publicKey = SESSION_PUBLIC,
+      ...o
+    }: EventOptions & { publicKey?: string } = {}
   ) =>
     tabEvent(
       'key_registered',
       [reader],
       [
         ['key_id', u32(keyId)],
-        ['public_key', bytes(SESSION_PUBLIC)],
+        ['public_key', bytes(publicKey)],
         ['valid_until', u32(validUntil)],
         ['spend_limit', i128(spendLimit)],
       ],
@@ -207,12 +211,14 @@ const ev = {
       gross: bigint
       fee?: bigint
       writer?: string
+      reader?: string
+      byWriter?: boolean
     },
     o = {}
   ) =>
     tabEvent(
       'tab_settled',
-      [READER, f.writer ?? WRITER],
+      [f.reader ?? READER, f.writer ?? WRITER],
       [
         ['key_id', u32(f.keyId ?? 0)],
         ['cumulative', i128(f.cumulative)],
@@ -220,7 +226,7 @@ const ev = {
         ['gross', i128(f.gross)],
         ['fee', i128(f.fee ?? BigInt(0))],
         ['receipts_root', bytes('00'.repeat(32))],
-        ['by_writer', xdr.ScVal.scvBool(false)],
+        ['by_writer', xdr.ScVal.scvBool(f.byWriter ?? false)],
       ],
       o
     ),
@@ -255,6 +261,25 @@ const ev = {
 
 async function ingest(t: T, ...events: RawRpcEvent[]) {
   return t.mutation(internal.chain.indexer.ingestBackfill, { events })
+}
+
+/** `declareKey` in `convex/tabs.ts`: the app declares a key before it is registered. */
+async function declareKey(
+  t: T,
+  publicKey = SESSION_PUBLIC,
+  reader = READER
+): Promise<void> {
+  await t.run(async (ctx) => {
+    const row = (await ctx.db.query('tabAccounts').collect()).find(
+      (a) => a.readerAddress === reader
+    )!
+    await ctx.db.patch(row._id, {
+      pendingKeys: [
+        ...row.pendingKeys,
+        { publicKey, extractable: false, declaredAt: Date.now() },
+      ],
+    })
+  })
 }
 
 async function setLedger(t: T, latestLedger: number) {
@@ -375,6 +400,7 @@ async function seed(t: T, options: { open?: boolean } = {}) {
   })
   if (options.open !== false) {
     await ingest(t, ev.deposited(READER, BigInt(10) * XLM, BigInt(10) * XLM))
+    await declareKey(t)
     await ingest(t, ev.keyRegistered(READER, 0))
   }
   return ids
@@ -3823,6 +3849,7 @@ describe('spendable balance across settler records and indexed events', () => {
     const t = convexTest(schema, modules)
     const s = await seed(t, { open: false })
     await ingest(t, ev.deposited(READER, deposit, deposit))
+    await declareKey(t)
     await ingest(t, ev.keyRegistered(READER, 0))
     for (const c of cents) await tip(t, s, { cents: c })
     return { t, s }
@@ -8250,5 +8277,396 @@ describe('review #596: claims through re-dispatch, restore and seeding', () => {
     ] as Record<string, unknown>
     expect(redispatched).toEqual(rebuilt)
     expect(await collectedOf(t, s.authorId)).toBe('61278360')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// #647: tab activity this deployment did not originate. One record and one
+// log line per event; nothing else changes.
+
+describe('tab activity not accepted here (#647)', () => {
+  const OUTSIDER = seedAddress(77)
+  const CODE = 'CHAIN_TAB_OUTSIDE_EVENT'
+
+  const outsideRows = (t: T) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query('tabOutsideEvents').collect()).sort(
+        (a, b) => a.ledger - b.ledger
+      )
+    )
+  /** Silences and collects `CHAIN_TAB_OUTSIDE_EVENT` log lines. */
+  function outsideLog() {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    return () =>
+      spy.mock.calls
+        .map((call) => String(call[0]))
+        .filter((line) => line.includes(`"${CODE}"`))
+        .map((line) => JSON.parse(line) as Record<string, unknown>)
+  }
+  const handled = (t: T, events: RawRpcEvent[]) =>
+    t.run(async (ctx) => {
+      const rows = await ctx.db.query('chainEvents').collect()
+      return events.map(
+        (e) => rows.find((r) => r.eventId === e.id)?.handled ?? 'missing'
+      )
+    })
+  async function forceRedispatch(t: T) {
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        await ctx.db.patch(row._id, { handled: 'pending' })
+      }
+    })
+    for (;;) {
+      const r = await t.mutation(internal.chain.indexer.redispatch, {
+        limit: 500,
+      })
+      if (r.checked === 0) break
+    }
+  }
+
+  /**
+   * The accounting check's cases on one reader with two accepted tab tips
+   * (key 0, cumulative 0.35 XLM): an undeclared key 1, a settlement on key 1
+   * to a writer with no voucher, a settlement of key 0 above the accepted
+   * amount, and a settlement for a reader with no account here.
+   */
+  async function outsideCase() {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    const events = {
+      undeclared: ev.keyRegistered(READER, 1, VALID_UNTIL, BigInt(50) * XLM, {
+        ledger: LEDGER + 1,
+      }),
+      noVoucher: ev.tabSettled(
+        {
+          keyId: 1,
+          writer: OTHER_WRITER,
+          cumulative: BigInt(6) * XLM,
+          paidAfter: BigInt(6) * XLM,
+          gross: BigInt(6) * XLM,
+          byWriter: true,
+        },
+        { ledger: LEDGER + 2 }
+      ),
+      above: ev.tabSettled(
+        {
+          cumulative: BigInt(5_000_000),
+          paidAfter: BigInt(5_000_000),
+          gross: BigInt(5_000_000),
+          byWriter: true,
+        },
+        { ledger: LEDGER + 3 }
+      ),
+      noAccount: ev.tabSettled(
+        {
+          reader: OUTSIDER,
+          cumulative: XLM,
+          paidAfter: XLM,
+          gross: XLM,
+          byWriter: false,
+        },
+        { ledger: LEDGER + 4 }
+      ),
+    }
+    return { t, s, events, all: Object.values(events) }
+  }
+
+  it('records the outside settlement and the undeclared key once, with the fields and no address', async () => {
+    const lines = outsideLog()
+    const { t, s, events, all } = await outsideCase()
+    expect(lines()).toEqual([])
+    await ingest(t, ...all)
+
+    // Handler results are as before the signal.
+    expect(await handled(t, all)).toEqual(['done', 'orphan', 'done', 'orphan'])
+    const acct = await account(t)
+    // 10 XLM less the two settlements of this reader.
+    expect(acct.confirmedBalance).toBe(
+      (BigInt(10) * XLM - BigInt(6) * XLM - BigInt(5_000_000)).toString()
+    )
+    expect((await voucherRow(t)).cumulative).toBe('3500000')
+
+    const common = {
+      network: 'TESTNET',
+      chainEpoch: EPOCH,
+      txHash: 'ab'.repeat(32),
+    }
+    const rows = await outsideRows(t)
+    expect(rows).toHaveLength(4)
+    expect(rows[0]).toMatchObject({
+      ...common,
+      kind: 'key_undeclared',
+      eventId: events.undeclared.id,
+      tabAccountId: acct._id,
+      keyId: 1,
+      ledger: LEDGER + 1,
+    })
+    expect(rows[0]!.gross).toBeUndefined()
+    expect(rows[0]!.byWriter).toBeUndefined()
+    expect(rows[1]).toMatchObject({
+      ...common,
+      kind: 'settled_no_voucher',
+      eventId: events.noVoucher.id,
+      tabAccountId: acct._id,
+      keyId: 1,
+      gross: '60000000',
+      byWriter: true,
+      ledger: LEDGER + 2,
+    })
+    expect(rows[2]).toMatchObject({
+      ...common,
+      kind: 'settled_above_accepted',
+      eventId: events.above.id,
+      tabAccountId: acct._id,
+      keyId: 0,
+      gross: '5000000',
+      cumulative: '5000000',
+      acceptedCumulative: '3500000',
+      byWriter: true,
+      ledger: LEDGER + 3,
+    })
+    expect(rows[3]).toMatchObject({
+      ...common,
+      kind: 'settled_no_account',
+      eventId: events.noAccount.id,
+      keyId: 0,
+      gross: '10000000',
+      byWriter: false,
+      ledger: LEDGER + 4,
+    })
+    expect(rows[3]!.tabAccountId).toBeUndefined()
+    expect(rows.every((r) => r.acknowledgedAt === undefined)).toBe(true)
+
+    const logged = lines()
+    expect(logged.map((l) => l.kind)).toEqual([
+      'key_undeclared',
+      'settled_no_voucher',
+      'settled_above_accepted',
+      'settled_no_account',
+    ])
+    expect(logged[1]).toEqual({
+      code: CODE,
+      kind: 'settled_no_voucher',
+      tabAccountId: String(acct._id),
+      keyId: 1,
+      gross: '60000000',
+      ledger: LEDGER + 2,
+      eventId: events.noVoucher.id,
+      chainEpoch: EPOCH,
+      byWriter: true,
+      txHash: 'ab'.repeat(32),
+    })
+    expect(logged[2]).toMatchObject({
+      cumulative: '5000000',
+      acceptedCumulative: '3500000',
+    })
+    expect(logged[3]).toMatchObject({ tabAccountId: null, byWriter: false })
+    const text = JSON.stringify(logged)
+    for (const address of [READER, WRITER, OTHER_WRITER, OUTSIDER]) {
+      expect(text).not.toContain(address)
+    }
+    void s
+  })
+
+  it('a replay, a backfill, a forced re-dispatch and rebuilt event rows raise nothing new; a new epoch does', async () => {
+    const lines = outsideLog()
+    const { t, events, all } = await outsideCase()
+    await ingest(t, ...all)
+    const indexed = await outsideRows(t)
+    expect(indexed).toHaveLength(4)
+    expect(lines()).toHaveLength(4)
+    const expectUnchanged = async (step: string) => {
+      expect(await outsideRows(t), step).toEqual(indexed)
+      expect(lines(), step).toHaveLength(4)
+    }
+
+    // A replay: the next run reads the same page again.
+    await t.mutation(internal.chain.indexer.replayFrom, { fromLedger: LEDGER })
+    expect(
+      await t.mutation(internal.chain.indexer.acquireIndexerLease, {
+        holder: 'replay',
+      })
+    ).toBe(true)
+    await t.mutation(internal.chain.indexer.ingestPage, {
+      holder: 'replay',
+      events: all,
+    })
+    await t.mutation(internal.chain.indexer.releaseIndexerLease, {
+      holder: 'replay',
+    })
+    await expectUnchanged('replay')
+    await ingest(t, ...all)
+    await expectUnchanged('backfill')
+
+    // Every event back to pending and dispatched again, twice; every table
+    // as it was.
+    await expectRedispatchChangesNothing(t)
+    await forceRedispatch(t)
+    await expectUnchanged('forced re-dispatch')
+
+    // Event rows rebuilt from RPC (a restore without them): same ids.
+    await t.run(async (ctx) => {
+      const ids = new Set(all.map((e) => e.id))
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        if (ids.has(row.eventId)) await ctx.db.delete(row._id)
+      }
+    })
+    await ingest(t, ...[...all].reverse())
+    expect(await handled(t, all)).toEqual(['done', 'orphan', 'done', 'orphan'])
+    await expectUnchanged('rows rebuilt')
+
+    // After a testnet reset the same event id is a new event.
+    vi.stubEnv('CHAIN_EPOCH', 'testnet-tab-after-reset')
+    await ingest(t, events.noAccount)
+    const after = await outsideRows(t)
+    expect(after).toHaveLength(5)
+    expect(
+      after
+        .filter((r) => r.eventId === events.noAccount.id)
+        .map((r) => r.chainEpoch)
+    ).toEqual(['testnet-tab', 'testnet-tab-after-reset'])
+    expect(lines()).toHaveLength(5)
+  })
+
+  it('no record for ordinary deposits, declared keys, the settler and a writer settle_own of accepted vouchers', async () => {
+    const lines = outsideLog()
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    const second = '11'.repeat(32)
+    await declareKey(t, second)
+    const events = [
+      ev.deposited(READER, BigInt(2) * XLM, BigInt(12) * XLM, {
+        ledger: LEDGER + 1,
+      }),
+      // A second key, declared in the app first.
+      ev.keyRegistered(READER, 2, VALID_UNTIL, BigInt(50) * XLM, {
+        ledger: LEDGER + 2,
+        publicKey: second,
+      }),
+      // The writer settles the first accepted voucher (0.1 XLM), older than
+      // the stored one.
+      ev.tabSettled(
+        {
+          cumulative: BigInt(1_000_000),
+          paidAfter: BigInt(1_000_000),
+          gross: BigInt(1_000_000),
+          byWriter: true,
+        },
+        { ledger: LEDGER + 3 }
+      ),
+      // The settler settles the latest one.
+      ev.tabSettled(
+        {
+          cumulative: BigInt(3_500_000),
+          paidAfter: BigInt(3_500_000),
+          gross: BigInt(2_500_000),
+          byWriter: false,
+        },
+        { ledger: LEDGER + 4 }
+      ),
+      // The writer's settle_own of the stored voucher, after the settler:
+      // nothing is left to pay.
+      ev.tabSettled(
+        {
+          cumulative: BigInt(3_500_000),
+          paidAfter: BigInt(3_500_000),
+          gross: BigInt(0),
+          byWriter: true,
+        },
+        { ledger: LEDGER + 5 }
+      ),
+      ev.withdrawStarted(BigInt(8_500_000), LEDGER + 51_840, {
+        ledger: LEDGER + 6,
+      }),
+    ]
+    await ingest(t, ...events)
+    expect(await handled(t, events)).toEqual([
+      'done',
+      'done',
+      'done',
+      'done',
+      'done',
+      'done',
+    ])
+    expect((await voucherRow(t)).paidOnChain).toBe('3500000')
+    await expectRedispatchChangesNothing(t)
+    expect(await outsideRows(t)).toEqual([])
+    expect(lines()).toEqual([])
+  })
+
+  it('operators see the open records; acknowledge needs a note, keeps the row and changes nothing the second time', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { t, s, events, all } = await outsideCase()
+    await ingest(t, ...all)
+    vi.stubEnv('OPS_USER_IDS', String(s.otherAuthorId))
+    const read = (userId?: Id<'users'>) =>
+      userId
+        ? as(t, userId).query(api.chain.tabOutside.getOutsideTabActivity, {})
+        : t.query(api.chain.tabOutside.getOutsideTabActivity, {})
+    expect(await read()).toBeNull()
+    expect(await read(s.readerId)).toBeNull()
+    const open = await read(s.otherAuthorId)
+    expect(open?.more).toBe(false)
+    expect(open?.rows.map((r) => r.kind)).toEqual([
+      'key_undeclared',
+      'settled_no_voucher',
+      'settled_above_accepted',
+      'settled_no_account',
+    ])
+    expect(JSON.stringify(open)).not.toContain(READER)
+
+    const target = { chainEpoch: EPOCH, eventId: events.noVoucher.id }
+    expect(
+      await errorCode(
+        t.mutation(internal.chain.tabOutside.acknowledge, {
+          ...target,
+          note: '  ',
+        })
+      )
+    ).toBe('NOTE_REQUIRED')
+    expect(
+      await errorCode(
+        t.mutation(internal.chain.tabOutside.acknowledge, {
+          chainEpoch: 'other-epoch',
+          eventId: events.noVoucher.id,
+          note: 'checked',
+        })
+      )
+    ).toBe('NOT_FOUND')
+    const first = await t.mutation(internal.chain.tabOutside.acknowledge, {
+      ...target,
+      note: 'checked on chain',
+    })
+    expect(first.changed).toBe(true)
+    vi.advanceTimersByTime(60_000)
+    const second = await t.mutation(internal.chain.tabOutside.acknowledge, {
+      ...target,
+      note: 'again',
+    })
+    expect(second).toEqual({
+      acknowledgedAt: first.acknowledgedAt,
+      changed: false,
+    })
+
+    expect((await read(s.otherAuthorId))?.rows).toHaveLength(3)
+    expect(
+      (await t.query(internal.chain.tabOutside.listOpen, {})).rows.map(
+        (r) => r.eventId
+      )
+    ).not.toContain(events.noVoucher.id)
+    const kept = (await outsideRows(t)).find(
+      (r) => r.eventId === events.noVoucher.id
+    )
+    expect(kept).toMatchObject({
+      acknowledgedAt: first.acknowledgedAt,
+      acknowledgedNote: 'checked on chain',
+    })
+    // A dispatch of the acknowledged event does not reopen it.
+    await expectRedispatchChangesNothing(t)
+    expect((await read(s.otherAuthorId))?.rows).toHaveLength(3)
   })
 })
