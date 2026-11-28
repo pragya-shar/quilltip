@@ -369,8 +369,10 @@ test('the pushed header leaves on a scroll down and returns on the reader’s sc
   })
   expect(vars.h).toBe(`${height}px`)
   expect(vars.padding).toBeGreaterThanOrEqual(height)
-  const box = (await header.boundingBox())!
-  expect(Math.round(box.y)).toBe(0)
+  // Once its slide back has ended.
+  await expect
+    .poll(async () => Math.round((await header.boundingBox())!.y))
+    .toBe(0)
 })
 
 test('the pushed header carries the title only after 140 px of scroll', async ({
@@ -634,8 +636,17 @@ test('the docked tip bar opens and closes its amounts without moving the page', 
   expect(start).toBeGreaterThan(0)
   const dock = page.locator('.qt-dock')
   const amount = dock.getByRole('button', { name: 'Change amount' })
+  // Raw input at the control's centre: Playwright's own scroll before a
+  // press moves a page under a sticky dock, and that is not the product's.
+  const pressHere = async (target: Locator) => {
+    const box = (await target.boundingBox())!
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    if (hasTouch()) await page.touchscreen.tap(x, y)
+    else await page.mouse.click(x, y)
+  }
   // Closed by Escape: focus returns to the amount control.
-  await press(amount)
+  await pressHere(amount)
   await expect(dock.getByRole('radiogroup')).toBeVisible()
   expect(await at(), 'opening the amounts').toBe(start)
   await page.keyboard.press('Escape')
@@ -643,8 +654,9 @@ test('the docked tip bar opens and closes its amounts without moving the page', 
   await expect(amount).toBeFocused()
   expect(await at(), 'closing the amounts by Escape').toBe(start)
   // Closed by choosing an amount.
-  await press(amount)
-  await press(dock.getByRole('radio', { name: '$3', exact: true }))
+  await pressHere(amount)
+  await expect(dock.getByRole('radiogroup')).toBeVisible()
+  await pressHere(dock.getByRole('radio', { name: '$3', exact: true }))
   await expect(dock.getByRole('radiogroup')).toBeHidden()
   expect(await at(), 'closing the amounts by a choice').toBe(start)
 })

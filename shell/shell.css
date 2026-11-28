@@ -187,6 +187,14 @@
   }
   /* Hidden: out of sight and out of the way of the text's presses; focus
    * brings it back. */
+  /* Focus on a control in the header (Shift+Tab from the page) needs no
+   * scroll: the header is at the top already, and shows on focus. Without
+   * this the page's scroll-padding-top moves the page by its own room. */
+  .qt-pushed__header * {
+    scroll-margin-block-start: calc(
+      -1 * (var(--qt-safe-top) + var(--qt-space-4))
+    );
+  }
   .qt-pushed__header[data-hidden] {
     transform: translateY(-100%);
     transition-duration: 200ms;

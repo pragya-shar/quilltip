@@ -92,8 +92,12 @@ export function watchHeader(
       on ? `${Math.round(node.offsetHeight)}px` : '0px'
     )
   }
+  // Where the page was at its last scroll event: a focus moved into the
+  // header scrolls nothing (WebKit reveals a control by its slid-away box).
+  let seenY = window.scrollY
   const onScroll = () => {
     const y = window.scrollY
+    seenY = y
     report.titled(y > TITLE_AFTER_PX)
     publish(
       model.scroll({
@@ -144,8 +148,13 @@ export function watchHeader(
   node.addEventListener(
     'focusin',
     () => {
+      const keep = seenY
       model.focus(true)
       publish(true)
+      requestAnimationFrame(() => {
+        if (Math.round(window.scrollY) !== Math.round(keep))
+          window.scrollTo(0, keep)
+      })
     },
     { signal: stop.signal }
   )
