@@ -14,12 +14,12 @@ import { usePasswordAuth } from '@/hooks/auth/usePasswordAuth'
 import { runAfterSignIn } from '@/lib/auth/afterSignIn'
 import { afterSignInSheet } from './afterSignInSheet'
 import { resetHref } from './resetHref'
-import { AUTH_MESSAGES, type AuthMode } from '@/lib/auth/authErrors'
+import type { AuthMode } from '@/lib/auth/authErrors'
 import { rememberResetEmail } from '@/lib/auth/passwordReset'
 import { CONFIRM_MS, signInSession } from '@/lib/auth/session'
 import {
-  PASSWORD_MIN_LENGTH,
-  PASSWORD_REGEX,
+  PASSWORD_RULES_ATTRIBUTE,
+  passwordRuleMessage,
 } from '@/lib/validations/password-rules'
 
 type FieldErrors = { email?: string; password?: string }
@@ -28,7 +28,7 @@ const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 /** The server's password rule, for password managers that generate one. */
 const PASSWORD_RULES: Record<string, string> = {
-  passwordrules: `minlength: ${PASSWORD_MIN_LENGTH}; required: lower; required: upper; required: digit;`,
+  passwordrules: PASSWORD_RULES_ATTRIBUTE,
 }
 
 function check(mode: AuthMode, email: string, password: string): FieldErrors {
@@ -37,11 +37,8 @@ function check(mode: AuthMode, email: string, password: string): FieldErrors {
   else if (!EMAIL.test(email.trim()))
     errors.email = 'Enter an email like name@example.com.'
   if (!password) errors.password = 'Enter your password.'
-  else if (
-    mode === 'create' &&
-    (password.length < PASSWORD_MIN_LENGTH || !PASSWORD_REGEX.test(password))
-  )
-    errors.password = AUTH_MESSAGES.weakPassword
+  else if (mode === 'create')
+    errors.password = passwordRuleMessage(password) ?? undefined
   return errors
 }
 
@@ -213,7 +210,7 @@ export function SignInForm({
           // The rule shows once: an error about it takes the hint's place.
           hint={
             mode === 'create' && !errors.password
-              ? 'At least 8 characters, with an uppercase letter, a lowercase letter and a number.'
+              ? 'At least 8 characters. A few words make a good one.'
               : undefined
           }
           error={errors.password}

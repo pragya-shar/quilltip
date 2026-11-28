@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { passwordMeetsRule } from '../../../lib/validations/password-rules'
 
 // Stands in for Convex Auth in the sign-in fixture, behind the same two
 // imports the app uses ('@convex-dev/auth/react' and 'convex/react'). The
@@ -67,9 +68,7 @@ async function signIn(
       throw Object.assign(new Error('[CONVEX] Server Error'), {
         data: 'PASSWORD_RESET_INVALID_CODE',
       })
-    if (
-      !/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(params_.newPassword ?? '')
-    )
+    if (!passwordMeetsRule(params_.newPassword ?? ''))
       throw Object.assign(new Error('[CONVEX] Server Error'), {
         data: 'INVALID_PASSWORD',
       })
@@ -84,7 +83,7 @@ async function signIn(
   if (params_.flow === 'signUp') {
     if (state.accounts[email])
       throw new Error(`Account ${email} already exists`)
-    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(password))
+    if (!passwordMeetsRule(password))
       throw Object.assign(new Error('[CONVEX] Server Error'), {
         data: 'INVALID_PASSWORD',
       })

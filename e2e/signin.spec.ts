@@ -222,7 +222,7 @@ test.describe('errors are plain, specific and land on their field', () => {
     await expect(password).toHaveAttribute('autocomplete', 'new-password')
     await expect(password).toHaveAttribute(
       'passwordrules',
-      'minlength: 8; required: lower; required: upper; required: digit;'
+      'minlength: 8; maxlength: 256;'
     )
     for (const input of [email, password])
       expect(
@@ -338,10 +338,10 @@ test.describe('the page follows the person', () => {
   }) => {
     await page.goto('/signin?mode=create')
     await page.getByLabel('Email').fill('new.reader@example.com')
-    await page.getByLabel('Password', { exact: true }).fill('short')
+    await page.getByLabel('Password', { exact: true }).fill('seven77')
     await press(page.getByRole('button', { name: 'Create account' }))
     const form = page.locator('form')
-    await expect(form).toContainText('Use at least 8 characters')
+    await expect(form).toContainText('Use at least 8 characters.')
     expect((await form.innerText()).match(/8 characters/g)).toHaveLength(1)
   })
 })

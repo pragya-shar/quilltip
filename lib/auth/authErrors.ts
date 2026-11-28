@@ -21,8 +21,7 @@ export const AUTH_MESSAGES = {
   wrongPassword: 'That email and password do not match.',
   emailInUse:
     'An account with this email already exists, so no new account was made. Sign in with it instead.',
-  weakPassword:
-    'Use at least 8 characters, with an uppercase letter, a lowercase letter and a number.',
+  weakPassword: 'Use at least 8 characters.',
   generic:
     'That did not work, so you are not signed in and nothing was sent. Try again in a moment.',
   genericCreate:

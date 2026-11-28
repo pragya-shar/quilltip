@@ -10,14 +10,13 @@ import { TextField } from '@/system/components/TextField'
 import { focusDestination } from '@/system/inputModality'
 import { useEarlySubmit } from '@/components/auth/useEarlySubmit'
 import { usePasswordReset } from '@/hooks/auth/usePasswordReset'
-import { AUTH_MESSAGES } from '@/lib/auth/authErrors'
 import {
   RESET_CODE_TTL_MINUTES,
   recallResetEmail,
 } from '@/lib/auth/passwordReset'
 import {
-  PASSWORD_MIN_LENGTH,
-  PASSWORD_REGEX,
+  PASSWORD_RULES_ATTRIBUTE,
+  passwordRuleMessage,
 } from '@/lib/validations/password-rules'
 
 type Step = 'request' | 'sent' | 'verify' | 'done'
@@ -108,11 +107,8 @@ export function ResetPassword({ returnTo = '/' }: { returnTo?: string }) {
       found.email = 'Enter the email you asked for the code with.'
     if (!/^\d{8}$/.test(values.code))
       found.code = 'Enter the 8-digit code from the email.'
-    if (
-      values.password.length < PASSWORD_MIN_LENGTH ||
-      !PASSWORD_REGEX.test(values.password)
-    )
-      found.password = AUTH_MESSAGES.weakPassword
+    const rule = passwordRuleMessage(values.password)
+    if (rule) found.password = rule
     setErrors(found)
     setFormError(null)
     if (Object.keys(found).length > 0) return focusFirst(found)
@@ -253,7 +249,8 @@ export function ResetPassword({ returnTo = '/' }: { returnTo?: string }) {
             name="password"
             type="password"
             autoComplete="new-password"
-            hint="At least 8 characters, with an uppercase letter, a lowercase letter and a number."
+            {...{ passwordrules: PASSWORD_RULES_ATTRIBUTE }}
+            hint="At least 8 characters. A few words make a good one."
             error={errors.password}
           />
           <Button

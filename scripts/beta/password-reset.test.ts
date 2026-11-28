@@ -178,7 +178,7 @@ test('an expired code is rejected', async () => {
   ).toBe('PASSWORD_RESET_INVALID_CODE')
 })
 
-test('a weak new password is rejected', async () => {
+test('a new password under 8 characters is rejected', async () => {
   const t = newTest()
   await signUp(t)
   await signIn(t, { email: EMAIL, flow: 'reset' })
@@ -186,7 +186,7 @@ test('a weak new password is rejected', async () => {
     signIn(t, {
       email: EMAIL,
       code: lastCode()!,
-      newPassword: 'short',
+      newPassword: 'seven77',
       flow: 'reset-verification',
     })
   )
@@ -444,4 +444,17 @@ test('codes and addresses never reach the logs', async () => {
   } finally {
     for (const spy of spies) spy.mockRestore()
   }
+})
+
+test('a new password of 8 lowercase letters is accepted', async () => {
+  const t = newTest()
+  await signUp(t)
+  await signIn(t, { email: EMAIL, flow: 'reset' })
+  const result = await signIn(t, {
+    email: EMAIL,
+    code: lastCode()!,
+    newPassword: 'lowercase',
+    flow: 'reset-verification',
+  })
+  expect(result.tokens).toBeTruthy()
 })
