@@ -1,6 +1,11 @@
 'use client'
 
-import { useEffect, useSyncExternalStore, type MouseEvent } from 'react'
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type MouseEvent,
+} from 'react'
 import { Icon } from '@/system/components/Icon'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { BalanceIcon } from '@/system/icons'
@@ -8,7 +13,8 @@ import { figureState, spokenValue } from '@/system/money/figure'
 import { useBalanceReading } from './balance'
 import { POCKET } from './navigation'
 import { warmPocket } from './pocket/loadPocket'
-import { SESSION_ATTR, hasAuthToken } from './prePaint'
+import { hasAuthToken } from './prePaint'
+import { applySessionMarker, createMarkerSync } from './sessionMarker'
 import { openSignIn } from './signIn'
 import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
@@ -52,12 +58,13 @@ export function BalanceItem({ className }: { className: string }) {
   // /pocket page's prompt or balance) is right after it too.
   // Before it answers, a held token sets it as the pre-paint script does,
   // where none ran.
+  // Never while a pointer is down on the item (shell/sessionMarker.ts).
+  const [marker] = useState(() => createMarkerSync(applySessionMarker))
   useEffect(() => {
-    const root = document.documentElement
     if (reading.auth === 'signed-in' || (reading.auth === 'loading' && held))
-      root.setAttribute(SESSION_ATTR, 'held')
-    else if (reading.auth === 'signed-out') root.removeAttribute(SESSION_ATTR)
-  }, [reading.auth, held])
+      marker.set(true)
+    else if (reading.auth === 'signed-out') marker.set(false)
+  }, [reading.auth, held, marker])
   const open = useSheets().some((entry) => entry.id === 'pocket' && entry.open)
   const unknown = reading.auth === 'loading'
   const signedOut = reading.auth === 'signed-out'
@@ -82,7 +89,14 @@ export function BalanceItem({ className }: { className: string }) {
   // marker follows auth (the effect above), so the right link shows once it
   // answers; until then, the pre-paint marker chose.
   return (
-    <span className="qt-balance-switch" data-session-switch="">
+    <span
+      className="qt-balance-switch"
+      data-session-switch=""
+      onPointerDown={marker.pointerDown}
+      onPointerUp={marker.pointerEnd}
+      onPointerCancel={marker.pointerEnd}
+      onPointerLeave={marker.pointerEnd}
+    >
       <a
         href={POCKET.signIn}
         className={className}
