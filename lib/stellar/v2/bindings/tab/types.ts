@@ -77,7 +77,19 @@ export const TabError = {
   /**
    * A session key exists without its reader account (breaks I-28).
    */
-  47 : { message: "AccountMissing" }
+  47 : { message: "AccountMissing" },
+  /**
+   * `grant_session` with `spend_limit > amount`.
+   */
+  48 : { message: "GrantCapAboveAmount" },
+  /**
+   * `grant_session` for a reader that already has a balance or a key.
+   */
+  49 : { message: "GrantAccountInUse" },
+  /**
+   * `grant_gift` with a `key_id` that is not a live, unrevoked granted key.
+   */
+  50 : { message: "GrantKeyNotLive" }
 }
 
 /**
@@ -177,6 +189,20 @@ export interface AcceptorSetEvent {
 }
 
 /**
+ * A grantor added to `reader`'s gift (`grant_gift`). `Deposited` is
+ * published too, and `GrantKeyRaised` when a granted key's cap was raised.
+ */
+export interface GiftGrantedEvent {
+  name: "GiftGranted";
+  data: {
+    funder: string;
+    reader: string;
+    amount?: bigint;
+    gift_after?: bigint;
+  };
+}
+
+/**
  * Event: TreasurySet
  */
 export interface TreasurySetEvent {
@@ -198,6 +224,36 @@ export interface KeyRegisteredEvent {
     public_key?: Uint8Array;
     valid_until?: number;
     spend_limit?: bigint;
+  };
+}
+
+/**
+ * `grant_gift` raised the cap of a reader's granted key by the gift
+ * (`spend_limit` is the new cap). The key still spends gift only.
+ */
+export interface GrantKeyRaisedEvent {
+  name: "GrantKeyRaised";
+  data: {
+    reader: string;
+    key_id?: number;
+    spend_limit?: bigint;
+  };
+}
+
+/**
+ * A grantor gave `reader` a balance and registered a device key whose cap is
+ * at most the gift (`grant_session`). `Deposited` and `KeyRegistered` are
+ * published too, as for `open_session`.
+ */
+export interface SessionGrantedEvent {
+  name: "SessionGranted";
+  data: {
+    funder: string;
+    reader: string;
+    key_id?: number;
+    amount?: bigint;
+    spend_limit?: bigint;
+    gift_after?: bigint;
   };
 }
 
@@ -427,5 +483,5 @@ export const PausableError = {
    */
   1001 : { message: "ExpectedPause" }
 }
-    export type ContractEvent = ClaimedEvent | MigratedEvent | DepositedEvent | LimitsSetEvent | WithdrawnEvent | KeyRevokedEvent | TabSettledEvent | AcceptorSetEvent | TreasurySetEvent | KeyRegisteredEvent | VoucherSkippedEvent | WithdrawStartedEvent | WithdrawCancelledEvent | RoleGrantedEvent | RoleRevokedEvent | RoleAdminChangedEvent | AdminTransferCompletedEvent | AdminTransferInitiatedEvent | PausedEvent | UnpausedEvent;
+    export type ContractEvent = ClaimedEvent | MigratedEvent | DepositedEvent | LimitsSetEvent | WithdrawnEvent | KeyRevokedEvent | TabSettledEvent | AcceptorSetEvent | GiftGrantedEvent | TreasurySetEvent | KeyRegisteredEvent | GrantKeyRaisedEvent | SessionGrantedEvent | VoucherSkippedEvent | WithdrawStartedEvent | WithdrawCancelledEvent | RoleGrantedEvent | RoleRevokedEvent | RoleAdminChangedEvent | AdminTransferCompletedEvent | AdminTransferInitiatedEvent | PausedEvent | UnpausedEvent;
     

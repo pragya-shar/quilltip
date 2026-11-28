@@ -471,3 +471,50 @@ an independent run: 45.0 M at 32 vouchers.
 
 - Write bytes differed between the two independent builds (26,204 against 29,020) because of struct shapes. Both are far below 132,096.
 - The resource test MUST record the figures for the CLI-built Wasm. It MUST confirm that 32 vouchers stay at or below 14,000 event bytes and 200 write entries, for both `settle` and `settle_own`.
+
+## 3.12 Grants (practice money)
+
+These calls let a newcomer's first tip go out with no signature from the reader. The practice treasury holds the `grantor` role. It gives the reader a balance and registers the device key that the reader's browser made. The key's cap is the whole gift.
+
+| Function                                                                             | Auth                     | Paused  | Preconditions                                                                                                                                                               | Effects and events                                                                                                                                                                                    |
+| ------------------------------------------------------------------------------------ | ------------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grant_session(funder, reader, amount, public_key, valid_until, spend_limit) -> u32` | `funder` holds `grantor` | blocked | `spend_limit <= amount` (`GrantCapAboveAmount`); the `register_key` checks; the `deposit` checks; the reader has no balance, no key and no withdrawal (`GrantAccountInUse`) | SAC `transfer(funder, tab, amount)`; `balance += amount`; `Gift += amount`; registers the key and marks it `Granted`. Emits `Deposited`, `KeyRegistered` and `SessionGranted`.                        |
+| `grant_gift(funder, reader, amount, key_id: Option<u32>)`                            | `funder` holds `grantor` | blocked | the `deposit` checks; no withdrawal pending (`WithdrawPending`); with `key_id`, that key is `Granted`, not revoked and not past `valid_until` (`GrantKeyNotLive`)           | SAC `transfer(funder, tab, amount)`; `balance += amount`; `Gift += amount`; with `key_id`, that key's `spend_limit += amount`. Emits `Deposited`, `GrantKeyRaised` (with `key_id`) and `GiftGranted`. |
+| `gift(reader) -> i128`, `is_granted_key(reader, key_id) -> bool`                     | none                     | n/a     |                                                                                                                                                                             | Views                                                                                                                                                                                                 |
+
+The rules every grant follows:
+
+- **G-1: a grant never reduces, locks or redirects money the reader added.**
+  - Every settled tip spends the gift first.
+  - `withdraw_start` needs `balance > Gift`.
+  - `withdraw` pays `balance − Gift` and leaves the gift in the balance, where it can still be tipped and is never withdrawn.
+  - No grant lands on an account with a pending withdrawal.
+- **G-2: a granted key spends only gift, at most its cap.** In `settle`, the payable amount for a `Granted` key is `min(delta, Gift, balance, headroom)`, so the key never spends money the reader adds later.
+- **G-3: `grant_session` only onto an unused account.** This also refuses a replay.
+- **G-4: pause blocks both calls.**
+- **G-5: fees and settlement work as for any other tip.**
+- **G-6: `Gift <= balance` always.**
+- **G-7: `grant_gift` raises only a live granted key, by exactly the gift.** Revoking that key leaves `Gift` unchanged, so the gift never becomes withdrawable.
+
+What the chain enforces and what only the server does:
+
+- **The chain:** everything in G-1 to G-7. A hostile or stolen granted key can cost the treasury at most the gifts given to that reader. It can never touch the reader's own money.
+- **The server only:** which device key is granted (the browser's key, from the signed-in request); once a day per account; the daily treasury budget; the treasury balance floor; the kill switch. No tips to yourself is a server rule for all money.
+
+Storage:
+
+- `Gift(Address)` is a persistent `i128`, removed when it reaches 0. A reader with no entry reads as 0.
+- `Granted(Address, u32)` is temporary. It lives until the key's settle deadline (`valid_until + SETTLE_GRACE`), the same as its `Session` entry.
+- `ReaderAccount`, `SessionKey` and the schema version are unchanged, so no migration is needed. The test `upgrade_v3` writes state with the previous testnet code, upgrades in place and checks this.
+
+Events:
+
+| Event            | Topics                                | Data                                            |
+| ---------------- | ------------------------------------- | ----------------------------------------------- |
+| `SessionGranted` | `session_granted`, `funder`, `reader` | `key_id`, `amount`, `spend_limit`, `gift_after` |
+| `GiftGranted`    | `gift_granted`, `funder`, `reader`    | `amount`, `gift_after`                          |
+| `GrantKeyRaised` | `grant_key_raised`, `reader`          | `key_id`, `spend_limit` (the new cap)           |
+
+`WithdrawStarted.balance` is still the whole balance. After `Withdrawn`, the balance is the unspent gift; the indexer derives it.
+
+Errors: 48 `GrantCapAboveAmount`, 49 `GrantAccountInUse`, 50 `GrantKeyNotLive`.

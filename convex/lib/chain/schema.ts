@@ -213,6 +213,12 @@ export const tabTables = {
     acceptedToday: v.string(),
     /** `YYYY-MM-DD` (UTC) that `acceptedToday` counts. */
     acceptedDay: v.string(),
+    /**
+     * Unspent gift in `confirmedBalance` (base units), from `SessionGranted`
+     * and `GiftGranted`, less what settled tips spent of it (every tip spends
+     * gift first). Tippable, never withdrawn. Unset is zero.
+     */
+    gift: v.optional(v.string()),
     withdrawUnlockLedger: v.optional(v.number()),
     /** RPC id of the newest event that set the balance absolutely. */
     balanceEventId: v.optional(v.string()),
@@ -281,6 +287,8 @@ export const tabTables = {
     revoked: v.boolean(),
     revokedInApp: v.optional(v.boolean()),
     extractable: v.boolean(),
+    /** Registered by `grant_session`: it spends gift only. */
+    granted: v.optional(v.boolean()),
     registeredEventId: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),

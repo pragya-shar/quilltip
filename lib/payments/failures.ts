@@ -278,6 +278,8 @@ const TAB_REFUSALS: Record<string, TabRefusal> = {
     notice: { kind: 'insufficient-balance', source: 'tab' },
   },
   TAB_OVER_KEY_LIMIT: { kind: 'notice', notice: { kind: 'key-limit' } },
+  // A granted (practice money) key reached the gift: the reader adds money.
+  TAB_OVER_GIFT: { kind: 'notice', notice: { kind: 'key-limit' } },
   TAB_RECEIPT_CAP: { kind: 'notice', notice: { kind: 'key-limit' } },
   TAB_DAILY_LIMIT: { kind: 'notice', notice: { kind: 'daily-limit' } },
   TAB_KEY_EXPIRED: { kind: 'notice', notice: { kind: 'session-key-expired' } },

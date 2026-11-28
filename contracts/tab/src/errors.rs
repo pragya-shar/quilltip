@@ -42,4 +42,10 @@ pub enum TabError {
     AdminRenounceDisabled = 46,
     /// A session key exists without its reader account (breaks I-28).
     AccountMissing = 47,
+    /// `grant_session` with `spend_limit > amount`.
+    GrantCapAboveAmount = 48,
+    /// `grant_session` for a reader that already has a balance or a key.
+    GrantAccountInUse = 49,
+    /// `grant_gift` with a `key_id` that is not a live, unrevoked granted key.
+    GrantKeyNotLive = 50,
 }

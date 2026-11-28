@@ -389,3 +389,43 @@ export async function runDeploy(
   checkResourceFee('deploy', BigInt(sim.minResourceFee))
   return signSendConfirm(d, tx, sim, DEPLOY_RESOURCE_FEE_CAP, hooks)
 }
+
+/**
+ * Builds, simulates, signs and sends one operation whose source is `source`
+ * (an account that authorizes its own part, such as the practice treasury),
+ * and waits for the result, with the same envelope fee check and the same
+ * pending rule as the sponsor. No policy of its own: callers check first.
+ */
+export async function sendAsSource(
+  server: SponsorServer,
+  passphrase: string,
+  source: Keypair,
+  op: xdr.Operation,
+  maxResourceFee: bigint,
+  hooks: SendHooks = {}
+): Promise<Confirmed & { returnValue: xdr.ScVal | null }> {
+  const d = { server, passphrase, sponsor: source } as SponsorDeps
+  const tx = await buildTx(
+    d,
+    op,
+    Math.floor(Date.now() / 1000) + SUBMIT_TIME_BOUND_S
+  )
+  const sim = await simulate(d, tx)
+  if (BigInt(sim.minResourceFee) > maxResourceFee) {
+    refuse(
+      'SPONSOR_FEE_OVER_CAP',
+      `The fee ${sim.minResourceFee} is over the cap ${maxResourceFee}.`
+    )
+  }
+  const confirmed = await signSendConfirm(d, tx, sim, maxResourceFee, hooks)
+  // The transaction is confirmed; a failed read of its return value does not
+  // undo that.
+  let returnValue: xdr.ScVal | null = null
+  try {
+    const got = await server.getTransaction(confirmed.hash)
+    returnValue = got.status === 'SUCCESS' ? (got.returnValue ?? null) : null
+  } catch {
+    // keep null
+  }
+  return { ...confirmed, returnValue }
+}
