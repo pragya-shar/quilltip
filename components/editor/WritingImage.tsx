@@ -160,7 +160,7 @@ export function WritingImageView({
                 }
               }}
             >
-              ↔
+              ↔︎
             </button>
             <select
               aria-label="Image size"

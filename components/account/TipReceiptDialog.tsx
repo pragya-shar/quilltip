@@ -7,12 +7,14 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import {
   RESULT_COPY,
   STATUS_LABEL,
   TAB_TIP_RESULT,
 } from '@/lib/copy/payment-states'
 import { TAB_HISTORY } from '@/lib/copy/tab'
+import { recordedUsdNote } from '@/lib/copy/network-status'
 
 /**
  * A row's status in words. v1 statuses keep their labels; v2 statuses use
@@ -174,7 +176,7 @@ export function TipReceiptDialog({
             </div>
             <div>
               <dt>Recorded tip</dt>
-              <dd>{recordedUsd(item.amountCents)} USD equivalent</dd>
+              <dd>{recordedUsdNote(recordedUsd(item.amountCents))}</dd>
             </div>
             {item.amountUsdSuspicious && (
               <div>
@@ -234,7 +236,11 @@ export function TipReceiptDialog({
               </a>
             )}
             {item.articleHref && (
-              <Link className="account-text-link" href={item.articleHref}>
+              <Link
+                className="account-text-link"
+                href={item.articleHref}
+                prefetch={ARTICLE_LINK_PREFETCH}
+              >
                 Read article
               </Link>
             )}

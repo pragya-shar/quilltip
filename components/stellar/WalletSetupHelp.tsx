@@ -76,7 +76,9 @@ export function WalletSetupHelp({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Stellar Lab’s Friendbot funding tool ↗
+                Stellar Lab’s Friendbot funding tool{' '}
+                <span aria-hidden="true">↗︎</span>
+                <span className="sr-only"> (opens in a new tab)</span>
               </a>
               , select Testnet, and paste your wallet’s public address. Wallet
               practice also offers free test funds after connecting.

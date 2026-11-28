@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { articleHref } from '@/lib/library/bookmarks'
 type NextArticle = {
   id: string
@@ -25,6 +26,7 @@ export function ArticleReadNext({
       {next.map((article) => {
         return (
           <Link
+            prefetch={ARTICLE_LINK_PREFETCH}
             key={article.id}
             href={articleHref({
               username: article.username,
@@ -38,7 +40,7 @@ export function ArticleReadNext({
               )}
               <span className="reader-next-label">Read more</span>
             </span>
-            <span aria-hidden="true">↗</span>
+            <span aria-hidden="true">↗︎</span>
           </Link>
         )
       })}

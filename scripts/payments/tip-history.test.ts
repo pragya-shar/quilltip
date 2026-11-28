@@ -14,6 +14,10 @@ import {
 } from '../../components/account/TipReceiptDialog'
 import { WalletTipHistory } from '../../components/account/WalletTipHistory'
 import {
+  TIP_HISTORY_USD_NOTE,
+  recordedUsdNote,
+} from '../../lib/copy/network-status'
+import {
   normalizeTipActivity,
   type TipActivityItem,
   type TipActivitySources,
@@ -163,6 +167,22 @@ describe('the contract generation of a row', () => {
     expect(earlier).toContain('<span>Testnet v1</span>')
     expect(newer).toContain('<span>Testnet</span>')
     expect(newer).not.toContain('Testnet v1')
+  })
+
+  it('says the dollar figures are a hint of value, not money (#670)', () => {
+    expect(TIP_HISTORY_USD_NOTE).toBe(
+      'Testnet tips. Dollar figures show what the XLM would have been worth as real XLM when sent. Testnet XLM has no value.'
+    )
+    expect(recordedUsdNote('$1.00')).toBe(
+      'Worth $1.00 if this were real XLM, when sent'
+    )
+    const html = renderToStaticMarkup(
+      createElement(WalletTipHistory, {
+        items: normalizeTipActivity(sources([{ contractVersion: 'v2' }])),
+      })
+    )
+    expect(html).toContain(TIP_HISTORY_USD_NOTE)
+    expect(html).not.toContain('USD equivalent')
   })
 
   it('labels a v2 row in flight with its status, not "Unrecognized"', () => {

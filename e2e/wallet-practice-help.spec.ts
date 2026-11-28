@@ -49,7 +49,7 @@ test('a help fragment reveals practice from sample mode', async ({ page }) => {
     page.getByRole('button', { name: 'Choose a Stellar wallet' })
   ).toBeVisible()
   await page
-    .getByRole('button', { name: 'Explore sample tipping instead ↗' })
+    .getByRole('button', { name: 'Explore sample tipping instead' })
     .click()
   await expect(page).not.toHaveURL(/#wallet-help$/)
 })

@@ -15,7 +15,7 @@ import { ArticleTipV2 } from '../../../components/tipping/v2/ArticleTipV2'
 import { HighlightTipV2 } from '../../../components/tipping/v2/HighlightTipV2'
 import type { Id } from '../../../types/convex'
 import { ARTICLES } from '../tips-v2/runtime'
-import { scenario, seedDevice, stateId } from './session'
+import { noteBoot, scenario, seedDevice, stateId } from './session'
 
 const params = new URLSearchParams(location.search)
 const article =
@@ -62,6 +62,7 @@ function Fixture() {
 }
 
 void seedDevice(scenario?.device ?? 'none').then(() => {
+  noteBoot('render')
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <WalletActivationProvider>

@@ -198,8 +198,9 @@ export function WalletPreview({
           }}
         >
           {practice
-            ? 'Explore sample tipping instead ↗'
-            : 'Try a real wallet transfer ↗'}
+            ? 'Explore sample tipping instead'
+            : 'Try a real wallet transfer'}{' '}
+          <span aria-hidden="true">↗︎</span>
         </button>
       </div>
       {practiceOpened && (
@@ -515,7 +516,9 @@ export function WalletPreview({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Get Varial from the official site ↗
+                    Get Varial from the official site{' '}
+                    <span aria-hidden="true">↗︎</span>
+                    <span className="sr-only"> (opens in a new tab)</span>
                   </a>{' '}
                   and follow its create-wallet flow.
                 </li>
@@ -537,7 +540,8 @@ export function WalletPreview({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Can’t connect? Varial help ↗
+                Can’t connect? Varial help <span aria-hidden="true">↗︎</span>
+                <span className="sr-only"> (opens in a new tab)</span>
               </a>
             </details>
             <p className="wallet-demo-disclaimer">

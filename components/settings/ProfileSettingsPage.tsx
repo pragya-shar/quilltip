@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { ArrowUpRight } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useRedirectWhenUnauthenticated } from '@/hooks/useRedirectWhenUnauthenticated'
@@ -41,6 +42,7 @@ export function ProfileSettingsPage() {
             <Link
               className="settings-text-link"
               href={`/${encodeURIComponent(user.username)}`}
+              prefetch={ARTICLE_LINK_PREFETCH}
             >
               View public profile <ArrowUpRight aria-hidden size={18} />
             </Link>

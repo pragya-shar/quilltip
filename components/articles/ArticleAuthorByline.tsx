@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import type { ArticleForDisplay } from '@/types/index'
 import { cn } from '@/lib/utils'
@@ -77,6 +78,7 @@ export function ArticleAuthorByline({
       <div className={wrapperClassName}>
         <Link
           href={`/${author.username}`}
+          prefetch={ARTICLE_LINK_PREFETCH}
           aria-label={profileAriaLabel(displayName)}
           className="focus-ring flex items-center gap-3 rounded-md hover:opacity-80 transition-opacity w-fit max-w-full"
         >

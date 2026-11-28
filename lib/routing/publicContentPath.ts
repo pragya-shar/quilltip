@@ -52,6 +52,10 @@ export function publicContentPath(
     !username ||
     APP_ROUTE_SEGMENTS.has(username) ||
     NEXT_INTERNAL_SEGMENTS.has(username) ||
+    // Handles start with a letter or digit (lib/profile/handleRules.ts), so
+    // "/@name" is never a writer page and never triggers a backend check,
+    // wherever a redirect from it to "/name" happens (#609).
+    username.startsWith('@') ||
     // Files such as robots.txt, sitemap.xml and public/ assets. Article slugs
     // never contain a dot, so this cannot hide an article.
     decoded.some((segment) => segment.includes('.'))

@@ -19,6 +19,14 @@ import {
   type VarialMode,
 } from './helpers/varialEmulator'
 import { expectNoticeTookFocus } from './helpers/noticeFocus'
+import {
+  POINTERS,
+  animationsSettled,
+  expectClicked,
+  markClick,
+  penUnsupported,
+  pressWith,
+} from './helpers/press'
 
 /**
  * The v2 article NFT (mint at the threshold and transfer) through the real
@@ -1241,5 +1249,65 @@ test.describe('testnet wallet run follow-ups (#547)', () => {
     await expect(
       panel(page).getByRole('button', { name: 'Transfer NFT' })
     ).toHaveCount(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// A press under the recipient field while its error appears (#658)
+// ---------------------------------------------------------------------------
+
+test.describe('a press under the recipient field', () => {
+  // The field checks a short entry as it loses focus, which the press
+  // causes. The error takes the hint's place, so the footer buttons stay
+  // where the press started for every pointer.
+  test.use({ viewport: { width: 1280, height: 720 } })
+
+  for (const pointer of POINTERS) {
+    test.describe(`${pointer} press`, () => {
+      if (pointer === 'touch') test.use({ hasTouch: true })
+
+      test(`with a short recipient, a ${pointer} press on Review transfer reaches it`, async ({
+        page,
+        browserName,
+      }) => {
+        test.skip(
+          penUnsupported(pointer, browserName),
+          'Pen input needs the Chromium DevTools protocol.'
+        )
+        await open(page, 'state=owner')
+        const dialog = await openTransfer(page)
+        const field = dialog.getByLabel('Recipient')
+        await field.fill('x')
+        const review = dialog.getByRole('button', { name: 'Review transfer' })
+        await markClick(review, 'Review transfer')
+        await pressWith(page, review, pointer)
+        await expectClicked(page, 'Review transfer')
+        await expect(field).toHaveAttribute('aria-invalid', 'true')
+        await expect(field).toBeFocused()
+      })
+    })
+  }
+
+  test('the recipient error does not move Cancel or Review transfer', async ({
+    page,
+  }) => {
+    await open(page, 'state=owner')
+    const dialog = await openTransfer(page)
+    const field = dialog.getByLabel('Recipient')
+    const buttons = [
+      dialog.getByRole('button', { name: 'Cancel' }),
+      dialog.getByRole('button', { name: 'Review transfer' }),
+    ]
+    await animationsSettled(dialog)
+    const tops = () =>
+      Promise.all(buttons.map(async (b) => (await b.boundingBox())!.y))
+    for (const value of ['x', ADA.slice(0, 30)]) {
+      await field.fill(value)
+      const before = await tops()
+      await field.blur()
+      await expect(field).toHaveAttribute('aria-invalid', 'true')
+      expect(await tops()).toEqual(before)
+      await field.fill('')
+    }
   })
 })

@@ -4,14 +4,19 @@ import type { TabBalances } from '@/lib/tab-ui/tab-status'
 
 /**
  * The three tab figures, from indexed chain values. While the tab is
- * closing, the free figure is what comes back, not what quick tips can use.
+ * closing, the free figure is what comes back, not what quick tips can use,
+ * and its note says when it unlocks and what to do then (#671).
  */
 export function TabBalance({
   balances,
-  closing = false,
+  closing = null,
 }: {
   balances: TabBalances
-  closing?: boolean
+  closing?: {
+    unlocksAround: string | null
+    ready: boolean
+    overdue: boolean
+  } | null
 }) {
   return (
     <section className="tab-section" aria-labelledby="tab-balance-title">
@@ -22,13 +27,19 @@ export function TabBalance({
         <div
           className="tab-figure"
           data-primary={closing ? undefined : ''}
-          data-closing={closing || undefined}
+          data-closing={closing ? true : undefined}
         >
           <dt>{closing ? TAB_BALANCE.closingFree : TAB_BALANCE.free}</dt>
           <dd>
             <XlmAmount amount={balances.free} />
             <span className="tab-figure-note">
-              {closing ? TAB_BALANCE.closingFreeNote : TAB_BALANCE.freeNote}
+              {closing
+                ? TAB_BALANCE.closingFreeNote(
+                    closing.unlocksAround,
+                    closing.ready,
+                    closing.overdue
+                  )
+                : TAB_BALANCE.freeNote}
             </span>
           </dd>
         </div>

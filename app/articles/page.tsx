@@ -6,7 +6,10 @@ import {
 } from '@/lib/articles/readingRoomListArgs'
 import { searchParamsRecordReader } from '@/lib/auth/safeReturnPath'
 import { getReadingRoomList } from '@/lib/seo/publicContent'
-import { retryHrefFor } from '@/components/articles/ReadingUnavailable'
+import {
+  ReadingUnavailable,
+  retryHrefFor,
+} from '@/components/articles/ReadingUnavailable'
 import { preloadUiFont } from '@/lib/fonts/preloadFonts'
 import { listArticleForClient } from '@/lib/articles/listArticleForClient'
 import '@/components/articles/reading-room.css'
@@ -42,10 +45,13 @@ export default async function ArticlesPage({
       <ReadingRoomPage
         initialList={initialList}
         initialListKey={initialList ? readingRoomListKey(args) : undefined}
-        unavailableRetryHref={
-          readsOnServer && list === undefined
-            ? retryHrefFor('/articles', query)
-            : undefined
+        unavailable={
+          readsOnServer && list === undefined ? (
+            <ReadingUnavailable
+              what="articles"
+              retryHref={retryHrefFor('/articles', query)}
+            />
+          ) : undefined
         }
       />
     </ReadingRoomShell>

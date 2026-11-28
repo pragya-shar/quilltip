@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { useEffect, useState } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -33,6 +34,7 @@ export function ContinueReading() {
     <aside className="continue-reading">
       <p>Continue reading · {Math.round(progress.ratio * 100)}%</p>
       <Link
+        prefetch={ARTICLE_LINK_PREFETCH}
         href={`/${encodeURIComponent(article.username)}/${encodeURIComponent(article.slug)}?resume=1`}
       >
         <span>{article.title}</span>

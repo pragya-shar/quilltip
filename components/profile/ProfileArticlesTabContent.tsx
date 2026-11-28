@@ -1,13 +1,13 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, type ReactNode } from 'react'
 import { useListArticles } from '@/hooks/convex'
 import { usePaginationTransition } from '@/hooks/usePaginationTransition'
 import { articleHref } from '@/lib/library/bookmarks'
 import Pagination from '@/components/articles/Pagination'
 import { PaginationTransition } from '@/components/profile/PaginationTransition'
 import Link from 'next/link'
-import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import {
   PROFILE_ARTICLES_PER_PAGE,
   toProfileArticlesPage,
@@ -20,7 +20,7 @@ export function ProfileArticlesTabContent({
   isOwnProfile,
   displayName,
   initialData,
-  unavailableRetryHref,
+  unavailable,
 }: {
   username: string
   page: number
@@ -28,8 +28,8 @@ export function ProfileArticlesTabContent({
   displayName: string
   /** The server-rendered first view; live results replace it. */
   initialData?: ProfileArticlesPage
-  /** Set when the server could not read the articles in time. */
-  unavailableRetryHref?: string
+  /** The readable fallback, rendered on the server, when the articles could not be read in time. */
+  unavailable?: ReactNode
 }) {
   const live = useListArticles({
     author: username,
@@ -46,14 +46,7 @@ export function ProfileArticlesTabContent({
   const basePath = `/${encodeURIComponent(username)}`
 
   if (data === undefined) {
-    return unavailableRetryHref ? (
-      <ReadingUnavailable
-        what="The articles"
-        retryHref={unavailableRetryHref}
-      />
-    ) : (
-      <p role="status">Loading articles…</p>
-    )
+    return unavailable ? unavailable : <p role="status">Loading articles…</p>
   }
 
   if (data.total === 0) {
@@ -65,7 +58,7 @@ export function ProfileArticlesTabContent({
         </p>
         {isOwnProfile && (
           <Link href="/write" className="library-browse">
-            Write your first article ↗
+            Write your first article <span aria-hidden="true">↗︎</span>
           </Link>
         )}
       </div>
@@ -76,7 +69,11 @@ export function ProfileArticlesTabContent({
     return (
       <div className="library-empty">
         <p>There are no articles on this page.</p>
-        <Link href={basePath} className="library-browse">
+        <Link
+          prefetch={ARTICLE_LINK_PREFETCH}
+          href={basePath}
+          className="library-browse"
+        >
           Return to the first page
         </Link>
       </div>
@@ -89,6 +86,7 @@ export function ProfileArticlesTabContent({
         const topic = article.topic
         return (
           <Link
+            prefetch={ARTICLE_LINK_PREFETCH}
             className="library-row"
             key={article._id}
             href={articleHref({ username, slug: article.slug })}
@@ -106,7 +104,7 @@ export function ProfileArticlesTabContent({
               <span>{displayName}</span>
             </span>
             <span className="writer-row-action" aria-hidden>
-              Read more ↗
+              Read more <span aria-hidden="true">↗︎</span>
             </span>
           </Link>
         )

@@ -7,6 +7,9 @@
 //   NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
 //   bun run perf:unpublish-refresh
 //
+// The app runs on PERF_APP_PORT, or a free port, and the fixture backend on
+// PERF_CONVEX_PORT (3299), through scripts/perf/production-app.ts.
+//
 // Each article is first loaded twice, so its copy is cached and the proxy has
 // seen it. Then, well inside the cache time, on a full page load and on a
 // client navigation (an RSC request):
@@ -16,6 +19,10 @@
 // - the writer changed handle: the old article and writer addresses
 //   redirect, with no article text;
 // - a draft: 404 and no draft text.
+// With the backend silent, or only its route check late, the proxy answers
+// the 503 outage state (#609). When the route check answers wrongly (a
+// function that threw), the page reads the article directly and never uses
+// a cached copy, so a hidden article never comes back.
 // A client cannot send the proxy's answer itself, and pages of a writer whose
 // handle starts with "api" go through the proxy too (#623); /api does not.
 
@@ -34,12 +41,16 @@ import {
 import { ARTICLE_ROUTE_HEADER } from '../../lib/seo/articleRoute'
 import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
 import { fixtureBackendBehaviour, startFixtureBackend } from './fixture-backend'
-import { startProductionApp } from './production-app'
+import {
+  fixtureBackendPort,
+  perfPort,
+  startProductionApp,
+} from './production-app'
 import { READING } from './no-script-reading'
 
-const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
-const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
-const BASE_URL = `http://127.0.0.1:${APP_PORT}`
+const CONVEX_PORT = fixtureBackendPort()
+const APP_PORT = await perfPort('PERF_APP_PORT')
+const BASE_URL = process.env.PERF_BASE_URL ?? `http://127.0.0.1:${APP_PORT}`
 /** The cache time in lib/seo/publicContent.ts. */
 const CACHE_SECONDS = 60
 
@@ -49,6 +60,8 @@ const RENAMED = `${FIXTURE_WRITER}-renamed`
 const FALLBACK_TEXT = 'could not be loaded right now'
 /** Two reads in sequence (the route check, then the article), plus a margin. */
 const TROUBLE_BOUND_MS = 2 * PUBLIC_READ_TIMEOUT_MS + 1000
+/** proxy.ts: how long one instance remembers a declared outage (#609). */
+const OUTAGE_MEMORY_MS = 5000
 
 type Load = 'page' | 'navigation'
 
@@ -144,6 +157,26 @@ function slowRouteCheck(on: boolean) {
   )
 }
 
+/**
+ * Only the route check answers wrongly (a function that threw): no outage;
+ * the proxy passes "unknown" and the page reads for itself (#609).
+ */
+function wrongRouteCheck(on: boolean) {
+  Object.assign(
+    fixtureBackendBehaviour,
+    on
+      ? { mode: 'wrong', wrongPaths: ['publicRoutes:resolvePublicRoute'] }
+      : { mode: 'normal', wrongPaths: undefined }
+  )
+}
+
+/** Ends an outage: the backend answers and the proxy's memory expires. */
+async function afterOutage() {
+  slowRouteCheck(false)
+  fixtureBackendBehaviour.mode = 'normal'
+  await new Promise((r) => setTimeout(r, OUTAGE_MEMORY_MS + 200))
+}
+
 /** Loads a published article twice, so its copy is cached. */
 async function warm(label: string, path: string) {
   for (let i = 0; i < 2; i++)
@@ -160,9 +193,10 @@ async function main() {
     force: true,
   })
   const backend = startFixtureBackend(CONVEX_PORT)
-  const app = await startProductionApp(APP_PORT, BASE_URL)
-  started = Date.now()
+  let app: Awaited<ReturnType<typeof startProductionApp>>
   try {
+    app = await startProductionApp(APP_PORT, BASE_URL, { backend })
+    started = Date.now()
     // Unpublished, then published again.
     const hidden = fixtureArticlePath(4)
     await warm('unpublish', hidden)
@@ -189,9 +223,11 @@ async function main() {
           headers: { [ARTICLE_ROUTE_HEADER]: value },
         })
 
-    // The backend stops answering. No copy of unknown freshness is served:
-    // the hidden article does not come back, and a cached published one shows
-    // the readable fallback too, within the read limits.
+    // The backend stops answering: the proxy answers the 503 outage state
+    // before any page renders (#609), for a page load and a navigation alike
+    // (Next.js removes the RSC header before the proxy runs). No copy of
+    // unknown freshness is served: the hidden article does not come back,
+    // and a cached published one shows the outage state too.
     fixtureBackendBehaviour.mode = 'silent'
     for (const [name, path] of [
       ['unpublished', hidden],
@@ -199,71 +235,92 @@ async function main() {
     ] as const)
       for (const kind of ['page', 'navigation'] as const)
         await expectLoad(`silent backend, ${name}`, path, kind, {
-          status: 200,
-          // The fallback's text is rendered on the server for a page load. A
-          // navigation's payload carries the state instead (a retry link and
-          // no article), and the client component draws the text.
-          ...(kind === 'page'
-            ? { has: [FALLBACK_TEXT], lacks: [PROSE] }
-            : {
-                has: [
-                  '"initialArticle":"$undefined"',
-                  '"initialBodyHtml":"$undefined"',
-                  '"unavailableRetryHref":',
-                ],
-                lacks: [PROSE],
-              }),
+          status: 503,
+          has: [FALLBACK_TEXT],
+          lacks: [PROSE],
           maxMs: TROUBLE_BOUND_MS,
         })
-    fixtureBackendBehaviour.mode = 'normal'
+    await afterOutage()
 
-    // Only the route check is slow (the proxy gives up on it), the rest of the
-    // backend answers: the page reads directly, so a published article still
-    // shows and the hidden one still answers as missing.
+    // Only the route check is late, twice: the proxy declares an outage, so
+    // the published article is not served from its copy either.
     slowRouteCheck(true)
     await expectLoad('slow route check, published', other, 'page', {
+      status: 503,
+      lacks: [PROSE],
+      maxMs: TROUBLE_BOUND_MS,
+    })
+    await afterOutage()
+
+    // Only the route check answers wrongly: the page reads directly, so a
+    // published article still shows, and the hidden one shows no text. Its
+    // moved-handle lookup answers wrongly too, so the page shows its
+    // readable fallback rather than a 404 (#609).
+    wrongRouteCheck(true)
+    await expectLoad('route check answers wrongly, published', other, 'page', {
       status: 200,
       has: [PROSE],
       maxMs: TROUBLE_BOUND_MS,
     })
-    await expectLoad('slow route check, unpublished', hidden, 'page', {
-      status: 404,
-      lacks: [PROSE],
-      maxMs: TROUBLE_BOUND_MS + PUBLIC_READ_TIMEOUT_MS,
-    })
-    slowRouteCheck(false)
+    await expectLoad(
+      'route check answers wrongly, unpublished',
+      hidden,
+      'page',
+      {
+        status: 200,
+        has: [FALLBACK_TEXT],
+        lacks: [PROSE],
+        maxMs: TROUBLE_BOUND_MS,
+      }
+    )
+    wrongRouteCheck(false)
 
-    // One article read while the route check is slow, then hidden. A copy of
-    // that read is never used again: not while the check is still slow, and
-    // not once it answers. Each case on its own article, so a copy kept from
+    // One article read while the route check answers wrongly, then hidden. A
+    // copy of that read is never used again: not while the check still
+    // answers wrongly, and not once it answers. Each case on its own article, so a copy kept from
     // the first read would be the one asked for.
     const afterSlowRead = [
-      ['the check still slow', 'fixture-article-9', 'page', true],
-      ['the check still slow', 'fixture-article-3', 'navigation', true],
+      ['the check still answering wrongly', 'fixture-article-9', 'page', true],
+      [
+        'the check still answering wrongly',
+        'fixture-article-3',
+        'navigation',
+        true,
+      ],
       ['the check answering', 'fixture-article-2', 'page', false],
       ['the check answering', FIXTURE_SLUG, 'navigation', false],
     ] as const
-    for (const [when, slug, kind, stillSlow] of afterSlowRead) {
+    for (const [when, slug, kind, stillWrong] of afterSlowRead) {
       const path = `/${FIXTURE_WRITER}/${slug}`
-      slowRouteCheck(true)
-      await expectLoad(`slow route check, ${slug} published`, path, kind, {
-        status: 200,
-        has: [PROSE],
-        maxMs: TROUBLE_BOUND_MS,
-      })
+      wrongRouteCheck(true)
+      await expectLoad(
+        `route check answers wrongly, ${slug} published`,
+        path,
+        kind,
+        {
+          status: 200,
+          has: [PROSE],
+          maxMs: TROUBLE_BOUND_MS,
+        }
+      )
       setFixtureArticlePublished(slug, false)
-      slowRouteCheck(stillSlow)
+      wrongRouteCheck(stillWrong)
       await expectLoad(`${slug} hidden, ${when}`, path, kind, {
-        // A navigation's status is sent before the page knows the article is
-        // missing when the moved-handle lookup runs out of time first. Its
-        // payload is the not-found screen either way.
-        ...(kind === 'page'
-          ? { status: 404 }
-          : { has: ['NEXT_HTTP_ERROR_FALLBACK;404'] }),
+        // Still wrong: the page cannot tell missing from moved, so it shows
+        // its readable fallback (the payload carries it, rendered on the
+        // server). Once
+        // the check answers, the proxy says "missing": the not-found screen.
+        ...(stillWrong
+          ? kind === 'page'
+            ? { status: 200, has: [FALLBACK_TEXT] }
+            : { has: [FALLBACK_TEXT] }
+          : kind === 'page'
+            ? { status: 404 }
+            : { has: ['NEXT_HTTP_ERROR_FALLBACK;404'] }),
         lacks: [PROSE],
         maxMs: TROUBLE_BOUND_MS + PUBLIC_READ_TIMEOUT_MS,
       })
-      slowRouteCheck(false)
+      wrongRouteCheck(false)
       setFixtureArticlePublished(slug, true)
     }
 

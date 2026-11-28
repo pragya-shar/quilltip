@@ -461,7 +461,8 @@ async function expectRefreshedInOneLoad(page: Page, expired: string) {
   expect(await loadsOf(page)).toBe(1)
   const token = await storedToken(page)
   expect(token).not.toBeNull()
-  expect(token).not.toBe(expired)
+  // A boolean, so a failure prints no token in the job log.
+  expect(token === expired, 'the expired token was replaced').toBe(false)
   expect(claimsOf(token!).exp).toBeGreaterThan(Date.now() / 1000)
 }
 

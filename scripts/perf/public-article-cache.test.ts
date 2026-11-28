@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
-import { beforeEach, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import { getFunctionName } from 'convex/server'
 import { ARTICLE_ROUTE_HEADER } from '../../lib/seo/articleRoute'
 
@@ -17,9 +17,11 @@ const state: {
   rows: Map<string, Row>
   routeHeader: string | null
   reads: number
-  /** The options of every backend read: a token would be sent as auth. */
-  options: unknown[]
-} = { rows: new Map(), routeHeader: null, reads: 0, options: [] }
+  /** Every backend read the page made: a token would ride along here. */
+  calls: unknown[][]
+  /** Calls to the reads that could carry the visitor's token (#679). */
+  tokenReads: string[]
+} = { rows: new Map(), routeHeader: null, reads: 0, calls: [], tokenReads: [] }
 const store = new Map<string, unknown>()
 
 vi.mock('react', async (original) => ({
@@ -45,9 +47,11 @@ vi.mock('next/cache', () => ({
       return store.get(key) as R
     },
 }))
-vi.mock('convex/nextjs', () => ({
-  fetchQuery: async (ref: never, args: { slug: string }, options?: unknown) => {
-    state.options.push(options)
+vi.mock('../../lib/seo/publicQuery', async (original) => ({
+  ...(await original<typeof import('../../lib/seo/publicQuery')>()),
+  publicQuery: async (...call: unknown[]) => {
+    state.calls.push(call)
+    const [, ref, args] = call as [number, never, { slug: string }]
     const row = state.rows.get(args.slug)
     const live = row?.published ? row : undefined
     switch (getFunctionName(ref)) {
@@ -62,6 +66,27 @@ vi.mock('convex/nextjs', () => ({
     throw new Error(`No stand-in for ${getFunctionName(ref)}`)
   },
 }))
+// Reads that send the visitor's auth token: the page must call neither.
+vi.mock('convex/nextjs', () => ({
+  fetchQuery: async () => {
+    state.tokenReads.push('convex/nextjs fetchQuery')
+    return null
+  },
+  preloadQuery: async () => {
+    state.tokenReads.push('convex/nextjs preloadQuery')
+    return null
+  },
+}))
+vi.mock('@convex-dev/auth/nextjs/server', () => ({
+  convexAuthNextjsToken: async () => {
+    state.tokenReads.push('convexAuthNextjsToken')
+    return 'visitor-token'
+  },
+  isAuthenticatedNextjs: async () => {
+    state.tokenReads.push('isAuthenticatedNextjs')
+    return true
+  },
+}))
 
 const { getPublishedArticle } = await import('../../lib/seo/publicContent')
 
@@ -72,7 +97,8 @@ beforeEach(() => {
   ])
   state.routeHeader = null
   state.reads = 0
-  state.options = []
+  state.calls = []
+  state.tokenReads = []
 })
 
 const row = () => state.rows.get('lamp')!
@@ -140,19 +166,60 @@ test('the server read of an article sends no auth token, cached or not', async (
   state.routeHeader = null
   expect(await read()).toBe('First text')
   expect(state.reads).toBeGreaterThan(0)
-  expect(state.options.length).toBeGreaterThan(0)
-  for (const options of state.options) {
-    expect((options as { token?: unknown } | undefined)?.token).toBeUndefined()
+  expect(state.tokenReads).toEqual([])
+  // publicQuery(limitMs, query, args): nothing after the arguments, and no
+  // token among them.
+  expect(state.calls.length).toBeGreaterThan(0)
+  for (const call of state.calls) {
+    expect(call).toHaveLength(3)
+    expect(call[2]).not.toHaveProperty('token')
   }
 })
 
-test('no public server read in lib/seo/publicContent.ts passes fetchQuery options', () => {
-  // fetchQuery(ref, args, options): the third argument is where a token goes.
-  const source = readFileSync(
-    path.join(import.meta.dirname, '../../lib/seo/publicContent.ts'),
-    'utf8'
-  )
-  const calls = source.split('fetchQuery(').slice(1)
+test('publicQuery sends no Authorization header and no token', async () => {
+  const { publicQuery } = await vi.importActual<
+    typeof import('../../lib/seo/publicQuery')
+  >('../../lib/seo/publicQuery')
+  const sent: { headers: Headers; body: string }[] = []
+  vi.stubEnv('NEXT_PUBLIC_CONVEX_URL', 'http://127.0.0.1:3210')
+  vi.stubGlobal('fetch', async (_url: unknown, init: RequestInit) => {
+    sent.push({
+      headers: new Headers(init.headers),
+      body: String(init.body),
+    })
+    return new Response(
+      JSON.stringify({ status: 'success', value: null, logLines: [] }),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    )
+  })
+  const { api } = await import('../../convex/_generated/api')
+  await publicQuery(1000, api.articles.getArticleBySlug, {
+    username: 'writer',
+    slug: 'lamp',
+  })
+  expect(sent).toHaveLength(1)
+  expect(sent[0]!.headers.has('authorization')).toBe(false)
+  expect(sent[0]!.body).not.toMatch(/token/i)
+})
+
+afterEach(() => {
+  vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
+})
+
+test('the public server reads in lib/seo take no token', () => {
+  const read = (file: string) =>
+    readFileSync(path.join(import.meta.dirname, '../../lib/seo', file), 'utf8')
+  const content = read('publicContent.ts')
+  const query = read('publicQuery.ts')
+  // No import that reads with the visitor's token.
+  for (const source of [content, query]) {
+    expect(source).not.toMatch(/from ['"]convex\/nextjs['"]/)
+    expect(source).not.toMatch(/@convex-dev\/auth\/nextjs/)
+    expect(source).not.toMatch(/\bsetAuth\(|\btoken\s*:|Authorization/)
+  }
+  // publicQuery(limitMs, query, args): three arguments, never a fourth.
+  const calls = content.split('publicQuery(').slice(1)
   expect(calls.length).toBeGreaterThanOrEqual(6)
   for (const call of calls) {
     // The call's own parentheses: its arguments end where depth returns to 0.
@@ -165,7 +232,7 @@ test('no public server read in lib/seo/publicContent.ts passes fetchQuery option
       end += 1
     }
     const args = call.slice(0, end - 1)
-    // Top-level commas only: two arguments, never a third.
+    // Top-level commas only.
     let level = 0
     let commas = 0
     for (const ch of args) {
@@ -174,8 +241,6 @@ test('no public server read in lib/seo/publicContent.ts passes fetchQuery option
       else if (ch === ',' && level === 0) commas += 1
     }
     const trailing = args.trimEnd().endsWith(',') ? 1 : 0
-    expect(commas - trailing, `fetchQuery(${args.slice(0, 60)}…`).toBe(1)
+    expect(commas - trailing, `publicQuery(${args.slice(0, 60)}…`).toBe(2)
   }
-  // No token property anywhere in the code (the comments may name one).
-  expect(source).not.toMatch(/\btoken\s*:/)
 })

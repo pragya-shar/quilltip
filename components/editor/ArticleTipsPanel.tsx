@@ -383,7 +383,7 @@ export function ArticleTipsPanel({
             >
               View the transaction
               <span className="sr-only"> (opens in a new tab)</span>
-              <span aria-hidden="true">&nbsp;↗</span>
+              <span aria-hidden="true">&nbsp;↗︎</span>
             </a>
           )}
         </>
@@ -407,7 +407,7 @@ export function ArticleTipsPanel({
             >
               View the transaction
               <span className="sr-only"> (opens in a new tab)</span>
-              <span aria-hidden="true">&nbsp;↗</span>
+              <span aria-hidden="true">&nbsp;↗︎</span>
             </a>
           )}
         </>
@@ -500,7 +500,7 @@ export function ArticleTipsPanel({
             >
               View the registration
               <span className="sr-only"> (opens in a new tab)</span>
-              <span aria-hidden="true">&nbsp;↗</span>
+              <span aria-hidden="true">&nbsp;↗︎</span>
             </a>
           )}
         </>
