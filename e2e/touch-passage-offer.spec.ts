@@ -98,11 +98,24 @@ test('a long press that ends in a touch cancel still offers the passage', async 
   await expect(offer).toBeVisible()
 })
 
-test('a tap in the article withdraws the offer', async ({ page }) => {
+test('a tap in the article that clears the selection withdraws the offer', async ({
+  page,
+}) => {
   const { paragraph, offer } = await open(page)
   await longPress(paragraph, 'touchend')
   await expect(offer).toBeVisible()
+  // The offer follows the selection: a tap that keeps it (as iOS can) keeps
+  // the offer; a tap that collapses it withdraws the offer.
   await paragraph.dispatchEvent('touchstart')
+  await paragraph.evaluate((element) => {
+    const range = document.createRange()
+    range.setStart(element.firstChild!, 0)
+    range.collapse(true)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+  })
+  await paragraph.dispatchEvent('touchend')
   await expect(offer).toBeHidden()
 })
 
