@@ -117,10 +117,47 @@ describe('decide', () => {
     }
   })
 
+  it('runs every shard for a shared input, as the planner cannot see how it is used', () => {
+    for (const file of [
+      'shell/AppShell.tsx',
+      'app/(legacy)/layout.tsx',
+      'proxy.ts',
+      'lib/auth/x.ts',
+      'convex/tabs.ts',
+    ]) {
+      expect(shards(plan(changed(file)))).toEqual(['ab:a,b', 'c:c'])
+    }
+  })
+
+  it('runs everything for a path under a new top-level entry', () => {
+    const roots = new Set(['lib', 'docs', 'e2e'])
+    const p = decide(
+      changed('newdir/x.ts'),
+      SUITE_INPUTS,
+      INTEGRATION,
+      TEST_SHARDS,
+      SUITES,
+      roots
+    )
+    expect(p.contracts.run && p.contractsIntegration.run && p.app.run).toBe(
+      true
+    )
+    expect(shards(p)).toEqual(['ab:a,b', 'c:c'])
+    const known = decide(
+      changed('docs/x.md'),
+      SUITE_INPUTS,
+      INTEGRATION,
+      TEST_SHARDS,
+      SUITES,
+      roots
+    )
+    expect(shards(known)).toEqual([])
+  })
+
   it('treats a deleted input like a changed one', () => {
     expect(shards(plan([{ path: 'lib/c.ts', deleted: true }]))).toEqual(['c:c'])
     expect(
-      shards(plan([{ path: 'e2e/helpers/unused.ts', deleted: true }]))
+      shards(plan([{ path: 'e2e/retired.spec.ts', deleted: true }]))
     ).toEqual([])
   })
 

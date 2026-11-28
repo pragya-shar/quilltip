@@ -3,23 +3,22 @@
  * `.github/workflows/ci.yml`, so the two cannot drift
  * (docs/workflow/ci-pipeline.md).
  *
- *   bun scripts/ci/local.ts                    what this checkout changes (commits and
- *                                              uncommitted files), as CI would plan it
- *   bun scripts/ci/local.ts --base <rev>       plan against another base (default: the
- *                                              merge base with origin/overhaul/v3)
- *   bun scripts/ci/local.ts --all              every job and every shard
- *   bun scripts/ci/local.ts --jobs quality,production --shards system,balance
- *   bun scripts/ci/local.ts --list             print the steps, run nothing
+ *   bun scripts/ci/local.ts                  what this checkout changes (commits and
+ *                                            uncommitted files), as CI would plan it
+ *   bun scripts/ci/local.ts --base <rev>     plan against another base (default: the
+ *                                            merge base with origin/overhaul/v3)
+ *   bun scripts/ci/local.ts --jobs app --shards system,balance
+ *   bun scripts/ci/local.ts --all            every job and every shard
+ *   bun scripts/ci/local.ts ... --list       print the steps, run nothing
  *
- * `--jobs` takes job ids from ci.yml (quality, production, perf-budget,
- * font-fallbacks, audit, contracts, contracts-integration, e2e-auth) and
- * `--shards` takes fixture shards (scripts/ci/shards.ts); either one replaces
- * the plan. Setup steps (checkout, Bun, `bun install`, browser and tool
- * installs, artifact uploads) are left to the machine: run `bun install` and
- * `bunx playwright install` first. A production build is made once per set of
- * build settings and shared by every check that needs it, in place of one
- * per job. Each job's steps stop at its first failure, as in CI, and the run
- * ends with a table of every step.
+ * `--jobs` takes job ids from ci.yml, or `app` for every job that builds or
+ * checks the app; `--shards` takes fixture shards (scripts/ci/shards.ts);
+ * either one replaces the plan. Setup steps (checkout, Bun, `bun install`,
+ * browser and tool installs, artifact uploads, failure-only steps) are left
+ * to the machine: run `bun install` and `bunx playwright install` first. A
+ * production build is made once per set of build settings and shared by
+ * every check that needs it, in place of one per job. Each job's steps stop
+ * at its first failure, as in CI, and the run ends with a table of every step.
  */
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync } from 'node:fs'
@@ -29,11 +28,12 @@ import {
   allSuiteInputs,
   changedFiles,
   decide,
-  fullPlan,
   integrationInputs,
   outputs,
+  topLevel,
   type Plan,
 } from './plan'
+import { FIXTURES } from '../fixture-suites'
 import { SHARDS } from './shards'
 
 const root = path.resolve(import.meta.dirname, '../..')
@@ -71,6 +71,8 @@ export type LocalStep = {
   needsBuild?: string
   /** `steps.<id>.outcome == 'success'` in its `if:`. */
   after?: string
+  /** `always()` or `!cancelled()` in its `if:`: runs after a failed step. */
+  always?: boolean
 }
 
 /** Steps that only set up a CI runner. */
@@ -135,6 +137,7 @@ export function stepsOf(
       const run = expand(step.run, matrix, temp)
       const isBuild = run.trim() === 'bun run build'
       const after = step.if?.match(/steps\.([\w-]+)\.outcome == 'success'/)?.[1]
+      const always = /always\(\)|!cancelled\(\)/.test(step.if ?? '')
       const local: LocalStep = {
         job: label,
         name: expand(step.name ?? run.split('\n')[0]!, matrix, temp),
@@ -143,6 +146,7 @@ export function stepsOf(
         env,
         cwd: path.join(root, dir),
         after,
+        always,
       }
       if (isBuild) {
         build = buildKey(env)
@@ -198,7 +202,7 @@ function execute(steps: readonly LocalStep[], list: boolean): Result[] {
         skip(`${step.after} did not pass`)
         continue
       }
-    } else if (failedJobs.has(step.job)) {
+    } else if (failedJobs.has(step.job) && !step.always) {
       skip('an earlier step of the job failed')
       continue
     }
@@ -258,26 +262,123 @@ export function summaryTable(results: readonly Result[]): string {
   return [`${'Step'.padEnd(width)}  Result`, ...lines].join('\n')
 }
 
-/** The job instances (with matrix values) a plan turns on. */
-export function instancesOf(plan: Plan, workflow: Workflow) {
-  const out: { job: string; matrix: Record<string, string> }[] = [
-    { job: 'quality', matrix: {} },
-    { job: 'audit', matrix: {} },
-  ]
-  if (plan.app.run) {
-    out.push(
-      { job: 'production', matrix: {} },
-      { job: 'perf-budget', matrix: {} }
-    )
-    const engines = (workflow.jobs['font-fallbacks']?.strategy?.matrix
-      ?.engine ?? []) as string[]
-    for (const engine of engines)
-      out.push({ job: 'font-fallbacks', matrix: { engine } })
-    out.push({ job: 'e2e-auth', matrix: {} })
+/** The jobs that build and check the app (ids from ci.yml, old and new). */
+const APP_JOBS = [
+  'build',
+  'production',
+  'csp',
+  'no-script',
+  'early-taps',
+  'perf-budget',
+  'font-fallbacks',
+  'e2e-auth',
+]
+
+/** Jobs that only plan or report. */
+const NOT_RUN = ['changes', 'required']
+
+type Instance = { job: string; matrix: Record<string, string> }
+
+/**
+ * A job's matrix entries: its `include` list (or `shards` when the list comes
+ * from another job), its one list-valued key, or one empty entry.
+ */
+export function matrixOf(
+  job: Job | undefined,
+  shards?: readonly Record<string, string>[]
+): Record<string, string>[] {
+  const matrix = job?.strategy?.matrix
+  if (!matrix) return [{}]
+  if (Array.isArray(matrix.include)) {
+    return matrix.include as Record<string, string>[]
   }
-  if (plan.contracts.run) out.push({ job: 'contracts', matrix: {} })
-  if (plan.contractsIntegration.run)
-    out.push({ job: 'contracts-integration', matrix: {} })
+  if (matrix.include !== undefined) {
+    if (!shards) throw new Error('The matrix comes from another job')
+    return [...shards]
+  }
+  const lists = Object.entries(matrix).filter(([, v]) => Array.isArray(v))
+  if (lists.length !== 1) return [{}]
+  const [key, values] = lists[0]!
+  return (values as unknown[]).map((v) => ({ [key]: String(v) }))
+}
+
+/** Job instances for `--all`, `--jobs` (ids, or `app`) and `--shards`. */
+export function chosen(
+  workflow: Workflow,
+  options: { all?: boolean; jobs?: string[]; shards?: string[] },
+  shards?: readonly Record<string, string>[]
+): Instance[] {
+  const ids = Object.keys(workflow.jobs).filter((id) => !NOT_RUN.includes(id))
+  const fixtureJob = ids.find((id) =>
+    matrixOf(workflow.jobs[id], shards ?? [{}]).some((m) => 'suites' in m)
+  )
+  const wanted = options.all
+    ? ids.filter((id) => id !== fixtureJob)
+    : (options.jobs ?? []).flatMap((id) =>
+        id === 'app' ? APP_JOBS.filter((a) => ids.includes(a)) : [id]
+      )
+  const out: Instance[] = []
+  for (const id of wanted) {
+    if (!workflow.jobs[id]) {
+      throw new Error(`No job ${id} in ci.yml. Jobs: ${ids.join(', ')}`)
+    }
+    for (const matrix of matrixOf(workflow.jobs[id], shards)) {
+      out.push({ job: id, matrix })
+    }
+  }
+  if (fixtureJob) {
+    const all = matrixOf(workflow.jobs[fixtureJob], shards)
+    const names = options.all
+      ? all.map((m) => m.shard!)
+      : (options.shards ?? [])
+    for (const name of names) {
+      const matrix = all.find((m) => m.shard === name)
+      if (!matrix) {
+        throw new Error(
+          `Unknown shard ${name}. Shards: ${all.map((m) => m.shard).join(', ')}`
+        )
+      }
+      out.push({ job: fixtureJob, matrix })
+    }
+  }
+  return out
+}
+
+async function readWorkflow(): Promise<Workflow> {
+  return Bun.YAML.parse(
+    await Bun.file(path.join(root, '.github/workflows/ci.yml')).text()
+  ) as Workflow
+}
+
+function runAll(workflow: Workflow, instances: Instance[], list: boolean) {
+  const temp = mkdtempSync(path.join(tmpdir(), 'ci-local-'))
+  process.env.RUNNER_TEMP = temp
+  const steps = order(stepsOf(workflow, instances, temp))
+  const results = execute(steps, list)
+  console.log(`\n${summaryTable(results)}`)
+  return results.some((r) => r.result === 'failed') ? 1 : 0
+}
+
+const listOf = (argv: string[], flag: string) => {
+  const at = argv.indexOf(flag)
+  return at === -1 ? undefined : (argv[at + 1] ?? '').split(',').filter(Boolean)
+}
+
+const SHARD_MATRIX = SHARDS.map((s) => ({ ...s }))
+
+/** The job instances (with matrix values) a plan turns on. */
+export function instancesOf(plan: Plan, workflow: Workflow): Instance[] {
+  const out = chosen(workflow, { jobs: ['quality', 'audit'] }, SHARD_MATRIX)
+  if (plan.app.run)
+    out.push(...chosen(workflow, { jobs: ['app'] }, SHARD_MATRIX))
+  if (plan.contracts.run) {
+    out.push(...chosen(workflow, { jobs: ['contracts'] }, SHARD_MATRIX))
+  }
+  if (plan.contractsIntegration.run) {
+    out.push(
+      ...chosen(workflow, { jobs: ['contracts-integration'] }, SHARD_MATRIX)
+    )
+  }
   for (const shard of JSON.parse(outputs(plan).fixtures!) as Record<
     string,
     string
@@ -288,67 +389,43 @@ export function instancesOf(plan: Plan, workflow: Workflow) {
 }
 
 async function main(argv: string[]): Promise<number> {
-  const value = (flag: string) => {
-    const at = argv.indexOf(flag)
-    return at === -1 ? undefined : argv[at + 1]
+  const workflow = await readWorkflow()
+  const options = {
+    all: argv.includes('--all'),
+    jobs: listOf(argv, '--jobs'),
+    shards: listOf(argv, '--shards'),
   }
-  const workflow = Bun.YAML.parse(
-    await Bun.file(path.join(root, '.github/workflows/ci.yml')).text()
-  ) as Workflow
-  const temp = mkdtempSync(path.join(tmpdir(), 'ci-local-'))
-  process.env.RUNNER_TEMP = temp
-
-  let instances: { job: string; matrix: Record<string, string> }[]
-  const jobs = value('--jobs')
-  const shards = value('--shards')
-  if (jobs || shards) {
-    instances = []
-    for (const job of jobs?.split(',').filter(Boolean) ?? []) {
-      const matrix = workflow.jobs[job]?.strategy?.matrix
-      const engines = (matrix?.engine ?? []) as string[]
-      if (engines.length > 0) {
-        for (const engine of engines)
-          instances.push({ job, matrix: { engine } })
-      } else {
-        instances.push({ job, matrix: {} })
-      }
-    }
-    for (const name of shards?.split(',').filter(Boolean) ?? []) {
-      const shard = SHARDS.find((s) => s.shard === name)
-      if (!shard)
-        throw new Error(
-          `Unknown shard ${name}. Known: ${SHARDS.map((s) => s.shard).join(', ')}`
-        )
-      instances.push({ job: 'e2e-fixtures', matrix: { ...shard } })
-    }
-  } else {
-    let plan: Plan
-    if (argv.includes('--all')) {
-      plan = fullPlan('--all')
-    } else {
-      const base =
-        value('--base') ??
-        spawnSync('git', ['merge-base', 'HEAD', 'origin/overhaul/v3'], {
-          cwd: root,
-          encoding: 'utf8',
-        }).stdout.trim()
-      if (!base)
-        throw new Error('No merge base with origin/overhaul/v3; pass --base')
-      const changes = changedFiles(base)
-      const [suites, integration] = await Promise.all([
-        allSuiteInputs(),
-        integrationInputs(),
-      ])
-      plan = decide(changes, suites, integration)
-      console.log(`${changes.length} files changed since ${base.slice(0, 8)}.`)
-    }
-    instances = instancesOf(plan, workflow)
+  if (options.all || options.jobs || options.shards) {
+    return runAll(
+      workflow,
+      chosen(workflow, options, SHARD_MATRIX),
+      argv.includes('--list')
+    )
   }
-
-  const steps = order(stepsOf(workflow, instances, temp))
-  const results = execute(steps, argv.includes('--list'))
-  console.log(`\n${summaryTable(results)}`)
-  return results.some((r) => r.result === 'failed') ? 1 : 0
+  const at = argv.indexOf('--base')
+  const base =
+    (at === -1 ? undefined : argv[at + 1]) ??
+    spawnSync('git', ['merge-base', 'HEAD', 'origin/overhaul/v3'], {
+      cwd: root,
+      encoding: 'utf8',
+    }).stdout.trim()
+  if (!base)
+    throw new Error('No merge base with origin/overhaul/v3; pass --base')
+  const changes = changedFiles(base)
+  const [suites, integration] = await Promise.all([
+    allSuiteInputs(),
+    integrationInputs(),
+  ])
+  const plan = decide(
+    changes,
+    suites,
+    integration,
+    SHARDS,
+    FIXTURES,
+    topLevel(base)
+  )
+  console.log(`${changes.length} files changed since ${base.slice(0, 8)}.`)
+  return runAll(workflow, instancesOf(plan, workflow), argv.includes('--list'))
 }
 
 if (import.meta.main) {

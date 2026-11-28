@@ -18,7 +18,13 @@ it runs, and the changed file that made it run.
 | Playwright (fixtures, _shard_), one job per shard in `scripts/ci/shards.ts` | an input of one of the shard's suites; the job runs only those suites                                           |
 
 A change to `package.json`, `bun.lock`, `bunfig.toml`, `tsconfig.json`,
-`.github/workflows/ci.yml` or `scripts/ci/` runs everything.
+`.github/workflows/ci.yml` or `scripts/ci/`, or to a path under a top-level
+entry that the base does not have, runs everything.
+
+A change to a shared input (`SHARED`: `shell/`, `system/`, the root layouts,
+`proxy.ts`, `next.config.ts`, `lib/payments/`, `lib/auth/`, `convex/`,
+`e2e/helpers/`, `e2e/global-setup.ts`) runs every fixture shard, whatever its
+bundle reads.
 
 ## A fixture suite's inputs
 
@@ -38,6 +44,11 @@ The inputs come from the code, computed on every run:
 
 ## Failing closed
 
+- What changed writes the full plan first, before it installs anything, and
+  replaces it with the filtered plan only when planning succeeds within five
+  minutes. A planning error or timeout leaves the full plan.
+- When What changed itself fails, every job still runs (the fixture suites in
+  one job), and Required fails.
 - What changed must pass, or Required fails.
 - A job may be skipped only when What changed planned it off. A skipped job
   that was planned on fails Required, as does any failed or cancelled job.
@@ -47,6 +58,18 @@ The inputs come from the code, computed on every run:
   bundle fail, so its suite runs.
 - Pushes to `main` and the overhaul branches run everything, so a merge that
   the filter judged wrongly shows on the branch's own run.
+
+## A full run on a pull request
+
+- **Re-run all jobs** on the run's page: from attempt 2 on, What changed plans
+  everything. **Re-run failed jobs** keeps the first plan.
+- The `ci-full` label: every later push to the pull request runs everything,
+  until the label is removed. Adding the label starts no run by itself.
+
+Use a full run before merging a change whose effect the filter cannot see: a
+dependency or tooling change that runs no job on its own, a change to how a
+fixture server or a check finds its files, or a pull request whose filtered
+runs passed while a job it skipped failed on the base branch's push run.
 
 ## What the filter does not see
 

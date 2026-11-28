@@ -46,10 +46,53 @@ describe('fixture shards in CI', () => {
       workflow.indexOf('\n  e2e-fixtures:'),
       workflow.indexOf('\n  contracts-integration:')
     )
-    expect(job).toContain(
-      'include: ${{ fromJSON(needs.changes.outputs.fixtures) }}'
+    const include = job.match(
+      /include: \$\{\{ fromJSON\(needs\.changes\.outputs\.fixtures \|\| '(.*)'\) \}\}/
     )
+    expect(include).not.toBeNull()
+    // Without a plan, one job runs every suite in every engine a shard uses.
+    const fallback = JSON.parse(include![1]!) as {
+      suites: string
+      browsers: string
+    }[]
+    expect(fallback).toHaveLength(1)
+    expect(fallback[0]!.suites).toBe('')
+    const engines = new Set(SHARDS.flatMap((s) => s.browsers.split(' ')))
+    expect(new Set(fallback[0]!.browsers.split(' '))).toEqual(engines)
+    expect(job).toContain('bun run test:e2e:fixtures\n')
     expect(new Set(SHARDS.map((s) => s.shard)).size).toBe(SHARDS.length)
+  })
+})
+
+describe('What changed in CI', () => {
+  it('falls back to the full plan, and every planned job runs without a plan', () => {
+    const changes = workflow.slice(
+      workflow.indexOf('\n  changes:'),
+      workflow.indexOf('\n  quality:')
+    )
+    for (const key of [
+      'app',
+      'contracts',
+      'contracts_integration',
+      'fixtures',
+    ]) {
+      expect(changes).toContain(
+        `${key}: \${{ steps.plan.outputs.${key} || steps.full.outputs.${key} }}`
+      )
+    }
+    expect(changes.indexOf('id: full')).toBeLessThan(
+      changes.indexOf('bun install')
+    )
+    expect(changes).toMatch(/id: plan\n\s+continue-on-error: true/)
+    const gated = [
+      ...workflow.matchAll(/^    if: (.*needs\.changes.*)$/gm),
+    ].map((m) => m[1]!)
+    expect(gated.length).toBeGreaterThanOrEqual(6)
+    for (const condition of gated) {
+      expect(condition).toContain(
+        "!cancelled() && (needs.changes.result != 'success' ||"
+      )
+    }
   })
 })
 

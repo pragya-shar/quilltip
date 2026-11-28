@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { expand, isSetup, order, stepsOf } from './local'
+import { chosen, expand, isSetup, matrixOf, order, stepsOf } from './local'
 
 const FIXTURE = {
   SKIP_ENV_VALIDATION: '1',
@@ -96,5 +96,67 @@ describe('local CI steps', () => {
     expect(checksBuild!.build).toBe(budgetBuild!.build)
     expect(steps[3]!.after).toBe('b')
     expect(steps[1]!.env.S).toBe('tab')
+  })
+
+  it('reads matrix entries from an include list, a key list or another job', () => {
+    const include = [{ shard: 'tab', suites: 'tab', browsers: 'chromium' }]
+    expect(matrixOf({ strategy: { matrix: { include } } })).toEqual(include)
+    expect(
+      matrixOf({ strategy: { matrix: { engine: ['chromium', 'webkit'] } } })
+    ).toEqual([{ engine: 'chromium' }, { engine: 'webkit' }])
+    expect(
+      matrixOf(
+        { strategy: { matrix: { include: '${{ fromJSON(x) }}' } } },
+        include
+      )
+    ).toEqual(include)
+    expect(matrixOf({})).toEqual([{}])
+  })
+
+  it('chooses jobs by id or as the app group, and shards by name', () => {
+    const wf = {
+      jobs: {
+        changes: { steps: [] },
+        quality: { steps: [] },
+        build: { steps: [] },
+        'perf-budget': { steps: [] },
+        'font-fallbacks': {
+          strategy: { matrix: { engine: ['chromium', 'webkit'] } },
+          steps: [],
+        },
+        e2e: {
+          strategy: {
+            matrix: {
+              include: [
+                { shard: 'tab', suites: 'tab' },
+                { shard: 'system', suites: 'system' },
+              ],
+            },
+          },
+          steps: [],
+        },
+        required: { steps: [] },
+      },
+    }
+    const names = (i: { job: string; matrix: Record<string, string> }[]) =>
+      i.map((x) => [x.job, ...Object.values(x.matrix)].join(':'))
+    expect(names(chosen(wf, { jobs: ['app'], shards: ['system'] }))).toEqual([
+      'build',
+      'perf-budget',
+      'font-fallbacks:chromium',
+      'font-fallbacks:webkit',
+      'e2e:system:system',
+    ])
+    expect(names(chosen(wf, { all: true }))).toEqual([
+      'quality',
+      'build',
+      'perf-budget',
+      'font-fallbacks:chromium',
+      'font-fallbacks:webkit',
+      'e2e:tab:tab',
+      'e2e:system:system',
+    ])
+    expect(() => chosen(wf, { shards: ['nope'] })).toThrow('Unknown shard nope')
+    expect(() => chosen(wf, { jobs: ['nope'] })).toThrow('No job nope')
   })
 })

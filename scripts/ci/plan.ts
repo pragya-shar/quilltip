@@ -3,8 +3,9 @@
  * (docs/workflow/ci-pipeline.md).
  *
  *   bun scripts/ci/plan.ts --base <rev> [--head <rev>]   print the plan
- *   bun scripts/ci/plan.ts --full                        print the full plan
+ *   bun scripts/ci/plan.ts --full [--reason <text>]      print the full plan
  *   bun scripts/ci/plan.ts --github ...                  also write job outputs
+ *   bun scripts/ci/plan.ts --github --outputs-only ...   outputs, no job summary
  *   bun scripts/ci/plan.ts --inputs                      print each suite's inputs
  *
  * Each job group has a set of inputs. A group runs when a changed file is one
@@ -82,6 +83,26 @@ export const FIXTURE_COMMON = [
   'tailwind.config.ts',
 ]
 
+/**
+ * Files every fixture shard counts as its input, whether or not its bundle
+ * reads them: the shell, the root layouts, the request proxy and Next config,
+ * payments and sign-in, the backend, and the test helpers.
+ */
+export const SHARED = [
+  'shell/**',
+  'system/**',
+  'app/layout.tsx',
+  'app/*/layout.tsx',
+  'app/global-not-found.tsx',
+  'proxy.ts',
+  'next.config.ts',
+  'lib/payments/**',
+  'lib/auth/**',
+  'convex/**',
+  'e2e/helpers/**',
+  'e2e/global-setup.ts',
+]
+
 export type Change = { path: string; deleted: boolean }
 
 export type Decision = { run: boolean; reason: string }
@@ -145,10 +166,23 @@ export function decide(
   suiteInputs: ReadonlyMap<string, Inputs | undefined>,
   integrationFiles: ReadonlySet<string> | undefined,
   shards: readonly Shard[] = SHARDS,
-  allSuites: readonly Fixture[] = FIXTURES
+  allSuites: readonly Fixture[] = FIXTURES,
+  knownRoots?: ReadonlySet<string>
 ): Plan {
-  const forced = changes.find((c) => matches(c.path, EVERYTHING))
-  const why = (c: Change) => (c.deleted ? `${c.path} (deleted)` : c.path)
+  const why = (c: Change) =>
+    c.deleted
+      ? `${c.path} (deleted)`
+      : unknownRoot(c)
+        ? `${c.path} (new top-level path)`
+        : c.path
+  // A path under a top-level entry the base does not have is one no rule
+  // was written for.
+  const unknownRoot = (c: Change) =>
+    knownRoots !== undefined && !knownRoots.has(c.path.split('/')[0]!)
+  const forced =
+    changes.find((c) => matches(c.path, EVERYTHING)) ??
+    changes.find(unknownRoot)
+  const shared = changes.find((c) => matches(c.path, SHARED))
 
   const appChange = changes.find((c) => !matches(c.path, OUTSIDE_APP))
   const app = forced
@@ -181,6 +215,8 @@ export function decide(
       return { shard, decision: skip('no suites'), suites: [] }
     }
     if (forced) return { shard, decision: run(why(forced)), suites: names }
+    if (shared)
+      return { shard, decision: run(`shared: ${why(shared)}`), suites: names }
     const reasons: string[] = []
     const chosen = names.filter((name) => {
       const inputs = suiteInputs.get(name)
@@ -497,6 +533,16 @@ export function changedFiles(base: string, head?: string): Change[] {
   return changes
 }
 
+/** The top-level entries of a revision's tree. */
+export function topLevel(rev: string): Set<string> {
+  const r = spawnSync('git', ['ls-tree', '--name-only', '-z', rev], {
+    cwd: root,
+    encoding: 'utf8',
+  })
+  if (r.status !== 0) throw new Error(`git ls-tree ${rev} failed: ${r.stderr}`)
+  return new Set(r.stdout.split('\0').filter(Boolean))
+}
+
 // ---------------------------------------------------------------------------
 // Output.
 
@@ -568,7 +614,11 @@ async function main(argv: string[]): Promise<void> {
   let changes: Change[] = []
   try {
     if (argv.includes('--full') || !base) {
-      plan = fullPlan(argv.includes('--full') ? 'full run' : 'no base revision')
+      plan = fullPlan(
+        argv.includes('--full')
+          ? (value('--reason') ?? 'full run')
+          : 'no base revision'
+      )
     } else {
       changes = changedFiles(base, head)
       const [suites, integration] = await Promise.all([
@@ -580,7 +630,14 @@ async function main(argv: string[]): Promise<void> {
           return undefined
         }),
       ])
-      plan = decide(changes, suites, integration)
+      plan = decide(
+        changes,
+        suites,
+        integration,
+        SHARDS,
+        FIXTURES,
+        topLevel(base)
+      )
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : error)
@@ -595,7 +652,7 @@ async function main(argv: string[]): Promise<void> {
     if (!out) throw new Error('GITHUB_OUTPUT is not set')
     const lines = Object.entries(outputs(plan)).map(([k, v]) => `${k}=${v}`)
     appendFileSync(out, `${lines.join('\n')}\n`)
-    if (summary)
+    if (summary && !argv.includes('--outputs-only'))
       appendFileSync(summary, `### What this change runs\n\n${text}\n`)
   }
 }
