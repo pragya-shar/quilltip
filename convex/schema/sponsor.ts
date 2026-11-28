@@ -8,14 +8,16 @@ import { v } from 'convex/values'
 export const sponsorTables = {
   sponsoredCalls: defineTable({
     requestId: v.string(),
-    userId: v.id('users'),
-    /** The caller's passkey account (a contract address). */
+    /** The caller; unset for an account deploy (internal, after a verified registration). */
+    userId: v.optional(v.id('users')),
+    /** The caller's passkey account (a contract address); for a deploy, the new account. */
     reader: v.string(),
     call: v.union(
       v.literal('open_session'),
       v.literal('deposit'),
       v.literal('register_key'),
-      v.literal('revoke_key')
+      v.literal('revoke_key'),
+      v.literal('deploy')
     ),
     /** Stroops deposited, as a decimal string. */
     amount: v.string(),
@@ -31,8 +33,9 @@ export const sponsorTables = {
     /**
      * `reserved`: limits passed, not simulated yet. `prepared`: the auth
      * entries below are what the passkey must sign. `submitting`: claimed by
-     * one submit. `pending`: sent, hash stored, result not known yet (the
-     * reconciler finishes it). `sent` and `failed` are final.
+     * one submit, nothing signed yet. `pending`: signed, hash stored before
+     * the send; the result is not known yet (the reconciler finishes it from
+     * the network's answer). `sent` and `failed` are final.
      */
     status: v.union(
       v.literal('reserved'),
@@ -47,11 +50,14 @@ export const sponsorTables = {
     /** The latest ledger a signature may name as its expiry. */
     maxExpiration: v.number(),
     /**
-     * Committed then paid, in stroops: the prepared fee, then the signed
-     * envelope's fee once sent, then the fee charged once the result is known.
+     * Committed then paid, in stroops: the most the call may cost (its cap
+     * plus the inclusion fee) from preparation, then the signed envelope's
+     * fee, then the fee charged once the result is known.
      */
     feeStroops: v.string(),
     txHash: v.optional(v.string()),
+    /** The signed transaction's upper time bound (Unix seconds). */
+    maxTime: v.optional(v.number()),
     error: v.optional(v.string()),
     /** The UTC day (`YYYY-MM-DD`) whose budget the request counts against. */
     day: v.string(),
@@ -61,7 +67,23 @@ export const sponsorTables = {
   })
     .index('by_request', ['requestId'])
     .index('by_user_created', ['userId', 'createdAt'])
-    .index('by_day_status', ['day', 'status']),
+    .index('by_day_status', ['day', 'status'])
+    .index('by_status_updated', ['status', 'updatedAt']),
+
+  /**
+   * The last readiness check of a signing service (`sponsor`; later the
+   * practice treasury): which checks failed, when, and for which settings.
+   * Entries refuse unless the latest check for the current settings passed.
+   */
+  signerReadiness: defineTable({
+    service: v.string(),
+    ready: v.boolean(),
+    failed: v.array(v.string()),
+    warnings: v.array(v.string()),
+    /** A hash of the settings (and of the secret) the check ran with. */
+    fingerprint: v.string(),
+    checkedAt: v.number(),
+  }).index('by_service', ['service']),
 
   /** Fees the sponsor paid per UTC day, for the global budget. */
   sponsorDays: defineTable({

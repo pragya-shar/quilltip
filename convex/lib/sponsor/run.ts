@@ -53,12 +53,20 @@ export type SponsorDeps = {
 }
 
 /**
- * Callbacks for the record keeping: `onSent` runs once the network accepted
- * the transaction and before any polling, so a hash is never lost; `onFee`
- * reports the fee charged when the result is known (success or failure).
+ * Callbacks for the record keeping:
+ * - `onSigned` runs once the envelope is signed and BEFORE it is handed to the
+ *   node, with its hash, fee and upper time bound (seconds). From then on the
+ *   transaction may land, so its record must say so first. If it throws,
+ *   nothing was sent.
+ * - `onFee` reports the fee charged once the result is known (success or
+ *   failure).
  */
 export type SendHooks = {
-  onSent?: (hash: string, envelopeFee: string) => Promise<void> | void
+  onSigned?: (
+    hash: string,
+    envelopeFee: string,
+    maxTime: number
+  ) => Promise<void> | void
   onFee?: (fee: string) => void
 }
 
@@ -119,7 +127,10 @@ export async function contractWasmHash(
 }
 
 async function checkReaderAccount(d: SponsorDeps, reader: string) {
-  if (!d.cfg.accountWasmHash) return
+  // Fails closed: with no allowlisted code, no reader is sponsored.
+  if (!d.cfg.accountWasmHash) {
+    refuse('SPONSOR_CONFIG_INVALID', 'SPONSOR_ACCOUNT_WASM_HASH is not set.')
+  }
   let hash: string | null
   try {
     hash = await contractWasmHash(d.server, reader)
@@ -166,9 +177,10 @@ function feeCharged(got: { resultXdr: unknown }): string {
 
 /**
  * Assembles, checks the fee of the envelope that will be signed against the
- * cap, signs as source, sends, records the hash, then waits. A transaction
- * that is sent but not confirmed in time is `SPONSOR_PENDING`: never failed,
- * because it can still land until its time bound.
+ * cap, signs as source, records the hash, sends, then waits. A transaction
+ * whose send outcome is unknown, or that is not confirmed in time, is
+ * `SPONSOR_PENDING`: never failed, because it can still land until its time
+ * bound. `SPONSOR_SEND_REFUSED` means the node did not take it.
  */
 async function signSendConfirm(
   d: SponsorDeps,
@@ -188,16 +200,29 @@ async function signSendConfirm(
     )
   }
   prepared.sign(d.sponsor)
-  const sent = await d.server.sendTransaction(prepared)
-  if (sent.status !== 'PENDING' && sent.status !== 'DUPLICATE') {
+  const hash = Buffer.from(prepared.hash()).toString('hex')
+  await hooks.onSigned?.(
+    hash,
+    prepared.fee,
+    Number(prepared.timeBounds?.maxTime ?? 0)
+  )
+  let sent: Awaited<ReturnType<SponsorServer['sendTransaction']>>
+  try {
+    sent = await d.server.sendTransaction(prepared)
+  } catch {
+    // The node may have taken it before the error: the outcome is unknown,
+    // and the record (pending, with the hash) waits for the network.
+    refuse('SPONSOR_PENDING', `Send outcome unknown: ${hash}`)
+  }
+  // Only these two answers say the node did not take the transaction.
+  if (sent.status === 'ERROR' || sent.status === 'TRY_AGAIN_LATER') {
     refuse('SPONSOR_SEND_REFUSED', `The network refused it (${sent.status}).`)
   }
-  await hooks.onSent?.(sent.hash, prepared.fee)
   const deadline = Date.now() + (d.confirmTimeoutMs ?? CONFIRM_TIMEOUT_MS)
   while (Date.now() < deadline) {
     let got: Awaited<ReturnType<SponsorServer['getTransaction']>> | null = null
     try {
-      got = await d.server.getTransaction(sent.hash)
+      got = await d.server.getTransaction(hash)
     } catch {
       // A read error says nothing about the transaction: keep waiting.
     }
@@ -205,28 +230,46 @@ async function signSendConfirm(
       const fee = feeCharged(got)
       hooks.onFee?.(fee)
       if (got.status === 'FAILED') {
-        refuse('SPONSOR_TX_FAILED', `The transaction failed: ${sent.hash}`)
+        refuse('SPONSOR_TX_FAILED', `The transaction failed: ${hash}`)
       }
-      return { hash: sent.hash, ledger: got.ledger, fee }
+      return { hash, ledger: got.ledger, fee }
     }
     await new Promise((r) => setTimeout(r, d.pollMs ?? CONFIRM_POLL_MS))
   }
-  refuse('SPONSOR_PENDING', `Not confirmed yet: ${sent.hash}`)
+  refuse('SPONSOR_PENDING', `Not confirmed yet: ${hash}`)
 }
 
-/** What the network says now about a sent transaction (for reconciliation). */
+/**
+ * What the network says now about a sent transaction (for reconciliation).
+ * `NOT_FOUND` carries the node's latest ledger close time (seconds): a
+ * transaction is known not to have landed only once that time is past its
+ * upper time bound.
+ */
 export async function lookupSent(
   server: SponsorServer,
   hash: string
 ): Promise<
   | { status: 'SUCCESS' | 'FAILED'; fee: string; ledger: number }
-  | { status: 'NOT_FOUND' }
+  | { status: 'NOT_FOUND'; latestLedgerCloseTime: number }
 > {
   const got = await server.getTransaction(hash)
   if (got.status === 'SUCCESS' || got.status === 'FAILED') {
     return { status: got.status, fee: feeCharged(got), ledger: got.ledger }
   }
-  return { status: 'NOT_FOUND' }
+  return {
+    status: 'NOT_FOUND',
+    latestLedgerCloseTime: Number(
+      (got as { latestLedgerCloseTime?: unknown }).latestLedgerCloseTime ?? 0
+    ),
+  }
+}
+
+/** True once the node's clock is past a transaction's upper time bound. */
+export function knownNotLanded(
+  latestLedgerCloseTime: number,
+  maxTime: number
+): boolean {
+  return maxTime > 0 && latestLedgerCloseTime > maxTime
 }
 
 export type PreparedEntries = {

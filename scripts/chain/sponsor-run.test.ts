@@ -1,8 +1,9 @@
 /**
  * The fee sponsor's network steps (convex/lib/sponsor/run.ts) against a fake
- * RPC server. Each test names the mutant it kills (the independent read of
- * the sponsor listed them), plus the fixes for D2 (a sent transaction is
- * never lost) and D3 (the fee cap holds on the signed envelope).
+ * RPC server. Each test names the mutant it kills. Further tests show that a
+ * transaction's record exists before it is sent, that only the node's refusal
+ * means "not sent", that the fee cap holds on the signed envelope, and when a
+ * missing transaction is known not to have landed.
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
@@ -24,6 +25,8 @@ import {
   type SponsorConfig,
 } from '../../convex/lib/sponsor/policy'
 import {
+  knownNotLanded,
+  lookupSent,
   runDeploy,
   runPrepare,
   runSubmit,
@@ -45,8 +48,9 @@ const cfg = (over: Partial<SponsorConfig> = {}): SponsorConfig => ({
   tokenContractId: TOKEN,
   dailyBudgetStroops: BigInt(20_000_000_000),
   minBalanceStroops: FLOOR,
-  accountWasmHash: null,
+  accountWasmHash: WASM,
   accountDeployer: null,
+  publicKey: Keypair.random().publicKey(),
   ...over,
 })
 
@@ -116,6 +120,8 @@ type FakeOptions = {
   /** The resource fee in the transaction data, when it differs from minResourceFee. */
   dataResourceFee?: number
   getTransaction?: 'success' | 'failed' | 'throws' | 'not_found'
+  /** What the node answers to the send. */
+  send?: 'pending' | 'duplicate' | 'error' | 'try_again' | 'throws'
   wasmHash?: string | null
 }
 
@@ -166,12 +172,23 @@ function fake(o: FakeOptions = {}) {
     }),
     sendTransaction: async (tx: { hash(): Uint8Array; fee: string }) => {
       sent.push(tx.fee)
-      return { status: 'PENDING', hash: Buffer.from(tx.hash()).toString('hex') }
+      const hash = Buffer.from(tx.hash()).toString('hex')
+      const mode = o.send ?? 'pending'
+      if (mode === 'throws')
+        throw new Error('socket hang up after the node took it')
+      const status = {
+        pending: 'PENDING',
+        duplicate: 'DUPLICATE',
+        error: 'ERROR',
+        try_again: 'TRY_AGAIN_LATER',
+      }[mode]
+      return { status, hash }
     },
     getTransaction: async () => {
       const mode = o.getTransaction ?? 'success'
       if (mode === 'throws') throw new Error('rpc down')
-      if (mode === 'not_found') return { status: 'NOT_FOUND' }
+      if (mode === 'not_found')
+        return { status: 'NOT_FOUND', latestLedgerCloseTime: '1700000000' }
       return {
         status: mode === 'success' ? 'SUCCESS' : 'FAILED',
         ledger: 1001,
@@ -246,18 +263,25 @@ describe('runPrepare', () => {
 
   it('refuses a reader account that is not the allowlisted code, or not deployed', async () => {
     const other = fake({ wasmHash: 'ff'.repeat(32) })
-    other.d.cfg = cfg({ accountWasmHash: WASM })
+    other.d.cfg = cfg()
     expect(await code(runPrepare(other.d, spec, Date.now()))).toBe(
       'SPONSOR_READER_NOT_ALLOWED'
     )
     const none = fake({ wasmHash: null })
-    none.d.cfg = cfg({ accountWasmHash: WASM })
+    none.d.cfg = cfg()
     expect(await code(runPrepare(none.d, spec, Date.now()))).toBe(
       'SPONSOR_READER_NOT_ALLOWED'
     )
     const ok = fake()
-    ok.d.cfg = cfg({ accountWasmHash: WASM })
     expect(await code(runPrepare(ok.d, spec, Date.now()))).toBe('ALLOWED')
+  })
+
+  it('refuses every reader when no account code is allowlisted (fails closed)', async () => {
+    const { d } = fake()
+    d.cfg = cfg({ accountWasmHash: null })
+    expect(await code(runPrepare(d, spec, Date.now()))).toBe(
+      'SPONSOR_CONFIG_INVALID'
+    )
   })
 })
 
@@ -270,17 +294,17 @@ describe('runSubmit', () => {
 
   it('sends a correctly signed call and reports the fee', async () => {
     const { d, p } = await prepared()
-    const onSent = vi.fn()
+    const onSigned = vi.fn()
     const r = await runSubmit(
       d,
       spec,
       p.entries,
       signedOf(p.entries),
       p.maxExpiration,
-      { onSent }
+      { onSigned }
     )
     expect(r.fee).toBe('123456')
-    expect(onSent).toHaveBeenCalledOnce()
+    expect(onSigned).toHaveBeenCalledOnce()
   })
 
   it('mutant "runSubmit compares the signed entries with themselves": refuses signatures for another call', async () => {
@@ -309,7 +333,7 @@ describe('runSubmit', () => {
     expect(sent).toEqual([])
   })
 
-  it('D3: refuses an envelope whose transaction data asks more than the cap, before signing', async () => {
+  it('refuses an envelope whose transaction data asks more than the cap, before signing', async () => {
     const { d, p, sent } = await prepared({
       minResourceFee: 1000,
       dataResourceFee: 900_000_000,
@@ -331,37 +355,37 @@ describe('runSubmit', () => {
     ).toBe('SPONSOR_LOW_BALANCE')
   })
 
-  it('D2: a read error after the send keeps the hash and ends pending, never failed', async () => {
+  it('a read error after the send keeps the hash and ends pending, never failed', async () => {
     {
       const { d, p } = await prepared({ getTransaction: 'throws' })
-      const onSent = vi.fn()
+      const onSigned = vi.fn()
       const onFee = vi.fn()
       expect(
         await code(
           runSubmit(d, spec, p.entries, signedOf(p.entries), p.maxExpiration, {
-            onSent,
+            onSigned,
             onFee,
           })
         )
       ).toBe('SPONSOR_PENDING')
-      expect(onSent).toHaveBeenCalledOnce()
-      expect(onSent.mock.calls[0]![0]).toMatch(/^[0-9a-f]{64}$/)
+      expect(onSigned).toHaveBeenCalledOnce()
+      expect(onSigned.mock.calls[0]![0]).toMatch(/^[0-9a-f]{64}$/)
       expect(onFee).not.toHaveBeenCalled()
     }
   })
 
-  it('D2: no answer before the deadline is pending, with the hash stored', async () => {
+  it('no answer before the deadline is pending, with the hash stored', async () => {
     {
       const { d, p } = await prepared({ getTransaction: 'not_found' })
-      const onSent = vi.fn()
+      const onSigned = vi.fn()
       expect(
         await code(
           runSubmit(d, spec, p.entries, signedOf(p.entries), p.maxExpiration, {
-            onSent,
+            onSigned,
           })
         )
       ).toBe('SPONSOR_PENDING')
-      expect(onSent).toHaveBeenCalledOnce()
+      expect(onSigned).toHaveBeenCalledOnce()
     }
   })
 
@@ -376,6 +400,85 @@ describe('runSubmit', () => {
       )
     ).toBe('SPONSOR_TX_FAILED')
     expect(onFee).toHaveBeenCalledWith('123456')
+  })
+
+  it('records the hash, fee and time bound before the envelope reaches the node', async () => {
+    const { d, p, sent } = await prepared()
+    const order: string[] = []
+    const onSigned = vi.fn((hash: string, fee: string, maxTime: number) => {
+      order.push(`signed:${sent.length}`)
+      expect(hash).toMatch(/^[0-9a-f]{64}$/)
+      expect(Number(fee)).toBeGreaterThan(0)
+      expect(maxTime).toBeGreaterThan(Math.floor(Date.now() / 1000))
+    })
+    await runSubmit(d, spec, p.entries, signedOf(p.entries), p.maxExpiration, {
+      onSigned,
+    })
+    // When the record was written, nothing had been handed to the node.
+    expect(order).toEqual(['signed:0'])
+    expect(sent).toHaveLength(1)
+  })
+
+  it('sends nothing when the record cannot be written', async () => {
+    const { d, p, sent } = await prepared()
+    const onSigned = vi.fn(async () => {
+      throw new Error('database unavailable')
+    })
+    await expect(
+      runSubmit(d, spec, p.entries, signedOf(p.entries), p.maxExpiration, {
+        onSigned,
+      })
+    ).rejects.toThrow('database unavailable')
+    expect(sent).toEqual([])
+  })
+
+  it('a send that throws after the node may have taken it is pending, not refused', async () => {
+    const { d, p, sent } = await prepared({ send: 'throws' })
+    const onSigned = vi.fn()
+    expect(
+      await code(
+        runSubmit(d, spec, p.entries, signedOf(p.entries), p.maxExpiration, {
+          onSigned,
+        })
+      )
+    ).toBe('SPONSOR_PENDING')
+    expect(onSigned).toHaveBeenCalledOnce()
+    expect(sent).toHaveLength(1)
+  })
+
+  it('only ERROR and TRY_AGAIN_LATER mean the node did not take it; DUPLICATE goes on', async () => {
+    for (const send of ['error', 'try_again'] as const) {
+      const { d, p } = await prepared({ send })
+      expect(
+        await code(
+          runSubmit(d, spec, p.entries, signedOf(p.entries), p.maxExpiration)
+        )
+      ).toBe('SPONSOR_SEND_REFUSED')
+    }
+    const { d, p } = await prepared({ send: 'duplicate' })
+    expect(
+      await code(
+        runSubmit(d, spec, p.entries, signedOf(p.entries), p.maxExpiration)
+      )
+    ).toBe('ALLOWED')
+  })
+})
+
+describe('when a missing transaction is known not to have landed', () => {
+  it('lookupSent reports the node clock with "not found"', async () => {
+    const { d } = fake({ getTransaction: 'not_found' })
+    expect(await lookupSent(d.server, 'ab'.repeat(32))).toEqual({
+      status: 'NOT_FOUND',
+      latestLedgerCloseTime: 1_700_000_000,
+    })
+  })
+
+  it('only once the node clock is past the time bound', () => {
+    expect(knownNotLanded(1000, 1000)).toBe(false)
+    expect(knownNotLanded(999, 1000)).toBe(false)
+    expect(knownNotLanded(1001, 1000)).toBe(true)
+    // No recorded bound: never by the clock.
+    expect(knownNotLanded(1_700_000_000, 0)).toBe(false)
   })
 })
 

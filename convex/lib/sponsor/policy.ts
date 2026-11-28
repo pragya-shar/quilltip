@@ -11,7 +11,14 @@
  * 2. the birth of a passkey account through the allowlisted deployer and
  *    account WASM (`checkDeployPayload`).
  */
-import { Address, StrKey, hash, nativeToScVal, xdr } from '@stellar/stellar-sdk'
+import {
+  Address,
+  BASE_FEE,
+  StrKey,
+  hash,
+  nativeToScVal,
+  xdr,
+} from '@stellar/stellar-sdk'
 import { Buffer } from 'buffer'
 import { assertBackendTestnet } from '../networkGuard'
 
@@ -44,6 +51,19 @@ export const RESOURCE_FEE_CAP: Record<SponsoredCall, bigint> = {
 }
 export const DEPLOY_RESOURCE_FEE_CAP = BigInt(400_000)
 
+/**
+ * What a request commits against the day's budget until its result is known:
+ * the most its envelope may cost (the resource cap plus the inclusion fee),
+ * never the smaller simulated fee.
+ */
+export function commitStroops(call: SponsoredCall | 'deploy'): bigint {
+  const cap =
+    call === 'deploy' ? DEPLOY_RESOURCE_FEE_CAP : RESOURCE_FEE_CAP[call]
+  return cap + BigInt(BASE_FEE)
+}
+
+/** A readiness result counts for this long; older reads as not checked. */
+export const READINESS_TTL_MS = 15 * 60_000
 /** A prepared request is refused after this. */
 export const REQUEST_TTL_MS = 5 * 60_000
 /** Signatures must expire no later than the prepared ledger plus this. */
@@ -81,6 +101,8 @@ export type SponsorConfig = {
   minBalanceStroops: bigint
   accountWasmHash: string | null
   accountDeployer: string | null
+  /** The sponsor's public address: the secret must derive exactly this. */
+  publicKey: string
 }
 
 function stroopsSetting(env: EnvLike, name: string, fallback: bigint): bigint {
@@ -113,15 +135,24 @@ export function sponsorConfig(env: EnvLike = process.env): SponsorConfig {
       'TAB_CONTRACT_ID and TOKEN_CONTRACT_ID must be contract addresses.'
     )
   }
-  const wasm = env.SPONSOR_ACCOUNT_WASM_HASH?.trim().toLowerCase() || null
-  if (wasm && !/^[0-9a-f]{64}$/.test(wasm)) {
+  // Required: without the allowlist the sponsor would pay for readers whose
+  // account code is unknown, and deploys could not be checked.
+  const wasm = env.SPONSOR_ACCOUNT_WASM_HASH?.trim().toLowerCase() ?? ''
+  if (!/^[0-9a-f]{64}$/.test(wasm)) {
     refuse('SPONSOR_CONFIG_INVALID', 'SPONSOR_ACCOUNT_WASM_HASH is not a hash.')
   }
-  const deployer = env.SPONSOR_ACCOUNT_DEPLOYER?.trim() || null
-  if (deployer && !StrKey.isValidEd25519PublicKey(deployer)) {
+  const deployer = env.SPONSOR_ACCOUNT_DEPLOYER?.trim() ?? ''
+  if (!StrKey.isValidEd25519PublicKey(deployer)) {
     refuse(
       'SPONSOR_CONFIG_INVALID',
       'SPONSOR_ACCOUNT_DEPLOYER is not an account address.'
+    )
+  }
+  const publicKey = env.SPONSOR_PUBLIC_KEY?.trim() ?? ''
+  if (!StrKey.isValidEd25519PublicKey(publicKey)) {
+    refuse(
+      'SPONSOR_CONFIG_INVALID',
+      'SPONSOR_PUBLIC_KEY is not an account address.'
     )
   }
   return {
@@ -139,6 +170,7 @@ export function sponsorConfig(env: EnvLike = process.env): SponsorConfig {
     ),
     accountWasmHash: wasm,
     accountDeployer: deployer,
+    publicKey,
   }
 }
 

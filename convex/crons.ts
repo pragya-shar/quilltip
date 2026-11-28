@@ -128,13 +128,22 @@ crons.interval(
   {}
 )
 
-// Fee sponsor: close requests whose transaction was sent but whose result was
-// not seen (convex/sponsor.ts reconcile). Returns at once while the sponsor
-// is off or nothing is pending.
+// Fee sponsor: close requests from the network's answer (convex/sponsor.ts
+// reconcile). It runs while the sponsor is off too, so no request stays open.
 crons.interval(
   'reconcile sponsored calls',
   { minutes: 2 },
   internal.sponsor.reconcile,
+  {}
+)
+
+// Fee sponsor readiness (convex/sponsor.ts checkReadiness): the secret, the
+// floor, the account code and a signed simulation, recorded with a time.
+// Entries also run it when the record is stale or the settings changed.
+crons.interval(
+  'check sponsor readiness',
+  { minutes: 10 },
+  internal.sponsor.checkReadiness,
   {}
 )
 

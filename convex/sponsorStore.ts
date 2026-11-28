@@ -1,23 +1,28 @@
 /**
  * The fee sponsor's records (`convex/sponsor.ts` calls these): who asked,
- * what was prepared, and the limits. Internal only: no client reaches them.
+ * what was prepared, and the limits. Internal, except one public query:
+ * `passkeyTipAvailable`, a single boolean for the newcomer sheet.
  *
  * Every sponsored balance call is bound to the user who asked and to that
- * user's own verified passkey account. It moves through
- * reserved → prepared → submitting → pending (sent, hash stored) → sent, or
- * to failed, so a request is submitted at most once and a transaction that
- * reached the network is never recorded as failed without its result.
+ * user's own verified passkey account; an account deploy is recorded the
+ * same way with no user. A request moves through
+ * reserved → prepared → submitting → pending (signed, hash stored BEFORE the
+ * send) → sent, or to failed. So a request is submitted at most once, and a
+ * transaction that may have reached the network is never recorded as failed
+ * without the network's answer.
  *
- * The daily fee budget counts what was paid AND what is committed: the
- * prepared fee of every request that is prepared (and not expired),
- * submitting or pending. A request is refused when its own prepared fee would
- * pass the budget, so concurrent requests cannot overshoot it.
+ * The daily fee budget counts what was paid AND what is committed. An open
+ * request (prepared and not expired, submitting or pending) commits the most
+ * its envelope may cost: its cap plus the inclusion fee, then the signed
+ * envelope's fee. A request is refused when that commitment would pass the
+ * budget, so concurrent requests cannot overshoot it.
  */
 import { ConvexError, v } from 'convex/values'
 import { StrKey } from '@stellar/stellar-sdk'
 import {
   internalMutation,
   internalQuery,
+  query,
   type MutationCtx,
 } from './_generated/server'
 import type { Doc, Id } from './_generated/dataModel'
@@ -26,6 +31,7 @@ import { verifiedStellarAddress } from './lib/walletVerification'
 import {
   PER_USER_PER_DAY,
   PER_USER_PER_HOUR,
+  READINESS_TTL_MS,
   REQUEST_TTL_MS,
 } from './lib/sponsor/policy'
 
@@ -57,7 +63,7 @@ async function addDaySpent(ctx: MutationCtx, day: string, fee: bigint) {
   else await ctx.db.insert('sponsorDays', { day, spentStroops: next })
 }
 
-/** Fees committed today but not yet paid: open requests' prepared fees. */
+/** Fees committed today but not yet paid: what open requests may still cost. */
 async function dayCommitted(ctx: MutationCtx, day: string, now: number) {
   let sum = BigInt(0)
   for (const status of ['prepared', 'submitting', 'pending'] as const) {
@@ -71,6 +77,23 @@ async function dayCommitted(ctx: MutationCtx, day: string, now: number) {
     }
   }
   return sum
+}
+
+async function checkCommit(
+  ctx: MutationCtx,
+  day: string,
+  commit: bigint,
+  budget: bigint,
+  now: number
+) {
+  const { spent } = await daySpent(ctx, day)
+  const committed = await dayCommitted(ctx, day, now)
+  if (spent + committed + commit > budget) {
+    sponsorError(
+      'SPONSOR_BUDGET_REACHED',
+      "Today's sponsored fees are used up."
+    )
+  }
 }
 
 function randomRequestId(): string {
@@ -177,8 +200,9 @@ async function byRequest(
 }
 
 /**
- * Stores the prepared entries and commits the prepared fee against the day.
- * Refused when the fee would pass the budget with everything already paid or
+ * Stores the prepared entries and commits the most the call may cost
+ * (`commitStroops`: its cap plus the inclusion fee) against the day.
+ * Refused when that would pass the budget with everything already paid or
  * committed today.
  */
 export const recordPrepared = internalMutation({
@@ -186,7 +210,7 @@ export const recordPrepared = internalMutation({
     requestId: v.string(),
     entries: v.array(v.string()),
     maxExpiration: v.number(),
-    feeStroops: v.string(),
+    commitStroops: v.string(),
     dailyBudgetStroops: v.string(),
     now: v.number(),
   },
@@ -198,24 +222,61 @@ export const recordPrepared = internalMutation({
         'The request is not awaiting preparation.'
       )
     }
-    const { spent } = await daySpent(ctx, row.day)
-    const committed = await dayCommitted(ctx, row.day, args.now)
-    if (
-      spent + committed + BigInt(args.feeStroops) >
-      BigInt(args.dailyBudgetStroops)
-    ) {
-      sponsorError(
-        'SPONSOR_BUDGET_REACHED',
-        "Today's sponsored fees are used up."
-      )
-    }
+    await checkCommit(
+      ctx,
+      row.day,
+      BigInt(args.commitStroops),
+      BigInt(args.dailyBudgetStroops),
+      args.now
+    )
     await ctx.db.patch(row._id, {
       status: 'prepared',
       entries: args.entries,
       maxExpiration: args.maxExpiration,
-      feeStroops: args.feeStroops,
+      feeStroops: args.commitStroops,
       updatedAt: args.now,
     })
+  },
+})
+
+/**
+ * Records an account deploy before anything is signed: the same budget
+ * check and commitment as a balance call, in one mutation.
+ */
+export const reserveDeploy = internalMutation({
+  args: {
+    reader: v.string(),
+    commitStroops: v.string(),
+    dailyBudgetStroops: v.string(),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const day = utcDay(args.now)
+    await checkCommit(
+      ctx,
+      day,
+      BigInt(args.commitStroops),
+      BigInt(args.dailyBudgetStroops),
+      args.now
+    )
+    const requestId = randomRequestId()
+    await ctx.db.insert('sponsoredCalls', {
+      requestId,
+      reader: args.reader,
+      call: 'deploy',
+      amount: '0',
+      key: null,
+      keyId: null,
+      status: 'submitting',
+      entries: [],
+      maxExpiration: 0,
+      feeStroops: args.commitStroops,
+      day,
+      expiresAt: args.now + REQUEST_TTL_MS,
+      createdAt: args.now,
+      updatedAt: args.now,
+    })
+    return { requestId }
   },
 })
 
@@ -227,7 +288,7 @@ export const claim = internalMutation({
   args: { requestId: v.string(), userId: v.id('users'), now: v.number() },
   handler: async (ctx, args) => {
     const row = await byRequest(ctx, args.requestId)
-    if (row.userId !== (args.userId as Id<'users'>)) {
+    if (!row.userId || row.userId !== (args.userId as Id<'users'>)) {
       sponsorError('SPONSOR_UNKNOWN_REQUEST', 'Unknown request.')
     }
     if (row.status !== 'prepared') {
@@ -244,28 +305,34 @@ export const claim = internalMutation({
 })
 
 /**
- * The network accepted the transaction: store its hash before any polling.
- * The envelope's fee (at most the cap) stays committed until the result.
+ * The envelope is signed and about to be sent: store its hash, its fee and
+ * its time bound first. Throws unless the request is `submitting`, so a
+ * transaction is never sent without this record.
  */
-export const markSent = internalMutation({
+export const markSigned = internalMutation({
   args: {
     requestId: v.string(),
     txHash: v.string(),
     envelopeFee: v.string(),
+    maxTime: v.number(),
     now: v.number(),
   },
   handler: async (ctx, args) => {
     const row = await byRequest(ctx, args.requestId)
-    if (row.status !== 'submitting') return
+    if (row.status !== 'submitting') {
+      sponsorError('SPONSOR_BAD_STATE', 'The request is not being submitted.')
+    }
     await ctx.db.patch(row._id, {
       status: 'pending',
       txHash: args.txHash,
       feeStroops: args.envelopeFee,
+      maxTime: args.maxTime,
       updatedAt: args.now,
     })
   },
 })
 
+/** The result is known and succeeded: book the fee charged, once. */
 export const finish = internalMutation({
   args: {
     requestId: v.string(),
@@ -287,9 +354,10 @@ export const finish = internalMutation({
 })
 
 /**
- * Closes a request as failed. A request whose transaction was sent
- * (`pending`) is closed only with `force` (the reconciler, once the network
- * has answered or the time bound has passed), never by the submit path.
+ * Closes a request as failed and releases its commitment. A request whose
+ * transaction may have been sent (`pending`) is closed only with `force`:
+ * when the node refused it, when the network answered FAILED (with the fee
+ * charged), or when the node's clock is past its time bound with no trace.
  */
 export const fail = internalMutation({
   args: {
@@ -306,7 +374,7 @@ export const fail = internalMutation({
     await ctx.db.patch(row._id, {
       status: 'failed',
       error: args.error.slice(0, 120),
-      ...(args.feeStroops ? { feeStroops: args.feeStroops } : {}),
+      feeStroops: args.feeStroops ?? '0',
       updatedAt: args.now,
     })
     // A transaction that reached the ledger and failed still cost a fee.
@@ -316,55 +384,102 @@ export const fail = internalMutation({
   },
 })
 
-/** Pending requests older than `olderThanMs`, for the reconciler. */
-export const stalePending = internalQuery({
+/**
+ * What the reconciler closes, oldest first and from any day: every pending
+ * request older than `olderThanMs`, and every request left in `submitting`
+ * past the request lifetime (nothing was signed for those, so nothing can
+ * land).
+ */
+export const openRows = internalQuery({
   args: { now: v.number(), olderThanMs: v.number() },
   handler: async (ctx, args) => {
-    const days = [utcDay(args.now), utcDay(args.now - DAY_MS)]
-    const out: { requestId: string; txHash: string; updatedAt: number }[] = []
-    for (const day of days) {
-      const rows = await ctx.db
-        .query('sponsoredCalls')
-        .withIndex('by_day_status', (q) =>
-          q.eq('day', day).eq('status', 'pending')
-        )
-        .take(50)
-      for (const r of rows) {
-        if (r.txHash && args.now - r.updatedAt >= args.olderThanMs) {
-          out.push({
-            requestId: r.requestId,
-            txHash: r.txHash,
-            updatedAt: r.updatedAt,
-          })
-        }
-      }
-    }
-    return out
-  },
-})
-
-/** Counts a fee paid outside a request (an account deploy) against the day. */
-export const recordFee = internalMutation({
-  args: { feeStroops: v.string(), now: v.number() },
-  handler: async (ctx, args) => {
-    await addDaySpent(ctx, utcDay(args.now), BigInt(args.feeStroops))
-  },
-})
-
-/** Refuses when today's budget is used up (the deploy path checks this first). */
-export const checkBudget = internalMutation({
-  args: { dailyBudgetStroops: v.string(), now: v.number() },
-  handler: async (ctx, args) => {
-    const day = utcDay(args.now)
-    const { spent } = await daySpent(ctx, day)
-    if (
-      spent + (await dayCommitted(ctx, day, args.now)) >=
-      BigInt(args.dailyBudgetStroops)
-    ) {
-      sponsorError(
-        'SPONSOR_BUDGET_REACHED',
-        "Today's sponsored fees are used up."
+    const pending = await ctx.db
+      .query('sponsoredCalls')
+      .withIndex('by_status_updated', (q) =>
+        q.eq('status', 'pending').lt('updatedAt', args.now - args.olderThanMs)
       )
+      .take(50)
+    const abandoned = await ctx.db
+      .query('sponsoredCalls')
+      .withIndex('by_status_updated', (q) =>
+        q.eq('status', 'submitting').lt('updatedAt', args.now - REQUEST_TTL_MS)
+      )
+      .take(50)
+    return {
+      pending: pending.map((r) => ({
+        requestId: r.requestId,
+        txHash: r.txHash ?? null,
+        maxTime: r.maxTime ?? 0,
+      })),
+      abandoned: abandoned.map((r) => r.requestId),
     }
+  },
+})
+
+/** When the sponsor last had a call confirmed on chain, or null. */
+export const lastGoodSubmit = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const row = await ctx.db
+      .query('sponsoredCalls')
+      .withIndex('by_status_updated', (q) => q.eq('status', 'sent'))
+      .order('desc')
+      .first()
+    return row ? row.updatedAt : null
+  },
+})
+
+// ----- Readiness -----
+
+export const readiness = internalQuery({
+  args: { service: v.string() },
+  handler: async (ctx, args) =>
+    ctx.db
+      .query('signerReadiness')
+      .withIndex('by_service', (q) => q.eq('service', args.service))
+      .unique(),
+})
+
+export const recordReadiness = internalMutation({
+  args: {
+    service: v.string(),
+    ready: v.boolean(),
+    failed: v.array(v.string()),
+    warnings: v.array(v.string()),
+    fingerprint: v.string(),
+    now: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('signerReadiness')
+      .withIndex('by_service', (q) => q.eq('service', args.service))
+      .unique()
+    const doc = {
+      service: args.service,
+      ready: args.ready,
+      failed: args.failed,
+      warnings: args.warnings,
+      fingerprint: args.fingerprint,
+      checkedAt: args.now,
+    }
+    if (row) await ctx.db.patch(row._id, doc)
+    else await ctx.db.insert('signerReadiness', doc)
+  },
+})
+
+/**
+ * The one public answer: can a first tip with a passkey go through now?
+ * True only when the sponsor is switched on and its latest readiness check
+ * passed within `READINESS_TTL_MS`. Nothing about why leaves the server.
+ */
+export const passkeyTipAvailable = query({
+  args: {},
+  handler: async (ctx): Promise<boolean> => {
+    if (process.env.SPONSOR_ENABLED?.trim() !== 'true') return false
+    const row = await ctx.db
+      .query('signerReadiness')
+      .withIndex('by_service', (q) => q.eq('service', 'sponsor'))
+      .unique()
+    return !!row && row.ready && Date.now() - row.checkedAt < READINESS_TTL_MS
   },
 })

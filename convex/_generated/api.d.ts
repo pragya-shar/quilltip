@@ -89,6 +89,7 @@ import type * as lib_nftMetadata from "../lib/nftMetadata.js";
 import type * as lib_passwordResetEmail from "../lib/passwordResetEmail.js";
 import type * as lib_rateLimit from "../lib/rateLimit.js";
 import type * as lib_readingRoomIndex from "../lib/readingRoomIndex.js";
+import type * as lib_sponsor_clientError from "../lib/sponsor/clientError.js";
 import type * as lib_sponsor_policy from "../lib/sponsor/policy.js";
 import type * as lib_sponsor_run from "../lib/sponsor/run.js";
 import type * as lib_stellarNetwork from "../lib/stellarNetwork.js";
@@ -231,6 +232,7 @@ declare const fullApi: ApiFromModules<{
   "lib/passwordResetEmail": typeof lib_passwordResetEmail;
   "lib/rateLimit": typeof lib_rateLimit;
   "lib/readingRoomIndex": typeof lib_readingRoomIndex;
+  "lib/sponsor/clientError": typeof lib_sponsor_clientError;
   "lib/sponsor/policy": typeof lib_sponsor_policy;
   "lib/sponsor/run": typeof lib_sponsor_run;
   "lib/stellarNetwork": typeof lib_stellarNetwork;

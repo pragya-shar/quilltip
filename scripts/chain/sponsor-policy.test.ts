@@ -25,6 +25,7 @@ import {
   checkSignedMatchesPrepared,
   checkSpec,
   contractFn,
+  commitStroops,
   sponsorConfig,
   sponsorSecret,
   type BalanceCallSpec,
@@ -503,7 +504,31 @@ describe('configuration (T14, T15)', () => {
     SPONSOR_ENABLED: 'true',
     TAB_CONTRACT_ID: TAB,
     TOKEN_CONTRACT_ID: TOKEN,
+    SPONSOR_ACCOUNT_WASM_HASH: 'c5'.repeat(32),
+    SPONSOR_ACCOUNT_DEPLOYER: Keypair.random().publicKey(),
+    SPONSOR_PUBLIC_KEY: Keypair.random().publicKey(),
   }
+
+  it('refuses to turn on without the account code hash, the deployer or the public address', () => {
+    for (const name of [
+      'SPONSOR_ACCOUNT_WASM_HASH',
+      'SPONSOR_ACCOUNT_DEPLOYER',
+      'SPONSOR_PUBLIC_KEY',
+    ]) {
+      expect(code(() => sponsorConfig({ ...env, [name]: undefined }))).toBe(
+        'SPONSOR_CONFIG_INVALID'
+      )
+      expect(code(() => sponsorConfig({ ...env, [name]: 'nope' }))).toBe(
+        'SPONSOR_CONFIG_INVALID'
+      )
+    }
+  })
+
+  it('commits the cap plus the inclusion fee, never the simulated fee', () => {
+    expect(commitStroops('open_session')).toBe(BigInt(2_000_100))
+    expect(commitStroops('revoke_key')).toBe(BigInt(600_100))
+    expect(commitStroops('deploy')).toBe(BigInt(400_100))
+  })
 
   it('reads the guarded settings with defaults', () => {
     const c = sponsorConfig(env)
