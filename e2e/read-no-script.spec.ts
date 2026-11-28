@@ -44,7 +44,9 @@ test('the article reads with no script, with plain links', async ({ page }) => {
   await expect(
     page.getByRole('link', { name: 'Fixture Writer' })
   ).toHaveAttribute('href', `/${FIXTURE_WRITER}`)
-  await expect(page.getByText(OPENING)).toBeVisible()
+  // The article's first paragraph, by its anchor: Read next quotes the
+  // other fixture articles' openings, which share this sentence.
+  await expect(page.locator('#read-body #s-0-0')).toContainText(OPENING)
   await page.getByText(LAST).scrollIntoViewIfNeeded()
   await expect(page.getByText(LAST)).toBeVisible()
   await expect(
