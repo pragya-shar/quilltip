@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import type { WalletSettingsProps } from '@/components/stellar/WalletSettingsShared'
 import { OwnerWalletSettings } from '@/components/stellar/OwnerWalletSettings'
 
@@ -17,6 +18,7 @@ export function WalletSettings(props: WalletSettingsProps) {
         {props.profileUsername && (
           <Link
             href={`/${encodeURIComponent(props.profileUsername)}?tab=articles`}
+            prefetch={ARTICLE_LINK_PREFETCH}
           >
             Browse articles
           </Link>

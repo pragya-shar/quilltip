@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import Image from 'next/image'
 import { getTitleMonogram } from '@/lib/articles/articleListingMeta'
 import { cn } from '@/lib/utils'
@@ -26,6 +27,7 @@ export function ArticleListingThumbnail({
     return (
       <Link
         href={href}
+        prefetch={ARTICLE_LINK_PREFETCH}
         scroll={false}
         aria-label={coverImage ? undefined : title}
         className={cn(
@@ -56,6 +58,7 @@ export function ArticleListingThumbnail({
   return (
     <Link
       href={href}
+      prefetch={ARTICLE_LINK_PREFETCH}
       scroll={false}
       aria-label={coverImage ? undefined : title}
       className="focus-ring block rounded-t-[var(--card-radius)]"

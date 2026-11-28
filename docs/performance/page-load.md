@@ -804,17 +804,23 @@ first reading link (`/`, `/articles`, a writer) or the first paragraph of prose
 
 ## Link prefetches and backend reads (#630)
 
-Article and writer links in the v2 components do not prefetch
-(`prefetch={ARTICLE_LINK_PREFETCH}`, `lib/articles/linkPrefetch.ts`): cards,
-feed rows, read-next, continue reading, the article page's author links, the
-author byline, the writer page's own links, the library, the landing proof
-card, the settings page's profile link and the published-article link. The
-account menus' link to the reader's own writer page is not covered: it renders
-only while a menu is open. Their
+Links to article and writer pages do not prefetch
+(`prefetch={ARTICLE_LINK_PREFETCH}`, `lib/articles/linkPrefetch.ts`). Their
 pages are dynamic and have no loading boundary, so a prefetch fetched almost
 nothing a click could reuse (#597), while each one ran the proxy's route check
 and rendered the page.
 
+- A source guard keeps this true: `scripts/perf/link-prefetch-guard.test.ts`
+  (in `test:unit`) scans `app/` and `components/` for `Link` elements whose
+  `href` is an article or writer path and fails on any without the flag,
+  naming the file and line. It reads literal paths, templates that start with
+  a handle (`/${…}`), `articleHref(…)` and similar helpers, and names defined
+  in the same file as such a template. A text scan cannot follow a prop, so
+  files that pass a public path through a prop (the card thumbnail,
+  pagination, a writer page's tabs and NFT pages) are listed, and every
+  non-literal `href` there needs the flag. Not covered, by name: the account
+  menus' link to the reader's own writer page, which renders only while a
+  menu is open.
 - A view of `/articles` with every card in view and the pointer over each link
   makes no backend read for those links. A click makes one route check and at
   most one article read while the server's copy of the article is under 60 s
@@ -823,6 +829,8 @@ and rendered the page.
   backend's read counts, from an empty server cache: for each engine it empties
   `.next/cache/fetch-cache` and starts a fresh app, so a rerun counts as CI
   does.
+  Other pages with such links (a writer page and its NFT tab, the dashboard,
+  the library) are covered by the source guard, not by this browser check.
 - A request that meets a copy older than 60 s makes two article reads: the
   direct read that keeps every copy under 60 s old, and the cache's own
   background refresh of the old entry. The next request uses the refreshed

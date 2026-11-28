@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { useCreatorRecentWork } from '@/hooks/convex'
 import { RecentWorkListSkeleton } from '@/components/dashboard/RecentWorkListSkeleton'
 import { RecentWorkRow } from '@/components/dashboard/RecentWorkRow'
@@ -40,6 +41,8 @@ export function RecentWorkList({ username, hasDrafts }: RecentWorkListProps) {
         {recentWork.length > 0 && (
           <Link
             href={footerHref}
+            // The writer page is public; the drafts list is not.
+            prefetch={hasDrafts ? null : ARTICLE_LINK_PREFETCH}
             className="shrink-0 text-sm font-medium text-primary hover:text-foreground"
           >
             {footerLabel}
