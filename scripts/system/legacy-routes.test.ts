@@ -3,12 +3,14 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  SHELL_SEGMENTS,
+  linkPrefetch,
   prefetchFor,
   servedByLegacy,
+  shellSegments,
   type LegacyRouteTree,
 } from '@/lib/routing/legacyRoutes'
 import { legacyRouteTree } from '@/lib/routing/legacyRouteTree'
+import { RESERVED_SEGMENTS } from '@/lib/routing/segments'
 
 const root = path.resolve(__dirname, '../..')
 
@@ -89,25 +91,94 @@ describe('links from the shell to legacy pages never prefetch', () => {
         return /^[[_@]/.test(name) ? [] : [name]
       })
     const shell = walk(path.join(root, 'app/(app)'))
-    expect(shell.filter((segment) => !SHELL_SEGMENTS.has(segment))).toEqual([])
+    const tree = legacyRouteTree(path.join(root, 'app/(legacy)'))
+    const own = shellSegments(tree)
+    expect(shell.filter((segment) => !own.has(segment))).toEqual([])
+    // Never read as a writer's page or as legacy, in any case.
+    for (const segment of shell) {
+      expect(servedByLegacy(`/${segment}`, tree), segment).toBe(false)
+      expect(servedByLegacy(`/${segment.toUpperCase()}`, tree), segment).toBe(
+        false
+      )
+    }
   })
 
-  it('has every next/link in system/ and shell/ decide its prefetch', () => {
-    const files = execFileSync('git', ['ls-files', 'system', 'shell'], {
-      cwd: root,
-    })
+  it('derives the shell segments from the registry', () => {
+    const tree: LegacyRouteTree = {
+      home: true,
+      segments: ['write', 'Settings'],
+      writer: true,
+    }
+    const own = shellSegments(tree)
+    for (const segment of RESERVED_SEGMENTS) {
+      const legacy = segment === 'write' || segment === 'settings'
+      expect(own.has(segment), segment).toBe(!legacy)
+      expect(servedByLegacy(`/${segment}`, tree), segment).toBe(legacy)
+    }
+    expect(servedByLegacy('/Shelf', tree)).toBe(false)
+    expect(servedByLegacy('/SETTINGS/x', tree)).toBe(true)
+    expect(servedByLegacy('/tomas', tree)).toBe(true)
+  })
+
+  it('sends every link of the shell and its surfaces through AppLink', () => {
+    // The same places as the lint rule in eslint.config.mjs.
+    const surfaces = [
+      'read',
+      'pocket',
+      'today',
+      'shelf',
+      'write',
+      'writer',
+      'search',
+      'you',
+      'signin',
+      'resources',
+      'ops',
+    ].map((name) => `components/${name}`)
+    const files = execFileSync(
+      'git',
+      ['ls-files', 'system', 'shell', 'app/(app)', ...surfaces],
+      {
+        cwd: root,
+      }
+    )
       .toString()
       .split('\n')
-      .filter((file) => /\.tsx$/.test(file))
-    const missing: string[] = []
-    for (const file of files) {
-      const text = readFileSync(path.join(root, file), 'utf8')
-      if (!text.includes("from 'next/link'")) continue
-      const links = text.match(/<Link\b/g)?.length ?? 0
-      const decided = text.match(/\bprefetch=\{/g)?.length ?? 0
-      if (decided < links)
-        missing.push(`${file}: ${links - decided} of ${links}`)
-    }
-    expect(missing).toEqual([])
+      .filter((file) => /\.tsx?$/.test(file))
+    const direct = files.filter(
+      (file) =>
+        file !== 'system/components/AppLink.tsx' &&
+        /import\s+Link\b[^;]*from\s+'next\/link'/.test(
+          readFileSync(path.join(root, file), 'utf8')
+        )
+    )
+    expect(direct).toEqual([])
+  })
+})
+
+describe('links to pages behind the route check', () => {
+  const shellWriter: LegacyRouteTree = {
+    home: false,
+    segments: ['articles'],
+    writer: false,
+  }
+
+  it('prefetch on intent only; the shell places as usual; legacy never', () => {
+    for (const href of [
+      '/tomas',
+      '/tomas/ledger',
+      '/Tomas',
+      '/apiary',
+      '/API/x',
+    ])
+      expect(linkPrefetch(href, shellWriter), href).toBe('intent')
+    for (const href of ['/', '/shelf', '/pocket', '/write', '/system/reading'])
+      expect(linkPrefetch(href, { ...shellWriter, segments: [] }), href).toBe(
+        'default'
+      )
+    expect(linkPrefetch('/articles', shellWriter)).toBe('never')
+    expect(
+      linkPrefetch('/tomas', { home: true, segments: [], writer: true })
+    ).toBe('never')
   })
 })

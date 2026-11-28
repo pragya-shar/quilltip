@@ -3,6 +3,8 @@
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sheet } from '@/system/components/Sheet'
+import { watchInputModality } from '@/system/inputModality'
+import { appHistory } from './appHistory'
 import { firstPage } from './firstPage'
 import { PocketBody } from './pocket/PocketBody'
 import { PocketPanel } from './pocket/PocketPanel'
@@ -23,11 +25,24 @@ export function SheetHost() {
   const wide = useWide()
   // Mounted once with the shell: from now on, pages arrive by navigation.
   useEffect(() => firstPage.markShown(), [])
+  // From the first page on, so the press that opens the first sheet is
+  // known (Safari focuses no pressed control: the sheet's opener).
+  useEffect(() => watchInputModality(), [])
+  useEffect(() => {
+    const onPop = () => appHistory.popstate()
+    window.addEventListener('popstate', onPop, true)
+    return () => window.removeEventListener('popstate', onPop, true)
+  }, [])
   // A change of path after the first page is an in-app navigation.
   const pathname = usePathname()
   const firstPath = useRef(pathname)
+  const lastPath = useRef(pathname)
   useEffect(() => {
     if (pathname !== firstPath.current) firstPage.markNavigated()
+    appHistory.arrive(pathname, window.history.length)
+    // The place changed: sheets over the old one close.
+    if (pathname !== lastPath.current) sheetStack.closeAll()
+    lastPath.current = pathname
   }, [pathname])
   return (
     <>

@@ -4,7 +4,9 @@
  * font-fallback-check.ts read the merged lists below. A legacy entry drops
  * out when its page is listed as deleted (scripts/rebuild/deleted) or a
  * package's entry names the same route or path: no package edits legacy.ts
- * or the scripts.
+ * or the scripts. A foundation entry for a page a package owns (the
+ * placeholder `/shelf`) drops out the same way when that package's file
+ * names the route or path.
  */
 import { deletedPaths } from '../../rebuild/deleted-paths'
 import {
@@ -50,9 +52,42 @@ export const PERF_ROUTE_PACKAGES = {
 
 const all = Object.values(PERF_ROUTE_PACKAGES) as PerfRoutes[]
 
-export const SURFACE_FIRST_LOAD = all.flatMap((p) => p.firstLoad ?? [])
-export const SURFACE_PAGE_LOAD = all.flatMap((p) => p.pageLoad ?? [])
-export const SURFACE_FONT_FALLBACK = all.flatMap((p) => p.fontFallback ?? [])
+/**
+ * The packages' entries merged: the foundation's first, less any route or
+ * path another package names (that package's entry replaces it). Pure.
+ */
+export function mergePackageRoutes(packages: Record<string, PerfRoutes>) {
+  const { foundation: base = {}, ...rest } = packages
+  const others = Object.values(rest)
+  const firstLoad = others.flatMap((p) => p.firstLoad ?? [])
+  const pageLoad = others.flatMap((p) => p.pageLoad ?? [])
+  const fontFallback = others.flatMap((p) => p.fontFallback ?? [])
+  return {
+    firstLoad: [
+      ...(base.firstLoad ?? []).filter(
+        (entry) => !firstLoad.some((own) => own.route === entry.route)
+      ),
+      ...firstLoad,
+    ],
+    pageLoad: [
+      ...(base.pageLoad ?? []).filter(
+        (entry) => !pageLoad.some((own) => own.path === entry.path)
+      ),
+      ...pageLoad,
+    ],
+    fontFallback: [
+      ...(base.fontFallback ?? []).filter(
+        (entry) => !fontFallback.some((own) => own.path === entry.path)
+      ),
+      ...fontFallback,
+    ],
+  }
+}
+
+const merged = mergePackageRoutes(PERF_ROUTE_PACKAGES)
+export const SURFACE_FIRST_LOAD = merged.firstLoad
+export const SURFACE_PAGE_LOAD = merged.pageLoad
+export const SURFACE_FONT_FALLBACK = merged.fontFallback
 export const SURFACE_WAY_HOME = all.flatMap((p) => p.wayHome ?? [])
 
 const deleted = deletedPaths().map((entry) => entry.path.replace(/\/$/, ''))

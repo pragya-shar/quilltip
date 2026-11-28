@@ -20,6 +20,7 @@ const REQUIRED = [
   "## Shared lists: add your own file, never edit another's",
   '## Adding a surface',
   '## Public reading works with no script',
+  '## Signed-in routes need no server guard',
   '## Landmarks on a public page',
   '## Sheets, dialogs and focus',
   '## Money',

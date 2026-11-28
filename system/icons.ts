@@ -35,6 +35,8 @@ export {
   Notification01Icon as NotificationsIcon,
   Settings01Icon as SettingsIcon,
   Cancel01Icon as CloseIcon,
+  TextFontIcon as TextStyleIcon,
+  ImageAdd01Icon as AddImageIcon,
   ArrowLeft01Icon as BackIcon,
   ArrowRight01Icon as ForwardIcon,
   ArrowDown01Icon as ExpandIcon,

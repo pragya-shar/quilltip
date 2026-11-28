@@ -11,7 +11,7 @@ import { useBalanceReading } from '@/shell/balance'
 /**
  * What the Pocket holds: the one component the shell renders in the phone
  * sheet, the desktop panel and the /pocket page. This file is the Pocket
- * surface's (F2) to replace: keep the export name `PocketContent`, a client
+ * surface's to replace: keep the export name `PocketContent`, a client
  * component with no props. Until then it shows the spendable figure (from
  * the shell's balance source), a way to sign in when signed out, and the
  * testnet line.

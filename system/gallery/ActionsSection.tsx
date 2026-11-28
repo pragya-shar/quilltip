@@ -4,7 +4,8 @@ import { Button } from '../components/Button'
 import { IconButton } from '../components/IconButton'
 import { TextLink } from '../components/TextLink'
 import { KeepDemo } from './KeepDemo'
-import { AddIcon, ShareIcon, WithdrawIcon } from '../icons'
+import { AddIcon, AddImageIcon, ShareIcon, WithdrawIcon } from '../icons'
+import { showToast } from '../toast'
 import { GallerySection } from './GallerySection'
 import { Specimen } from './Specimen'
 import { worst } from './samples'
@@ -54,6 +55,29 @@ export function ActionsSection() {
           <IconButton icon={AddIcon} label="Add money" variant="action" />
           <IconButton icon={ShareIcon} label="Sharing" loading />
           <IconButton icon={ShareIcon} label="Share (disabled)" disabled />
+        </div>
+      </Specimen>
+      <Specimen name="Not available now, still focusable">
+        <div className="qt-gallery__row">
+          <IconButton
+            icon={AddImageIcon}
+            label="Add an image"
+            variant="sunk"
+            unavailable="Not available yet"
+            onClick={() => showToast({ title: 'Pressed (should not be)' })}
+          />
+          <Button
+            unavailable="Your balance is below $1."
+            onClick={() => showToast({ title: 'Pressed (should not be)' })}
+          >
+            Withdraw
+          </Button>
+          <IconButton
+            icon={ShareIcon}
+            label="Share"
+            aria-disabled="true"
+            onClick={() => showToast({ title: 'Pressed (should not be)' })}
+          />
         </div>
       </Specimen>
       <Specimen name="Keep (live): keep, kept, saving, disabled">

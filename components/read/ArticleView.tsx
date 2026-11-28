@@ -1,10 +1,11 @@
 import './read.css'
-import Link from 'next/link'
+import { AppLink } from '@/system/components/AppLink'
 import { Avatar } from '@/system/components/Avatar'
 import { Heading } from '@/system/components/Heading'
 import { TextLink } from '@/system/components/TextLink'
 import { PushedHeader } from '@/shell/PushedHeader'
 import { PushedScreen } from '@/shell/PushedScreen'
+import { CoverImage } from './CoverImage'
 import { ReaderIsland } from './ReaderIsland'
 import { ReadingProgress } from './ReadingProgress'
 import {
@@ -68,19 +69,7 @@ export function ArticleView({ article, bodyHtml, readNext }: ArticleViewProps) {
               </span>
             </p>
           </header>
-          {article.coverImage ? (
-            <figure className="qt-read__cover">
-              {/* The writer's upload, on this deployment's storage. Eager:
-                  it can be the largest paint. */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={article.coverImage}
-                alt=""
-                fetchPriority="high"
-                referrerPolicy="no-referrer"
-              />
-            </figure>
-          ) : null}
+          <CoverImage src={article.coverImage} />
           <p id="read-keys" className="qt-visually-hidden">
             Use the arrow keys to move between sentences, Enter to choose a
             line, and Escape to let it go.
@@ -131,13 +120,13 @@ export function ArticleView({ article, bodyHtml, readNext }: ArticleViewProps) {
                   {item.opening ? (
                     <p className="qt-read__next-opening">{item.opening}</p>
                   ) : null}
-                  <Link
+                  <AppLink
                     className="qt-read__next-link"
                     href={item.href}
                     aria-label={`Read more: ${item.title}`}
                   >
                     Read more
-                  </Link>
+                  </AppLink>
                 </li>
               ))}
             </ul>
