@@ -601,6 +601,23 @@ export const STATES: FixtureState[] = [
     ),
   },
   {
+    // The basket before a price is known: its total sums to 0 (#670).
+    id: 'amount-estimate-none',
+    group: 'amount',
+    surface: 'dialog',
+    render: () => (
+      <AmountSummary
+        label="Basket total"
+        total="0"
+        estimate
+        breakdown={[
+          { label: 'To the writers', amount: '0' },
+          { label: 'Platform fee', amount: '0' },
+        ]}
+      />
+    ),
+  },
+  {
     id: 'amount-long',
     group: 'amount',
     surface: 'dialog',

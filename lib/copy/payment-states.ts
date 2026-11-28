@@ -6,7 +6,11 @@
  * copy speaks about money only from server-verified chain data.
  */
 import { TIPS_UNAVAILABLE_COPY } from './tips-unavailable'
-import { roundXlmEstimate } from '@/lib/payments/format'
+import {
+  estimateSummary,
+  formatXlm,
+  type EstimateFigure,
+} from '@/lib/payments/format'
 import type { WalletErrorKind } from '@/lib/stellar/v2/wallet-errors'
 import type {
   PaymentFlow,
@@ -47,13 +51,19 @@ export const ESTIMATE = {
 } as const
 
 /**
- * An estimated XLM figure as the kit shows it: "About 8.11 XLM", "About
- * 0.203 XLM", "Under 0.001 XLM" (#670). Rounded by `roundXlmEstimate`.
+ * An estimated figure as the kit shows it: "About 8.11 XLM", "Under 0.001
+ * XLM", or a dash for a zero or missing amount (#670). Round with
+ * `estimateSummary`, so the parts of one summary add up to its total.
  */
+export function estimateFigureCopy(figure: EstimateFigure): string {
+  if (!figure) return '–'
+  const text = formatXlm(figure.stroops)
+  return `${figure.under ? ESTIMATE.under : ESTIMATE.prefix} ${text}`
+}
+
+/** One estimated figure on its own: "About 8.11 XLM" (#670). */
 export function estimateXlmCopy(stroops: string): string {
-  const rounded = roundXlmEstimate(stroops)
-  if (!rounded) return '–'
-  return `${rounded.under ? ESTIMATE.under : ESTIMATE.prefix} ${rounded.text}`
+  return estimateFigureCopy(estimateSummary(stroops).total)
 }
 
 export type CopyBlock = { title: string; detail: string }

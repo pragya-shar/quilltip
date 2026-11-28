@@ -626,10 +626,15 @@ Notes:
   would be worth as real XLM; it is not the price, and the testnet amount
   has no value.
 - **Estimates:** before prepare returns, the XLM figure is a conversion from
-  the chosen cents. Pass `estimate`: every figure reads "About …", rounded
-  by `roundXlmEstimate` to two decimals from 1 XLM and three below it, half
-  up ("About 8.11 XLM", "About 0.203 XLM"). A non-zero figure that rounds to
-  0 reads "Under 0.001 XLM". The testnet label adds its detail, and the
+  the chosen cents. Pass `estimate`: every figure reads "About …". One
+  summary rounds as a whole, through `estimateSummary`: every figure at the
+  total's precision, two decimals from 1 XLM and three below it, half up,
+  and the first breakdown line is the shown total minus the other shown
+  lines, so the lines a reader adds give the total they see ("About 8.11
+  XLM" over "About 7.91 XLM" and "About 0.2 XLM"). A non-zero figure that
+  rounds to 0 reads "Under 0.001 XLM" (or "Under 0.01 XLM" from 1 XLM). A
+  zero or missing amount, such as a basket before its price is known, shows
+  "–", never "About 0 XLM". The testnet label adds its detail, and the
   caption says where the exact amount comes from:
   "Your wallet shows the exact amount before you approve." While a tab can
   send the same amount, which has no wallet prompt, pass

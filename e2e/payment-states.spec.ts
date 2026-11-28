@@ -714,11 +714,16 @@ test.describe('details', () => {
     await expect(page.locator('.pay-amount-total strong')).toHaveText(
       'About 8.11 XLM'
     )
+    // The parts add up to the total shown: 7.91 + 0.2 = 8.11.
     await expect(page.locator('.pay-amount-breakdown dd')).toHaveText([
-      'About 7.9 XLM',
-      'About 0.203 XLM',
+      'About 7.91 XLM',
+      'About 0.2 XLM',
     ])
     await expect(caption).toContainText(quoteCopy('$1.00'))
+    // Without a price there is no estimate: dashes, never "About 0 XLM".
+    await open(page, 'amount-estimate-none')
+    await expect(page.locator('.pay-amount-total strong')).toHaveText('–')
+    await expect(page.locator('.pay-amount')).not.toContainText('About 0')
   })
 
   test('only the other-account gate links to wallet settings for changing the linked address (#582)', async ({
