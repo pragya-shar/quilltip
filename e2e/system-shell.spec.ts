@@ -348,6 +348,24 @@ test('a declared sheet opens before its code has loaded, then fills in', async (
   await expect(sheet).toBeHidden()
 })
 
+test('while a first open waits for its code, the control looks pressed; past the wait the placeholder shows', async ({
+  page,
+}) => {
+  await page.goto('/sheets')
+  const opener = page.getByRole('button', { name: 'Open the lazy sheet' })
+  await press(opener)
+  // The demo sheet's code takes 400 ms: for the first 200 ms nothing new
+  // is drawn, and the control keeps its pressed look.
+  await expect(opener).toHaveAttribute('data-opening', '')
+  expect(
+    await opener.evaluate((el) => getComputedStyle(el).transform)
+  ).not.toBe('none')
+  const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
+  await expect(sheet).toBeVisible()
+  await expect(opener).not.toHaveAttribute('data-opening')
+  await expect(sheet.getByText('Loaded on demand for $3.')).toBeVisible()
+})
+
 test('a sheet whose code fails to load says so and tries again', async ({
   page,
 }) => {

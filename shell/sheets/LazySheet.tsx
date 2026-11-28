@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, useLayoutEffect, useState } from 'react'
 import { Sheet } from '@/system/components/Sheet'
 import { Skeleton } from '@/system/components/Skeleton'
 import { declaredSheet } from '.'
@@ -11,6 +11,7 @@ import {
   preloadSheet,
 } from './loadSheet'
 import { SheetLoadBoundary } from './SheetLoadBoundary'
+import { holdPressedLook, lastPressed } from './pressedOpener'
 
 /** How long a first open waits for the body's code before drawing the
  * sheet with a placeholder. The code usually arrives in a few frames. */
@@ -20,7 +21,8 @@ export const FIRST_OPEN_WAIT_MS = 200
  * A declared sheet, with its title (so focus lands on it, as on every
  * sheet) and its body in the same frame: a body whose code has arrived is
  * drawn at once; on a first open the sheet waits for the code, up to
- * FIRST_OPEN_WAIT_MS, and then draws a placeholder while it loads inside.
+ * FIRST_OPEN_WAIT_MS (the control that opened it keeps its pressed look
+ * meanwhile), and then draws a placeholder while it loads inside.
  * These boundaries sit inside the overlay, never above reading content.
  */
 export function LazySheet({
@@ -36,16 +38,23 @@ export function LazySheet({
 }) {
   const [attempt, setAttempt] = useState(0)
   const [waited, setWaited] = useState(() => Boolean(loadedSheetBody(id)))
-  useEffect(() => {
+  // Before the next paint, so no frame shows neither the press nor the
+  // sheet.
+  useLayoutEffect(() => {
     if (waited) return
     let live = true
+    // The press that opened the sheet keeps its pressed look until the
+    // sheet draws, so the wait never reads as a press that did nothing.
+    const release = holdPressedLook(lastPressed())
     const done = () => {
+      release()
       if (live) setWaited(true)
     }
     const timer = setTimeout(done, FIRST_OPEN_WAIT_MS)
     preloadSheet(id)?.then(done, done)
     return () => {
       live = false
+      release()
       clearTimeout(timer)
     }
   }, [id, waited])
