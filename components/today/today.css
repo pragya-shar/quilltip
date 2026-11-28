@@ -125,6 +125,7 @@
     min-width: 0;
   }
   .qt-today__writer {
+    position: relative;
     align-self: flex-start;
     max-width: 100%;
     overflow-wrap: anywhere;
@@ -134,8 +135,16 @@
     color: var(--qt-ink);
     text-decoration: none;
   }
-  .qt-today__writer:hover {
-    text-decoration: underline;
+  /* A 44 px tap target around the name, which is one 21 px line. */
+  .qt-today__writer::before {
+    content: '';
+    position: absolute;
+    inset: -12px -8px;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-today__writer:hover {
+      text-decoration: underline;
+    }
   }
   .qt-today__meta {
     font-size: var(--qt-text-ui-s);
@@ -149,15 +158,16 @@
    * a page continues under the button. Only the bottom of the text fades;
    * the text stays in the document for every reader. */
   .qt-today__text[data-continues] {
+    /* Clear by the band Read more overlaps, so no letter shows at its edge. */
     -webkit-mask-image: linear-gradient(
       to bottom,
       black calc(100% - 4.5em),
-      transparent
+      transparent calc(100% - var(--qt-space-6))
     );
     mask-image: linear-gradient(
       to bottom,
       black calc(100% - 4.5em),
-      transparent
+      transparent calc(100% - var(--qt-space-6))
     );
   }
   .qt-today__text[data-continues] + .qt-today__onward {
@@ -193,9 +203,17 @@
   .qt-today__item {
     position: relative;
     padding: var(--qt-space-5) var(--qt-space-1);
-    border-block-end: 1px solid var(--qt-line);
+    /* Rounded for the press background only; the line under the item is
+     * straight, drawn below. */
     border-radius: var(--qt-radius-tag);
     transition: background-color var(--qt-dur-quick) var(--qt-ease-out);
+  }
+  .qt-today__item::before {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    border-block-end: 1px solid var(--qt-line);
+    pointer-events: none;
   }
   .qt-today__item:active {
     background: var(--qt-press);
