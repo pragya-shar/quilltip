@@ -199,6 +199,62 @@ test.describe('first visit, signed out', () => {
   })
 })
 
+test.describe('the shell over Today', () => {
+  test('a tap just after the balance sheet closes is held, and a later one opens the article', async ({
+    page,
+  }) => {
+    // The shell holds pointer clicks for 400 ms after any sheet closes, so
+    // a second tap of a double tap on Close never reaches Today below it.
+    // Before the app's scripts: when each tap ends (a held click may never
+    // reach a listener), and when the sheet, once open, leaves the page.
+    await page.addInitScript(() => {
+      const w = window as unknown as { __gone?: number; __taps?: number[] }
+      w.__taps = []
+      window.addEventListener(
+        'pointerup',
+        (event) => w.__taps!.push(event.timeStamp),
+        true
+      )
+      let opened = false
+      new MutationObserver(() => {
+        const open = !!document.querySelector('dialog, [role="dialog"]')
+        if (open) opened = true
+        else if (opened && w.__gone === undefined) w.__gone = performance.now()
+      }).observe(document, { childList: true, subtree: true })
+    })
+    await page.goto('/?auth=signed-in')
+    const link = page
+      .getByRole('region', { name: 'More to read' })
+      .getByRole('link', { name: /^Read more: / })
+      .first()
+    const href = (await link.getAttribute('href'))!
+    await link.scrollIntoViewIfNeeded()
+    const box = (await link.boundingBox())!
+    const x = box.x + 20
+    const y = box.y + box.height / 2
+    await page
+      .getByRole('navigation')
+      .getByRole('link', { name: /Open balance$/ })
+      .click()
+    const sheet = page.getByRole('dialog')
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole('button', { name: 'Close' }).click()
+    await page.touchscreen.tap(x, y)
+    await expect(sheet).toHaveCount(0)
+    const { gone, tap } = await page.evaluate(() => {
+      const w = window as unknown as { __gone?: number; __taps?: number[] }
+      return { gone: w.__gone!, tap: w.__taps!.at(-1)! }
+    })
+    // The tap fell before the hold ended: during the sheet's exit, or in the
+    // 400 ms after it left the page.
+    expect(tap - gone).toBeLessThan(400)
+    await page.waitForTimeout(500)
+    expect(new URL(page.url()).pathname).toBe('/')
+    await page.touchscreen.tap(x, y)
+    await expect(page).toHaveURL(new RegExp(`${href}$`))
+  })
+})
+
 test.describe('returning, signed in', () => {
   test('both rows attach above the opening without moving it', async ({
     page,
