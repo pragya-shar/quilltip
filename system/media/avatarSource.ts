@@ -39,7 +39,7 @@ function originOf(value: string | undefined): string | null {
 export const AVATAR_SOURCES: AvatarSources = {
   storageOrigin: originOf(process.env.NEXT_PUBLIC_CONVEX_URL),
   storagePath: '/api/storage/',
-  sitePaths: ['/images/', '/prototype/'],
+  sitePaths: ['/images/'],
 }
 
 /**
@@ -55,6 +55,9 @@ export function avatarSrc(
   const raw = value?.trim()
   if (!raw || /[\\\s]/.test(raw)) return null
   if (raw.startsWith('/') && !raw.startsWith('//')) {
+    // An encoded slash, backslash or nul can reach another path on a
+    // server that decodes it.
+    if (/%(2f|5c|00)/i.test(raw)) return null
     let path: URL
     try {
       path = new URL(raw, 'https://site.invalid')
