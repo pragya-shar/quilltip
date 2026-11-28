@@ -82,10 +82,35 @@ type World = Awaited<ReturnType<typeof setup>>
 async function addRow(
   w: World,
   status: RowStatus,
-  opts: { epoch?: string; author?: string } = {}
+  opts: {
+    epoch?: string
+    author?: string
+    submission?: { kind: 'register' | 'content_update'; needsReview: boolean }
+  } = {}
 ) {
-  await w.t.run((ctx) =>
-    ctx.db.insert('chainArticles', {
+  await w.t.run(async (ctx) => {
+    const lastSubmissionId = opts.submission
+      ? await ctx.db.insert('chainSubmissions', {
+          network: 'TESTNET',
+          chainEpoch: opts.epoch ?? EPOCH,
+          kind: opts.submission.kind,
+          userId: w.ids.writer,
+          contractId: CORE,
+          requestId: 'r1',
+          clientRefs: [],
+          txHash: 'ab'.repeat(32),
+          maxTime: 1,
+          status: status === 'FAILED' ? 'FAILED' : 'SUBMITTED',
+          attempts: 1,
+          needsReview: opts.submission.needsReview,
+          mismatchReason: 'secret-mismatch-reason',
+          lastError: 'secret-last-error',
+          related: [],
+          createdAt: 1,
+          updatedAt: 1,
+        } as never)
+      : undefined
+    await ctx.db.insert('chainArticles', {
       network: 'TESTNET',
       chainEpoch: opts.epoch ?? EPOCH,
       articleId: w.ids.article,
@@ -97,9 +122,10 @@ async function addRow(
       totals: {},
       status,
       txHash: 'ef'.repeat(32),
+      ...(lastSubmissionId ? { lastSubmissionId } : {}),
       updatedAt: 1,
     })
-  )
+  })
 }
 
 const read = (w: World, who: 'writer' | 'other' = 'writer') =>
@@ -192,6 +218,35 @@ describe('publishing.registrationState: states', () => {
       await addRow(w, status)
       expect(await read(w)).toEqual({ state: 'pending', published: true })
     }
+  })
+
+  test('a registration held for review says so, and nothing more', async () => {
+    for (const status of ['SUBMITTED', 'FAILED'] as const) {
+      const w = await setup()
+      await addRow(w, status, {
+        submission: { kind: 'register', needsReview: true },
+      })
+      const state = await read(w)
+      expect(state).toEqual({ state: 'held_for_review', published: true })
+      expect(JSON.stringify(state)).not.toContain('secret')
+    }
+  })
+
+  test('a submission not held is pending; a later update under review keeps registered', async () => {
+    const w = await setup()
+    await addRow(w, 'SUBMITTED', {
+      submission: { kind: 'register', needsReview: false },
+    })
+    expect(await read(w)).toEqual({ state: 'pending', published: true })
+    const v = await setup()
+    await addRow(v, 'REGISTERED', {
+      submission: { kind: 'content_update', needsReview: true },
+    })
+    expect(await read(v)).toEqual({
+      state: 'registered',
+      published: true,
+      payoutOutdated: false,
+    })
   })
 
   test('registered, and flagged when the wallet changed since', async () => {

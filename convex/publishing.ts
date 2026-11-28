@@ -21,8 +21,13 @@ export type RegistrationState =
       published: boolean
       next: 'publish' | 'verify_wallet' | 'turn_on' | 'retry'
     }
-  /** A registration is prepared or submitted and not yet confirmed. */
+  /** A registration is prepared or submitted and being checked. */
   | { state: 'pending'; published: boolean }
+  /**
+   * The registration's transaction is held for an operator's review (its
+   * result did not match what was prepared); nothing to do but wait.
+   */
+  | { state: 'held_for_review'; published: boolean }
   /**
    * Registered. `payoutOutdated`: the writer's verified wallet is no longer
    * the address tips pay, so tips stay off until the author change.
@@ -40,8 +45,9 @@ function chainOrNull(): ChainEnv | null {
 
 /**
  * The article's tip registration state, for its author only (null for anyone
- * else). Holds no address, hash, key or transaction. Reads the article, the
- * author and at most `ROWS_PER_ARTICLE` registration rows.
+ * else). Holds no address, hash, key, transaction or review reason. Reads
+ * the article, the author, at most `ROWS_PER_ARTICLE` registration rows and
+ * the registration's latest submission.
  */
 export const registrationState = query({
   args: { articleId: v.id('articles') },
@@ -71,6 +77,12 @@ export const registrationState = query({
         published,
         payoutOutdated: wallet !== row.authorAddress,
       }
+    }
+    const submission = row?.lastSubmissionId
+      ? await ctx.db.get(row.lastSubmissionId)
+      : null
+    if (submission?.kind === 'register' && submission.needsReview === true) {
+      return { state: 'held_for_review', published }
     }
     if (row?.status === 'PREPARED' || row?.status === 'SUBMITTED') {
       return { state: 'pending', published }
