@@ -65,6 +65,13 @@ export function nextLimitsChange(limits: TabTipLimits, now: number): number {
   return Math.min(midnight, stale > now ? stale : Infinity)
 }
 
+/**
+ * The tab tip maximum as the dialog states it: the limit in base units
+ * (`TAB_TIP_MAX`) and the largest whole-cent amount within it at the cached
+ * price (#676).
+ */
+export type TabTipMax = { cents: number; stroops: string }
+
 export type TabTipAmountCheck =
   | { ok: true; amount: string }
   /** No fresh XLM price, so prepare would refuse every amount. */

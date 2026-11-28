@@ -207,10 +207,12 @@ const STATES: Record<string, StateCase> = {
         })
       ).toBeVisible()
       await expect(
-        dialog.getByText('Tab tips go up to $0.50 at today’s XLM price.', {
-          exact: false,
-        })
+        dialog.getByText(
+          'Tab tips go up to 5 XLM, worth about $0.50 if this were real XLM.',
+          { exact: false }
+        )
       ).toBeVisible()
+      await expect(dialog.getByText(/today’s XLM price/)).toHaveCount(0)
       // A tab tip has no wallet prompt: the estimate does not promise one.
       const caption = dialog.locator('.pay-amount-caption')
       await expect(caption).toContainText(ESTIMATE.tabCaption)
@@ -222,7 +224,7 @@ const STATES: Record<string, StateCase> = {
     act: (dialog) => chooseAmount(dialog, '0.75'),
     expect: async (dialog) => {
       await expect(
-        tabSection(dialog).getByText('Tab tips go up to $0.50 right now', {
+        tabSection(dialog).getByText('Tab tips go up to 5 XLM', {
           exact: true,
         })
       ).toBeVisible()
@@ -377,6 +379,23 @@ test.describe('one amount for the dialog', () => {
     await expect
       .poll(() => presets(dialog))
       .toEqual(['$0.05', '$0.10', '$0.25'])
+    // A limit that is not a whole number of XLM, in the app's number form.
+    await expect(
+      dialog.getByText(
+        'Tab tips go up to 2.5 XLM, worth about $0.25 if this were real XLM.',
+        { exact: false }
+      )
+    ).toBeVisible()
+    await chooseAmount(dialog, '0.3')
+    await expect(
+      tabSection(dialog).getByText('Tab tips go up to 2.5 XLM', { exact: true })
+    ).toBeVisible()
+    await expect(
+      tabSection(dialog).getByText(
+        'That is about $0.25 if this were real XLM. Choose $0.25 or less, or send this amount from your wallet.',
+        { exact: true }
+      )
+    ).toBeVisible()
   })
 
   test('without a tab, the presets stay as they are', async ({ page }) => {
@@ -410,7 +429,7 @@ test.describe('one amount for the dialog', () => {
     await expect(send).toHaveAttribute('aria-disabled', 'true')
     // The reason is the button's description, for screen readers too.
     await expect(send).toHaveAccessibleDescription(
-      'Tab tips go up to $0.50 right now. That is the most a tab tip can be at today’s XLM price. Choose $0.50 or less, or send this amount from your wallet.'
+      'Tab tips go up to 5 XLM. That is about $0.50 if this were real XLM. Choose $0.50 or less, or send this amount from your wallet.'
     )
     await send.click({ force: true })
     await page.waitForTimeout(400)
@@ -487,6 +506,9 @@ test.describe('one amount for the dialog', () => {
     await expect(
       tabSection(dialog).getByText('No XLM price right now', { exact: true })
     ).toBeVisible()
+    // No price, no dollar figure for the maximum: the hint says nothing
+    // rather than a figure it cannot know (#676).
+    await expect(dialog.getByText(/Tab tips go up to/)).toHaveCount(0)
     expect((await backend(page)).calls).not.toContain('prepareTip')
   })
 
@@ -944,7 +966,7 @@ test.describe('presets, headings and refusals', () => {
     ).toBeVisible()
     await chooseAmount(dialog, '0.75')
     await expect(
-      tabSection(dialog).getByText('Tab tips go up to $0.50 right now', {
+      tabSection(dialog).getByText('Tab tips go up to 5 XLM', {
         exact: true,
       })
     ).toBeVisible()
