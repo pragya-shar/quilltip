@@ -436,14 +436,15 @@ test('the way back is reachable by keyboard at any depth', async ({
   expect(
     await header.evaluate((el) => el.contains(document.activeElement))
   ).toBe(true)
-  const focused = (await page.evaluate(() => {
-    const r = document.activeElement!.getBoundingClientRect()
-    return { top: r.top, bottom: r.bottom }
-  }))!
-  expect(focused.top).toBeGreaterThanOrEqual(0)
-  expect(focused.bottom).toBeLessThanOrEqual(
-    await page.evaluate(() => window.innerHeight)
-  )
+  // In view once the header has slid back in.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const r = document.activeElement!.getBoundingClientRect()
+        return r.top >= 0 && r.bottom <= window.innerHeight
+      })
+    )
+    .toBe(true)
   expect(await page.evaluate(() => window.scrollY), 'no scroll').toBe(y)
 })
 
