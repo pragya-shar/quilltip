@@ -10,11 +10,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { ArticleReadOnlyBody } from '../../components/articles/ArticleReadOnlyBody'
 import { ResizableImage } from '../../components/editor/extensions/ResizableImage'
 import ResizableImageComponent from '../../components/editor/extensions/ResizableImageComponent'
+import { WritingImageView } from '../../components/editor/WritingImage'
 import {
   imageSourceRefusal,
   isAllowedImageSource,
 } from '../../lib/security/imageSources'
 import { renderArticleHtml } from '../../lib/tiptap/renderArticleHtml'
+
+// The writing view's upload client; nothing is uploaded here.
+vi.mock('convex/react', () => ({ useConvex: () => ({}) }))
 
 const OWN = 'https://own-deployment-123.convex.cloud'
 const own = `${OWN}/api/storage/5c1e2f0a-uploaded`
@@ -36,6 +40,19 @@ describe('image sources (#615)', () => {
     [arweave, true],
     ['https://img.youtube.com/vi/dQw4w9WgXcQ/maxresdefault.jpg', true],
     ['https://img.youtube.com/other.jpg', false],
+    // The own origin admits its storage path only.
+    [`${OWN}/api/query`, false],
+    [`${OWN}/http/pixel`, false],
+    [`${OWN}/`, false],
+    [`${OWN}/api/storagex/a`, false],
+    // Hosts that only end with an allowed one.
+    ['https://evilarweave.net/x', false],
+    ['https://a.images.unsplash.com/x', false],
+    ['https://x-own-deployment-123.convex.cloud/api/storage/x', false],
+    [
+      'https://own-deployment-123.convex.cloud.evil.example/api/storage/x',
+      false,
+    ],
     [otherConvex, false],
     [otherSite, false],
     ['https://own-deployment-123.convex.site/api/storage/x', false],
@@ -72,6 +89,14 @@ describe('image sources (#615)', () => {
         'http://127.0.0.1:3330/'
       )
     ).toBe(true)
+  })
+
+  it('an image without an address gets its own message', () => {
+    for (const src of [undefined, null, '', '  ']) {
+      expect(imageSourceRefusal(src)).toBe(
+        'An image in this article has no address. Remove it, or upload the image. Images must be uploaded, or come from img.youtube.com, images.unsplash.com, plus.unsplash.com or arweave.net.'
+      )
+    }
   })
 
   it('the refusal names the image and the hosts that are allowed', () => {
@@ -197,6 +222,35 @@ describe('article images in the readers (#615)', () => {
       'This image is not shown. Images must be uploaded or come from an allowed host.'
     )
     expect(nodeView(own, true).images).toEqual([own])
+  })
+
+  const writingView = (src: string) =>
+    inspect(
+      renderToStaticMarkup(
+        createElement(WritingImageView, {
+          node: { attrs: { src, alt: 'An image', title: null, width: null } },
+          editor: {
+            isEditable: true,
+            storage: { resizableImage: { shouldFocus: false } },
+            commands: { setNodeSelection: () => true },
+            getJSON: () => ({ type: 'doc', content: [] }),
+          },
+          selected: false,
+          updateAttributes: () => {},
+          deleteNode: () => {},
+          getPos: () => 0,
+        } as never)
+      )
+    )
+
+  it('the writing workspace shows its note, not the image, for another host', () => {
+    const seen = writingView(otherConvex)
+    expect(seen.images).toEqual([])
+    expect(seen.html).not.toContain('someone-else-456')
+    expect(seen.text).toContain(
+      'This image is not shown. Images must be uploaded or come from an allowed host. Choose it to replace or remove it.'
+    )
+    expect(writingView(own).images).toEqual([own])
   })
 
   it('the writing editor and its image dialog use the same check', () => {

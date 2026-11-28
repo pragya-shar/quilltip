@@ -109,7 +109,7 @@ describe('content security policy on proxy responses', () => {
       "'self'",
       'data:',
       'blob:',
-      'https://example-deployment-123.convex.cloud/',
+      'https://example-deployment-123.convex.cloud/api/storage/',
       'https://img.youtube.com/vi/',
       'https://images.unsplash.com/',
       'https://plus.unsplash.com/',

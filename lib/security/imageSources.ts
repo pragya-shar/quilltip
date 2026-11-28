@@ -57,7 +57,11 @@ export const LISTED_IMAGE_SOURCES: readonly ImageSource[] = [
   { protocol: 'https', hostname: 'arweave.net', port: '', pathPrefix: '/' },
 ]
 
-/** The deployment's own origin as a source, or null when unset or malformed. */
+/**
+ * The deployment's own file storage as a source: its origin and
+ * `/api/storage/`, the path of every `ctx.storage.getUrl` address. Null when
+ * unset or malformed.
+ */
 export function ownImageSource(
   convexUrl: string | undefined
 ): ImageSource | null {
@@ -69,7 +73,7 @@ export function ownImageSource(
       protocol: url.protocol === 'https:' ? 'https' : 'http',
       hostname: url.hostname,
       port: url.port,
-      pathPrefix: '/',
+      pathPrefix: '/api/storage/',
     }
   } catch {
     return null
@@ -132,7 +136,10 @@ export function listedImageHostsText(): string {
 }
 
 /** The refusal for an image from another host, in the editor and on publish. */
-export function imageSourceRefusal(src: string): string {
+export function imageSourceRefusal(src: unknown): string {
+  if (typeof src !== 'string' || !src.trim()) {
+    return `An image in this article has no address. Remove it, or upload the image. Images must be uploaded, or come from ${listedImageHostsText()}.`
+  }
   const shown = src.length > 120 ? `${src.slice(0, 117)}...` : src
   return `This image cannot be used: ${shown}. Images must be uploaded, or come from ${listedImageHostsText()}.`
 }

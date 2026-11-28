@@ -53,7 +53,7 @@ async function setup() {
     )
     return id
   }
-  return { t, writer, draft }
+  return { t, writer, draft, authorId }
 }
 
 async function expectRefused(promise: Promise<unknown>, src: string) {
@@ -97,6 +97,70 @@ test('publishArticle refuses a cover from another host (#615)', async () => {
   )
 })
 
+test.each([
+  [
+    'inside a list item in a blockquote',
+    {
+      type: 'blockquote',
+      content: [
+        {
+          type: 'bulletList',
+          content: [
+            {
+              type: 'listItem',
+              content: [
+                {
+                  type: 'paragraph',
+                  content: [{ type: 'text', text: 'Nested.' }],
+                },
+                { type: 'resizableImage', attrs: { src: otherConvex } },
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  ],
+  ['as an image node', { type: 'image', attrs: { src: otherConvex } }],
+])('publishArticle refuses an outside image %s (#615)', async (_, node) => {
+  const { draft, writer } = await setup()
+  const id = await draft({
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'Words to read.' }],
+      },
+      node,
+    ],
+  })
+  await expectRefused(
+    writer.mutation(api.articles.publishArticle, { id }),
+    otherConvex
+  )
+})
+
+test('publishArticle refuses an image without an address, and says so (#615)', async () => {
+  const { draft, writer } = await setup()
+  const id = await draft({
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'Words to read.' }],
+      },
+      { type: 'resizableImage', attrs: {} },
+    ],
+  })
+  const error = await writer.mutation(api.articles.publishArticle, { id }).then(
+    () => null,
+    (e: unknown) => e
+  )
+  expect((error as ConvexError<string>).data).toMatch(
+    /^An image in this article has no address\./
+  )
+})
+
 test('publishArticle publishes own-storage, Unsplash and Arweave images (#615)', async () => {
   const { t, draft, writer } = await setup()
   const id = await draft(body(own, unsplash, arweave), own)
@@ -121,14 +185,30 @@ test('createArticle refuses to publish an image from another host, and saves it 
   )
 })
 
-test('countImageHosts counts allowed and refused addresses per host, by published and draft, with nothing else (#615)', async () => {
-  const { t, draft, writer } = await setup()
+test('countImageHosts counts allowed and refused addresses per host, by published and draft, across pages, with nothing else (#615)', async () => {
+  const { t, draft, writer, authorId } = await setup()
   const published = await draft(body(own, own, unsplash), own)
   await writer.mutation(api.articles.publishArticle, { id: published })
+  // Published before this rule: an outside image readers no longer see.
+  await t.run((ctx) =>
+    ctx.db.insert('articles', {
+      title: 'Older pictures',
+      slug: 'older-pictures',
+      excerpt: 'An older piece with pictures.',
+      content: body(otherConvex, own),
+      coverImage: otherConvex,
+      tags: [],
+      authorId,
+      authorUsername: 'image-writer',
+      published: true,
+      publishedAt: 1,
+      createdAt: 1,
+      updatedAt: 1,
+    })
+  )
   // One host can hold allowed and refused addresses: judged one by one.
   await draft(
     body(
-      otherConvex,
       'https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg',
       'https://img.youtube.com/other.jpg',
       'http://images.unsplash.com/photo-2',
@@ -137,6 +217,8 @@ test('countImageHosts counts allowed and refused addresses per host, by publishe
       '/relative.png'
     )
   )
+  // Twelve more drafts, so the outside host appears on two pages of ten.
+  for (let n = 0; n < 12; n += 1) await draft(body(otherConvex))
   const report = await t.action(internal.articleImageHosts.countImageHosts, {})
   const row = (
     host: string,
@@ -153,21 +235,25 @@ test('countImageHosts counts allowed and refused addresses per host, by publishe
   })
   expect(report).toEqual({
     storageOrigin: OWN,
-    articles: { published: 1, draft: 1 },
+    articles: { published: 2, draft: 13 },
     images: [
+      row('someone-else-456.convex.cloud', 0, 1, 0, 12),
+      row('own-deployment-123.convex.cloud', 3, 0, 0, 0),
       row('images.unsplash.com', 1, 0, 1, 1),
-      row('own-deployment-123.convex.cloud', 2, 0, 0, 0),
       row('img.youtube.com', 0, 0, 1, 1),
-      row('someone-else-456.convex.cloud', 0, 0, 0, 1),
       row('(data address)', 0, 0, 0, 1),
       row('(relative or invalid address)', 0, 0, 0, 1),
     ],
-    covers: [row('own-deployment-123.convex.cloud', 1, 0, 0, 0)],
+    covers: [
+      row('own-deployment-123.convex.cloud', 1, 0, 0, 0),
+      row('someone-else-456.convex.cloud', 0, 1, 0, 0),
+    ],
   })
   // No address, title, text, author or id in the answer.
   const text = JSON.stringify(report)
   for (const leak of [
     'Pictures',
+    'Older pictures',
     'Words to read',
     'image-writer',
     published,

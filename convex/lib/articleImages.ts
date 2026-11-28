@@ -45,9 +45,7 @@ export function assertPublishableImages(article: {
   ]
   for (const src of sources) {
     if (!isAllowedImageSource(src, convexUrl)) {
-      throw new ConvexError(
-        imageSourceRefusal(typeof src === 'string' ? src : String(src))
-      )
+      throw new ConvexError(imageSourceRefusal(src))
     }
   }
 }

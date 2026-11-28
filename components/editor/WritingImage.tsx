@@ -16,7 +16,7 @@ import {
   uploadFile,
 } from '@/lib/upload'
 
-function WritingImageView({
+export function WritingImageView({
   node,
   editor,
   selected,

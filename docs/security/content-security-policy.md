@@ -81,18 +81,22 @@ is on its own host, shows its initial instead. See [wallets](../wallets.md).
 
 ## Images
 
-Images load only from this deployment's own Convex origin and the listed
-hosts (`lib/security/imageSources.ts`): `img.youtube.com/vi/` (video
+Images load only from this deployment's own file storage (its Convex
+origin, path `/api/storage/`) and the listed hosts (`lib/security/imageSources.ts`): `img.youtube.com/vi/` (video
 thumbnails in the older editor's video dialog), and `images.unsplash.com`,
 `plus.unsplash.com` and `arweave.net` (images in existing articles; no code
 adds them). The same list sets `img-src`, the image optimizer's
 `remotePatterns` in `next.config.ts`, the article renderers and the publish
-check in Convex. Uploads, avatars and covers are `ctx.storage.getUrl`
-addresses, `<CONVEX_CLOUD_URL>/api/storage/<id>`; the app reads the same
+check in Convex. Uploads, covers and avatars set through the upload path
+are `ctx.storage.getUrl` addresses, `<CONVEX_CLOUD_URL>/api/storage/<id>`
+(`users.updateProfile` stores any avatar string, so for an avatar set another
+way only this policy applies); the app reads the same
 origin from `NEXT_PUBLIC_CONVEX_URL`, so the two must name the same
 deployment. An article image from another host is not rendered, and an
 article holding one cannot be published until the image is uploaded or
-replaced; drafts save as they are. `articleImageHosts:countImageHosts`
+replaced; drafts save as they are. A cover from another host counts as no
+cover in the article cards and the article page's metadata.
+`articleImageHosts:countImageHosts`
 reports image hosts across a deployment's articles.
 
 ## Not tightened
