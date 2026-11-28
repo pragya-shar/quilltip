@@ -6,9 +6,12 @@ on:
   pull_request:
     branches: [main, overhaul/v2, overhaul/v3]
 
+# A new push to a pull request stops its older run. A push to a branch never
+# stops a run in progress: the full runs that follow merges each finish, and
+# at most one more waits behind the running one.
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions: {}
 

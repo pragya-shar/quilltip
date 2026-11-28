@@ -23,6 +23,14 @@ function shardSuites(): string[][] {
   )
 }
 
+describe('concurrency', () => {
+  it('cancels an older run for pull requests only', () => {
+    expect(workflow).toContain(
+      "cancel-in-progress: ${{ github.event_name == 'pull_request' }}"
+    )
+  })
+})
+
 describe('the shard list', () => {
   it('names only suites that exist, and every suite once', () => {
     const problems = shardProblems(SHARDS, FIXTURES, SURFACE_SUITES, (file) =>
