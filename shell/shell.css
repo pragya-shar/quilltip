@@ -166,13 +166,59 @@
     padding-block-end: calc(var(--qt-safe-bottom) + var(--qt-space-6));
   }
 
+  /* The pushed header stays at the top over the page (sticky: its place in
+   * the page never changes, so the text never moves), on a band of paper as
+   * wide as the screen; it slides away on a scroll down and back on the
+   * reader's scroll up (shell/headerOnScroll.ts). */
   .qt-pushed__header {
+    position: sticky;
+    inset-block-start: 0;
+    z-index: 2;
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: var(--qt-space-2);
     margin-inline-start: calc(-1 * var(--qt-space-3));
     margin-block-end: var(--qt-space-4);
+    background: var(--qt-paper);
+    box-shadow: 0 0 0 100vmax var(--qt-paper);
+    clip-path: inset(0 -100vmax);
+    transition: transform var(--qt-dur-quick) var(--qt-ease-out);
+  }
+  /* Hidden: out of sight and out of the way of the text's presses; focus
+   * brings it back. */
+  .qt-pushed__header[data-hidden] {
+    transform: translateY(-100%);
+    transition-duration: 200ms;
+    pointer-events: none;
+  }
+  .qt-pushed__title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: var(--qt-weight-ui-strong);
+    opacity: 0;
+    transition: opacity var(--qt-dur-quick) var(--qt-ease-out);
+  }
+  .qt-pushed__title[data-shown] {
+    opacity: 1;
+  }
+  .qt-pushed__progress {
+    position: absolute;
+    inset-inline: 0;
+    inset-block-end: 0;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .qt-pushed__header,
+    .qt-pushed__header[data-hidden] {
+      transition: opacity 120ms linear;
+    }
+    .qt-pushed__header[data-hidden] {
+      transform: none;
+      opacity: 0;
+    }
   }
   .qt-pushed__actions {
     display: flex;
