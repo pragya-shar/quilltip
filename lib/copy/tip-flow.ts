@@ -16,6 +16,8 @@ export const TIP_DIALOG = {
   customLabel: 'Other amount',
   customHint: (min: string, max: string) =>
     `From ${min} to ${max}. The XLM amount is set when you send.`,
+  /** The range, after an amount error that does not state it. */
+  range: (min: string, max: string) => `Tips go from ${min} to ${max}.`,
   messageLabel: 'Note to the writer (optional)',
   /** The send button before the amount is valid. */
   send: 'Send tip',

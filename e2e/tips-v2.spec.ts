@@ -1103,8 +1103,9 @@ test.describe('keyboard, focus and announcements', () => {
     await expect(input).toHaveAttribute('aria-invalid', 'true')
     const describedBy = await input.getAttribute('aria-describedby')
     const ids = describedBy!.split(' ')
+    // The error takes the hint's place, so it states the range too (#658).
     await expect(page.locator(`[id="${ids[0]}"]`)).toHaveText(
-      'Enter an amount in dollars, for example 1.50.'
+      'Enter an amount in dollars, for example 1.50. Tips go from $0.03 to $100.'
     )
     // Fixing it clears the error at once.
     await input.fill('1.50')
