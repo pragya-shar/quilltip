@@ -1,9 +1,8 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { matches } from './plan'
-import { STRING_CONSTRUCTS, STRING_INPUTS } from './string-inputs'
+import { STRING_INPUTS, constructCount } from './string-inputs'
 
 const root = path.join(__dirname, '../..')
 const tracked = spawnSync('git', ['ls-files', '-z'], {
@@ -32,14 +31,13 @@ describe('inputs named as strings', () => {
     expect(check.status).toBe(0)
   }, 120_000)
 
-  it('keeps no entry that matches no file with a construct', () => {
+  it('keeps no entry that matches no tracked file', () => {
     for (const entry of STRING_INPUTS) {
-      const named = tracked.filter(
-        (file) =>
-          matches(file, [entry.from]) &&
-          STRING_CONSTRUCTS.test(readFileSync(path.join(root, file), 'utf8'))
-      )
-      expect(named.length, entry.from).toBeGreaterThan(0)
+      const named = tracked.filter((file) => matches(file, [entry.from]))
+      expect(
+        named.length,
+        `The entry for "${entry.from}" in scripts/ci/string-inputs.ts matches no file: remove it.`
+      ).toBeGreaterThan(0)
     }
   })
 
@@ -51,9 +49,20 @@ describe('inputs named as strings', () => {
       'readdirSync(dir)',
       'await readFile(p)',
       'existsSync(p)',
+      'await readdir(dir)',
+      'lstatSync(p)',
+      'accessSync(p)',
+      'globSync("x/**")',
+      'Bun.file(p)',
+      'new Bun.Glob(p)',
+      "new URL('./x.json', import.meta.url)",
+      'await import(`./${name}.ts`)',
+      "spawnSync('docker', [])",
     ]) {
-      expect(STRING_CONSTRUCTS.test(text), text).toBe(true)
+      expect(constructCount(text), text).toBe(1)
     }
-    expect(STRING_CONSTRUCTS.test("import x from './x'")).toBe(false)
+    expect(constructCount("import x from './x'")).toBe(0)
+    expect(constructCount("new URL('https://example.com')")).toBe(0)
+    expect(constructCount('/a/.exec(b)')).toBe(0)
   })
 })
