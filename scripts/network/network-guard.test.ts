@@ -1366,8 +1366,8 @@ describe('window approval: the allowed operations', () => {
       ['env', 'set', 'CHAIN_V2_ENABLED', 'true'],
     ],
     [
-      ['env-set', 'STELLAR_NETWORK', 'TESTNET'],
-      ['env', 'set', 'STELLAR_NETWORK', 'TESTNET'],
+      ['env-set', 'CHAIN_V1_PREPARES_ENABLED', 'false'],
+      ['env', 'set', 'CHAIN_V1_PREPARES_ENABLED', 'false'],
     ],
     [
       ['env-set', 'NETWORK_PASSPHRASE', TESTNET_PASSPHRASE],
@@ -1883,6 +1883,8 @@ describe('window approval: refusals', () => {
     [['env-set', 'NETWORK_PASSPHRASE', MAINNET_PASSPHRASE]],
     [['env-set', 'STELLAR_RPC_URL', 'https://mainnet.sorobanrpc.com']],
     [['env-set', 'HORIZON_URL', 'https://horizon.stellar.org']],
+    [['env-set', 'HORIZON_URL', 'https://horizon-testnet.stellar.org']],
+    [['env-set', 'STELLAR_NETWORK', 'TESTNET']],
     [['env-set', 'STELLAR_RPC_URL', 'http://soroban-testnet.stellar.org']],
     [['env-set', 'STELLAR_RPC_URL', 'https://rpc.example.org']],
     [['env-set', 'CHAIN_V2_ENABLED', 'yes']],
@@ -2632,6 +2634,14 @@ describe('window approval: the checkout is compared by content', () => {
   })
 
   it('allows only installed dependencies and build output as untracked paths', () => {
+    const { repo, facts } = releaseRepo()
+    for (const file of [
+      'next-env.d.ts',
+      'tsconfig.tsbuildinfo',
+      'convex/.DS_Store',
+    ]) {
+      fs.writeFileSync(path.join(repo, file), '\n')
+    }
     for (const allowed of [
       'node_modules',
       'node_modules/',
@@ -2640,7 +2650,7 @@ describe('window approval: the checkout is compared by content', () => {
       'tsconfig.tsbuildinfo',
       'convex/.DS_Store',
     ]) {
-      expect(isAllowedUntrackedPath(allowed)).toBe(true)
+      expect(isAllowedUntrackedPath(allowed, repo)).toBe(true)
     }
     for (const refused of [
       '.env.local',
@@ -2648,10 +2658,11 @@ describe('window approval: the checkout is compared by content', () => {
       'convex/extra.ts',
       'lib/node_modules/',
       'test-results/',
+      'missing.tsbuildinfo',
     ]) {
-      expect(isAllowedUntrackedPath(refused)).toBe(false)
+      expect(isAllowedUntrackedPath(refused, repo)).toBe(false)
     }
-    const { repo, facts } = releaseRepo()
+    expect(facts().dirty).toBe(false)
     fs.mkdirSync(path.join(repo, 'node_modules', 'convex'), {
       recursive: true,
     })
@@ -2730,5 +2741,139 @@ describe('window approval: review gaps', () => {
     vi.restoreAllMocks()
     expect(code).toBe(1)
     expect(spawned).toEqual([['deploy', '--dry-run']])
+  })
+})
+
+describe('window approval: second review', () => {
+  const dirs: string[] = []
+  afterEach(() => {
+    for (const dir of dirs.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  function tempDir(prefix: string) {
+    const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), prefix)))
+    dirs.push(dir)
+    return dir
+  }
+
+  const identity = [
+    '-c',
+    'user.name=Window Test',
+    '-c',
+    'user.email=window@example.test',
+    '-c',
+    'commit.gpgsign=false',
+  ]
+
+  /** A repository with one committed function file. */
+  function releaseRepo() {
+    const repo = tempDir('live-window-second-')
+    const git = (...args: string[]) =>
+      execFileSync('git', ['-C', repo, ...args], { encoding: 'utf8' }).trim()
+    git('init', '-q')
+    fs.mkdirSync(path.join(repo, 'convex'))
+    fs.writeFileSync(
+      path.join(repo, 'convex', 'tips.ts'),
+      'export const a = 1\n'
+    )
+    git('add', '.')
+    git(...identity, 'commit', '-q', '-m', 'release')
+    const facts = () =>
+      readLiveWindowFacts(
+        { [LIVE_WINDOW_APPROVAL_ENV]: WINDOW_VALUE },
+        { checkoutRoot: repo, cwd: repo }
+      )
+    return { repo, git, facts, head: git('rev-parse', 'HEAD') }
+  }
+
+  it('sees a function file that is staged but not committed', () => {
+    const { repo, git, facts, head } = releaseRepo()
+    fs.writeFileSync(
+      path.join(repo, 'convex', 'extra.ts'),
+      'export const x = 1\n'
+    )
+    git('add', 'convex/extra.ts')
+    expect(git('rev-parse', 'HEAD')).toBe(head)
+    expect(facts()).toMatchObject({
+      head,
+      dirty: true,
+      dirtyPaths: ['convex/extra.ts'],
+    })
+  })
+
+  it('ignores a replace ref that shows another tree for the approved commit', () => {
+    const { repo, git, facts, head } = releaseRepo()
+    fs.writeFileSync(
+      path.join(repo, 'convex', 'extra.ts'),
+      'export const x = 1\n'
+    )
+    git('add', 'convex/extra.ts')
+    git(...identity, 'commit', '-q', '-m', 'other')
+    const other = git('rev-parse', 'HEAD')
+    git('reset', '-q', '--soft', head)
+    git('replace', head, other)
+    expect(git('ls-tree', '-r', '--name-only', 'HEAD')).toContain(
+      'convex/extra.ts'
+    )
+    expect(facts()).toMatchObject({ head, dirty: true })
+    expect(checkoutChanges(repo)).toEqual(['convex/extra.ts'])
+  })
+
+  it.each(['x.tsbuildinfo', '.DS_Store'])(
+    'sees function files in a folder named %s',
+    (name) => {
+      const { repo, facts } = releaseRepo()
+      fs.mkdirSync(path.join(repo, 'convex', name))
+      fs.writeFileSync(
+        path.join(repo, 'convex', name, 'extra.ts'),
+        'export const x = 1\n'
+      )
+      expect(facts()).toMatchObject({
+        dirty: true,
+        dirtyPaths: [`convex/${name}/`],
+      })
+    }
+  )
+
+  it('sees a link named like build info that points at a folder', () => {
+    const { repo, facts } = releaseRepo()
+    const outside = tempDir('live-window-outside-')
+    fs.writeFileSync(path.join(outside, 'extra.ts'), 'export const x = 1\n')
+    fs.symlinkSync(outside, path.join(repo, 'convex', 'x.tsbuildinfo'))
+    expect(facts()).toMatchObject({
+      dirty: true,
+      dirtyPaths: ['convex/x.tsbuildinfo'],
+    })
+  })
+
+  it('compares the pushed folder even when core.worktree points elsewhere', () => {
+    const { repo, git } = releaseRepo()
+    const clean = tempDir('live-window-clean-')
+    fs.cpSync(path.join(repo, 'convex'), path.join(clean, 'convex'), {
+      recursive: true,
+    })
+    git('config', 'core.worktree', clean)
+    fs.writeFileSync(
+      path.join(repo, 'convex', 'extra.ts'),
+      'export const x = 1\n'
+    )
+    expect(checkoutChanges(repo)).toEqual(['convex/extra.ts'])
+  })
+
+  it.each([
+    ['NODE_OPTIONS', '--require /tmp/extra.js', 'LIVE_WINDOW_DIRTY'],
+    ['NODE_PATH', '/tmp/modules', 'LIVE_WINDOW_DIRTY'],
+    ['BUN_OPTIONS', '--preload /tmp/extra.ts', 'LIVE_WINDOW_DIRTY'],
+    [
+      'CONVEX_PROVISION_HOST',
+      'https://api.example.org',
+      'LIVE_WINDOW_OTHER_TARGET',
+    ],
+    ['CONVEX_OVERRIDE_ACCESS_TOKEN', 'token', 'LIVE_WINDOW_OTHER_TARGET'],
+  ])('refuses a window run while %s is set', (name, value, code) => {
+    expect(windowCodes(['deploy'], { [name]: value })).toEqual([code])
+    expect(windowCodes(['deploy'], { [name]: '' })).toEqual([])
   })
 })

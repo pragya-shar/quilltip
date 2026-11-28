@@ -387,16 +387,15 @@ function matches(pattern: RegExp, description: string) {
  * Non-secret variables of runbook section 3.1 that the window may set, with a
  * check of each value. Secrets (TAB_ACCEPTOR_SECRET, TAB_SETTLER_SECRET,
  * ARWEAVE_WALLET_KEY) stay in the dashboard, and ARWEAVE_ENABLED is not
- * changed in the window.
+ * changed in the window. STELLAR_NETWORK (already TESTNET, checked only) and
+ * HORIZON_URL (unchanged) are not set by the runbook, so they are not listed.
  */
 export const LIVE_WINDOW_ENV_SET: Readonly<
   Record<string, (value: string) => string | null>
 > = {
-  STELLAR_NETWORK: (v) => (v === 'TESTNET' ? null : 'must be TESTNET'),
   NETWORK_PASSPHRASE: (v) =>
     v === TESTNET_PASSPHRASE ? null : `must be "${TESTNET_PASSPHRASE}"`,
   STELLAR_RPC_URL: httpsTestnetUrl,
-  HORIZON_URL: httpsTestnetUrl,
   CHAIN_V2_ENABLED: matches(BOOLEAN, 'must be true or false'),
   CHAIN_V1_PREPARES_ENABLED: matches(BOOLEAN, 'must be true or false'),
   SETTLEMENT_ENABLED: matches(BOOLEAN, 'must be true or false'),
@@ -675,22 +674,36 @@ function gitEnv(): NodeJS.ProcessEnv {
   ) as NodeJS.ProcessEnv
 }
 
-function git(root: string, args: string[], input?: string): string | null {
+function git(
+  root: string,
+  args: string[],
+  input?: string,
+  options: { workTree?: boolean; indexFile?: string } = {}
+): string | null {
   try {
     return execFileSync(
       'git',
       [
+        // Replace refs (`git replace`) would show another commit's tree for
+        // the approved commit.
+        '--no-replace-objects',
         '-c',
         'core.fsmonitor=false',
         '-c',
         'core.untrackedCache=false',
         '-C',
         root,
+        // `core.worktree` in the repository config could point the checks
+        // at another folder than the one that is pushed.
+        ...(options.workTree ? [`--work-tree=${root}`] : []),
         ...args,
       ],
       {
         encoding: 'utf8',
-        env: gitEnv(),
+        env: {
+          ...gitEnv(),
+          ...(options.indexFile ? { GIT_INDEX_FILE: options.indexFile } : {}),
+        },
         input,
         maxBuffer: 64 * 1024 * 1024,
         stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'ignore'],
@@ -706,13 +719,29 @@ function git(root: string, args: string[], input?: string): string | null {
  * dependencies (installed with `bun install --frozen-lockfile`), Next.js build
  * output, TypeScript build info and Finder metadata. Every other untracked
  * path, ignored or not, makes the checkout dirty.
+ *
+ * `node_modules` and `.next` are allowed at the top level only. The other
+ * names are allowed only as regular files: a folder (or a link to one) named
+ * `x.tsbuildinfo` or `.DS_Store` inside `convex/` would be bundled, because
+ * the Convex CLI filters entry points by file name, not by folder name.
  */
-export function isAllowedUntrackedPath(relative: string): boolean {
+export function isAllowedUntrackedPath(
+  relative: string,
+  root: string
+): boolean {
   const trimmed = relative.replace(/\/$/, '')
   if (trimmed === 'node_modules' || trimmed === '.next') return true
-  if (trimmed === 'next-env.d.ts') return true
   const base = path.posix.basename(trimmed)
-  return base === '.DS_Store' || base.endsWith('.tsbuildinfo')
+  const fileName =
+    trimmed === 'next-env.d.ts' ||
+    base === '.DS_Store' ||
+    base.endsWith('.tsbuildinfo')
+  if (!fileName || relative.endsWith('/')) return false
+  try {
+    return fs.lstatSync(path.join(root, trimmed)).isFile()
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -720,11 +749,20 @@ export function isAllowedUntrackedPath(relative: string): boolean {
  * each tracked file is hashed without filters and compared with the HEAD tree,
  * so the index flags `assume-unchanged` and `skip-worktree`, an fsmonitor,
  * clean filters and exclude files cannot hide a change. Untracked paths are
- * listed without any exclude rule. Returns null when git cannot read it.
+ * listed without any exclude rule, against a fresh index read from HEAD, so a
+ * file staged with `git add` but not committed counts as untracked. Replace
+ * refs and `core.worktree` are ignored. Returns null when git cannot read it.
  */
 export function checkoutChanges(root: string): string[] | null {
-  const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', 'HEAD'])
-  const others = git(root, ['ls-files', '--others', '--directory', '-z'])
+  const tree = git(
+    root,
+    ['ls-tree', '-r', '-z', '--full-tree', 'HEAD'],
+    undefined,
+    {
+      workTree: true,
+    }
+  )
+  const others = untrackedAgainstHead(root)
   if (tree === null || others === null) return null
   const changes: string[] = []
   const regular: { path: string; sha: string }[] = []
@@ -754,7 +792,8 @@ export function checkoutChanges(root: string): string[] | null {
     const hashes = git(
       root,
       ['hash-object', '--no-filters', '--stdin-paths'],
-      `${regular.map((r) => r.path).join('\n')}\n`
+      `${regular.map((r) => r.path).join('\n')}\n`,
+      { workTree: true }
     )
     if (hashes === null) return null
     const lines = hashes.split('\n').filter(Boolean)
@@ -764,9 +803,38 @@ export function checkoutChanges(root: string): string[] | null {
     })
   }
   for (const file of others.split('\0').filter(Boolean)) {
-    if (!isAllowedUntrackedPath(file)) changes.push(file)
+    if (!isAllowedUntrackedPath(file, root)) changes.push(file)
   }
   return changes.sort()
+}
+
+/**
+ * Untracked paths relative to the HEAD commit, not to the repository's index:
+ * a temporary index is read from HEAD, so staged files and index flags do not
+ * matter. No exclude rule applies.
+ */
+function untrackedAgainstHead(root: string): string | null {
+  let dir: string
+  try {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'quilltip-window-index-'))
+  } catch {
+    return null
+  }
+  try {
+    const indexFile = path.join(dir, 'index')
+    const options = { workTree: true, indexFile }
+    if (git(root, ['read-tree', 'HEAD'], undefined, options) === null) {
+      return null
+    }
+    return git(
+      root,
+      ['ls-files', '--others', '--directory', '-z'],
+      undefined,
+      options
+    )
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
 }
 
 function realpath(dir: string): string {
@@ -847,7 +915,18 @@ const OTHER_CLI_TARGETS = [
   'CONVEX_DEPLOYMENT_TOKEN',
   'CONVEX_SELF_HOSTED_URL',
   'CONVEX_SELF_HOSTED_ADMIN_KEY',
+  // Send the CLI's requests (and the deploy key) to another control plane,
+  // or authenticate with another identity.
+  'CONVEX_PROVISION_HOST',
+  'CONVEX_OVERRIDE_ACCESS_TOKEN',
 ] as const
+
+/**
+ * Variables that load or resolve extra code in the Convex CLI (a Node
+ * program) or in Bun, so the pushed bundle could differ from the approved
+ * commit.
+ */
+const CODE_LOADING_ENV = ['NODE_OPTIONS', 'NODE_PATH', 'BUN_OPTIONS'] as const
 
 function approvalRefusals(
   approval: LiveWindowApproval,
@@ -921,6 +1000,16 @@ function credentialRefusals(
         refusal(
           'LIVE_WINDOW_OTHER_TARGET',
           `${name} is set. A window run selects the deployment with CONVEX_DEPLOY_KEY only; unset ${name}.`
+        )
+      )
+    }
+  }
+  for (const name of CODE_LOADING_ENV) {
+    if (env[name]?.trim()) {
+      refusals.push(
+        refusal(
+          'LIVE_WINDOW_DIRTY',
+          `${name} is set. It can load code that is not in the release commit into the Convex CLI; unset ${name}.`
         )
       )
     }
