@@ -70,4 +70,17 @@ export type PerfRoutes = {
     path: string
     gateMovement: boolean
   }[]
+  /**
+   * Protected old pages that now send a signed-out reader to a page of this
+   * package instead of the sign-in page (scripts/perf/no-script-reading.ts),
+   * by `path`. With scripts on and off, the visit ends at `endsAt`, whose
+   * `main` holds a link named `signInLink` to the sign-in page that comes
+   * back to `endsAt`, and no money; with no script, following it shows the
+   * sign-in form. A protected page not listed here must end at sign-in.
+   */
+  signedOutLanding?: readonly {
+    path: string
+    endsAt: string
+    signInLink: string
+  }[]
 }

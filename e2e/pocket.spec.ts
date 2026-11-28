@@ -296,7 +296,7 @@ test.describe('who is here', () => {
     await expect(root).toContainText('Sign in to tip and keep your lines.')
     await expect(root.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
       'href',
-      '/login'
+      '/login?returnTo=%2Fpocket'
     )
     expect(await root.textContent()).not.toMatch(/\$\s?\d/)
   })
@@ -311,7 +311,7 @@ test.describe('who is here', () => {
     await expect(root).toContainText(/Sign in to/)
     await expect(root.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
       'href',
-      '/login'
+      '/login?returnTo=%2Fpocket'
     )
     await expect(root).not.toContainText('Ready to tip')
     await expect(root).not.toContainText('Activity')
