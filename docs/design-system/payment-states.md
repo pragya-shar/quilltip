@@ -426,19 +426,20 @@ RPC polling, so its copy names no money:
 
 Convex tab refusals with no notice of their own (`kind="refused"`):
 
-| Refusal                | Title                                        | Detail                                                         |
-| ---------------------- | -------------------------------------------- | -------------------------------------------------------------- |
-| Above the maximum      | This tip is above the quick-tip maximum      | Choose a smaller amount, or tip from your wallet.              |
-| Below the minimum      | This tip is below the minimum                | Choose a larger amount.                                        |
-| Own article            | You can’t tip your own article               | This tip was not accepted.                                     |
-| No price               | No XLM price right now                       | Quilltip can’t convert this amount yet. Try again in a minute. |
-| Took too long          | This tip took too long                       | This tip was not accepted. Send it again.                      |
-| Already sent           | This tip was already sent                    | Your tab already counts it.                                    |
-| No withdrawal          | No withdrawal is waiting                     | Close your tab first to start one.                             |
-| Quick tips unavailable | Quick tips are unavailable right now         | Tip from your wallet, or try again later.                      |
-| Another account        | This wallet’s tab belongs to another account | Sign in to the account that opened it, or use another wallet.  |
-| Voucher not accepted   | Quilltip could not accept this tip           | Set up quick tips again on this device.                        |
-| Any other code         | Quilltip could not accept this               | Try again in a minute.                                         |
+| Refusal                | Title                                        | Detail                                                                              |
+| ---------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Above the maximum      | This tip is above the quick-tip maximum      | Choose a smaller amount, or tip from your wallet.                                   |
+| Below the minimum      | This tip is below the minimum                | Choose a larger amount.                                                             |
+| Own article            | You can’t tip your own article               | This tip was not accepted.                                                          |
+| No price               | No XLM price right now                       | Quilltip can’t convert this amount yet. Try again in a minute.                      |
+| Balance being checked  | Your tab balance is being checked            | Quick tips are paused until it matches Stellar again. Tip from your wallet for now. |
+| Took too long          | This tip took too long                       | This tip was not accepted. Send it again.                                           |
+| Already sent           | This tip was already sent                    | Your tab already counts it.                                                         |
+| No withdrawal          | No withdrawal is waiting                     | Close your tab first to start one.                                                  |
+| Quick tips unavailable | Quick tips are unavailable right now         | Tip from your wallet, or try again later.                                           |
+| Another account        | This wallet’s tab belongs to another account | Sign in to the account that opened it, or use another wallet.                       |
+| Voucher not accepted   | Quilltip could not accept this tip           | Set up quick tips again on this device.                                             |
+| Any other code         | Quilltip could not accept this               | Try again in a minute.                                                              |
 
 ### Notices
 
