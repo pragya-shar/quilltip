@@ -4,6 +4,7 @@ import '../../../system/system.css'
 import '../../../shell/shell.css'
 import { ToastRegion } from '../../../system/components/ToastRegion'
 import { AppShell } from '../../../shell/AppShell'
+import { sheetStack } from '../../../shell/sheetStack'
 import { SheetHost } from '../../../shell/SheetHost'
 import {
   BalanceSourceContext,
@@ -47,6 +48,8 @@ import { TodayStandIn } from './TodayStandIn'
 //   ?earnings=, ?earnings-later=  loading or unavailable, from the start
 //               or after a first answer
 //   ?writer-converted, ?unwired  see below
+//   ?open=      a declared sheet to open on load (withdraw, add-money), as a
+//               later caller might, whatever the balance offers
 // Tips "sent elsewhere" (/elsewhere) are kept in localStorage as the
 // fixture's server, so they survive a reload the way the server's do.
 
@@ -261,3 +264,7 @@ createRoot(document.getElementById('root')!).render(
     </PocketSourceContext.Provider>
   </BalanceSourceContext.Provider>
 )
+
+// `?open=`: a declared sheet opened directly, after the page has rendered.
+const openOnLoad = params.get('open')
+if (openOnLoad) window.setTimeout(() => sheetStack.open(openOnLoad), 300)

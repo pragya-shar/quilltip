@@ -11,8 +11,9 @@ import { usePocketSource } from '@/lib/pocket/source'
 /**
  * Withdraw a writer's earnings: exactly what is ready to withdraw, never
  * tips still on their way (declared in shell/sheets/pocket.ts). The balance
- * links here only once the money layer can withdraw; until then the
- * body says what is and is not possible today.
+ * links here only once the money layer can withdraw; opened before that,
+ * it calls the figure what has arrived and says what is and is not
+ * possible today.
  */
 export default function WithdrawBody({ close }: SheetBodyProps<unknown>) {
   const source = usePocketSource()
@@ -31,7 +32,13 @@ export default function WithdrawBody({ close }: SheetBodyProps<unknown>) {
               : 'unavailable'
         }
         size="l"
-        label="Ready to withdraw. Tips on their way are not included."
+        // "Ready to withdraw" only when withdrawing exists, as on the
+        // balance; until then it is what has arrived.
+        label={
+          act
+            ? 'Ready to withdraw. Tips on their way are not included.'
+            : 'Arrived. Tips on their way are not included.'
+        }
         unavailableText="Not available right now"
       />
       <MoneyActPanel

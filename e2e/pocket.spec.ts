@@ -614,12 +614,25 @@ test.describe('receipts and money sheets', () => {
     ).toBeVisible()
   })
 
+  test('the Withdraw sheet opened with no way to withdraw says what has arrived', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=ready&role=writer&open=withdraw')
+    const sheet = page.getByRole('dialog', { name: 'Withdraw' })
+    await expect(sheet).toContainText(
+      'Arrived. Tips on their way are not included.'
+    )
+    await expect(sheet).not.toContainText('Ready to withdraw')
+    await expect(sheet).toContainText('You cannot withdraw from here yet.')
+  })
+
   test('Withdraw appears with its act and moves the exact figure', async ({
     page,
   }) => {
     await page.goto('/pocket?scenario=ready&role=writer&act=withdraw')
     await press(page.getByRole('button', { name: 'Withdraw $0.6825' }))
     const sheet = page.getByRole('dialog', { name: 'Withdraw' })
+    await expect(sheet).toContainText('Ready to withdraw.')
     await expect(sheet.locator('.qt-money__digits')).toHaveText('$0.6825')
     await expect(sheet).toContainText('Tips on their way are not included.')
     await press(sheet.getByRole('button', { name: 'Withdraw $0.6825' }))
