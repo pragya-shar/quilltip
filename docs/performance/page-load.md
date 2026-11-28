@@ -1042,8 +1042,9 @@ loads its scripts.
   `WAITLIST_MIN_FILL_MS`, so a held submit would be dropped there.
 - **Mobile menu.** The sheet is a native `<dialog>` in the server HTML. Before
   the scripts run, the header button opens it as a popover
-  (`popovertarget`, action `show`); an inline script at the start of `<body>`
-  closes the popover when focus leaves it (`lib/navigation/earlyMenu.ts`). An
+  (`popovertarget`, action `show`); an inline script in the header, just
+  before the menu button, closes the popover when focus leaves it and records
+  whether the reader left it open (`lib/navigation/earlyMenu.ts`). An
   inline script in `<head>` instead changes when Chrome runs the page's
   chunks: first paint about 0.9 s earlier and React about 0.9 s later on this
   profile, the same trade-off as #538. Once the scripts run, the button opens
