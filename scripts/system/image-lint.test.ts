@@ -36,6 +36,27 @@ describe('images in the shell and its surfaces', () => {
       `import Image from 'next/image'\nexport const A = () => <Image src="/a.png" alt="" width={1} height={1} />`,
     ],
     [
+      'an object or embed',
+      `export const A = ({ src }: { src: string }) => <object data={src} />`,
+    ],
+    [
+      'an embed',
+      `export const A = ({ src }: { src: string }) => <embed src={src} />`,
+    ],
+    [
+      'a video poster',
+      `export const A = ({ src }: { src: string }) => <video poster={src} />`,
+    ],
+    [
+      'an image input',
+      `export const A = ({ src }: { src: string }) => <input type="image" src={src} alt="" />`,
+    ],
+    [
+      'new Image',
+      `export function a(src: string) { const i = new Image(); i.src = src; return i }`,
+    ],
+    ['a dynamic next/image', `export const load = () => import('next/image')`],
+    [
       'next/legacy/image',
       `import Image from 'next/legacy/image'\nexport const A = () => <Image src="/a.png" alt="" width={1} height={1} />`,
     ],
@@ -75,6 +96,12 @@ describe('images in the shell and its surfaces', () => {
     const code =
       'export const A = ({ src }: { src: string }) => <div style={{ background: `url(${src}) center` }} />'
     expect((await imageErrors(code)).length).toBeGreaterThan(0)
+  })
+
+  it('lets a plain video and a text input through', async () => {
+    const code =
+      'export const A = () => <><video src="/a.mp4" /><input type="text" /></>'
+    expect(await imageErrors(code)).toEqual([])
   })
 
   it('lets a colour or a token through', async () => {

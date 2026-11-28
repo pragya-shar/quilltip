@@ -5,6 +5,7 @@ import '@/shell/shell.css'
 import {
   readingFace,
   readingFaceStyle,
+  readingFaceUpgradeData,
   readingItalicFace,
 } from '@/system/fonts'
 import { ToastRegion } from '@/system/components/ToastRegion'
@@ -55,6 +56,7 @@ export default async function AppRootLayout({
       lang="en"
       className={`${readingFace.variable} ${readingItalicFace.variable}`}
       style={readingFaceStyle}
+      data-reading-faces={readingFaceUpgradeData}
       suppressHydrationWarning
     >
       <head>

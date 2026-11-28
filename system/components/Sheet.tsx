@@ -2,7 +2,6 @@
 
 import { useId, useRef, type PointerEvent, type ReactNode } from 'react'
 import { cx } from '../cx'
-import { notePressClose } from '../pressGuard'
 import { CloseIcon } from '../icons'
 import { Icon } from './Icon'
 import { useModal } from './useModal'
@@ -73,10 +72,7 @@ export function Sheet({
     const speed = state.dy / Math.max(1, event.timeStamp - state.t)
     const far = state.dy > node.offsetHeight * DISMISS_SHARE
     node.style.transform = ''
-    if (far || speed > DISMISS_SPEED) {
-      notePressClose()
-      onClose()
-    }
+    if (far || speed > DISMISS_SPEED) onClose()
   }
 
   return (
@@ -95,10 +91,8 @@ export function Sheet({
       onClick={(event) => {
         // A press that began and ended on the scrim (the dialog itself,
         // outside the panel); a text selection dragged out of it is not.
-        if (scrimPress.current && event.target === event.currentTarget) {
-          notePressClose()
+        if (scrimPress.current && event.target === event.currentTarget)
           onClose()
-        }
         scrimPress.current = false
       }}
     >
@@ -137,11 +131,7 @@ export function Sheet({
           type="button"
           className="qt-modal__close"
           aria-label="Close"
-          onClick={(event) => {
-            // A press, not Enter or Space (a click with no detail).
-            if (event.detail > 0) notePressClose()
-            onClose()
-          }}
+          onClick={onClose}
         >
           <Icon icon={CloseIcon} size={24} />
         </button>

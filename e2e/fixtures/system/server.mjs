@@ -47,7 +47,7 @@ const jsName = [...outputs.keys()].find((n) => n.endsWith('.js'))
 const cssName = [...outputs.keys()].find((n) => n.endsWith('.css'))
 
 const html = (title) =>
-  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"><title>${title}</title><link rel="stylesheet" href="/${cssName}"></head><body><div id="root"></div><script type="module" src="/${jsName}"></script></body></html>`
+  `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"><title>${title}</title><link rel="preload" href="/fonts/literata-latin-normal.woff2" as="font" type="font/woff2" crossorigin><link rel="stylesheet" href="/${cssName}"></head><body><div id="root"></div><script type="module" src="/${jsName}"></script></body></html>`
 
 Bun.serve({
   hostname: '127.0.0.1',

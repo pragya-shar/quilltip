@@ -1,13 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { avatarSrc, type AvatarSources } from '@/system/media/avatarSource'
+import {
+  AVATAR_SOURCES,
+  avatarSrc,
+  type AvatarSources,
+} from '@/system/media/avatarSource'
 
 const sources: AvatarSources = {
   storageOrigin: 'https://quiet-otter-123.convex.cloud',
   storagePath: '/api/storage/',
-  sitePaths: ['/images/', '/prototype/'],
+  sitePaths: ['/images/'],
 }
 
 describe('where an avatar may come from', () => {
+  it("allows this deployment's storage and /images/ only", () => {
+    expect(AVATAR_SOURCES.sitePaths).toEqual(['/images/'])
+    expect(AVATAR_SOURCES.storagePath).toBe('/api/storage/')
+  })
+
   it("takes this deployment's storage and same-site paths", () => {
     expect(
       avatarSrc(
@@ -15,8 +24,8 @@ describe('where an avatar may come from', () => {
         sources
       )
     ).toBe('https://quiet-otter-123.convex.cloud/api/storage/0b1c-2d3e')
-    expect(avatarSrc('/prototype/avatars/tomas.png', sources)).toBe(
-      '/prototype/avatars/tomas.png'
+    expect(avatarSrc('/images/avatars/tomas.png', sources)).toBe(
+      '/images/avatars/tomas.png'
     )
   })
 
@@ -41,6 +50,16 @@ describe('where an avatar may come from', () => {
       '/images/../_next/image?url=https%3A%2F%2Fevil.example%2Fp.png',
       '/images/%2e%2e/_next/image',
       '/images/a.png?url=https://evil.example',
+      // Articles, fonts and writing samples are not avatars.
+      '/prototype/articles/cover.png',
+      '/images/%2f%2fevil.example/p.png',
+      '/images/..%2F_next/image',
+      '/images/%5c_next/image',
+      '/images/a.png%00.svg',
+      // Encoded twice, and three times.
+      '/images/%252f%252fevil.example/p.png',
+      '/images/%25252f_next/image',
+      '/images/%255c_next/image',
       ' ',
       '',
       null,

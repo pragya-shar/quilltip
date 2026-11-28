@@ -578,6 +578,8 @@ for (const kind of [
     ).toBe(false)
 
     // By touch or pointer: the title again, and no focus ring anywhere.
+    // After the hold that every close starts (system/pressGuard.ts).
+    await page.waitForTimeout(450)
     await press(page, opener)
     await expect(modal).toBeVisible()
     await expect(modal.getByRole('heading', { name: kind.name })).toBeFocused()
@@ -774,73 +776,212 @@ test('a toast stays the same toast while a modal opens and closes', async ({
   await expect(page.locator('.qt-toast[data-seen="yes"]')).toHaveCount(1)
 })
 
-test('a press just after a sheet closes reaches nothing under it', async ({
-  page,
-}) => {
-  await open(page)
-  const count = page.locator('[data-press-count]')
+/**
+ * What each click was and whether it got past the press hold, and when each
+ * modal closed: printed with a failure, so a run tells a press that came
+ * after the hold (a slow runner) from one the hold let through.
+ */
+async function recordPresses(page: Page) {
+  await page.addInitScript(() => {
+    type Press = {
+      at: number
+      detail: number
+      pointerType: string
+      target: string
+      passed: boolean
+    }
+    const w = window as unknown as { __presses: Press[]; __closes: number[] }
+    w.__presses = []
+    w.__closes = []
+    // Before the guard's own listener (it installs later), and after it.
+    window.addEventListener(
+      'click',
+      (event) => {
+        const target = event.target as Element | null
+        w.__presses.push({
+          at: Math.round(performance.now()),
+          detail: event.detail,
+          pointerType: String((event as PointerEvent).pointerType ?? 'none'),
+          target:
+            target?.closest?.('button')?.textContent?.trim().slice(0, 20) ??
+            target?.tagName ??
+            '?',
+          passed: false,
+        })
+      },
+      true
+    )
+    window.addEventListener('click', () => {
+      const last = w.__presses.at(-1)
+      if (last) last.passed = true
+    })
+    new MutationObserver((records) => {
+      // Set when a modal closes (and removed when its exit ends, at once
+      // with reduced motion): the first change of a batch is the close.
+      if (records.some((record) => record.oldValue === null))
+        w.__closes.push(Math.round(performance.now()))
+    }).observe(document, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-closing'],
+      attributeOldValue: true,
+    })
+  })
+}
+
+const pressLog = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __presses: unknown[]; __closes: number[] }
+    return JSON.stringify({ closes: w.__closes, presses: w.__presses })
+  })
+
+/** The last press: how long after the last close it came, what it hit,
+ * and whether it got past the hold. */
+async function lastPress(page: Page) {
+  const log = await pressLog(page)
+  const { closes, presses } = JSON.parse(log) as {
+    closes: number[]
+    presses: { at: number; target: string; passed: boolean }[]
+  }
+  const press = presses.at(-1)
+  return {
+    gap: (press?.at ?? 0) - (closes.at(-1) ?? 0),
+    target: press?.target ?? '',
+    passed: press?.passed ?? true,
+    log,
+  }
+}
+
+/**
+ * A press on the tip button right after `close`, checked to have been held.
+ * The proof does not hang on the runner's speed: the press goes in at once
+ * (no scroll, no wait for the button to take it), and an attempt whose
+ * press came after the 400 ms hold (a slow runner) proves nothing either
+ * way, so it is tried again, up to three times.
+ */
+async function expectPressHeld(
+  page: Page,
+  tip: Locator,
+  count: Locator,
+  openSheet: () => Promise<void>,
+  close: () => Promise<void>
+) {
+  for (let attempt = 1; ; attempt++) {
+    await openSheet()
+    const before = await count.getAttribute('data-press-count')
+    const at = await centre(tip)
+    await close()
+    await pressAt(page, at)
+    // A press that got through would show in the count by now.
+    await page.waitForTimeout(150)
+    const press = await lastPress(page)
+    test.info().annotations.push({
+      type: 'held press',
+      description: `attempt ${attempt}: ${press.gap} ms after the close, on ${press.target}, ${press.passed ? 'passed' : 'held'}`,
+    })
+    // Not a press that missed (no click, or a click beside the button).
+    expect(
+      press.target,
+      `the press did not reach the tip button: ${press.log}`
+    ).toMatch(/^Tip Lena/)
+    if (press.gap < 400) {
+      expect(
+        await count.getAttribute('data-press-count'),
+        `the tip button took a press ${press.gap} ms after the close, inside the hold: ${press.log}`
+      ).toBe(before)
+      expect(press.passed).toBe(false)
+      return
+    }
+    expect(
+      attempt,
+      `every press came after the 400 ms hold, the last ${press.gap} ms after the close: the runner was too slow for this check (${press.log})`
+    ).toBeLessThan(3)
+    await page.waitForTimeout(1100) // the tip control's own latch
+  }
+}
+
+/** A press at a point, with no wait for the target to take it: a finger
+ * on touch projects, the pointer elsewhere. */
+async function pressAt(page: Page, at: { x: number; y: number }) {
+  if (hasTouch()) await page.touchscreen.tap(at.x, at.y)
+  else await page.mouse.click(at.x, at.y)
+}
+
+/** The centre of a control. */
+async function centre(target: Locator) {
+  const box = (await target.boundingBox())!
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+}
+
+/** The gallery's sheet over the tip button, opened by script so the page
+ * does not scroll away from the button. */
+function gallerySheet(page: Page) {
   const tip = page
     .getByRole('group', { name: 'Tip Lena Park' })
     .getByRole('button', { name: 'Tip Lena $1' })
-  const opener = page.getByRole('button', { name: 'Open the sheet' })
   const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
+  const openSheet = async () => {
+    await tip.scrollIntoViewIfNeeded()
+    await page
+      .getByRole('button', { name: 'Open the sheet' })
+      .evaluate((el) => (el as HTMLButtonElement).click())
+    await expect(sheet).toBeVisible()
+    // Past the hold an earlier close started.
+    await page.waitForTimeout(500)
+  }
+  return { tip, sheet, openSheet }
+}
 
-  // A pointer press while the sheet closes is swallowed.
-  await press(page, opener)
-  await expect(sheet).toBeVisible()
-  await press(page, sheet.getByRole('button', { name: 'Close' }))
-  await press(page, tip)
+test('a press just after a sheet closes reaches nothing under it', async ({
+  page,
+}) => {
+  await recordPresses(page)
+  // The sheet goes at once, so the press lands well inside the hold.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await open(page)
+  const count = page.locator('[data-press-count]')
+  const { tip, sheet, openSheet } = gallerySheet(page)
+
+  // A pointer press as the sheet closes is swallowed.
+  await expectPressHeld(page, tip, count, openSheet, () =>
+    press(page, sheet.getByRole('button', { name: 'Close' }))
+  )
   await expect(sheet).toBeHidden()
-  await expect(count).toHaveAttribute('data-press-count', '0')
   // A moment later, presses count again.
+  const before = Number(await count.getAttribute('data-press-count'))
   await page.waitForTimeout(500)
   await press(page, tip)
-  await expect(count).toHaveAttribute('data-press-count', '1')
+  await expect(count).toHaveAttribute('data-press-count', String(before + 1))
 
   // A key press in the same moment is never swallowed.
   await page.waitForTimeout(1100) // the tip control's own latch
-  await press(page, opener)
-  await expect(sheet).toBeVisible()
+  await openSheet()
   await press(page, sheet.getByRole('button', { name: 'Close' }))
   await expect(sheet).toBeHidden()
   await tip.focus()
   await page.keyboard.press('Enter')
-  await expect(count).toHaveAttribute('data-press-count', '2')
+  await expect(count).toHaveAttribute('data-press-count', String(before + 2))
 })
 
-test('a press just after a sheet closes by itself reaches its target', async ({
+test('after any close, a pointer press is held for a moment, then lands', async ({
   page,
 }) => {
+  await recordPresses(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
   await open(page)
   const count = page.locator('[data-press-count]')
-  const tip = page
-    .getByRole('group', { name: 'Tip Lena Park' })
-    .getByRole('button', { name: 'Tip Lena $1' })
-  const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
-  await press(page, page.getByRole('button', { name: 'Open the sheet' }))
-  await expect(sheet).toBeVisible()
-  await page.waitForTimeout(700)
-  // Closed by script, as a path change or a finished result closes it.
-  await sheet.evaluate((el) =>
-    el.dispatchEvent(new Event('cancel', { cancelable: true }))
+  const { tip, sheet, openSheet } = gallerySheet(page)
+  // Closed by script, long after the press that opened it, as a path change
+  // or a finished result closes it: every close holds.
+  await expectPressHeld(page, tip, count, openSheet, () =>
+    sheet.evaluate((el) => {
+      el.dispatchEvent(new Event('cancel', { cancelable: true }))
+    })
   )
+  const before = Number(await count.getAttribute('data-press-count'))
+  await page.waitForTimeout(500)
   await press(page, tip)
-  await expect(sheet).toBeHidden()
-  await expect(count).toHaveAttribute('data-press-count', '1')
-
-  // A press inside the sheet, then the sheet closes by itself at once (a
-  // tip sent from a sheet, its result arriving): the next tap still lands.
-  await page.waitForTimeout(1100) // the tip control's own latch
-  await press(page, page.getByRole('button', { name: 'Open the sheet' }))
-  await expect(sheet).toBeVisible()
-  await press(page, sheet.getByText('Drag the top of the sheet down'))
-  await page.waitForTimeout(300)
-  await sheet.evaluate((el) =>
-    el.dispatchEvent(new Event('cancel', { cancelable: true }))
-  )
-  await press(page, tip)
-  await expect(sheet).toBeHidden()
-  await expect(count).toHaveAttribute('data-press-count', '2')
+  await expect(count).toHaveAttribute('data-press-count', String(before + 1))
 })
 
 test('a failure toast is announced as an alert, others politely', async ({
