@@ -84,15 +84,23 @@ export default [
     ignores: ['system/components/AppLink.tsx', 'system/components/Avatar.tsx'],
     rules: {
       // A person's image goes through Avatar, which accepts only this
-      // deployment's storage or a same-site path and sends no referrer.
-      // Every way to draw an image from an address: an img, a picture or
-      // media source, an SVG image, one made in script, a CSS background.
+      // deployment's storage or one of the site's image paths and sends no
+      // referrer. The common ways to draw an image from an address: an img,
+      // a picture or media source, an SVG image, an object or embed, a
+      // video poster, an image input, one made in script, a CSS image. Lint
+      // is a prompt, not the enforcement: the page policy's img-src is
+      // (lib/security/contentSecurityPolicy.ts), and other forms pass here.
       'no-restricted-syntax': [
         'error',
         ...[
           "JSXOpeningElement[name.name='img']",
           "JSXOpeningElement[name.name='source']",
           "JSXOpeningElement[name.name='image']",
+          'JSXOpeningElement[name.name=/^(object|embed)$/]',
+          "JSXOpeningElement[name.name='video'] > JSXAttribute[name.name='poster']",
+          "JSXOpeningElement[name.name='input'] > JSXAttribute[name.name='type'][value.value='image']",
+          "NewExpression[callee.name='Image']",
+          'ImportExpression[source.value=/^next\\/(legacy\\/)?image$/]',
           "CallExpression[callee.property.name='createElement'][arguments.0.value=/^(img|image|source)$/i]",
           "JSXAttribute[name.name='style'] Property[key.name=/^(backgroundImage|listStyleImage|maskImage|borderImage)$/]",
           "JSXAttribute[name.name='style'] Property[key.name=/^(background|content|listStyle|mask)$/] Literal[value=/url\\(/]",

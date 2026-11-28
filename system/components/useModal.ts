@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, type RefObject } from 'react'
+import { useEffect, useLayoutEffect, useRef, type RefObject } from 'react'
 import {
   focusDestination,
   inputModality,
@@ -8,7 +8,7 @@ import {
   watchInputModality,
 } from '../inputModality'
 import { modalStack } from '../modalStack'
-import { holdPresses, takePressClose } from '../pressGuard'
+import { holdPresses, noteModalOpened } from '../pressGuard'
 
 /** Open modals, so scroll stays locked until the last one closes. */
 let openCount = 0
@@ -43,9 +43,10 @@ export function focusables(root: HTMLElement): HTMLElement[] {
  *   that element is gone (never the page body); if the page moved focus
  *   elsewhere while it closed, focus stays there.
  * - The page behind does not scroll (iOS Safari included).
- * - For a moment after a press closes it, pointer presses are swallowed
- *   (system/pressGuard.ts), so a second tap never reaches the sliding
- *   panel or the page under it.
+ * - For 400 ms after it closes or unmounts, for any reason, pointer clicks
+ *   on the page do nothing, except inside a modal opened after the close
+ *   (system/pressGuard.ts). In development, React's StrictMode runs the
+ *   close once on mount, so a page click may be held for 400 ms then.
  */
 export function useModal(
   open: boolean,
@@ -58,6 +59,13 @@ export function useModal(
     closeRef.current = onClose
   })
   useEffect(() => watchInputModality(), [])
+  // The hold starts with the close itself: a layout-effect cleanup runs in
+  // the commit that closes or unmounts the modal, before the browser can
+  // take another click (system/pressGuard.ts). Every close holds.
+  useLayoutEffect(() => {
+    if (!open) return
+    return () => holdPresses()
+  }, [open])
 
   useEffect(() => {
     const dialog = ref.current
@@ -80,6 +88,9 @@ export function useModal(
     delete dialog.dataset.closing
     const wasOpen = dialog.open
     if (!wasOpen) dialog.showModal()
+    // Its own clicks pass during a hold that began before it opened
+    // (system/pressGuard.ts).
+    noteModalOpened(dialog)
     modalStack.push(dialog)
     const first =
       dialog.querySelector<HTMLElement>('[data-autofocus]') ??
@@ -123,14 +134,6 @@ export function useModal(
       if (openCount === 0) delete root.dataset.scrollLocked
       dialog.dataset.closing = ''
       modalStack.remove(dialog)
-      // Closed by its own Close, scrim or drag (notePressClose), not by a
-      // key, a script or a timer (closeAll on a path change, a sheet that
-      // closes itself after a result), and a real close, not an effect
-      // re-run (React StrictMode opens it again in the same task).
-      const byPointer = takePressClose()
-      queueMicrotask(() => {
-        if (byPointer && dialog.dataset.closing !== undefined) holdPresses()
-      })
       const finish = () => {
         // Opened again before the exit finished: keep it open.
         if (dialog.dataset.closing === undefined) return
