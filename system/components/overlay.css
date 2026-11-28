@@ -277,6 +277,9 @@
     pointer-events: none;
     animation: qt-rise var(--qt-dur-base) var(--qt-ease-out);
   }
+  .qt-toast[data-entered] {
+    animation: none;
+  }
   .qt-toast__glyph {
     display: inline-grid;
     place-items: center;

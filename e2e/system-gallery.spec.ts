@@ -757,12 +757,18 @@ test('a toast stays the same toast while a modal opens and closes', async ({
   const toast = page.locator('.qt-toast', { hasText: 'You tipped Tomás $3' })
   await expect(toast).toBeVisible()
   await toast.evaluate((el) => ((el as HTMLElement).dataset.seen = 'yes'))
+  // Its entry plays once.
+  await toast.evaluate((el) =>
+    Promise.all(el.getAnimations().map((a) => a.finished))
+  )
   await page.getByRole('button', { name: 'Open the sheet' }).focus()
   await page.keyboard.press('Enter')
   const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
   await expect(sheet).toBeVisible()
-  // Moved into the modal, not drawn again.
-  await expect(sheet.locator('.qt-toast[data-seen="yes"]')).toHaveCount(1)
+  // Moved into the modal, not drawn again, and not animated in again.
+  const moved = sheet.locator('.qt-toast[data-seen="yes"]')
+  await expect(moved).toHaveCount(1)
+  expect(await moved.evaluate((el) => el.getAnimations().length)).toBe(0)
   await page.keyboard.press('Escape')
   await expect(sheet).toBeHidden()
   await expect(page.locator('.qt-toast[data-seen="yes"]')).toHaveCount(1)

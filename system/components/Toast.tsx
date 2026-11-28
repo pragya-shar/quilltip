@@ -14,6 +14,23 @@ const GLYPH = { done: DoneIcon, failure: FailIcon, info: InfoIcon }
  */
 export function Toast({ item }: { item: ToastItem }) {
   const [paused, setPaused] = useState(false)
+  // Its entry played: the region moves into a modal and back, and a moved
+  // element would play it again.
+  const [entered, setEntered] = useState(false)
+  const card = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const node = card.current
+    if (!node) return
+    const done = (event: AnimationEvent) => {
+      if (event.target === node) setEntered(true)
+    }
+    node.addEventListener('animationend', done)
+    node.addEventListener('animationcancel', done)
+    return () => {
+      node.removeEventListener('animationend', done)
+      node.removeEventListener('animationcancel', done)
+    }
+  }, [])
   const left = useRef(toastDuration(item))
   useEffect(() => {
     if (paused) return
@@ -26,8 +43,10 @@ export function Toast({ item }: { item: ToastItem }) {
   }, [paused, item.id])
   return (
     <div
+      ref={card}
       className="qt-toast"
       data-tone={item.tone}
+      data-entered={entered || undefined}
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
     >
