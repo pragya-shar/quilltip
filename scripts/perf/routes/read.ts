@@ -8,7 +8,9 @@ export const routes: PerfRoutes = {
   // measurement (that number plus 2 KB). The target stays 150 KB, for when
   // the backend client leaves the first load of public pages.
   firstLoad: [{ route: '/[username]/[slug]', budgetKb: 195, access: 'public' }],
-  // The plan's targets for public reading: CLS at most 0.05 (both
+  // Its first response with no script: scripts/app-checks/read.ts.
+  noScript: ['/[username]/[slug]'],
+  // The targets for public reading: CLS at most 0.05 (both
   // profiles) and a median phone LCP of at most 2.0 s, both gated. Byte
   // budgets kept from the legacy article page until CI measures this one.
   pageLoad: [

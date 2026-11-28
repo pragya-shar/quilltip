@@ -7,8 +7,8 @@
  * `sessionStorage['quilltip:sign-in-intent']`, and `useResumedIntent`
  * (hooks/read) takes one back on its own page after sign-in.
  *
- * The read view's own helpers are at the end: the sign-in page's link with a
- * return path that keeps the line's anchor, for no script.
+ * The read view's own helper is at the end: the return path that keeps the
+ * line's anchor, for the shell's `signInHref` (no script).
  */
 
 // --- Mirrors of lib/auth/returnPath (sameSitePath) and signOutGuard -----
@@ -340,12 +340,4 @@ export function amountWithin(
 /** The article's path, with the line's anchor when it has one. */
 export function returnPathFor(articleHref: string, anchor: string | null) {
   return anchor ? `${articleHref}#${anchor}` : articleHref
-}
-
-/**
- * The sign-in page, returning to `returnTo` (a same-site path). The shell
- * will export one `signInHref`; this goes when it does.
- */
-export function signInHref(returnTo: string) {
-  return `/login?next=${encodeURIComponent(returnTo)}`
 }

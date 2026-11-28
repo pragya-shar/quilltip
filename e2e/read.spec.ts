@@ -465,9 +465,12 @@ test('signed out, the tip opens sign-in with the intent and sends nothing', asyn
     name: 'Tip Tomás $0.10',
     exact: true,
   })
+  // The shell's one sign-in address (`signInHref`), back to this article.
   await expect(link).toHaveAttribute(
     'href',
-    `/login?next=${encodeURIComponent(ARTICLE_PATH)}`
+    new RegExp(
+      `^/(login|signin)\\?returnTo=${encodeURIComponent(ARTICLE_PATH).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`
+    )
   )
   await expect(page.locator('.qt-read__dock .qt-balance-caption')).toHaveCount(
     0
@@ -1096,12 +1099,12 @@ test('signed out with no sign-in sheet, the link returns to the line and keeps t
     .locator('.qt-read__dock')
     .getByRole('link', { name: 'Tip this line $1', exact: true })
   const href = (await link.getAttribute('href'))!
-  const next = new URL(href, 'http://x').searchParams.get('next')!
+  const next = new URL(href, 'http://x').searchParams.get('returnTo')!
   expect(next).toMatch(
     new RegExp(`^${ARTICLE_PATH.replace(/\//g, '\\/')}#s-\\d+-\\d+$`)
   )
   await press(page, link)
-  await expect(page).toHaveURL(/\/login\?next=/)
+  await expect(page).toHaveURL(/\/(login|signin)\?returnTo=/)
   // The sign-in contract's stored form and tip intent: the article's own
   // path (the line comes back from its offsets), the amount as a ceiling.
   const stored = await page.evaluate(() =>
@@ -1175,7 +1178,7 @@ test('a signed-out Keep is kept after sign-in, once, across a full load', async 
   await tapLine(page, 'rarely remembers')
   await press(page, page.locator('.qt-read__dock').locator('.qt-keep'))
   // No sheet: the sign-in page, with the keep intent stored.
-  await expect(page).toHaveURL(/\/login\?next=/)
+  await expect(page).toHaveURL(/\/(login|signin)\?returnTo=/)
   const stored = await page.evaluate(() =>
     JSON.parse(sessionStorage.getItem('quilltip:sign-in-intent') ?? 'null')
   )

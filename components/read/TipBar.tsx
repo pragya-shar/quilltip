@@ -10,7 +10,7 @@ import { Dock } from '@/shell/Dock'
 import { sheetFor } from '@/shell/sheetRegistry'
 import { declaredSheet } from '@/shell/sheets'
 import { sheetStack } from '@/shell/sheetStack'
-import { openSignIn } from '@/shell/signIn'
+import { openSignIn, signInHref } from '@/shell/signIn'
 import { preloadSheet } from '@/shell/sheets/loadSheet'
 import { BalanceCaption } from './BalanceCaption'
 import { LiveArrivalSlot } from './LiveArrivalSlot'
@@ -34,7 +34,6 @@ import {
   keepIntent,
   returnPathFor,
   saveIntent,
-  signInHref,
   tipIntent,
 } from './signInIntent'
 
