@@ -34,7 +34,7 @@ test('with no script, /pocket shows its title and Sign in, and no figures', asyn
     page.getByRole('heading', { level: 1, name: 'Balance' })
   ).toBeVisible()
   const prompt = page.locator(
-    '[data-session-switch] > [data-when="signed-out"]'
+    'main [data-session-switch] > [data-when="signed-out"]'
   )
   await expect(prompt).toBeVisible()
   await expect(prompt.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
@@ -42,7 +42,7 @@ test('with no script, /pocket shows its title and Sign in, and no figures', asyn
     '/login'
   )
   await expect(
-    page.locator('[data-session-switch] > [data-when="held"]')
+    page.locator('main [data-session-switch] > [data-when="held"]')
   ).toBeHidden()
   expect(await page.locator('main').innerText()).not.toMatch(/\$\s?\d/)
 })

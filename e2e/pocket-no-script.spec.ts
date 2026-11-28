@@ -18,7 +18,7 @@ test('with no script, /pocket asks to sign in and shows no figures', async ({
     page.getByRole('heading', { level: 1, name: 'Balance' })
   ).toBeVisible()
   const prompt = page.locator(
-    '[data-session-switch] > [data-when="signed-out"]'
+    'main [data-session-switch] > [data-when="signed-out"]'
   )
   await expect(prompt).toBeVisible()
   await expect(prompt).toContainText('Sign in to tip and keep your lines.')
@@ -27,7 +27,7 @@ test('with no script, /pocket asks to sign in and shows no figures', async ({
     '/login'
   )
   await expect(
-    page.locator('[data-session-switch] > [data-when="held"]')
+    page.locator('main [data-session-switch] > [data-when="held"]')
   ).toBeHidden()
   await expect(
     page.locator('.qt-skeleton:visible, [data-skeleton]:visible')

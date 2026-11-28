@@ -5,6 +5,7 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TestnetNote } from '@/system/components/TestnetNote'
 import { TextLink } from '@/system/components/TextLink'
 import type { SheetBodyProps } from '@/shell/sheets/types'
+import { notePress } from './notePress'
 import { MoneyActPanel } from '../MoneyActPanel'
 import { ADD_MONEY_PAGE } from '../sheetIds'
 import { usePocketSource } from '@/lib/pocket/source'
@@ -32,7 +33,7 @@ export default function AddMoneyBody({
   const need = props?.need ?? null
   const known = balance.status === 'ready' || balance.status === 'none'
   return (
-    <div className="qt-pocket__sheet">
+    <div className="qt-pocket__sheet" onPointerDownCapture={notePress}>
       {known && balance.available ? (
         <p className="qt-pocket__plain">
           You have <MoneyFigure value={balance.available} size="s" /> ready to

@@ -5,6 +5,7 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TestnetNote } from '@/system/components/TestnetNote'
 import { TextLink } from '@/system/components/TextLink'
 import type { SheetBodyProps } from '@/shell/sheets/types'
+import { notePress } from './notePress'
 import { MoneyActPanel } from '../MoneyActPanel'
 import { usePocketSource } from '@/lib/pocket/source'
 
@@ -21,7 +22,7 @@ export default function WithdrawBody({ close }: SheetBodyProps<unknown>) {
   const act = source.useWithdraw()
   const ready = earnings.status === 'ready'
   return (
-    <div className="qt-pocket__sheet">
+    <div className="qt-pocket__sheet" onPointerDownCapture={notePress}>
       <MoneyFigure
         value={ready ? earnings.available : null}
         status={
