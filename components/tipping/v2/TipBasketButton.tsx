@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { useQuery } from 'convex/react'
 import { Check, ShoppingBasket } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
@@ -17,11 +17,12 @@ import { useWideLayout } from '@/hooks/useWideLayout'
 import { BASKET_COPY } from '@/lib/copy/tip-flow'
 import { moneyMayHaveMoved } from '@/lib/tip/v2/flow'
 import { OPEN_BASKET_EVENT } from '@/lib/tip/v2/open-basket'
+import { TipCodeBoundary, retryableLazy } from './TipCodeBoundary'
 import { TipDialogLoading } from './TipDialogLoading'
 import './tip-v2.css'
 
 // The basket's payment code loads when the reader opens it.
-const TipBasketPanel = lazy(() =>
+const basketPanel = retryableLazy(() =>
   import('./TipBasketPanel').then((mod) => ({ default: mod.TipBasketPanel }))
 )
 
@@ -108,12 +109,19 @@ export function TipBasketButton() {
             <SheetDescription>{BASKET_COPY.description}</SheetDescription>
           </SheetHeader>
           {open ? (
-            <Suspense fallback={<TipDialogLoading />}>
-              <TipBasketPanel
-                onBusyChange={setBusy}
-                onClose={() => setOpen(false)}
-              />
-            </Suspense>
+            <TipCodeBoundary onRetry={basketPanel.retry}>
+              {() => {
+                const TipBasketPanel = basketPanel.Component
+                return (
+                  <Suspense fallback={<TipDialogLoading />}>
+                    <TipBasketPanel
+                      onBusyChange={setBusy}
+                      onClose={() => setOpen(false)}
+                    />
+                  </Suspense>
+                )
+              }}
+            </TipCodeBoundary>
           ) : null}
         </SheetContent>
       </Sheet>

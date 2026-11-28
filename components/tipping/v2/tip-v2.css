@@ -285,6 +285,21 @@
   display: grid;
   gap: 12px;
 }
+/* The tip form's code failed to load: the dialog says so; the article stays. */
+.tip-v2-code-failed {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.tip-v2-code-failed .tip-v2-retry {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 600;
+}
 
 /*
  * Two ways to send the dialog's amount (issue #546): "From your tab" and

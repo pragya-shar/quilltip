@@ -100,6 +100,13 @@ export const PREPARE_REFUSAL_COPY = {
   }),
 } as const
 
+/** The tip form's code did not load (offline, or a deploy replaced it). */
+export const TIP_CODE_FAILED = {
+  title: 'The tip form couldn’t load',
+  detail: 'Check your connection, then try again. Nothing was sent.',
+  retry: 'Try again',
+} as const
+
 export const BASKET_COPY = {
   title: 'Tip basket',
   description:
