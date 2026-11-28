@@ -454,33 +454,75 @@ test.describe('landing reading link from the first paint', () => {
     })
   const stage = (page: Page) => page.locator('[data-stage-active="true"]')
 
+  type Place = 'opening' | 'hero'
+  type Reading = { stage: boolean; places: Place[] }
+
   /**
-   * The reading links a reader can reach now, by where they are: the hero's,
-   * or the opening's beside "Skip opening". Exactly one at any moment.
+   * One reading, in one task: whether the opening's stage is on the page, and
+   * where the reading links a reader can reach are (rendered, not inert, not
+   * hidden from assistive technology): the hero's, or the opening's beside
+   * "Skip opening". The stage, the opening's link and the hero's `inert`
+   * change in one React commit, so a reading never sees half a handoff.
+   * The first call keeps the reader on the page as `__readReach`.
+   */
+  function readReach(name: string): Reading {
+    const w = window as unknown as { __readReach?: () => Reading }
+    w.__readReach ??= () => ({
+      stage: !!document.querySelector('[data-stage-active="true"]'),
+      places: [...document.querySelectorAll('a')]
+        .filter((link) => link.textContent?.trim() === name)
+        .filter(
+          (link) =>
+            !link.closest('[inert]') &&
+            !link.closest('[aria-hidden="true"]') &&
+            link.getClientRects().length > 0
+        )
+        .map((link) =>
+          link.closest('.opening-controls') ? 'opening' : 'hero'
+        ),
+    })
+    return w.__readReach()
+  }
+
+  /** What a reader can reach while the stage is present, or once it is gone. */
+  const only = (phase: Place) => ({
+    phase,
+    places: [phase],
+    inTree: 1,
+    tabbed: [phase],
+  })
+
+  /**
+   * The reading links a reader can reach now, by pointer, in the
+   * accessibility tree and by Tab, with the phase they were read in: the
+   * opening while the stage is present, the hero once it is gone. Exactly
+   * one link at any moment, the one of the phase.
+   *
+   * The tree and the Tab order take many calls, and the stage can leave
+   * between two of them. So the phase is read before and after them, and the
+   * result is `null` when the two differ: the caller reads again. The pointer
+   * reading comes from the same task as the first phase reading.
    */
   async function reachable(page: Page, browserName: string) {
-    const places = await page.evaluate(
-      (name) =>
-        [...document.querySelectorAll('a')]
-          .filter((link) => link.textContent?.trim() === name)
-          .filter(
-            (link) =>
-              !link.closest('[inert]') &&
-              !link.closest('[aria-hidden="true"]') &&
-              link.getClientRects().length > 0
-          )
-          .map((link) =>
-            link.closest('.opening-controls') ? 'opening' : 'hero'
-          ),
-      READ
-    )
+    const before = await page.evaluate(readReach, READ)
     const inTree = (await page.locator('body').ariaSnapshot())
       .split('\n')
       .filter((line) => line.includes(`link "${READ}"`)).length
     // The Tab order, from the top of the page. (Desktop WebKit moves to
-    // links with Alt+Tab.)
+    // links with Alt+Tab.) A blur alone is not enough: when focus was on the
+    // opening's link as it left with the stage, the browser goes on from
+    // where that link was, at the end of the page. So a stand-in at the
+    // start of the body takes focus first, and leaves after the pass. It
+    // keeps the one-link question apart from the focus handoff, which the
+    // "keeps a place when the opening ends" cases below cover.
     const tab = browserName === 'webkit' ? 'Alt+Tab' : 'Tab'
-    await page.evaluate(() => (document.activeElement as HTMLElement)?.blur())
+    await page.evaluate(() => {
+      const start = document.createElement('span')
+      start.tabIndex = -1
+      start.dataset.tabStart = ''
+      document.body.prepend(start)
+      start.focus()
+    })
     const stops = new Set<string>()
     for (let press = 0; press < 12; press++) {
       await page.keyboard.press(tab)
@@ -493,7 +535,67 @@ test.describe('landing reading link from the first paint', () => {
       )
     }
     stops.delete('')
-    return { places, inTree, tabbed: [...stops] }
+    await page.evaluate(() =>
+      document.querySelector('[data-tab-start]')?.remove()
+    )
+    const after = await page.evaluate(readReach, READ)
+    if (before.stage !== after.stage) return null
+    return {
+      phase: (before.stage ? 'opening' : 'hero') as Place,
+      places: before.places,
+      inTree,
+      tabbed: [...stops],
+    }
+  }
+
+  /**
+   * Records, in the page, a reading after every DOM change and on every
+   * frame, from now until the page closes: each step of the handoff is read
+   * in the task that made it. Reports how many readings showed exactly the
+   * link of their phase, and the first readings that did not.
+   */
+  async function recordReach(page: Page) {
+    await page.evaluate(readReach, READ)
+    await page.evaluate(() => {
+      const w = window as unknown as {
+        __readReach: () => Reading
+        __reachLog: {
+          opening: number
+          hero: number
+          wrong: (Reading & { at: number })[]
+        }
+      }
+      const log: typeof w.__reachLog = { opening: 0, hero: 0, wrong: [] }
+      w.__reachLog = log
+      const take = () => {
+        const reading = w.__readReach()
+        const phase = reading.stage ? 'opening' : 'hero'
+        if (reading.places.length === 1 && reading.places[0] === phase)
+          log[phase]++
+        else if (log.wrong.length < 5)
+          log.wrong.push({ ...reading, at: Math.round(performance.now()) })
+      }
+      take()
+      new MutationObserver(take).observe(document.documentElement, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+      })
+      const frame = () => {
+        take()
+        requestAnimationFrame(frame)
+      }
+      requestAnimationFrame(frame)
+    })
+    return () =>
+      page.evaluate(
+        () =>
+          (window as unknown as { __reachLog: unknown }).__reachLog as {
+            opening: number
+            hero: number
+            wrong: (Reading & { at: number })[]
+          }
+      )
   }
 
   test('before the page scripts run, the hero link opens the article list', async ({
@@ -506,11 +608,7 @@ test.describe('landing reading link from the first paint', () => {
     const link = page.getByRole('link', { name: READ })
     await expect(link).toBeVisible()
     await expect(link).toHaveAttribute('href', '/articles')
-    expect(await reachable(page, browserName)).toEqual({
-      places: ['hero'],
-      inTree: 1,
-      tabbed: ['hero'],
-    })
+    expect(await reachable(page, browserName)).toEqual(only('hero'))
     await link.tap()
     await toArticles(page)
   })
@@ -583,22 +681,134 @@ test.describe('landing reading link from the first paint', () => {
     await recordConvexMessages(page)
     await page.goto('/', { waitUntil: 'domcontentloaded' })
     await expect(stage(page)).toBeAttached({ timeout: 10_000 })
-    const during = { places: ['opening'], inTree: 1, tabbed: ['opening'] }
-    // Start, middle and settling of the 6.2 s sequence.
-    expect(await reachable(page, browserName)).toEqual(during)
-    await page.waitForTimeout(2000)
-    expect(await reachable(page, browserName)).toEqual(during)
-    await page.waitForTimeout(2300)
-    if ((await stage(page).count()) > 0)
-      expect(await reachable(page, browserName)).toEqual(during)
-    // The opening's link leaves with the stage; the hero's is back.
-    await expect(stage(page)).toHaveCount(0, { timeout: 10_000 })
-    expect(await reachable(page, browserName)).toEqual({
-      places: ['hero'],
-      inTree: 1,
-      tabbed: ['hero'],
-    })
+    // Every reading from here on, across the handoff: never none, never two,
+    // and the one link is the opening's while the stage is present and the
+    // hero's once it is gone.
+    const readings = await recordReach(page)
+    // The tree and Tab reads, again and again through the 6.2 s sequence
+    // until the stage has gone. A read across the handoff (the phase before
+    // it differs from the phase after it) is not counted and is taken again;
+    // every counted read must match its own phase.
+    const phases: Place[] = []
+    const deadline = Date.now() + 20_000
+    while (phases.at(-1) !== 'hero' && Date.now() < deadline) {
+      const read = await reachable(page, browserName)
+      if (!read) continue
+      expect(read).toEqual(only(read.phase))
+      phases.push(read.phase)
+    }
+    // At least one counted read in each phase, the opening's first.
+    expect(phases[0]).toBe('opening')
+    expect(phases.at(-1)).toBe('hero')
+    await expect(stage(page)).toHaveCount(0)
+    const log = await readings()
+    expect(log.wrong).toEqual([])
+    expect(log.opening).toBeGreaterThan(0)
+    expect(log.hero).toBeGreaterThan(0)
   })
+
+  /**
+   * Where focus is: the element's tag, its text, the part of the page it is
+   * in, and its place in the Tab order counted from the hero's reading link
+   * (0 is that link, 1 the next stop, -1 the one before; null when focus is
+   * on no stop at all).
+   */
+  function focusPlace(name: string) {
+    const stops = [
+      ...document.querySelectorAll<HTMLElement>(
+        'a[href], button, input, select, textarea, [tabindex]'
+      ),
+    ].filter(
+      (element) =>
+        element.tabIndex >= 0 &&
+        !element.matches(':disabled') &&
+        !element.closest('[inert]') &&
+        element.getClientRects().length > 0
+    )
+    const hero = stops.find(
+      (element) =>
+        element.closest('.hero-actions') && element.textContent?.trim() === name
+    )
+    const focused = document.activeElement as HTMLElement | null
+    const at = focused ? stops.indexOf(focused) : -1
+    return {
+      tag: focused?.tagName.toLowerCase() ?? null,
+      text: (focused?.textContent ?? '').trim().slice(0, 40),
+      part: !focused
+        ? null
+        : focused.closest('.opening-controls')
+          ? 'opening controls'
+          : focused.closest('.hero-actions')
+            ? 'hero actions'
+            : focused.closest('header, nav')
+              ? 'navigation'
+              : focused.closest('footer')
+                ? 'footer'
+                : focused.closest('main')
+                  ? 'main'
+                  : focused === document.body
+                    ? 'body'
+                    : 'other',
+      fromHeroLink: at >= 0 && hero ? at - stops.indexOf(hero) : null,
+    }
+  }
+
+  // Known gap #694 (focus order, WCAG 2.4.3): when the opening ends while its
+  // reading link has keyboard focus, the link leaves with the stage and
+  // focus falls to the body; the next key press goes on from where the link
+  // was, at the end of the page. These cases record where the reader is and
+  // are marked as expected to fail until the opening hands focus to the
+  // hero's reading link, which is a separate change.
+  for (const back of [false, true])
+    test(`a keyboard reader on the opening's reading link keeps a place when the opening ends (${back ? 'Shift+Tab' : 'Tab'})`, async ({
+      page,
+      browserName,
+    }) => {
+      test.fail(
+        true,
+        'Known gap #694: focus falls to the body when the opening ends'
+      )
+      await recordConvexMessages(page)
+      await page.goto('/', { waitUntil: 'domcontentloaded' })
+      await expect(stage(page)).toBeAttached({ timeout: 10_000 })
+      // To the opening's reading link by keyboard only: no blur, no stand-in.
+      const tab = browserName === 'webkit' ? 'Alt+Tab' : 'Tab'
+      const link = page.locator('.opening-controls').getByRole('link', {
+        name: READ,
+      })
+      for (let press = 0; press < 8; press++) {
+        if (
+          await link.evaluate((element) => element === document.activeElement)
+        )
+          break
+        await page.keyboard.press(tab)
+      }
+      await expect(link).toBeFocused()
+      await expect(stage(page)).toHaveCount(0, { timeout: 15_000 })
+      // Two frames, for anything the opening does with focus as it leaves.
+      await page.evaluate(
+        () =>
+          new Promise((done) =>
+            requestAnimationFrame(() => requestAnimationFrame(done))
+          )
+      )
+      const ended = await page.evaluate(focusPlace, READ)
+      await page.keyboard.press(
+        back ? (browserName === 'webkit' ? 'Alt+Shift+Tab' : 'Shift+Tab') : tab
+      )
+      const next = await page.evaluate(focusPlace, READ)
+      console.log(
+        `focus handoff ${browserName} ${back ? 'Shift+Tab' : 'Tab'}: ${JSON.stringify({ ended, next })}`
+      )
+      // A sensible place: focus is on the hero's reading link when the opening
+      // ends, or the key press reaches that link or its neighbour in the
+      // direction of travel.
+      const sensible =
+        ended.fromHeroLink === 0 ||
+        next.fromHeroLink === 0 ||
+        next.fromHeroLink === (back ? -1 : 1)
+      expect(sensible, JSON.stringify({ ended, next })).toBe(true)
+    })
 
   test('during the opening, only the opening link and "Skip opening" can be reached, and the link opens the article list', async ({
     page,
@@ -679,11 +889,7 @@ test.describe('landing reading link from the first paint', () => {
     await skip.focus()
     await page.keyboard.press('Enter')
     await expect(stage(page)).toHaveCount(0)
-    expect(await reachable(page, browserName)).toEqual({
-      places: ['hero'],
-      inTree: 1,
-      tabbed: ['hero'],
-    })
+    expect(await reachable(page, browserName)).toEqual(only('hero'))
 
     const reduced = await browser.newContext({
       viewport: { width: 375, height: 812 },
@@ -694,11 +900,7 @@ test.describe('landing reading link from the first paint', () => {
     await calm.goto('/', { waitUntil: 'load' })
     await calm.waitForTimeout(500)
     await expect(stage(calm)).toHaveCount(0)
-    expect(await reachable(calm, browserName)).toEqual({
-      places: ['hero'],
-      inTree: 1,
-      tabbed: ['hero'],
-    })
+    expect(await reachable(calm, browserName)).toEqual(only('hero'))
     await reduced.close()
   })
 

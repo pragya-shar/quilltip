@@ -37,6 +37,7 @@ import {
   tabTipLimitsView,
   voidEpochPairs,
 } from './lib/chain/tabLedger'
+import { requireTabReady } from './lib/chain/tabReadiness'
 import { verifiedStellarAddress } from './lib/walletVerification'
 
 const receiptValidator = v.object({
@@ -222,6 +223,7 @@ export const prepareOpen = mutation({
   handler: async (ctx, args) => {
     const now = Date.now()
     const c = await readerContext(ctx, now)
+    await requireTabReady(ctx)
     checkAmount(args.amount, true)
     checkKeyParams(c, args)
     await declareKey(ctx, c, args, now)
@@ -235,6 +237,7 @@ export const prepareDeposit = mutation({
   handler: async (ctx, args) => {
     const c = await readerContext(ctx, Date.now())
     if (!c.account) tabError('TAB_NO_ACCOUNT', 'Open a tab first.')
+    await requireTabReady(ctx)
     checkAmount(args.amount, false)
     return operationResult(c)
   },

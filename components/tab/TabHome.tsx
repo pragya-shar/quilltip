@@ -43,8 +43,11 @@ export function TabHome() {
     settlement,
     tabSettlement,
   } = reader
-  // Convex accepts no quick tips: opening, topping up and keys wait too.
-  const quickTipsOff = settlement.kind === 'off'
+  // Convex accepts no quick tips: settlement is off, or its keys or the
+  // Tab's state are not ready. Opening, topping up and keys wait too;
+  // closing and withdrawing never do.
+  const notReady = tabSettlement?.tabReady === false
+  const quickTipsOff = settlement.kind === 'off' || notReady
   const op = useTabOperation({
     surface: 'reader',
     services,
@@ -134,7 +137,7 @@ export function TabHome() {
   const conditions = (
     <>
       {paused ? <PaymentNotice kind="paused" audience="reader" /> : null}
-      {settlement.kind === 'off' ? (
+      {quickTipsOff ? (
         <PaymentNotice
           kind="refused"
           copy={{
@@ -142,7 +145,7 @@ export function TabHome() {
             detail:
               !tab || status.kind === 'none' || status.kind === 'closed'
                 ? TAB_SETTLEMENT.offNoTab
-                : settlement.waiting
+                : settlement.kind === 'off' && settlement.waiting
                   ? `${TAB_SETTLEMENT.offTab} ${TAB_SETTLEMENT.offWaiting}`
                   : TAB_SETTLEMENT.offTab,
           }}

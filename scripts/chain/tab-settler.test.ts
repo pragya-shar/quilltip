@@ -17,7 +17,7 @@ import {
   xdr,
 } from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
-import { internal } from '../../convex/_generated/api'
+import { api, internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import type { ActionCtx, MutationCtx } from '../../convex/_generated/server'
 import type { RawRpcEvent } from '../../convex/lib/chain/rpc'
@@ -28,6 +28,9 @@ import {
   dueReasons,
   orderDue,
   runSettlementCycle,
+  SETTLER_STALE_ALERT_MS,
+  SETTLER_STALE_WARN_MS,
+  settlerFreshness,
   type LookupOutcome,
   type PreparedSubmission,
   type SettleCandidate,
@@ -1255,28 +1258,38 @@ describe('guard and configuration', () => {
         (params as { transaction: string }).transaction,
         'base64'
       )
-      const fn = ['config', 'paused', 'fee_bps', 'min_tip', 'threshold'].find(
-        (name) => bytes.includes(Buffer.from(name))
-      )
+      const fn = [
+        'get_role_member_count',
+        'get_role_member',
+        'config',
+        'paused',
+        'fee_bps',
+        'min_tip',
+        'threshold',
+      ].find((name) => bytes.includes(Buffer.from(name)))
       const retval =
-        fn === 'config'
-          ? mapOf([
-              [
-                'acceptor_keys',
-                xdr.ScVal.scvVec(
-                  keys.map((k) => xdr.ScVal.scvBytes(Buffer.from(k, 'hex')))
-                ),
-              ],
-              ['max_balance', i128(BigInt(10_000) * XLM)],
-              ['min_deposit', i128(XLM)],
-              ['token', new Address(TOKEN).toScVal()],
-              ['treasury', new Address(SETTLER.publicKey()).toScVal()],
-            ])
-          : fn === 'paused'
-            ? xdr.ScVal.scvBool(false)
-            : fn === 'fee_bps'
-              ? u32(250)
-              : i128(BigInt(1_000_000))
+        fn === 'get_role_member_count'
+          ? u32(1)
+          : fn === 'get_role_member'
+            ? new Address(SETTLER.publicKey()).toScVal()
+            : fn === 'config'
+              ? mapOf([
+                  [
+                    'acceptor_keys',
+                    xdr.ScVal.scvVec(
+                      keys.map((k) => xdr.ScVal.scvBytes(Buffer.from(k, 'hex')))
+                    ),
+                  ],
+                  ['max_balance', i128(BigInt(10_000) * XLM)],
+                  ['min_deposit', i128(XLM)],
+                  ['token', new Address(TOKEN).toScVal()],
+                  ['treasury', new Address(SETTLER.publicKey()).toScVal()],
+                ])
+              : fn === 'paused'
+                ? xdr.ScVal.scvBool(false)
+                : fn === 'fee_bps'
+                  ? u32(250)
+                  : i128(BigInt(1_000_000))
       return {
         latestLedger: LEDGER,
         results: [{ xdr: retval.toXdr('base64') }],
@@ -1291,6 +1304,7 @@ describe('guard and configuration', () => {
     )
     expect(config!.lastError ?? null).toBe(null)
     expect(config!.tabAcceptorKeys).toEqual(keys)
+    expect(config!.tabSettlers).toEqual([SETTLER.publicKey()])
     expect(errors.mock.calls.flat().join('')).not.toContain(
       'TAB_ACCEPTOR_MISMATCH'
     )
@@ -1298,5 +1312,163 @@ describe('guard and configuration', () => {
     vi.stubEnv('TAB_ACCEPTOR_SECRET', 'ef'.repeat(32))
     await t.action(internal.chain.config.refreshChainConfig, {})
     expect(errors.mock.calls.flat().join('')).toContain('TAB_ACCEPTOR_MISMATCH')
+  })
+})
+
+describe('settler freshness (#647)', () => {
+  const MIN = 60_000
+  const lastOkAt = (t: T) =>
+    run(t, async (ctx) => {
+      const lease = await ctx.db
+        .query('chainLeases')
+        .withIndex('by_name', (q) => q.eq('name', 'settler'))
+        .unique()
+      return lease?.lastOkAt ?? null
+    })
+
+  it('warns at 30 minutes and alerts at 24 hours, both well inside the 3-day withdrawal delay', () => {
+    expect(SETTLER_STALE_WARN_MS).toBe(30 * MIN)
+    expect(SETTLER_STALE_ALERT_MS).toBe(24 * 60 * MIN)
+    // WITHDRAW_DELAY: 51,840 ledgers of about 5 s.
+    expect(SETTLER_STALE_ALERT_MS).toBeLessThan(51_840 * 5_000 - 24 * 60 * MIN)
+    expect(settlerFreshness(undefined, T0)).toEqual({
+      level: 'unknown',
+      lastOkAt: null,
+      ageMs: null,
+    })
+    const level = (ageMs: number) => settlerFreshness(T0 - ageMs, T0).level
+    expect(level(0)).toBe('ok')
+    expect(level(30 * MIN - 1)).toBe('ok')
+    expect(level(30 * MIN)).toBe('warning')
+    expect(level(24 * 60 * MIN - 1)).toBe('warning')
+    expect(level(24 * 60 * MIN)).toBe('alert')
+    // A clock behind the record reads as fresh, not negative.
+    expect(settlerFreshness(T0 + MIN, T0)).toMatchObject({
+      level: 'ok',
+      ageMs: 0,
+    })
+  })
+
+  it('records each run that does not fail, also with nothing due; not a busy, failed or thrown run', async () => {
+    const t = convexTest(schema, modules)
+    const fake = new FakeTab()
+    expect(await lastOkAt(t)).toBeNull()
+
+    expect((await runSettlementCycle(depsFor(t, fake))).status).toBe(
+      'nothing_due'
+    )
+    expect(await lastOkAt(t)).toBe(T0)
+
+    const p = await seedPair(t, { ageMs: OLD })
+    vi.advanceTimersByTime(10 * MIN)
+    fake.simulateSystemic = 'HostError: Error(Contract, #2000)'
+    expect((await runSettlementCycle(depsFor(t, fake))).status).toBe('failed')
+    fake.simulateSystemic = null
+    fake.simulateTransient = 1
+    await expect(runSettlementCycle(depsFor(t, fake))).rejects.toThrow(
+      'RPC 503'
+    )
+    // Another holder has the lease: this run does nothing.
+    const holder = depsFor(t, fake)
+    expect(await holder.ledger.acquireLease('someone-else')).toBe(true)
+    expect((await runSettlementCycle(holder)).status).toBe('busy')
+    await holder.ledger.releaseLease('someone-else')
+    expect(await lastOkAt(t)).toBe(T0)
+
+    vi.advanceTimersByTime(10 * MIN)
+    expect((await runSettlementCycle(depsFor(t, fake))).status).toBe(
+      'confirmed'
+    )
+    expect(await lastOkAt(t)).toBe(T0 + 20 * MIN)
+    expect((await voucher(t, p.voucherId)).paidOnChain).toBe(
+      p.cumulative.toString()
+    )
+    // An older time does not move it back.
+    await t.mutation(internal.tabSettlement.recordSettlerRun, { at: T0 })
+    expect(await lastOkAt(t)).toBe(T0 + 20 * MIN)
+  })
+
+  it('the operations view reads the age outside the settler, for operators only', async () => {
+    const t = convexTest(schema, modules)
+    const fake = new FakeTab()
+    const opsId = await run(t, (ctx) => userIn(ctx, newAddress(), T0))
+    const otherId = await run(t, (ctx) => userIn(ctx, newAddress(), T0))
+    vi.stubEnv('OPS_USER_IDS', String(opsId))
+    const read = (userId: Id<'users'>) =>
+      t
+        .withIdentity({ subject: `${userId}|session` })
+        .query(api.chain.settlerStatus.getSettlerFreshness, {})
+    expect(await t.query(api.chain.settlerStatus.getSettlerFreshness, {})).toBe(
+      null
+    )
+    expect(await read(otherId)).toBeNull()
+    // Settlement on and no run recorded: a warning, not "unknown".
+    expect(await read(opsId)).toMatchObject({
+      level: 'warning',
+      lastOkAt: null,
+      settlementEnabled: true,
+    })
+    await runSettlementCycle(depsFor(t, fake))
+    vi.advanceTimersByTime(31 * MIN)
+    expect(await read(opsId)).toMatchObject({
+      level: 'warning',
+      ageMs: 31 * MIN,
+      warnMs: SETTLER_STALE_WARN_MS,
+      alertMs: SETTLER_STALE_ALERT_MS,
+    })
+    // Settlement off: the cron does nothing and the age keeps growing.
+    vi.stubEnv('SETTLEMENT_ENABLED', '')
+    expect(await t.action(internal.tabSettler.settleDue, {})).toMatchObject({
+      status: 'disabled',
+    })
+    vi.advanceTimersByTime(24 * 60 * MIN)
+    expect(await read(opsId)).toMatchObject({
+      level: 'alert',
+      settlementEnabled: false,
+    })
+    expect(
+      await t.query(internal.chain.settlerStatus.readSettlerFreshness, {})
+    ).toMatchObject({ level: 'alert' })
+  })
+
+  it('review #662: a settler that fails every run from its first (TAB_SETTLER_UNAVAILABLE) shows a warning at once', async () => {
+    const t = convexTest(schema, modules)
+    const fresh = () =>
+      t.query(internal.chain.settlerStatus.readSettlerFreshness, {})
+    // Settlement off, nothing recorded: unknown, nothing to warn about.
+    vi.stubEnv('SETTLEMENT_ENABLED', '')
+    expect(await fresh()).toMatchObject({
+      level: 'unknown',
+      settlementEnabled: false,
+    })
+    // The cutover case: settlement on, the saved secret is not a seed.
+    vi.stubEnv('SETTLEMENT_ENABLED', 'true')
+    vi.stubEnv('TAB_SETTLER_SECRET', '"not a seed"')
+    for (let run = 0; run < 4; run++) {
+      await expect(t.action(internal.tabSettler.settleDue, {})).rejects.toThrow(
+        'TAB_SETTLER_UNAVAILABLE'
+      )
+      expect(await lastOkAt(t)).toBeNull()
+      expect(await fresh(), `run ${run}`).toMatchObject({
+        level: 'warning',
+        lastOkAt: null,
+        ageMs: null,
+      })
+      vi.advanceTimersByTime(10 * MIN)
+    }
+    // With a good run before the failures, the warning comes 30 minutes on.
+    await runSettlementCycle(depsFor(t, new FakeTab()))
+    const okAt = await lastOkAt(t)
+    expect(okAt).not.toBeNull()
+    for (let minutes = 10; minutes <= 40; minutes += 10) {
+      vi.advanceTimersByTime(10 * MIN)
+      await expect(t.action(internal.tabSettler.settleDue, {})).rejects.toThrow(
+        'TAB_SETTLER_UNAVAILABLE'
+      )
+      expect(await lastOkAt(t)).toBe(okAt)
+      expect((await fresh()).level, `${minutes} min`).toBe(
+        minutes >= 30 ? 'warning' : 'ok'
+      )
+    }
   })
 })

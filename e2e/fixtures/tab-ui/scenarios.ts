@@ -344,6 +344,18 @@ const S: Scenario[] = [
     },
   },
   {
+    id: 'home-not-ready',
+    title: 'Settlement on, keys not ready, a tip waiting',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.tabReady = false
+      s.tips = [tipRow(0, 'ACCEPTED', { acceptedAt: NOW - 30 * 60_000 })]
+      recomputeTab(s)
+    },
+  },
+  {
     id: 'home-settlement-off-none',
     title: 'Settlement off, no tab yet',
     view: 'home',
@@ -973,6 +985,16 @@ const S: Scenario[] = [
     seed: (s) => {
       open(s)
       s.settlementEnabled = false
+    },
+  },
+  {
+    id: 'tip-not-ready',
+    title: 'Quick tip: settlement on, keys not ready',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.tabReady = false
     },
   },
   {

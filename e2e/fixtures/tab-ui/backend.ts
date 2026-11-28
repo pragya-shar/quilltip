@@ -86,6 +86,8 @@ export type FixtureState = {
   tab: MyTab | null
   tips: TabTipRow[]
   settlementEnabled: boolean
+  /** `getTabSettlement.tabReady`: the settlement keys and the Tab are ready. */
+  tabReady: boolean
   oldestUnsettledAt: number | null
   settleWindowEndsSoon: boolean
   earnings: MyTabEarnings | null
@@ -201,6 +203,7 @@ export function baseState(scenario: string): FixtureState {
     tab: null,
     tips: [],
     settlementEnabled: true,
+    tabReady: true,
     oldestUnsettledAt: null,
     settleWindowEndsSoon: false,
     earnings: null,
