@@ -8,20 +8,21 @@ All payment development targets Stellar **testnet**.
 
 ## Layout
 
-| Path           | Crate                  | Kind          | Status                                  |
-| -------------- | ---------------------- | ------------- | --------------------------------------- |
-| `shared/`      | `quilltip-shared`      | rlib          | Constants, identifiers, TTL, fee math   |
-| `core/`        | `quilltip-core`        | cdylib + rlib | Skeleton                                |
-| `tab/`         | `quilltip-tab`         | cdylib + rlib | Implemented (see below)                 |
-| `article-nft/` | `quilltip-article-nft` | cdylib + rlib | Article NFT (replaces the v1 crate)     |
-| `tipping/`     | `quilltip-tipping`     | cdylib        | v1, outside the workspace until cutover |
+| Path           | Crate                  | Kind          | Status                                |
+| -------------- | ---------------------- | ------------- | ------------------------------------- |
+| `shared/`      | `quilltip-shared`      | rlib          | Constants, identifiers, TTL, fee math |
+| `core/`        | `quilltip-core`        | cdylib + rlib | Skeleton                              |
+| `tab/`         | `quilltip-tab`         | cdylib + rlib | Implemented (see below)               |
+| `article-nft/` | `quilltip-article-nft` | cdylib + rlib | Article NFT (replaces the v1 crate)   |
 
 `Cargo.toml` defines the workspace, the exact dependency pins and the shared
 release profile. `rust-toolchain.toml` pins Rust 1.94.1 and `wasm32v1-none`.
 `Cargo.lock` is committed and every command uses `--locked`.
 
 The v1 article NFT source stays in git history; its last version on
-`overhaul/v2` is at commit `c8746e8`.
+`overhaul/v2` is at commit `c8746e8`. The v1 tipping contract (`tipping/`)
+was removed after the cutover hold; its last version on `overhaul/v2` is at
+commit `6bad610`.
 
 ## Shared crate
 

@@ -32,7 +32,7 @@ const result = await Bun.build({
         build.onResolve(
           {
             filter:
-              /^(convex\/react|next\/dynamic|@\/(convex\/_generated\/api|hooks\/convex|components\/providers\/AuthContext|components\/stellar\/InstallWalletDialog|lib\/stellar\/(client|nft-client)|lib\/stellar\/v2\/chain-runtime))$/,
+              /^(convex\/react|next\/dynamic|@\/(convex\/_generated\/api|hooks\/convex|components\/providers\/AuthContext|components\/stellar\/InstallWalletDialog|lib\/stellar\/v2\/chain-runtime))$/,
           },
           () => ({ path: runtime })
         )

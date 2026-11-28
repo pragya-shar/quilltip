@@ -21,8 +21,6 @@ export type V2ConfigEnv = {
   tabContractId?: string
   nftContractId?: string
   tokenContractId?: string
-  /** The v1 NFT contract (`NEXT_PUBLIC_NFT_CONTRACT_ID`); must differ. */
-  v1NftContractId?: string
 }
 
 export type V2ClientConfig = {
@@ -66,11 +64,6 @@ export function readV2Config(env: V2ConfigEnv): V2ClientConfig {
     'NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID',
     env.nftContractId
   )
-  if (nftContractId && nftContractId === env.v1NftContractId?.trim()) {
-    throw new V2ConfigError(
-      'NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID names the v1 NFT contract (NEXT_PUBLIC_NFT_CONTRACT_ID).'
-    )
-  }
   return {
     network,
     passphrase: resolved.passphrase,
@@ -105,11 +98,9 @@ export function v2Config(): V2ClientConfig {
     convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
     coreContractId: process.env.NEXT_PUBLIC_CORE_CONTRACT_ID,
     tabContractId: process.env.NEXT_PUBLIC_TAB_CONTRACT_ID,
-    // Not NEXT_PUBLIC_NFT_CONTRACT_ID: that name holds the v1 NFT contract
-    // until the v1 code is removed, so the two can never point at each other.
+    // Not NEXT_PUBLIC_NFT_CONTRACT_ID: that name held the v1 NFT contract.
     nftContractId: process.env.NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID,
     tokenContractId: process.env.NEXT_PUBLIC_TOKEN_CONTRACT_ID,
-    v1NftContractId: process.env.NEXT_PUBLIC_NFT_CONTRACT_ID,
   })
   return cached
 }

@@ -1108,6 +1108,7 @@ describe('copy', () => {
     add(TIPS_UNAVAILABLE_COPY)
     add(NOTICE_COPY.insufficientWallet())
     add(NOTICE_COPY.insufficientTab())
+    add(NOTICE_COPY.tabShort())
     add(NOTICE_COPY.withdrawalPending())
     add([
       SESSION_KEY_COPY.label,
@@ -1135,6 +1136,7 @@ describe('copy', () => {
       NOTICE_COPY.withdrawalPending('{date}').title,
       NOTICE_COPY.insufficientWallet('{needed}', '{available}').detail,
       NOTICE_COPY.insufficientTab('{available}').detail,
+      NOTICE_COPY.tabShort('{short}').detail,
       NOTICE_COPY.nftThreshold('{tipped}', '{threshold}').title,
       NOTICE_COPY.nftThreshold('{tipped}', '{threshold}').detail,
       basketConfirmed(2).detail.replace('2', '{n}'),

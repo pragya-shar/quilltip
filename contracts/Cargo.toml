@@ -1,13 +1,10 @@
 # QuillTip payments v2 contract workspace.
 #
 # Layout and pins: docs/architecture/v2/01-architecture.md, sections 1.2 and 1.3.
-# `tipping` is the v1 contract. It keeps its own lockfile and toolchain until
-# cutover, so it is excluded from this workspace.
 [workspace]
 resolver = "2"
 members = ["shared", "core", "tab", "article-nft"]
 default-members = ["shared", "core", "tab", "article-nft"]
-exclude = ["tipping"]
 
 [workspace.package]
 version = "2.0.0"

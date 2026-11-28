@@ -226,25 +226,6 @@ test('a wrong password shows the error on the form', async ({ page }) => {
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
 })
 
-test('a tip resume after sign-in loads the page in full', async ({ page }) => {
-  await slowAuthConfirmation(page)
-  const path = '/dashboard/stats?resumeArticleTip=1'
-  await page.goto(loginUrl(path))
-  await page.evaluate(() => {
-    ;(window as unknown as { __samePage?: boolean }).__samePage = true
-  })
-  await signIn(page)
-  await expect(page).toHaveURL(path)
-  await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
-  // window.location.assign: a new document, not a client-side navigation.
-  expect(
-    await page.evaluate(
-      () => (window as unknown as { __samePage?: boolean }).__samePage
-    )
-  ).toBeUndefined()
-  await staysOn(page, path, 1_000)
-})
-
 /** Wallet choices kept in this browser (#562), by storage key. */
 const walletKeys = (page: Page) =>
   page.evaluate(() =>

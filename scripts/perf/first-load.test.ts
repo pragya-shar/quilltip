@@ -95,7 +95,7 @@ describe('forbiddenModules', () => {
         '[project]/node_modules/next/dist/client/app-index.js',
         '[project]/node_modules/convex/dist/esm/browser/index.js',
         '[project]/lib/stellar/config.ts',
-        '[project]/lib/stellar/sdk-loader.ts',
+        '[project]/lib/stellar/network.ts',
         '[project]/components/layout/AppNavigation.tsx',
         // Similar names that are not the forbidden packages.
         '[project]/node_modules/idb-wrapper-lookalike/index.js',

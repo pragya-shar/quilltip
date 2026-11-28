@@ -1,8 +1,8 @@
 /**
  * Server-side XLM/USD price oracle used by tip verification to cross-check
  * that a tip's claimed USD amount is consistent with what was actually paid
- * on-chain. Mirrors the oracle list the client uses in lib/stellar/client.ts;
- * kept server-side only because Convex's deployment bundle is convex/.
+ * on-chain. Kept server-side only because Convex's deployment bundle is
+ * convex/.
  *
  * Takes an injected fetch so it is unit testable without the network. Returns
  * a structured result — caller decides whether to treat an outage as

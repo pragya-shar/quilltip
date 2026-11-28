@@ -1,11 +1,8 @@
 'use client'
 
 import { lazy, Suspense } from 'react'
-import { useQuery } from 'convex/react'
-import { api } from '@/convex/_generated/api'
 import type { Id } from '@/types/convex'
 import { NftSidebarSkeleton } from '@/components/articles/NftSidebarSkeleton'
-import { NFTIntegrationV1 } from './NFTIntegrationV1'
 import './nft.css'
 
 export interface NFTIntegrationProps {
@@ -17,29 +14,23 @@ export interface NFTIntegrationProps {
   embedded?: boolean
 }
 
-// v2 code (the NFT calls, the wallet kit, the payment kit) loads only when
-// the article details open on a deployment with v2 on.
+// The NFT calls, the wallet kit and the payment kit load only when the
+// article details open.
 const ArticleNftV2 = lazy(() => import('./v2/ArticleNftV2'))
 
 /**
- * The article's NFT section. With payments v2 on (`getChainConfig().v2Enabled`)
- * it shows the v2 NFT; otherwise the v1 panel. v1 code stays until cutover (#451).
+ * The article's NFT section (payments v2). With v2 off or no NFT contract
+ * set, `ArticleNftV2` says that NFTs are not available on this site.
  */
 export function NFTIntegration(props: NFTIntegrationProps) {
-  const config = useQuery(api.chain.config.getChainConfig, {})
-  if (config === undefined) return <NftSidebarSkeleton />
-  if (config.v2Enabled) {
-    return (
-      <Suspense fallback={<NftSidebarSkeleton />}>
-        <ArticleNftV2
-          articleId={props.articleId}
-          authorId={props.authorId}
-          currentUserId={props.currentUserId}
-          embedded={props.embedded}
-          renderV1={() => <NFTIntegrationV1 {...props} />}
-        />
-      </Suspense>
-    )
-  }
-  return <NFTIntegrationV1 {...props} />
+  return (
+    <Suspense fallback={<NftSidebarSkeleton />}>
+      <ArticleNftV2
+        articleId={props.articleId}
+        authorId={props.authorId}
+        currentUserId={props.currentUserId}
+        embedded={props.embedded}
+      />
+    </Suspense>
+  )
 }

@@ -81,6 +81,26 @@ function history(s: FixtureState) {
   s.oldestUnsettledAt = NOW - 20 * 60_000
 }
 
+/**
+ * A tab whose tips still settling exceed its balance (#617): 1 XLM in the
+ * tab, 1.3 XLM settling, for example after a settlement paid outside the
+ * app. Nothing more can settle until the reader tops up.
+ */
+function short(s: FixtureState) {
+  open(s, 1)
+  s.tips = [
+    tipRow(0, 'ACCEPTED', {
+      amount: ((BigInt(8) * XLM) / BigInt(10)).toString(),
+      acceptedAt: NOW - 30 * 60_000,
+    }),
+    tipRow(1, 'SHORTFALL', {
+      amount: ((BigInt(5) * XLM) / BigInt(10)).toString(),
+    }),
+    tipRow(2, 'SETTLED'),
+  ]
+  recomputeTab(s)
+}
+
 function writer(
   s: FixtureState,
   o: Partial<NonNullable<FixtureState['earnings']>> = {}
@@ -132,6 +152,13 @@ const S: Scenario[] = [
     view: 'home',
     device: 'ready',
     seed: (s) => open(s, 10),
+  },
+  {
+    id: 'home-short',
+    title: 'Open tab, tips still settling exceed the balance',
+    view: 'home',
+    device: 'ready',
+    seed: short,
   },
   {
     id: 'home-loading',
@@ -726,6 +753,13 @@ const S: Scenario[] = [
     seed: (s) => {
       open(s, 1)
     },
+  },
+  {
+    id: 'tip-short',
+    title: 'Quick tip: the tab is short',
+    view: 'tip',
+    device: 'ready',
+    seed: short,
   },
   {
     id: 'tip-key-limit',

@@ -193,7 +193,6 @@ export function ArticlePageClient({
                   articleId={article._id}
                   articleSlug={article.slug}
                   authorName={article.author.name || article.author.username}
-                  authorStellarAddress={article.author.stellarAddress}
                 />
               }
             />
