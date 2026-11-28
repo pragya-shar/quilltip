@@ -30,8 +30,12 @@ export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
 export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
   '/': 211, // measured 208.9
   '/login': 202, // measured 199.4
-  '/articles': 216, // measured 214.0
-  '/[username]/[slug]': 219, // measured 216.9
+  // The two legacy article routes carry the balance store in their first
+  // load and the early-press and focus code from the pages they share
+  // chrome with. Both pages are being replaced by the shell's own routes,
+  // which have their own budgets (scripts/perf/routes).
+  '/articles': 219, // measured 217.3
+  '/[username]/[slug]': 222, // measured 220.4
   ...Object.fromEntries(
     SURFACE_FIRST_LOAD.map((entry) => [entry.route, entry.budgetKb])
   ),
