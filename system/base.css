@@ -21,7 +21,10 @@
     -webkit-text-size-adjust: 100%;
     text-size-adjust: 100%;
     -webkit-tap-highlight-color: transparent;
-    scroll-padding-top: calc(var(--qt-safe-top) + var(--qt-space-4));
+    /* Clear of the pushed header while it shows (shell/PushedHeader). */
+    scroll-padding-top: calc(
+      var(--qt-safe-top) + var(--qt-space-4) + var(--qt-pushed-header-h, 0px)
+    );
     scroll-padding-bottom: calc(
       var(--qt-nav-h) + var(--qt-safe-bottom) + var(--qt-space-8)
     );

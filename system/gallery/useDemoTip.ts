@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TipHold } from '../components/TipControl'
 import type { MoneyValue } from '../money/figure'
 import type { TipControlPhase } from '../money/tip'
-import { amounts } from './samples'
+import { amounts } from './sampleAmounts'
 
 const HOLD_MS = 3000
 const BALANCE_CENTS = 1840

@@ -54,6 +54,15 @@ export function ReadingSection() {
               </PassageMark>
             </p>
             <p>
+              I have tried to keep a ledger like hers.{' '}
+              {/* A tipped line that wraps: the check belongs to the end of
+                  its last line. */}
+              <PassageMark state="mine">
+                You cannot write a person next to a tap at a gate, and a list of
+                numbers never says who was there.
+              </PassageMark>
+            </p>
+            <p>
               <PassageMark state="others" count={2}>
                 For thirty years she wrote one line each time she gave something
                 away.

@@ -61,7 +61,7 @@ export function AmountTray({
   useEffect(() => {
     root.current
       ?.querySelector<HTMLButtonElement>('[role="radio"][tabindex="0"]')
-      ?.focus()
+      ?.focus({ preventScroll: true })
   }, [])
 
   // A press outside the tray and its button closes it.

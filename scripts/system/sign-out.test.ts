@@ -37,6 +37,15 @@ describe('sign-out cleanups (shell/signOut)', () => {
     expect(failed).toEqual(['b'])
     quiet.mockRestore()
   })
+
+  it('tells every cleanup which actions before sign-out did not finish', async () => {
+    const told: unknown[] = []
+    await runSignOutCleanups(
+      [{ name: 'quick tips', run: (after) => void told.push(after) }],
+      { unfinished: ['quick-tip keys'] }
+    )
+    expect(told).toEqual([{ unfinished: ['quick-tip keys'] }])
+  })
 })
 
 describe('sign-out warnings', () => {

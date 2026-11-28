@@ -4,7 +4,7 @@ import { useEffect } from 'react'
 import { Dock } from '@/shell/Dock'
 import { TipControl } from '../components/TipControl'
 import { showToast } from '../toast'
-import { amounts } from './samples'
+import { amounts } from './sampleAmounts'
 import { useDemoTip } from './useDemoTip'
 
 /**
