@@ -4,7 +4,7 @@ import { Heading } from '@/system/components/Heading'
 import { Skeleton } from '@/system/components/Skeleton'
 import type { PocketActivity } from './activityModel'
 import { PocketActivityList } from './PocketActivityList'
-import { useNow } from './useNow'
+import { useNow } from '@/hooks/payments/useNow'
 
 /**
  * Money activity only: tips sent and tips received, newest first, paged by

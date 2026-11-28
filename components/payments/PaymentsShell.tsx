@@ -23,6 +23,7 @@ import {
 } from 'react'
 import { usePathname } from 'next/navigation'
 import { useConvexAuth } from 'convex/react'
+import { tokenOwner } from '@/lib/payments/owner'
 import { paymentsStore } from '@/lib/payments/store'
 import { PaymentsBoundary } from './PaymentsBoundary'
 
@@ -39,7 +40,7 @@ export function PaymentsShell() {
   const [failedAt, setFailedAt] = useState<number | null>(null)
   const delay = useRef(FIRST_RETRY_MS)
 
-  useEffect(() => paymentsStore.attachShell(), [])
+  useEffect(() => paymentsStore.attachShell(tokenOwner()), [])
 
   useEffect(() => {
     paymentsStore.onEngineWanted(() => setWanted(true))

@@ -53,6 +53,8 @@ export type PaymentsState = {
   watches: { writer: number; earnings: number }
   /** Mounted payments shells (the root layout mounts one). */
   shells: number
+  /** The user the figures above were read for; null when none are held. */
+  owner: string | null
 }
 
 // Nothing of one reader is shown to the next, or after a failure.
@@ -64,6 +66,7 @@ const CLEARED = {
   ownTips: {},
   tips: {},
   queuedTaps: {},
+  owner: null,
 }
 
 let state: PaymentsState = {
@@ -98,10 +101,24 @@ export const paymentsStore = {
     }
   },
   set,
-  /** Called by `PaymentsShell` on mount; returns the unmount call. */
-  attachShell() {
-    set({ shells: state.shells + 1 })
+  /**
+   * Called by `PaymentsShell` on mount, with the user in this browser's
+   * session token now; returns the unmount call. The first shell to mount
+   * drops figures held for anyone else (another account in another tab, no
+   * reload), so nobody reads the last person's figures before their own
+   * arrive.
+   */
+  attachShell(owner: string | null = null) {
+    const stale =
+      state.shells === 0 && state.owner !== null && state.owner !== owner
+    set({ ...(stale ? CLEARED : {}), shells: state.shells + 1 })
     return () => set({ shells: state.shells - 1 })
+  },
+  /** The engine is about to publish figures for `owner`: anything held for
+   * someone else goes first. */
+  claim(owner: string) {
+    if (state.owner === owner) return
+    set({ ...(state.owner === null ? {} : CLEARED), owner })
   },
   setAuth(auth: AuthState) {
     if (auth === state.auth) return

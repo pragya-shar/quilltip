@@ -21,6 +21,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  useLayoutEffect,
 } from 'react'
 import {
   useConvexAuth,
@@ -156,6 +157,11 @@ export function PaymentsEngine() {
     () => 0
   )
   const userId = rawSession?.userId ?? null
+  // Before any watcher publishes (their effects run after this layout
+  // effect): the store holds this reader's figures, nobody else's.
+  useLayoutEffect(() => {
+    if (userId) paymentsStore.claim(userId)
+  }, [userId])
   const entries = useMemo(
     () => (userId ? outbox.list(userId) : []),
     [outbox, userId, outboxVersion] // eslint-disable-line react-hooks/exhaustive-deps

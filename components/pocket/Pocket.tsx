@@ -12,25 +12,24 @@ import { BalanceIcon } from '@/system/icons'
 import { useBalanceReading } from '@/shell/balance'
 import { POCKET } from '@/shell/navigation'
 import { openSignIn } from '@/shell/signIn'
+import { useSyncExternalStore } from 'react'
+import { paymentsStore } from '@/lib/payments/store'
 import { usePocketSource } from '@/lib/pocket/source'
 import type { EarningsView } from '@/lib/pocket/types'
 import { activityLists } from './activityModel'
 import { ActivitySection } from './ActivitySection'
 import { ago } from './copy'
 import { EarningsSection } from './EarningsSection'
+import { retryPayments } from './LocalPaymentsShell'
 import { SpendableSection } from './SpendableSection'
-import { useNow } from './useNow'
+import { useNow } from '@/hooks/payments/useNow'
+import { writerMemory } from './writerMemory'
 
 /** Whether this person writes, as the money layer says: true, false, or
  * null while it does not know (loading, signed out, unavailable). */
 function writerSignal(earnings: EarningsView): boolean | null {
   return earnings.isWriter ?? null
 }
-
-/** The last answer, kept through a reload of the figures or an outage, so a
- * writer never sees a reader's sheet while earnings load or fail. Forgotten
- * on sign-out. */
-let lastKnownWriter: boolean | null = null
 
 /**
  * The balance: what you can tip with, a writer's earnings kept apart, and
@@ -41,6 +40,13 @@ let lastKnownWriter: boolean | null = null
 export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   const reading = useBalanceReading()
   const source = usePocketSource()
+  // Whose figures these are (null in a fixture): the remembered writer
+  // state is kept for that account only.
+  const owner = useSyncExternalStore(
+    paymentsStore.subscribe,
+    () => paymentsStore.get().owner,
+    () => null
+  )
   const wired = source.useWired()
   const balance = source.useBalance()
   const earnings = source.useEarnings()
@@ -50,7 +56,7 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   const signedOut =
     reading.auth === 'signed-out' || balance.status === 'signed-out'
   if (signedOut) {
-    lastKnownWriter = null
+    writerMemory.forget()
     return (
       <div className="qt-pocket">
         <EmptyState
@@ -112,8 +118,8 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
       </div>
     )
   const signal = writerSignal(earnings)
-  if (signal !== null) lastKnownWriter = signal
-  const isWriter = signal ?? lastKnownWriter
+  if (signal !== null) writerMemory.set(owner, signal)
+  const isWriter = signal ?? writerMemory.get(owner)
   const activity = activityLists(reader, writer)
   const down =
     balance.status === 'unavailable' &&
@@ -123,7 +129,15 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   return (
     <div className="qt-pocket" data-writer={isWriter || undefined}>
       {down ? (
-        <Notice tone="info" title="Payments are not answering right now">
+        <Notice
+          tone="info"
+          title="Payments are not answering right now"
+          action={
+            <Button variant="quiet" onClick={retryPayments}>
+              Try again
+            </Button>
+          }
+        >
           Your money is safe and nothing you sent is lost. Reading works as
           usual; try again in a moment.
         </Notice>
