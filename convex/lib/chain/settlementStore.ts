@@ -302,6 +302,15 @@ export async function finishSettlement(
       gross += BigInt(o.gross)
       fee += BigInt(o.fee)
       if (voucher) {
+        // A short payment parks the pair (`applyPairSettlement`). It leaves
+        // this settlement first, as after a `SHORTFALL` skip, so the
+        // release below does not put it back in the ready queue.
+        if (
+          BigInt(o.paidAfter) < BigInt(o.cumulative) &&
+          voucher.settlementId === settlementId
+        ) {
+          await ctx.db.patch(voucher._id, { settlementId: undefined })
+        }
         await applyPairSettlement(ctx, {
           voucherId: voucher._id,
           paidAfter: BigInt(o.paidAfter),
