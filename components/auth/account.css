@@ -305,6 +305,7 @@
   color: #942339;
   font-size: 13px;
   margin: 7px 0 0;
+  text-wrap: pretty;
 }
 /* Room kept for a field's error (AccountField reserveError, #658). */
 .account-error-slot {
