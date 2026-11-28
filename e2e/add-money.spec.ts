@@ -225,6 +225,9 @@ test.describe('from the balance (B and C)', () => {
     await expect(
       sheet(page).getByRole('button', { name: 'Add $10 and renew quick tips' })
     ).toBeVisible()
+    await expect(sheet(page)).toContainText(
+      /This replaces this device's current approval, which allows up to 50 XLM \(≈ \$6\.36\) until /
+    )
     await expect(
       sheet(page).getByRole('button', { name: 'Add money only' })
     ).toBeVisible()

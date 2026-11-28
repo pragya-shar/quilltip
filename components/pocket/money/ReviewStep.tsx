@@ -25,6 +25,7 @@ export function ReviewStep({
   choice,
   withQuickTips,
   consent,
+  replaces = null,
   cancelsWithdrawal,
   primary,
   againLabel,
@@ -41,6 +42,9 @@ export function ReviewStep({
   withQuickTips: boolean
   /** The until and cap of the approval, when the request carries one. */
   consent: { until: string; cap: string } | null
+  /** What this device's current approval allows, when this one replaces
+   * it ("This replaces … up to 39.27 XLM (≈ $5.00) …"). */
+  replaces?: string | null
   cancelsWithdrawal: boolean
   primary: string
   /** "Also set up quick tips" / "Also renew quick tips". */
@@ -56,6 +60,7 @@ export function ReviewStep({
         <p className="qt-add__consent">
           {consentLine(consent.until, consent.cap)}
         </p>
+        {replaces ? <p className="qt-add__fine">{replaces}</p> : null}
         <p className="qt-add__fine">{LEDGER_FINE_PRINT}</p>
         <p className="qt-add__fine">{TURN_OFF_LATER}</p>
       </>

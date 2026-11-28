@@ -21,7 +21,7 @@ import {
   depositStroops,
   type AmountOffer,
 } from '@/lib/addMoney/amounts'
-import { consentFigures } from '@/lib/addMoney/consent'
+import { consentFigures, keyUntil } from '@/lib/addMoney/consent'
 import { failureView, type FailureView } from '@/lib/addMoney/failures'
 import {
   addMoneyPlan,
@@ -40,6 +40,8 @@ import {
 import {
   NOTHING_ADDED,
   TESTNET_FOOT,
+  capWords,
+  replacesLine,
   feeRow,
   feeSpoken,
   formatTime,
@@ -637,6 +639,19 @@ export function AddMoneyFlow({
     const consent = prepared.key
       ? consentFigures(prepared.key, prepared.clock, price)
       : null
+    // A device that can quick tip already: say what its approval allows,
+    // since this one replaces it (a small first approval, for example).
+    const current = reading.keys.find((k) => k.keyId === reading.deviceKeyId)
+    const replaces =
+      prepared.key && current?.spendLimit
+        ? replacesLine(
+            capWords(
+              current.spendLimit,
+              baseUnitsToCents(BigInt(current.spendLimit), price)
+            ),
+            keyUntil(current.validUntilLedger, reading.ledger)
+          )
+        : null
     const feeCents = (Number(prepared.fee.stroops) / 1e7) * price * 100
     body = (
       <ReviewStep
@@ -670,6 +685,7 @@ export function AddMoneyFlow({
         choice={plan.choice}
         withQuickTips={request.withQuickTips}
         consent={consent}
+        replaces={replaces}
         cancelsWithdrawal={reading.status === 'closing'}
         primary={primaryLabel(
           formatMoney(request.cents, { short: true }),

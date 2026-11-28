@@ -78,6 +78,17 @@ export function consentLine(until: string, cap: string): string {
   return `Tip from your balance on this device until ${until}, up to ${cap}, without asking your wallet each time.`
 }
 
+/**
+ * The approval this device holds now, which the new one replaces: its own
+ * cap and end, so a reader whose approval covered only a small amount sees
+ * what changes.
+ */
+export function replacesLine(cap: string, until: string | null): string {
+  return until
+    ? `This replaces this device's current approval, which allows up to ${cap} until ${until}.`
+    : `This replaces this device's current approval, which allows up to ${cap}.`
+}
+
 /** "≈ $0.000054": a fee in dollars, six decimals at most. */
 export function feeDollars(feeCents: number): string {
   if (feeCents < 0.0001) return '≈ $0.00'
