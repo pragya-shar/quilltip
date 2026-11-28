@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next'
 import bundleAnalyzer from '@next/bundle-analyzer'
 import { legacyRouteTree } from './lib/routing/legacyRouteTree'
+import { legacyWriterPageServes } from './lib/routing/legacyWriterPage'
 import { signInPathFromRoutes } from './lib/routing/signInPath'
 import { walletConnectProjectId } from './lib/stellar/v2/walletconnect-gate'
 
@@ -20,12 +21,15 @@ const nextConfig: NextConfig = {
   // app/global-not-found.tsx.
   experimental: { globalNotFound: true },
   // The paths the legacy pages still serve, so the shell's links to them
-  // never prefetch (lib/routing/legacyRoutes.ts), and where the shell's
-  // "Sign in" goes: the shell's sign-in page once it is in the route tree,
-  // the legacy one until then (lib/routing/signInPath.ts).
+  // never prefetch (lib/routing/legacyRoutes.ts); where the shell's "Sign in"
+  // goes, the shell's sign-in page once it is in the route tree
+  // (lib/routing/signInPath.ts); and whether the legacy writer page still
+  // serves /{handle}, so the proxy sends its font preloads only then
+  // (lib/routing/legacyWriterPage.ts).
   env: {
     NEXT_PUBLIC_LEGACY_ROUTES: JSON.stringify(legacyRouteTree()),
     NEXT_PUBLIC_SIGN_IN_PATH: signInPathFromRoutes(),
+    QUILLTIP_LEGACY_WRITER_PAGE: legacyWriterPageServes() ? '1' : '0',
   },
   // Put page metadata in <head> for every client, not only Next's built-in bot
   // list, so all crawlers and link previews see article titles and tags. Pages
