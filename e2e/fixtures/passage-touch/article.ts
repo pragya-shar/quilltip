@@ -1,7 +1,7 @@
 import type { JSONContent } from '@tiptap/react'
 
 export const PASSAGE_PARAGRAPH =
-  'A margin is where a reader answers the page. Some readers underline, some argue, and some leave a small mark that means this line was worth the stop.'
+  'Margins are where a reader answers the page. Some readers underline, some argue, and some leave a small mark that means this line was worth the stop.'
 
 export const CONTENT: JSONContent = {
   type: 'doc',
