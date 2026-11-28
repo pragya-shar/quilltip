@@ -20,6 +20,8 @@ import { DemoSignInSheet } from './DemoSignInSheet'
 import { SheetsPage } from './SheetsPage'
 import { setPocketLoader } from '../../../shell/pocket/loadPocket'
 import { PocketContent } from '../../../components/pocket/PocketContent'
+import { replaceAddressInView } from '../../../shell/address'
+import { appHistory } from '../../../shell/appHistory'
 
 // The design system gallery, the sample reading page and the shell's own
 // pages inside the real application shell, with no backend: what
@@ -67,6 +69,12 @@ const pages: Record<string, () => React.ReactNode> = {
   '/sheets': () => <SheetsPage />,
 }
 const Page = pages[location.pathname] ?? pages['/']!
+
+// For the tests of an address change inside one view.
+Object.assign(window, {
+  __replaceAddressInView: replaceAddressInView,
+  __appHistory: appHistory,
+})
 
 // What the root layout writes from system/fonts.ts, with the fixture's
 // family names (fixture.css).
