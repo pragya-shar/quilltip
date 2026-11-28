@@ -12,6 +12,8 @@ import { createPressWindow, holdPresses, releasePresses } from '../pressGuard'
 
 /** Open modals, so scroll stays locked until the last one closes. */
 let openCount = 0
+/** Every open so far: a close's hold skips when a modal opened after it. */
+let opens = 0
 
 const FOCUSABLE = [
   'a[href]',
@@ -80,7 +82,9 @@ export function useModal(
     delete dialog.dataset.closing
     const wasOpen = dialog.open
     // A modal that opens takes its own presses, also right after another
-    // closed (or this one, reopened before its exit finished).
+    // closed (or this one, reopened before its exit finished). The count
+    // tells a close's hold that a modal opened after it.
+    opens += 1
     releasePresses()
     if (!wasOpen) dialog.showModal()
     modalStack.push(dialog)
@@ -119,36 +123,36 @@ export function useModal(
     }
     // Its recent presses and keys decide whether its close holds presses
     // on the page (system/pressGuard.ts). The dialog covers the scrim too.
+    // A press counts from its end too (a press held a long time, then a
+    // quick second tap).
     const presses = createPressWindow()
     const onPress = () => presses.press(performance.now())
     const onAnyKey = () => presses.key(performance.now())
+    const pressEvents = ['pointerdown', 'pointerup', 'click'] as const
     dialog.addEventListener('cancel', onCancel)
     dialog.addEventListener('keydown', onKey)
-    dialog.addEventListener('pointerdown', onPress, true)
+    for (const type of pressEvents) dialog.addEventListener(type, onPress, true)
     dialog.addEventListener('keydown', onAnyKey, true)
     return () => {
       dialog.removeEventListener('cancel', onCancel)
       dialog.removeEventListener('keydown', onKey)
-      dialog.removeEventListener('pointerdown', onPress, true)
+      for (const type of pressEvents)
+        dialog.removeEventListener(type, onPress, true)
       dialog.removeEventListener('keydown', onAnyKey, true)
       openCount -= 1
       if (openCount === 0) delete root.dataset.scrollLocked
       dialog.dataset.closing = ''
       modalStack.remove(dialog)
       // A pointer press inside it within the window and no key since,
-      // whoever closes it; and a real close, not an effect re-run (React
-      // StrictMode opens it again in the same task).
+      // whoever closes it. The hold is for what was under it (the page, or
+      // the sheet below): not when a modal opened after the close, in its
+      // place or this one again (React StrictMode reopens it in the same
+      // task). Counted, so neither reduced motion (the exit finishes at
+      // once) nor the order two modals close in can skip it.
       const byPointer = presses.holds(performance.now())
-      // The hold is for what was under it (the page, or the sheet below):
-      // not when another modal opened in its place (its presses must land).
-      const under = modalStack.top()
+      const opensAtClose = opens
       queueMicrotask(() => {
-        if (
-          byPointer &&
-          dialog.dataset.closing !== undefined &&
-          modalStack.top() === under
-        )
-          holdPresses()
+        if (byPointer && opens === opensAtClose) holdPresses()
       })
       const finish = () => {
         // Opened again before the exit finished: keep it open.
