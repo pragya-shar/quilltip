@@ -7,9 +7,12 @@
  * - A scroll down of more than DOWN_PX hides it (past its own height).
  * - A scroll up shows it during a gesture of the reader's: from their own
  *   input (a wheel, a touch move, a scrolling key) until that scroll ends,
- *   however late the scroll events arrive on a busy page. A place restore,
- *   an anchor landing or a `scrollTo` has no such input, and never uncovers
- *   it over the line it just placed.
+ *   however late the scroll events arrive on a busy page. A gesture ends
+ *   only once the scroll its latest input asked for has come: the end of an
+ *   earlier scroll (a late `scrollend`) does not end it. A press or a key
+ *   that does not scroll ends it at once. A place restore, an anchor
+ *   landing or a `scrollTo` has no such input, and never uncovers it over
+ *   the line it just placed.
  * - At the top and at the end of the page it shows.
  * - While a pointer is down with text selected (a selection being dragged),
  *   it does not show: it would cover the handles.
@@ -21,6 +24,9 @@ export const DOWN_PX = 8
  * scroll event for the reader's gesture to end. */
 export const QUIET_MS = 200
 
+/** Which way an input scrolls: up (-1), down (1), or either (0, a touch). */
+export type Way = -1 | 0 | 1
+
 export type HeaderScroll = {
   y: number
   /** The page's scrollable height minus the viewport's. */
@@ -29,17 +35,37 @@ export type HeaderScroll = {
   height: number
 }
 
-export function createHeaderOnScroll() {
+/** `y`: where the page is when the watch starts. */
+export function createHeaderOnScroll(y = 0) {
   let shown = true
-  let lastY = 0
+  let lastY = y
+  let seenY = y
   let gesture = false
+  // The way of the reader's latest input, until a scroll that way comes.
+  let awaiting: Way | null = null
   let selecting = false
   let focused = false
   return {
     shown: () => shown || focused,
-    /** The reader's own scroll gesture began (true) or ended (false). */
-    gesture(on: boolean) {
-      gesture = on
+    /** Whether a gesture of the reader's lasts. */
+    gesturing: () => gesture,
+    /** The reader's own input that scrolls the page, and its way. */
+    input(way: Way) {
+      gesture = true
+      awaiting = way
+    },
+    /** The page's scroll has ended (`scrollend`, or a quiet time). The
+     * gesture ends, unless its latest input's scroll has not come yet.
+     * Returns whether it ended. */
+    settled(): boolean {
+      if (awaiting !== null) return false
+      gesture = false
+      return true
+    },
+    /** A press, or a key that does not scroll: the gesture ends now. */
+    interrupt() {
+      gesture = false
+      awaiting = null
     },
     /** A pointer is down with text selected, or no longer. */
     selecting(on: boolean) {
@@ -49,6 +75,14 @@ export function createHeaderOnScroll() {
       focused = on
     },
     scroll({ y, max, height }: HeaderScroll): boolean {
+      const step = Math.sign(y - seenY)
+      if (
+        awaiting !== null &&
+        step !== 0 &&
+        (awaiting === 0 || step === awaiting)
+      )
+        awaiting = null
+      seenY = y
       const dy = y - lastY
       if (y <= 0 || y >= max - 1) shown = true
       else if (dy > DOWN_PX && y > height) shown = false
@@ -63,7 +97,7 @@ export function createHeaderOnScroll() {
 export const TITLE_AFTER_PX = 140
 
 /** The keys that scroll the page, and the way each one goes (-1 up). */
-const SCROLL_KEYS = new Map([
+const SCROLL_KEYS = new Map<string, Way>([
   ['ArrowUp', -1],
   ['ArrowDown', 1],
   ['PageUp', -1],
@@ -84,7 +118,7 @@ export function watchHeader(
   node: HTMLElement,
   report: { shown: (on: boolean) => void; titled: (on: boolean) => void }
 ): () => void {
-  const model = createHeaderOnScroll()
+  const model = createHeaderOnScroll(window.scrollY)
   const root = document.documentElement
   const stop = new AbortController()
   const passive = { passive: true, signal: stop.signal }
@@ -106,7 +140,7 @@ export function watchHeader(
     // A browser that still scrolled to reveal the focused control (it
     // should find nothing to scroll): put the page back, once. Never
     // during the reader's own gesture.
-    if (pinned !== null && !gesturing) {
+    if (pinned !== null && !model.gesturing()) {
       const keep = pinned
       pinned = null
       if (Math.round(y) !== Math.round(keep)) {
@@ -123,29 +157,29 @@ export function watchHeader(
         height: node.offsetHeight,
       })
     )
-    // Without `scrollend`, the gesture ends once the page is still.
-    if (gesturing && !hasScrollEnd) {
+    // Without `scrollend`, the scroll has ended once the page is still.
+    if (model.gesturing() && !hasScrollEnd) {
       clearTimeout(quiet)
-      quiet = window.setTimeout(endGesture, QUIET_MS)
+      quiet = window.setTimeout(settled, QUIET_MS)
     }
   }
-  // The reader's gesture: from their own input until that scroll ends.
+  // The reader's gesture: from their own input until the scroll it asked
+  // for has come and ended.
   const hasScrollEnd = 'onscrollend' in window
-  let gesturing = false
   let quiet = 0
-  const endGesture = () => {
+  const settled = () => {
+    if (model.gesturing() && model.settled()) delete node.dataset.scrolling
+  }
+  const interrupt = () => {
     clearTimeout(quiet)
-    if (!gesturing) return
-    gesturing = false
-    model.gesture(false)
+    pinned = null
+    model.interrupt()
     delete node.dataset.scrolling
   }
-  const intent = () => {
+  const intent = (way: Way) => {
     pinned = null
     clearTimeout(quiet)
-    if (gesturing) return
-    gesturing = true
-    model.gesture(true)
+    model.input(way)
     node.dataset.scrolling = ''
   }
   const onPointerUp = () => {
@@ -154,7 +188,7 @@ export function watchHeader(
   }
   publish(true)
   window.addEventListener('scroll', onScroll, passive)
-  if (hasScrollEnd) window.addEventListener('scrollend', endGesture, passive)
+  if (hasScrollEnd) window.addEventListener('scrollend', settled, passive)
   // An input that cannot scroll the page (up at the top, down at the end,
   // or sideways) is no gesture: it would stay open with no scroll to end it.
   const canScroll = (way: number) =>
@@ -164,20 +198,19 @@ export function watchHeader(
   window.addEventListener(
     'wheel',
     (event) => {
-      if (canScroll(Math.sign(event.deltaY))) intent()
+      const way = Math.sign(event.deltaY) as Way
+      if (canScroll(way)) intent(way)
     },
     passive
   )
-  window.addEventListener('touchmove', intent, passive)
+  window.addEventListener('touchmove', () => intent(0), passive)
   window.addEventListener(
     'keydown',
     (event) => {
-      const way = SCROLL_KEYS.get(event.key)
-      if (way === undefined) {
-        pinned = null
-        endGesture()
-      } else if (canScroll(event.key === ' ' && event.shiftKey ? -1 : way))
-        intent()
+      const key = SCROLL_KEYS.get(event.key)
+      if (key === undefined) return interrupt()
+      const way = event.key === ' ' && event.shiftKey ? -1 : key
+      if (canScroll(way)) intent(way)
     },
     { signal: stop.signal }
   )
@@ -197,10 +230,9 @@ export function watchHeader(
     'pointerdown',
     () => {
       pointerDown = true
-      pinned = null
       // A press is not a scroll: a scroll it causes (an anchor) is not
       // the reader's gesture.
-      endGesture()
+      interrupt()
     },
     capture
   )
