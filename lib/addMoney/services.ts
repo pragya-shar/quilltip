@@ -77,23 +77,45 @@ export type WalletConnection = {
   walletName: string
 }
 
-/** A request built and simulated, before the wallet is asked. */
-export type PreparedRequest = {
-  /** The unsigned envelope, base64 XDR, exactly as it will be signed. */
-  xdr: string
-  /** Its hash, hex: what the signed envelope must match. */
-  hash: string
-  /** The network fee the envelope carries, stroops. */
-  feeStroops: string
-  /** Unix seconds: after this the network refuses it. */
-  maxTime: number
+/**
+ * A balance call prepared and simulated, before anyone is asked to approve
+ * it: what the review shows, from the request itself, never a constant.
+ * The shape is shared with the passkey account (`BalanceSigner`): only
+ * `payload` and who pays the fee differ.
+ */
+export type PreparedBalanceCall = {
+  requestId: string
+  call: 'open_session' | 'deposit' | 'register_key' | 'revoke_key'
+  /** The balance contract, which the wallet names too. */
+  contractId: string
   /** The deposit, stroops; "0" for quick tips alone or turn off. */
   amount: string
   /** The device approval it registers, if any. */
   key: { publicKey: string; validUntil: number; spendLimit: string } | null
   /** The ledger clock read when it was built, for the consent's date. */
   clock: LedgerClock
+  /** The network fee, stroops, and who pays it. */
+  fee: { stroops: string; paidBy: 'wallet' | 'quilltip' }
+  /** Unix seconds: after this the network refuses it. */
+  maxTime: number
+  /**
+   * `tx`: the unsigned envelope, base64 XDR, exactly as it will be signed,
+   * and its hash (hex), which the signed envelope must match. `auth`: the
+   * auth entries a passkey account signs (not built here).
+   */
+  payload:
+    | { kind: 'tx'; xdr: string; hash: string }
+    | {
+        kind: 'auth'
+        entries: { b64: string; contexts: number; expiration: number }[]
+      }
 }
+/** The name the sheets use. */
+export type PreparedRequest = PreparedBalanceCall
+
+export type SignedBalanceCall =
+  | { requestId: string; kind: 'tx'; signedXdr: string }
+  | { requestId: string; kind: 'auth'; signedEntries: string[] }
 
 /** What the reader asked for. */
 export type Operation =
@@ -118,6 +140,8 @@ export type StepFailure =
   | { kind: 'unsupported'; wallet: string }
   | { kind: 'wrong-account'; expected: string; actual: string | null }
   | { kind: 'fee-too-high'; feeStroops: string; ceilingStroops: string }
+  /** The prepared call is not one this browser can approve. */
+  | { kind: 'not-ours' }
   | { kind: 'envelope-changed' }
   | { kind: 'offline' }
   /** The server or the network refused before anything was signed. */
@@ -163,12 +187,27 @@ export type AddMoneyServices = {
    * no wallet is asked. Throws `StepError`. */
   prepare(op: Operation, address: string): Promise<PreparedRequest>
   /**
-   * Asks the wallet to sign exactly `prepared`, then checks the signed
-   * envelope is the one shown. Throws `StepError`.
+   * Loads what the approval needs (the wallet kit, the envelope checks)
+   * while the review is read, so the press reaches the wallet with no
+   * network wait: a wallet window must open inside the reader's tap, or
+   * Safari blocks it.
    */
-  sign(prepared: PreparedRequest, address: string): Promise<string>
-  /** Sends a signed envelope; resolves its hash. Throws `StepError`. */
-  send(signedXdr: string, prepared: PreparedRequest): Promise<string>
+  warm(): Promise<void>
+  /**
+   * The approval (`BalanceSigner.approve`): asks the wallet to sign exactly
+   * `prepared`, then checks the signed envelope is the one shown. Called
+   * from the tap. Throws `StepError`.
+   */
+  approve(
+    prepared: PreparedBalanceCall,
+    address: string
+  ): Promise<SignedBalanceCall>
+  /** Sends a signed call; resolves its transaction hash. Throws
+   * `StepError`. */
+  submit(
+    signed: SignedBalanceCall,
+    prepared: PreparedBalanceCall
+  ): Promise<string>
   /** Polls until the network has a result or the time bound passes. */
   poll(
     hash: string,

@@ -490,20 +490,47 @@ export function createLiveServices(
             ceilingStroops: FEE_CEILING_STROOPS.toString(),
           })
         return {
-          xdr: prepared.toXDR(),
-          hash: bytesToHex(prepared.hash()),
-          feeStroops: fee,
-          maxTime,
+          requestId: crypto.randomUUID(),
+          call: server.call.method as PreparedRequest['call'],
+          contractId: c.tabContractId,
           amount: server.amount,
           key: server.key,
           clock: server.clock,
+          fee: { stroops: fee, paidBy: 'wallet' },
+          maxTime,
+          payload: {
+            kind: 'tx',
+            xdr: prepared.toXDR(),
+            hash: bytesToHex(prepared.hash()),
+          },
         }
       } catch (error) {
         throw asStep(error, address)
       }
     },
-    async sign(prepared, address) {
+    async warm() {
+      // The kit and the envelope checks, so the press that approves waits
+      // on nothing from the network before the wallet opens its window.
+      await Promise.all([
+        wallet.init(),
+        import('@/lib/stellar/v2/wallet-signature'),
+      ]).catch(() => {})
+    },
+    async approve(prepared, address) {
       const c = config()
+      if (prepared.payload.kind !== 'tx')
+        throw new StepError({ kind: 'not-ours' })
+      const payload = prepared.payload
+      // The device key in the call must be one this browser holds.
+      if (prepared.key) {
+        const held = await keys()
+          .getByPublicKey(
+            { tabContractId: c.tabContractId, readerAddress: address },
+            prepared.key.publicKey
+          )
+          .catch(() => null)
+        if (!held) throw new StepError({ kind: 'not-ours' })
+      }
       const current = wallet.getConnection()
       if (!current)
         throw new StepError(
@@ -517,7 +544,7 @@ export function createLiveServices(
         })
       let signedXdr: string
       try {
-        signedXdr = (await wallet.signTransaction(prepared.xdr, { address }))
+        signedXdr = (await wallet.signTransaction(payload.xdr, { address }))
           .signedTxXdr
       } catch (error) {
         throw asStep(error, address)
@@ -527,14 +554,15 @@ export function createLiveServices(
         signedXdr,
         c.passphrase
       ) as Transaction
-      if (bytesToHex(back.hash()) !== prepared.hash)
+      if (bytesToHex(back.hash()) !== payload.hash)
         throw new StepError({ kind: 'envelope-changed' })
-      return signedXdr
+      return { requestId: prepared.requestId, kind: 'tx', signedXdr }
     },
-    async send(signedXdr, prepared) {
+    async submit(signedCall, prepared) {
       const c = config()
+      if (signedCall.kind !== 'tx') throw new StepError({ kind: 'not-ours' })
       const signed = TransactionBuilder.fromXDR(
-        signedXdr,
+        signedCall.signedXdr,
         c.passphrase
       ) as Transaction
       const hash = bytesToHex(signed.hash())

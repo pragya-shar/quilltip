@@ -84,7 +84,9 @@ export function QuickTipsFlow({
 
   useEffect(() => {
     if (step.at !== 'checking') focusDestination(message.current)
-  }, [step.at])
+    // Loaded while the review is read: the press opens the wallet at once.
+    if (step.at === 'review') void services.warm()
+  }, [step.at, services])
   useEffect(
     () => () => {
       cancelled.current = true
@@ -165,11 +167,11 @@ export function QuickTipsFlow({
       if (!reading?.address) return
       setStep({ at: 'signing', prepared })
       services
-        .sign(prepared, reading.address)
+        .approve(prepared, reading.address)
         .then(async (signed) => {
           if (cancelled.current) return
           setStep({ at: 'setting-up', prepared, slow: false })
-          const hash = await services.send(signed, prepared)
+          const hash = await services.submit(signed, prepared)
           const result = await services.poll(
             hash,
             prepared.maxTime,
@@ -251,7 +253,7 @@ export function QuickTipsFlow({
       price
     )
     const feeCents = price
-      ? (Number(step.prepared.feeStroops) / 1e7) * price * 100
+      ? (Number(step.prepared.fee.stroops) / 1e7) * price * 100
       : null
     body = (
       <div className="qt-add__step">
@@ -277,8 +279,8 @@ export function QuickTipsFlow({
             { label: 'Up to', value: consent.cap },
             {
               label: 'Network fee',
-              value: feeRow(step.prepared.feeStroops, feeCents),
-              spoken: `${formatTokenAmount(step.prepared.feeStroops).replace('XLM', 'Lumens')}, paid by your wallet`,
+              value: feeRow(step.prepared.fee.stroops, feeCents),
+              spoken: `${formatTokenAmount(step.prepared.fee.stroops).replace('XLM', 'Lumens')}, paid by your wallet`,
             },
           ]}
         />

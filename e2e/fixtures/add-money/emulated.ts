@@ -255,16 +255,23 @@ export const emulatedServices: AddMoneyServices = {
           ? 'register_key'
           : `revoke_key:${op.keyId}`
     return {
-      xdr: kind,
-      hash: `hash-${kind}`,
-      feeStroops: op.kind === 'add' ? '4213' : '2134',
-      maxTime: Math.floor(now() / 1000) + 300,
+      requestId: `request-${nextKey}`,
+      call: kind.split(':')[0] as PreparedRequest['call'],
+      contractId: 'CB2O'.padEnd(52, 'A') + 'TLFK',
       amount: op.kind === 'add' ? op.amount : '0',
       key,
       clock: ledger,
+      // A first deposit with a key, as measured on Stellar testnet.
+      fee: {
+        stroops: op.kind === 'add' ? '953987' : '214213',
+        paidBy: 'wallet',
+      },
+      maxTime: Math.floor(now() / 1000) + 300,
+      payload: { kind: 'tx', xdr: kind, hash: `hash-${kind}` },
     } satisfies PreparedRequest
   },
-  async sign(prepared) {
+  async warm() {},
+  async approve(prepared) {
     await pause(400)
     const failure = walletAnswer(connection?.walletName ?? 'Your wallet')
     if (failure) {
@@ -279,15 +286,17 @@ export const emulatedServices: AddMoneyServices = {
         actual: OTHER,
       })
     }
-    window.__wallet.log.signed.push(prepared.xdr)
-    return `signed:${prepared.xdr}`
+    const xdr = prepared.payload.kind === 'tx' ? prepared.payload.xdr : ''
+    window.__wallet.log.signed.push(xdr)
+    return { requestId: prepared.requestId, kind: 'tx', signedXdr: xdr }
   },
-  async send(signed, prepared) {
+  async submit(signed, prepared) {
+    const xdr = prepared.payload.kind === 'tx' ? prepared.payload.xdr : ''
     if (window.__wallet.next === 'fail') {
       window.__wallet.next = 'approve'
       throw new StepError({ kind: 'failed' })
     }
-    window.__wallet.log.sent.push(signed)
+    window.__wallet.log.sent.push(signed.kind === 'tx' ? signed.signedXdr : '')
     // The indexer reads it back a moment later (or much later with ?slow).
     setTimeout(
       () => {
@@ -296,8 +305,8 @@ export const emulatedServices: AddMoneyServices = {
         const available = (BigInt(reading.available) + amount).toString()
         let keys = reading.keys
         let next: Partial<Reading> = {}
-        if (prepared.xdr.startsWith('revoke_key')) {
-          const id = Number(prepared.xdr.split(':')[1])
+        if (xdr.startsWith('revoke_key')) {
+          const id = Number(xdr.split(':')[1])
           keys = keys.map((k) =>
             k.keyId === id
               ? { ...k, revoked: true, validUntilLedger: ledger.sequence }
@@ -332,7 +341,7 @@ export const emulatedServices: AddMoneyServices = {
       },
       params.has('slow') ? 25_000 : 600
     )
-    return `tx-${prepared.xdr}`
+    return `tx-${xdr}`
   },
   async poll() {
     await pause(params.has('slow') ? 26_000 : 500)

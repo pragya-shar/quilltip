@@ -2,6 +2,9 @@ import 'fake-indexeddb/auto'
 import { IDBFactory } from 'fake-indexeddb'
 import { describe, expect, it } from 'vitest'
 import { createSessionKeyStore } from '@/lib/stellar/v2/tab'
+import { deviceKeyView } from '@/lib/tab-ui/key-plan'
+import { tipButtonWords } from '@/lib/addMoney/plan'
+import { seenKeyIds } from '@/lib/tab-ui/device-memory'
 import {
   forgetDeviceKeys,
   noteRetiredKeyIds,
@@ -57,6 +60,40 @@ describe('sign-out ends quick tips in this browser', () => {
       storage.getItem(`quilltip-tab-seen-keys:${OTHER_TAB}|${READER}`)
     ).toBe('[2]')
     expect(storage.getItem('unrelated')).toBe('kept')
+  })
+
+  it('leaves a reader who signs back in with no usable key: the next tip asks for setup', async () => {
+    const indexedDB = new IDBFactory()
+    const store = createSessionKeyStore({ indexedDB, forceFallback: true })
+    const scope = { tabContractId: TAB, readerAddress: READER }
+    const key = await store.generate(scope)
+    const server = {
+      keyId: 7,
+      publicKey: key.info.publicKey,
+      validUntilLedger: 10_000_000,
+      revoked: false,
+    }
+    await store.bindKeyIds(scope, [server])
+    const storage = memoryStorage()
+    storage.setItem(`quilltip-tab-seen-keys:${TAB}|${READER}`, '[7]')
+    const before = deviceKeyView({
+      serverKeys: [server],
+      localKeys: (await store.list(scope)).map((k) => k.info),
+      currentLedger: 1000,
+      seenKeyIds: seenKeyIds(TAB, READER, storage),
+    })
+    expect(before.kind).toBe('ready')
+
+    await forgetDeviceKeys(TAB, { indexedDB, storage })
+
+    const after = deviceKeyView({
+      serverKeys: [server],
+      localKeys: (await store.list(scope)).map((k) => k.info),
+      currentLedger: 1000,
+      seenKeyIds: seenKeyIds(TAB, READER, storage),
+    })
+    expect(after.kind).toBe('other-device')
+    expect(tipButtonWords(after.kind)).toBe('Set up to tip')
   })
 
   it('runs again harmlessly, and with no IndexedDB at all', async () => {

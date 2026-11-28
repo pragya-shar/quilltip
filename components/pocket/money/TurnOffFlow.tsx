@@ -69,7 +69,9 @@ export function TurnOffFlow({
 
   useEffect(() => {
     if (step.at !== 'checking') focusDestination(message.current)
-  }, [step.at])
+    // Loaded while the review is read: the press opens the wallet at once.
+    if (step.at === 'review') void services.warm()
+  }, [step.at, services])
   useEffect(
     () => () => {
       cancelled.current = true
@@ -114,11 +116,11 @@ export function TurnOffFlow({
     }
     setStep({ at: 'signing', prepared })
     services
-      .sign(prepared, address)
+      .approve(prepared, address)
       .then(async (signed) => {
         if (cancelled.current) return
         setStep({ at: 'confirming', prepared })
-        const hash = await services.send(signed, prepared)
+        const hash = await services.submit(signed, prepared)
         const result = await services.poll(
           hash,
           prepared.maxTime,
@@ -202,10 +204,10 @@ export function TurnOffFlow({
     {
       label: 'Network fee',
       value: feeRow(
-        prepared.feeStroops,
-        price ? (Number(prepared.feeStroops) / 1e7) * price * 100 : null
+        prepared.fee.stroops,
+        price ? (Number(prepared.fee.stroops) / 1e7) * price * 100 : null
       ),
-      spoken: `${formatTokenAmount(prepared.feeStroops).replace('XLM', 'Lumens')}, paid by your wallet`,
+      spoken: `${formatTokenAmount(prepared.fee.stroops).replace('XLM', 'Lumens')}, paid by your wallet`,
     },
   ]
 

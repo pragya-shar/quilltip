@@ -15,6 +15,7 @@ import {
   formatTokenAmount,
 } from '@/lib/payments/money'
 import type { Money } from '@/lib/payments/types'
+import { shortAddress } from '@/lib/payments/format'
 import {
   amountOffer,
   depositStroops,
@@ -127,6 +128,12 @@ export function AddMoneyFlow({
   const pollAbort = useRef<AbortController | null>(null)
   const message = useRef<HTMLDivElement>(null)
   const settle = useSettlingPresses<HTMLDivElement>(step.at)
+
+  // While the review is read, load what the approval needs, so the press
+  // opens the wallet's window with no network wait in between.
+  useEffect(() => {
+    if (step.at === 'review') void services.warm()
+  }, [step.at, services])
 
   // Focus follows the state: its first line is read once.
   useEffect(() => {
@@ -263,7 +270,7 @@ export function AddMoneyFlow({
       const before = reading.confirmed
       setStep({ at: 'signing', request, prepared })
       services
-        .sign(prepared, reading.address)
+        .approve(prepared, reading.address)
         .then(async (signed) => {
           if (cancelled.current) return
           setStep({
@@ -275,7 +282,7 @@ export function AddMoneyFlow({
             polled: null,
             slow: false,
           })
-          const hash = await services.send(signed, prepared)
+          const hash = await services.submit(signed, prepared)
           if (cancelled.current) return
           setStep((s) => (s.at === 'adding' ? { ...s, hash } : s))
           const abort = new AbortController()
@@ -628,7 +635,7 @@ export function AddMoneyFlow({
     const consent = prepared.key
       ? consentFigures(prepared.key, prepared.clock, price)
       : null
-    const feeCents = (Number(prepared.feeStroops) / 1e7) * price * 100
+    const feeCents = (Number(prepared.fee.stroops) / 1e7) * price * 100
     body = (
       <ReviewStep
         title={`Add ${formatMoney(request.cents)} to your balance.`}
@@ -644,9 +651,13 @@ export function AddMoneyFlow({
             ),
           },
           {
+            label: 'To',
+            value: `Your Quilltip balance · ${shortAddress(prepared.contractId)}`,
+          },
+          {
             label: 'Network fee',
-            value: feeRow(prepared.feeStroops, feeCents),
-            spoken: `${formatTokenAmount(prepared.feeStroops).replace('XLM', 'Lumens')}, paid by your wallet`,
+            value: feeRow(prepared.fee.stroops, feeCents),
+            spoken: `${formatTokenAmount(prepared.fee.stroops).replace('XLM', 'Lumens')}, paid by your wallet`,
           },
           {
             label: 'Your balance after',
@@ -684,7 +695,7 @@ export function AddMoneyFlow({
           {signingLine({
             xlm: formatTokenAmount(prepared.amount),
             dollars: formatMoney(request.cents),
-            fee: formatTokenAmount(prepared.feeStroops),
+            fee: formatTokenAmount(prepared.fee.stroops),
             network,
             quickTips: request.withQuickTips ? consent : null,
           })}

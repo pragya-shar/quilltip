@@ -65,6 +65,11 @@ export function failureView(
         body: 'Your wallet changed the request, so it was not sent. Nothing was sent.',
         action: 'try-again',
       }
+    case 'not-ours':
+      return {
+        body: 'This request does not match this device, so it was not signed. Nothing was sent.',
+        action: 'try-again',
+      }
     case 'offline':
       return {
         body: 'You are offline. Nothing was sent. Try again when you are back online.',
