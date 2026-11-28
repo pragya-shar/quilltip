@@ -124,6 +124,62 @@ describe('tip form code that fails to load (#669)', () => {
     await act(async () => root.unmount())
   })
 
+  it('does not take focus back after the reader moved on while the code loads', async () => {
+    let online = false
+    let release: () => void = () => {}
+    const loader = retryableLazy(() =>
+      online
+        ? new Promise<{ default: () => ReturnType<typeof createElement> }>(
+            (resolve) => {
+              release = () =>
+                resolve({
+                  default: () => createElement('button', null, 'Tip article'),
+                })
+            }
+          )
+        : Promise.reject(
+            new Error('Failed to fetch dynamically imported module')
+          )
+    )
+    const host = document.createElement('div')
+    document.body.append(host)
+    const root = createRoot(host)
+    await act(async () => {
+      root.render(
+        createElement(
+          'article',
+          null,
+          createElement('a', { href: '#elsewhere' }, 'A link in the article'),
+          createElement(TipCodeBoundary, {
+            variant: 'inline',
+            onRetry: loader.retry,
+            children: () =>
+              createElement(
+                Suspense,
+                { fallback: createElement('p', null, 'Loading') },
+                createElement(loader.Component)
+              ),
+          })
+        )
+      )
+    })
+    await settle()
+    online = true
+    const retry = host.querySelector('button')!
+    retry.focus()
+    await act(async () => retry.click())
+    await settle()
+    // The reader moves on while the code is still loading.
+    const link = host.querySelector('a')!
+    link.focus()
+    await act(async () => release())
+    await settle()
+    await settle()
+    expect(host.textContent).toContain('Tip article')
+    expect(document.activeElement).toBe(link)
+    await act(async () => root.unmount())
+  })
+
   it('a plain lazy import stays rejected, which is why retry makes a new one', async () => {
     let calls = 0
     const loader = retryableLazy(() => {

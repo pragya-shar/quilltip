@@ -14,10 +14,12 @@ import { TIP_CODE_FAILED } from '@/lib/copy/tip-flow'
  * A lazily loaded tip component whose failed load can be tried again.
  * `React.lazy` keeps a rejected import for good, so `retry` makes a new one.
  */
-export function retryableLazy<P extends object>(
-  load: () => Promise<{ default: ComponentType<P> }>
+// The same constraint as React.lazy, so any component type passes through.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function retryableLazy<T extends ComponentType<any>>(
+  load: () => Promise<{ default: T }>
 ): {
-  readonly Component: LazyExoticComponent<ComponentType<P>>
+  readonly Component: LazyExoticComponent<T>
   retry: () => void
 } {
   let current = lazy(load)
@@ -72,7 +74,15 @@ export class TipCodeBoundary extends Component<Props, { failed: boolean }> {
     cancelAnimationFrame(this.frame)
     let frames = 0
     const tryFocus = () => {
-      const target = this.box.current?.querySelector<HTMLElement>(FOCUSABLE)
+      // Stop if the reader has moved on while the code loads: focus is no
+      // longer on the body (where the unmounted Try again left it) or here.
+      const active = document.activeElement
+      const box = this.box.current
+      if (active && active !== document.body && !box?.contains(active)) {
+        this.moveFocus = false
+        return
+      }
+      const target = box?.querySelector<HTMLElement>(FOCUSABLE)
       if (target) {
         this.moveFocus = false
         target.focus({ preventScroll: true })
