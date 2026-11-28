@@ -61,7 +61,7 @@ export default function SampleReadingPage() {
             </p>
           </Prose>
           <footer className="qt-sample__end">
-            <TextLink href="/articles" variant="standalone">
+            <TextLink href="/articles" variant="standalone" prefetch={false}>
               Read more articles
             </TextLink>
           </footer>

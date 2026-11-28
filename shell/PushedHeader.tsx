@@ -32,8 +32,11 @@ export function PushedHeader({
   const router = useRouter()
   return (
     <header className="qt-pushed__header">
+      {/* No prefetch: inside the application back goes through history, and
+          this link is taken only when the screen was opened from outside. */}
       <Link
         href={fallbackHref}
+        prefetch={false}
         className="qt-icon-button"
         data-variant="plain"
         aria-label={backLabel}

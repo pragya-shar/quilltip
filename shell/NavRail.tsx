@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { prefetchFor } from '@/lib/routing/legacyRoutes'
 import { usePathname } from 'next/navigation'
 import { Icon } from '@/system/components/Icon'
 import { BalanceItem } from './BalanceItem'
@@ -12,7 +13,7 @@ export function NavRail() {
   const pathname = usePathname() ?? '/'
   return (
     <nav className="qt-rail" aria-label="Main">
-      <Link href="/" className="qt-rail__wordmark">
+      <Link href="/" prefetch={prefetchFor('/')} className="qt-rail__wordmark">
         Quilltip
       </Link>
       <ul className="qt-rail__list">
@@ -20,6 +21,7 @@ export function NavRail() {
           <li key={place.id}>
             <Link
               href={place.href}
+              prefetch={prefetchFor(place.href)}
               className="qt-rail__item"
               aria-current={isActive(place, pathname) ? 'page' : undefined}
             >
