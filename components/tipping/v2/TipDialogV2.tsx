@@ -37,6 +37,7 @@ import { buildLoginHref } from '@/lib/auth/safeReturnPath'
 import { v2Runtime } from '@/lib/stellar/v2/chain-runtime'
 import { AMOUNT_ERRORS, BASKET_COPY, TIP_DIALOG } from '@/lib/copy/tip-flow'
 import { TAB_TIP_DIALOG } from '@/lib/copy/tab'
+import { ESTIMATE } from '@/lib/copy/payment-states'
 import { tabTipPresets } from '@/lib/tab-ui/tip-limits'
 import {
   TIP_MAX_CENTS,
@@ -145,6 +146,22 @@ export function TipDialogV2({
         : presets[presets.length - 1]!
   const cents = custom.trim() ? parseDollars(custom) : preset
   const check = checkAmount(cents, eligibility.minTipCents, custom)
+  const minLabel = formatCents(Math.max(eligibility.minTipCents ?? 1, 1))
+  const maxLabel = formatCents(TIP_MAX_CENTS)
+  /** The error does not state the range, so the range follows it. */
+  const rangeAfter = (error: string) =>
+    error === AMOUNT_ERRORS.empty || error === AMOUNT_ERRORS.invalid
+  /** An amount error as shown: with the range when the error does not say it. */
+  const amountErrorText = (error: string) =>
+    rangeAfter(error)
+      ? `${error} ${TIP_DIALOG.range(minLabel, maxLabel)}`
+      : error
+  const longestAmountError = [
+    amountErrorText(AMOUNT_ERRORS.empty),
+    amountErrorText(AMOUNT_ERRORS.invalid),
+    AMOUNT_ERRORS.belowMinimum(minLabel),
+    AMOUNT_ERRORS.aboveMaximum(maxLabel),
+  ].reduce((a, b) => (b.length > a.length ? b : a))
   // The amount is in the button's name (#645), as the reader chose it.
   const chosen = check.ok ? formatCents(check.cents) : null
   const running = flow.state.stage === 'preparing' || flow.state.step !== null
@@ -522,21 +539,45 @@ export function TipDialogV2({
                       data-lpignore="true"
                     />
                   </div>
-                  {amountError ? (
-                    <p id={ids.error} className="tip-v2-field-error">
-                      <CircleAlert aria-hidden="true" />
-                      {amountError}
+                  {/* The error takes the hint's place in one box, so nothing
+                      under the field moves while a press is on its way
+                      (#658). The hint stays in the field's description. */}
+                  <div className="tip-v2-field-note">
+                    <p
+                      id={ids.hint}
+                      className="tip-hint"
+                      data-covered={amountError ? '' : undefined}
+                    >
+                      {TIP_DIALOG.customHint(minLabel, maxLabel)}
+                      {tabMaxCents !== null
+                        ? ` ${TAB_TIP_DIALOG.maxHint(formatCents(tabMaxCents))}`
+                        : null}
                     </p>
-                  ) : null}
-                  <p id={ids.hint} className="tip-hint">
-                    {TIP_DIALOG.customHint(
-                      formatCents(Math.max(eligibility.minTipCents ?? 1, 1)),
-                      formatCents(TIP_MAX_CENTS)
-                    )}
-                    {tabMaxCents !== null
-                      ? ` ${TAB_TIP_DIALOG.maxHint(formatCents(tabMaxCents))}`
-                      : null}
-                  </p>
+                    {amountError ? (
+                      <p id={ids.error} className="tip-v2-field-error">
+                        <CircleAlert aria-hidden="true" />
+                        <span>
+                          {amountError}
+                          {rangeAfter(amountError) ? (
+                            // Seen only: the hint, which the field's
+                            // description also reads, states the range.
+                            <span aria-hidden="true">
+                              {` ${TIP_DIALOG.range(minLabel, maxLabel)}`}
+                            </span>
+                          ) : null}
+                        </span>
+                      </p>
+                    ) : null}
+                    {/* The longest error, unseen: the box keeps its room. */}
+                    <p
+                      className="tip-v2-field-error"
+                      data-sizer=""
+                      aria-hidden="true"
+                    >
+                      <CircleAlert aria-hidden="true" />
+                      <span>{longestAmountError}</span>
+                    </p>
+                  </div>
                 </div>
               </fieldset>
 
@@ -554,6 +595,10 @@ export function TipDialogV2({
                   })()}
                   quoteCents={check.ok ? check.cents : null}
                   estimate
+                  // A tab tip has no wallet prompt (#670).
+                  estimateCaption={
+                    tabReady ? ESTIMATE.tabCaption : ESTIMATE.caption
+                  }
                 />
               ) : (
                 <TestnetLabel detail />

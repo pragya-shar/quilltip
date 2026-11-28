@@ -1,6 +1,7 @@
-// Runs e2e/early-taps.spec.ts (presses made before the page scripts run) and
-// e2e/server-forms.spec.ts (forms in the server HTML post) in Chromium and
-// WebKit against a local production build. It needs no
+// Runs e2e/early-taps.spec.ts (presses made before the page scripts run),
+// e2e/server-forms.spec.ts (forms in the server HTML post) and
+// e2e/password-reset.spec.ts (the reset pages, #658) in Chromium and WebKit
+// against a local production build. It needs no
 // secrets: the public Convex queries are answered by the fixture stand-in
 // that the page-load budget also uses, and the spec answers the Convex
 // connection itself.
@@ -61,6 +62,9 @@ async function main(): Promise<number> {
         QUILLTIP_NETWORK_GUARD_OPT_IN: 'testnet',
         NEXT_PUBLIC_CONVEX_URL: `http://127.0.0.1:${CONVEX_PORT}`,
         NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
+        // The stand-in answers queries only: tests that need an action
+        // (the reset request) skip.
+        QUILLTIP_FIXTURE_BACKEND: external ? '' : '1',
       }
     )
   } finally {

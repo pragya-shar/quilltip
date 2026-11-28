@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
 import { CircleAlert } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import {
+  RECIPIENT_COPY,
   checkRecipient,
   type RecipientCheck,
   type RecipientProblem,
@@ -13,6 +14,12 @@ import { TRANSFER_COPY } from '@/lib/copy/nft-v2'
 import { isTouch } from './isTouch'
 
 /** Problems shown as soon as they appear: the input is complete and wrong. */
+/** The longest message the field can show, for the room kept under it. */
+const LONGEST_RECIPIENT_ERROR = [
+  ...Object.values(RECIPIENT_COPY),
+  `${RECIPIENT_COPY.length} This one has 55. For a username, start with @.`,
+].reduce((a, b) => (b.length > a.length ? b : a))
+
 const SHOW_AT_ONCE = new Set<RecipientProblem>([
   'checksum',
   'muxed',
@@ -110,15 +117,28 @@ export function RecipientForm({
           aria-describedby={error ? `${errorId} ${hintId}` : hintId}
           placeholder="G… or @username"
         />
-        <p id={hintId} className="nft-v2-note">
-          {TRANSFER_COPY.recipientHint}
-        </p>
-        {error ? (
-          <p id={errorId} className="nft-v2-error" role="alert">
-            <CircleAlert aria-hidden="true" />
-            <span>{error}</span>
+        {/* The error takes the hint's place in one box, sized for the
+            longest error, so Cancel and Review transfer do not move while a
+            press is on its way (#658). The hint stays in the description. */}
+        <div className="nft-v2-field-note">
+          <p
+            id={hintId}
+            className="nft-v2-note"
+            data-covered={error ? '' : undefined}
+          >
+            {TRANSFER_COPY.recipientHint}
           </p>
-        ) : null}
+          {error ? (
+            <p id={errorId} className="nft-v2-error" role="alert">
+              <CircleAlert aria-hidden="true" />
+              <span>{error}</span>
+            </p>
+          ) : null}
+          <p className="nft-v2-error" data-sizer="" aria-hidden="true">
+            <CircleAlert aria-hidden="true" />
+            <span>{LONGEST_RECIPIENT_ERROR}</span>
+          </p>
+        </div>
       </div>
       <div className="nft-v2-footer">
         <Button

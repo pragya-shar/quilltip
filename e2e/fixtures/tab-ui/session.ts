@@ -14,6 +14,18 @@ import { FIXTURE_READER, FIXTURE_TAB } from './constants'
 import { SCENARIOS, type DeviceSetup } from './scenarios'
 import { createFixtureServices } from './services'
 
+/**
+ * The page's start-up steps and when each ran (ms since navigation). When
+ * the page is late, `e2e/fixtures/tab-ui/ready.ts` prints them (#658).
+ */
+const boot: { step: string; ms: number }[] = []
+;(window as unknown as { __tabFixtureBoot: typeof boot }).__tabFixtureBoot =
+  boot
+export function noteBoot(step: string) {
+  boot.push({ step, ms: Math.round(performance.now()) })
+}
+noteBoot('script')
+
 export const params = new URLSearchParams(location.search)
 export const stateId = params.get('state') ?? 'home-no-tab'
 let session = params.get('session')
@@ -32,7 +44,11 @@ async function clearDevice() {
   closeTabDb()
   await new Promise<void>((resolve) => {
     const request = indexedDB.deleteDatabase(TAB_DB_NAME)
-    request.onsuccess = request.onerror = request.onblocked = () => resolve()
+    const done = (event: Event) => {
+      noteBoot(`key store deleted (${event.type})`)
+      resolve()
+    }
+    request.onsuccess = request.onerror = request.onblocked = done
   })
   for (const key of Object.keys(localStorage))
     if (key.startsWith('quilltip-tab')) localStorage.removeItem(key)
@@ -40,25 +56,36 @@ async function clearDevice() {
 }
 
 export async function seedDevice(kind: DeviceSetup) {
+  noteBoot(`device setup: ${kind}`)
+  await setUpDevice(kind)
+  noteBoot('device ready')
+}
+
+async function setUpDevice(kind: DeviceSetup) {
   if (fresh && kind !== 'storage-blocked') await clearDevice()
   if (kind === 'storage-blocked') {
     Object.defineProperty(window, 'indexedDB', { value: undefined })
     return
   }
   if (kind === 'none') return
-  const post = (body: unknown) =>
-    fetch(
+  const post = (body: unknown) => {
+    noteBoot('seed request sent')
+    return fetch(
       `/api/seed-device?session=${encodeURIComponent(session!)}&state=${encodeURIComponent(stateId)}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }
-    ).then(
-      (r) => r.json() as Promise<{ keyId: number | null; again?: boolean }>
-    )
+    ).then((r) => {
+      noteBoot('seed request answered')
+      return r.json() as Promise<{ keyId: number | null; again?: boolean }>
+    })
+  }
   const store = createSessionKeyStore()
-  if ((await store.list(scope)).length > 0) return
+  const listed = await store.list(scope)
+  noteBoot('key store listed')
+  if (listed.length > 0) return
   if (kind === 'gone' || kind === 'other') {
     const random = Array.from(crypto.getRandomValues(new Uint8Array(32)), (b) =>
       b.toString(16).padStart(2, '0')
@@ -69,10 +96,12 @@ export async function seedDevice(kind: DeviceSetup) {
     return
   }
   const key = await store.generate(scope)
+  noteBoot('key generated')
   if (kind === 'pending') return
   const { keyId } = await post({ kind, publicKey: key.info.publicKey })
   if (keyId === null) return
   await store.bindKeyIds(scope, [{ keyId, publicKey: key.info.publicKey }])
+  noteBoot('key bound')
   noteSeenKeyIds(FIXTURE_TAB, FIXTURE_READER, [keyId])
   if (kind === 'stopped')
     await store.markUnusable(scope, key.info.publicKey, 'ledger_mismatch')

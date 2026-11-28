@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import type { TipActivityItem } from '@/lib/account/tipActivity'
+import { TIP_HISTORY_USD_NOTE } from '@/lib/copy/network-status'
 import {
   recordedUsd,
   shownTipStatus,
@@ -128,8 +129,8 @@ export function WalletTipHistory({
       {rows.length > 0 && (
         <div className="account-history-bottom">
           <p>
-            {Math.min(limit, rows.length)} of {rows.length} tips · Amounts are
-            recorded USD equivalents.
+            {Math.min(limit, rows.length)} of {rows.length} tips ·{' '}
+            {TIP_HISTORY_USD_NOTE}
           </p>
           {rows.length > limit && (
             <button
