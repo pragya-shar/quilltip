@@ -22,6 +22,12 @@ export type TipControlPhase =
   | { phase: 'needs-funds'; amount: MoneyValue; available: MoneyValue | null }
   | { phase: 'other'; words: string; amount: MoneyValue; busy: boolean }
 
+/** The amount as a label says it: the short text when the money layer
+ * gives one ("$1"), else the display text ("$1.00"). */
+export function labelAmount(value: MoneyValue): string {
+  return value.short ?? value.display
+}
+
 /** "Tomás Reyes" → "Tomás": the button names the writer by first name. */
 export function firstName(name: string): string {
   return name.trim().split(/\s+/u)[0] ?? name
@@ -40,31 +46,34 @@ export function tipButtonParts(
   switch (state.phase) {
     case 'holding':
     case 'sending':
-      return { words: 'Sending', amount: state.amount.display }
+      return { words: 'Sending', amount: labelAmount(state.amount) }
     case 'sent':
-      return { words: 'Sent', amount: state.amount.display }
+      return { words: 'Sent', amount: labelAmount(state.amount) }
     // After a refusal the reader may choose another amount: the button
     // states the amount it will send now, as the amount control does.
     case 'failed':
       return {
         words: 'Try again: tip',
-        amount: (amount ?? state.amount).display,
+        amount: labelAmount(amount ?? state.amount),
       }
     case 'offline':
       return { words: 'Offline. You can tip when you reconnect.', amount: null }
     case 'needs-funds':
       return {
         words: 'Add money to tip',
-        amount: (amount ?? state.amount).display,
+        amount: labelAmount(amount ?? state.amount),
       }
     case 'other':
-      return { words: state.words, amount: state.amount.display }
+      return { words: state.words, amount: labelAmount(state.amount) }
     case 'idle': {
       if (!amount) return { words: 'Choose an amount', amount: null }
       if (target === 'passage')
-        return { words: 'Tip this line', amount: amount.display }
+        return { words: 'Tip this line', amount: labelAmount(amount) }
       const name = firstName(recipient)
-      return { words: name ? `Tip ${name}` : 'Tip', amount: amount.display }
+      return {
+        words: name ? `Tip ${name}` : 'Tip',
+        amount: labelAmount(amount),
+      }
     }
   }
 }

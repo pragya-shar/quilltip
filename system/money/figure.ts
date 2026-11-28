@@ -32,6 +32,9 @@ export type MoneyValue = {
   readonly display: string
   readonly converted?: boolean
   readonly spoken?: string
+  /** The money layer's short text for a label ("$1", "$0.50"), when it
+   * gives one; labels prefer it to `display` ("$1.00"). */
+  readonly short?: string
 }
 
 export type FigureParts = {

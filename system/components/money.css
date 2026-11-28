@@ -277,6 +277,19 @@
     line-height: var(--qt-lh-ui-s);
     color: var(--qt-ink-2);
   }
+  .qt-tray__caption[data-control] {
+    justify-content: flex-start;
+    min-height: var(--qt-hit);
+    border-radius: var(--qt-radius-control);
+    background: none;
+    text-align: start;
+    cursor: pointer;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .qt-tray__caption[data-control]:hover {
+      background-color: var(--qt-hover);
+    }
+  }
   .qt-tray__amounts {
     display: flex;
     flex-wrap: wrap;

@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { MoneyFigure } from '../components/MoneyFigure'
 import { TestnetNote } from '../components/TestnetNote'
 import { TipControl } from '../components/TipControl'
+import { showToast } from '../toast'
 import { GallerySection } from './GallerySection'
 import { PressCount } from './PressCount'
 import { Specimen } from './Specimen'
@@ -112,6 +113,7 @@ export function MoneySection() {
             onNotNow={() => demo.setCents(demo.amount.cents)}
             recipient="Tomás Reyes"
             balance={{ ...money.balance, converted: true }}
+            onOpenBalance={() => showToast({ title: 'The balance opens here' })}
           />
         </div>
       </Specimen>

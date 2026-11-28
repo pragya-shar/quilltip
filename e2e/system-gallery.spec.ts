@@ -864,12 +864,17 @@ test('the tray says what is ready to tip, from the money value', async ({
   await open(page)
   const group = liveTip(page)
   await press(page, group.getByRole('button', { name: 'Change amount' }))
-  const caption = group.locator('.qt-tray__caption')
+  const caption = group.getByRole('button', {
+    name: 'about 18 dollars 40 ready to tip. Open balance',
+  })
   await expect(caption.locator('.qt-money__digits')).toHaveText('≈$18.40')
-  await expect(caption.locator('.qt-visually-hidden')).toHaveText(
-    'about $18.40'
-  )
   await expect(caption).toContainText(/ ready to tip$/)
+  // It opens the balance: the way to it on a pushed screen at phone width.
+  await press(page, caption)
+  await expect(group.getByRole('radiogroup')).toBeHidden()
+  await expect(
+    page.locator('.qt-toasts').getByText('The balance opens here')
+  ).toBeVisible()
 })
 
 test('the amount control can carry its word', async ({ page }) => {

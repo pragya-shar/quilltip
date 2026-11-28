@@ -68,6 +68,10 @@ export type TipControlProps = {
   /** What the reader can tip now (the money layer's figure); the tray
    * shows "≈ $18.40 ready to tip". */
   balance?: MoneyValue | null
+  /** Opens the balance (the shell's `sheetStack.open('pocket')`) from the
+   * tray's caption: on a pushed screen at phone width it is the way to the
+   * balance. */
+  onOpenBalance?: () => void
   /** `labelled`: the amount control shows the word "Amount" beside its
    * icon, where the design has one. `icon` (default): the icon alone, named
    * "Change amount". */
@@ -112,6 +116,7 @@ export function TipControl({
   unavailable,
   allowOther = true,
   balance,
+  onOpenBalance,
   amountControl = 'icon',
   className,
 }: TipControlProps) {
@@ -302,6 +307,7 @@ export function TipControl({
           value={amount}
           allowOther={allowOther}
           balance={balance}
+          onOpenBalance={onOpenBalance}
           onChange={onAmountChange}
           onClose={closeTray}
           anchor={amountButton}

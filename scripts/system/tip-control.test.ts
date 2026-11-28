@@ -78,6 +78,24 @@ describe('tip button words', () => {
     ).toBe('Adding $3')
   })
 
+  it('states the short amount when the money layer gives one', () => {
+    const one = { cents: 100, display: '$1.00', short: '$1' }
+    expect(tipButtonLabel({ phase: 'idle' }, one, 'passage')).toBe(
+      'Tip this line $1'
+    )
+    expect(
+      tipButtonLabel({ phase: 'sending', amount: one }, one, 'article')
+    ).toBe('Sending $1')
+    expect(
+      tipButtonLabel(
+        { phase: 'idle' },
+        { cents: 100, display: '$1.00' },
+        'article',
+        'Ama'
+      )
+    ).toBe('Tip Ama $1.00')
+  })
+
   it('explains a refusal and being offline, and nothing else', () => {
     expect(tipNote({ phase: 'failed', amount: three })).toBe(
       'That tip did not go through. You were not charged.'

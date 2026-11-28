@@ -34,6 +34,11 @@ search, the editor (`/write/<id>`), You (`/you`) and the line pager
   "Pocket" is the code's name only.
 - The bar and the Pocket read the balance through `useBalanceReading()`
   (`@/shell/balance`); never subscribe to the balance again in a surface.
+- The money layer is mounted by the shell: the bar reads its state
+  (`paymentsStore`, state only, the one payments module a first load may
+  hold), and its payments shell loads after hydration
+  (`shell/DeferredPaymentsShell.tsx`), so nothing of it runs with no script.
+  The first-load check refuses any other payments code on a shell route.
 - While no amount is known, the item reads "Balance" (a plain word, not a
   product name), and the sheet's title is "Balance" too.
 
@@ -88,9 +93,10 @@ Wire `TipControl` to `useTip(target, meta)` from `hooks/payments`:
 | `hold`                    | while the controller holds the tip (the hold before sending): `{ projected?: { before, after }, onCancel, onAddOne, addOneBlocked?: reason, restartKey }`, with `before` and `after` money values ("≈ $18.40 → ≈ $17.40" drawn, "about 18 dollars 40, then about 17 dollars 40" heard). The control draws Cancel, the status with a countdown over `--qt-dur-hold` (3000 ms, not shortened by reduced motion), and "+$1" (disabled with its reason); Escape cancels while focus is in the control. It keeps no timer: the controller owns the hold, its timing, the caps and the sending. |
 | `unavailable`             | a few words when `controller.unavailable` is set (for example "Tipping paused"); hide the control on the writer's own article and page                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | `balance`                 | the reader's spendable figure (`controller.balance`): the tray shows "≈ $18.40 ready to tip"                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| `onOpenBalance`           | `() => sheetStack.open('pocket')`: the tray's caption becomes a control, the way to the balance on a pushed screen at phone width ("about 7 dollars ready to tip. Open balance")                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `amountControl`           | `labelled` where the design shows the word "Amount" on the amount control; `icon` (default) names it "Change amount"                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 
-The words follow the design's tip moment: "Tip Tomás $1", "Tip this line $1", "Sending $1",
+Amounts on the button are the money layer's short text when it gives one (`short`: "$1"), else `display`. The words follow the design's tip moment: "Tip Tomás $1", "Tip this line $1", "Sending $1",
 "Sent $1", "Try again: tip $1" with "Not now" and the reason "That tip did
 not go through. You were not charged.", "Offline. You can tip when you
 reconnect.", "Add money to tip $1". After a refusal, the button states the
