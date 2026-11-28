@@ -1116,3 +1116,26 @@ test('links to articles prefetch on intent, never on sight', async ({
     )
     .toEqual(['/tomas/lamp'])
 })
+
+test('Enter held on an amount chooses once and leaves the tray closed', async ({
+  page,
+}) => {
+  await open(page)
+  const group = liveTip(page)
+  const amount = group.getByRole('button', { name: 'Change amount' })
+  await amount.focus()
+  await page.keyboard.press('Enter')
+  const tray = group.getByRole('radiogroup', { name: 'Tip amount' })
+  await expect(tray).toBeVisible()
+  await page.keyboard.press('ArrowRight')
+  // An even number of key-downs: a tray that toggled at repeat rate would
+  // end open.
+  for (let i = 0; i < 8; i++) await page.keyboard.down('Enter')
+  await page.keyboard.up('Enter')
+  await expect(tray).toBeHidden()
+  await page.waitForTimeout(200)
+  await expect(tray).toBeHidden()
+  await expect(amount).toHaveAttribute('aria-expanded', 'false')
+  await expect(amount).toBeFocused()
+  await expect(group.locator('.qt-tip__button')).toHaveText('Tip Tomás $2')
+})

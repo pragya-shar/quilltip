@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  buttonAmount,
   centsFromInput,
   firstName,
   tipButtonLabel,
@@ -139,5 +140,30 @@ describe('another amount', () => {
       '1e3',
     ])
       expect(centsFromInput(text), text).toBeNull()
+  })
+})
+
+describe('one amount for the label and the press', () => {
+  const two = { cents: 200, display: '$2' }
+  it('is the chosen amount when idle, none without one', () => {
+    expect(buttonAmount({ phase: 'idle' }, two)).toBe(two)
+    expect(buttonAmount({ phase: 'idle' }, null)).toBeNull()
+  })
+  it('after a refusal, the amount chosen since, else the one tried', () => {
+    expect(buttonAmount({ phase: 'failed', amount: three }, two)).toBe(two)
+    expect(buttonAmount({ phase: 'failed', amount: three }, null)).toBe(three)
+    expect(
+      tipButtonLabel({ phase: 'failed', amount: three }, null, 'article')
+    ).toBe('Try again: tip $3')
+  })
+  it("in another phase, the phase's own", () => {
+    const other = {
+      phase: 'other',
+      words: 'Adding',
+      amount: three,
+      busy: false,
+    } as const
+    expect(buttonAmount(other, null)).toBe(three)
+    expect(tipButtonLabel(other, null, 'article')).toBe('Adding $3')
   })
 })

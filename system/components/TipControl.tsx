@@ -7,6 +7,7 @@ import { AmountIcon, CloseIcon, DoneIcon, TipIcon } from '../icons'
 import type { MoneyValue } from '../money/figure'
 import {
   HOLD_CANCELLED,
+  buttonAmount,
   tipButtonParts,
   tipNote,
   type TipControlPhase,
@@ -250,7 +251,8 @@ export function TipControl({
       onAddMoney?.()
       return
     }
-    if (!amount) {
+    // The amount the button states is the one a press sends.
+    if (!buttonAmount(state, amount)) {
       // Nothing to send: the tray opens to choose one.
       setTrayOpen(true)
       return
@@ -372,6 +374,9 @@ export function TipControl({
             aria-controls={trayOpen ? trayId : undefined}
             onClick={() => setTrayOpen((open) => !open)}
             onKeyDown={(event) => {
+              // A held Enter would open and close the tray at key-repeat
+              // rate (Enter on an amount closes it onto this button).
+              refuseRepeat(event)
               if (event.key === 'Escape' && trayOpen) {
                 event.preventDefault()
                 setTrayOpen(false)

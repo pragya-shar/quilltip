@@ -85,6 +85,12 @@ export function AmountTray({
     event: KeyboardEvent<HTMLButtonElement>,
     index: number
   ) => {
+    // A held key chooses once: repeats never close the tray again onto the
+    // amount button, nor run past the amounts.
+    if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault()
+      return
+    }
     const forward = ['ArrowRight', 'ArrowDown']
     const back = ['ArrowLeft', 'ArrowUp']
     let next = index

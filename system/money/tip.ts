@@ -28,6 +28,27 @@ export function labelAmount(value: MoneyValue): string {
   return value.short ?? value.display
 }
 
+/**
+ * The amount the tip button states and a press sends: one value for both.
+ * Idle: the chosen amount. After a refusal or a short balance: the amount
+ * chosen since, else the one that was tried. Every other phase: the
+ * phase's own. Null when there is none (the press opens the amount tray).
+ */
+export function buttonAmount(
+  state: TipControlPhase,
+  amount: MoneyValue | null
+): MoneyValue | null {
+  switch (state.phase) {
+    case 'idle':
+      return amount
+    case 'failed':
+    case 'needs-funds':
+      return amount ?? state.amount
+    default:
+      return state.amount
+  }
+}
+
 /** "Tomás Reyes" → "Tomás": the button names the writer by first name. */
 export function firstName(name: string): string {
   return name.trim().split(/\s+/u)[0] ?? name
@@ -54,14 +75,14 @@ export function tipButtonParts(
     case 'failed':
       return {
         words: 'Try again: tip',
-        amount: labelAmount(amount ?? state.amount),
+        amount: labelAmount(buttonAmount(state, amount)!),
       }
     case 'offline':
       return { words: 'Offline. You can tip when you reconnect.', amount: null }
     case 'needs-funds':
       return {
         words: 'Add money to tip',
-        amount: labelAmount(amount ?? state.amount),
+        amount: labelAmount(buttonAmount(state, amount)!),
       }
     case 'other':
       return { words: state.words, amount: labelAmount(state.amount) }
