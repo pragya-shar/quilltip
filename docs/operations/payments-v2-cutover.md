@@ -29,16 +29,17 @@ later work.
    It also contains the v1 client removal (#559, `fd39cf71`), the short-paid
    pair fix (#619, `e650829f`), the short tab notice (#620, `3854cfd8`), the
    live window tool (#593, `7b69c565`), the auth import change (#624,
-   `f4704e6d`) and the public copy refresh after an article leaves its
-   address (#627, `116e356e`). Still open: the content limits for article
-   image sources (#625 for #615) and for profile image sources (#633, PR to
-   follow). The checks
-   in section 1.3 pass on that commit. The tab debit fix (#585) is merged and
-   needs no operator step: its table and field ship with the stage 1 push,
-   and its test variables `TAB_DEBIT_SCAN_LIMIT` and `TAB_DEBIT_READ_BUDGET`
-   stay unset on the live deployment. #619, #620, #624 and #627 need no
-   operator step.
-   #559 raises the page-load budgets of
+   `f4704e6d`), the public copy refresh after an article leaves its address
+   (#627, `116e356e`), the article image sources (#625 for #615,
+   `077f08bd`) and the profile photo, embed and cover sources (#642 for
+   #633, `034e0b25`). Still open: the fix that lets `chain/tabReconcile:run`
+   compare while the indexer is healthy (PR to follow; section 9). The
+   checks in section 1.3 pass on that commit. The tab debit fix (#585) is
+   merged and needs no operator step: its table and field ship with the
+   stage 1 push, and its test variables `TAB_DEBIT_SCAN_LIMIT` and
+   `TAB_DEBIT_READ_BUDGET` stay unset on the live deployment. #619, #620,
+   #624, #627, #625 and #642 need no operator step beyond the image sources
+   check (stage 1, step 4). #559 raises the page-load budgets of
    `/articles` and `/[username]/[slug]` by 1 KB, to 217 KB and 220 KB, for a
    bundler chunk split.
 2. The owner has decided the backend push method, and the push uses a deploy
@@ -60,6 +61,13 @@ later work.
    own `https://<name>.convex.cloud`, not a custom domain. Uploaded images
    load only from that origin (stage 1, step 4). The Vercel owner sets the
    site variable.
+8. Before the window closes, `SETTLEMENT_ENABLED` is `true` on the live
+   deployment and the `settle due tab vouchers` cron has run in the last 10
+   minutes (Convex dashboard, **Schedules**, cron jobs), with no
+   `TAB_SETTLER_RUN_FAILED` in the logs. The settler must run at least once
+   within the 3-day withdrawal delay (51,840 ledgers): a reader who starts a
+   withdrawal can withdraw after it, and receipts not settled by then stay
+   unpaid. The settler settles every pair of a closing tab first.
 
 ## Terms
 
@@ -774,29 +782,41 @@ the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
    records it before step 3.
 3. The operator pushes the tagged release commit's functions and schema with
    the procedure in section 5.0.2 (dry run, confirm the target, push).
-4. Image sources check (#615). Run the internal, read-only report of the
-   sources of article images:
+4. Image sources check (#615, #633). Run the internal, read-only report of
+   the sources of article images, video embeds and profile photos:
 
    ```bash
    bunx convex run articleImageHosts:countImageHosts
    ```
 
-   It takes no arguments. It returns `storageOrigin`, the article counts
-   (`articles.published` and `articles.draft`), and `images` and `covers`:
-   one row per host with `publishedAllowed`, `publishedRefused`,
-   `draftAllowed` and `draftRefused`. Each address is judged on its own, so
-   one host can have both allowed and refused addresses (for example
-   `http` against `https`). It returns no address, article text, title,
-   author or ID. The function exists only in the
-   release code, so it runs after the push and before the merge in step 5.
+   It takes no arguments. It returns:
+   - `storageOrigin`: the origin of this deployment's own file storage.
+   - `articles.published` and `articles.draft`: the article counts.
+   - `images` and `covers`: one row per host with `publishedAllowed`,
+     `publishedRefused`, `draftAllowed` and `draftRefused`. Each address is
+     judged on its own, so one host can have both allowed and refused
+     addresses (for example `http` against `https`).
+   - `embeds`: `publishedRebuilt`, `publishedNoFrame`, `draftRebuilt` and
+     `draftNoFrame`. A rebuilt embed shows its video from the video ID; a
+     no-frame embed shows no video frame.
+   - `avatars`: one row per host with `allowed` and `refused`, one count per
+     account with a stored profile photo. Only addresses in this
+     deployment's own storage are allowed. A photo on any other host,
+     listed stock image hosts included, shows the account's initials.
+
+   It returns no address, article text, title, author, name or ID. The
+   function exists only in the release code, so it runs after the push and
+   before the merge in step 5.
    - `storageOrigin` must equal the origin of the site's
      `NEXT_PUBLIC_CONVEX_URL` (go/no-go item 7). If they differ, stop and do
      not merge: every uploaded image would stop showing.
-   - List for the owner, before step 5, every host in `images` or `covers`
-     with `publishedRefused` above 0. After the merge, those images stop
-     showing in published articles. Older articles
-     can hold storage addresses of other Convex deployments; those images
-     stop showing too.
+   - List for the owner, before step 5: every host in `images` or `covers`
+     with `publishedRefused` above 0, with that count;
+     `embeds.publishedNoFrame`; and the sum of `refused` in `avatars`, which
+     is the number of accounts whose photo will show initials, with its
+     hosts. After the merge, those images and video frames stop showing in
+     published articles. Older articles and accounts can hold storage
+     addresses of other Convex deployments; those stop showing too.
    - The owner's default is to continue and record the hosts. The check
      makes this a decision before the release site goes live. Record the
      full output.
@@ -813,9 +833,6 @@ the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
      once. Its card can stay on `/articles` for up to 60 seconds, and the
      card's link answers 404 (#628). Each article request makes one route
      check in the proxy (#630).
-   - **Pending (#633):** the same command will also report profile image
-     (avatar) hosts once the change for #633 is merged. Its output fields
-     are added here after they are checked on that change.
 
 5. Merge the release PR (`overhaul/v2` into `main`) right after step 4, and
    continue with stage 2. With the default plan, Vercel builds and promotes
@@ -1693,6 +1710,8 @@ the variables are gone.
 | TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                                                                                    |
 | Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3); any tab under "Waiting for a reconciliation" (chain runbook) |
 | Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                                                                              |
+| Settler runs                         | Daily; never 3 days without a run (go/no-go item 8)                                            | `SETTLEMENT_ENABLED=true`; the `settle due tab vouchers` cron has a recent run (dashboard cron jobs list)                                              |
+| Tab reconciliation                   | Daily, once the `chain/tabReconcile:run` fix ships (go/no-go item 1)                           | [Chain runbook](chain-runbook.md#stale-settlement-reserves). Until the fix, `run` can refuse `INDEXER_BEHIND` on a healthy indexer                     |
 | Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                                                                               |
 | Live deployment snapshot             | Weekly, and before the v1 backend removal PR is deployed                                       | Convex dashboard snapshot export                                                                                                                       |
 | Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                                                                                         |
