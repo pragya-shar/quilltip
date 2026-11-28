@@ -50,8 +50,8 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      # Everything runs for a push, for a pull request with the "ci-full"
-      # label, and when every job is re-run (attempt 2 and later). A planning
+      # Everything runs for a push and when every job is re-run (attempt 2
+      # and later). A planning
       # failure or timeout leaves the full plan in place.
       - name: Plan the jobs this change reaches
         id: plan
@@ -59,13 +59,10 @@ jobs:
         timeout-minutes: 5
         env:
           EVENT_NAME: ${{ github.event_name }}
-          FULL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci-full') }}
           RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           if [ "$EVENT_NAME" != pull_request ]; then
             bun scripts/ci/plan.ts --github --full --reason "$EVENT_NAME"
-          elif [ "$FULL_LABEL" = true ]; then
-            bun scripts/ci/plan.ts --github --full --reason 'the ci-full label'
           elif [ "$RUN_ATTEMPT" -gt 1 ]; then
             bun scripts/ci/plan.ts --github --full --reason "re-run of every job (attempt $RUN_ATTEMPT)"
           else

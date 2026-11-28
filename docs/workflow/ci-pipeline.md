@@ -67,10 +67,9 @@ The inputs come from the code, computed on every run:
 
 ## A full run on a pull request
 
-- **Re-run all jobs** on the run's page: from attempt 2 on, What changed plans
-  everything. **Re-run failed jobs** keeps the first plan.
-- The `ci-full` label: every later push to the pull request runs everything,
-  until the label is removed. Adding the label starts no run by itself.
+- **Re-run failed jobs** keeps the first plan, so it is not a full run.
+- **Re-run all jobs** on the run's page is: from attempt 2 on, What changed
+  plans everything.
 
 Recommended practice: use a full run before merging a pull request that
 changes `proxy.ts`, a routing registry, or the shell's sheet and focus code,
