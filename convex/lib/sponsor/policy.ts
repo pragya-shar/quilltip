@@ -9,7 +9,8 @@
  * 1. a balance call on the configured Tab for the caller's own passkey
  *    account (`balanceCallArgs` builds it; nothing comes from a client);
  * 2. the birth of a passkey account through the allowlisted deployer and
- *    account WASM (`checkDeployPayload`).
+ *    account WASM, with the allowlisted verifier and the verified passkey as
+ *    its only signer (`checkDeployPayload`).
  */
 import {
   Address,
@@ -114,6 +115,8 @@ export type SponsorConfig = {
   minBalanceStroops: bigint
   accountWasmHash: string | null
   accountDeployer: string | null
+  /** The WebAuthn verifier contract an account's one signer must name. */
+  accountVerifier: string | null
   /** The sponsor's public address: the secret must derive exactly this. */
   publicKey: string
 }
@@ -161,6 +164,13 @@ export function sponsorConfig(env: EnvLike = process.env): SponsorConfig {
       'SPONSOR_ACCOUNT_DEPLOYER is not an account address.'
     )
   }
+  const verifier = env.SPONSOR_ACCOUNT_VERIFIER?.trim() ?? ''
+  if (!StrKey.isValidContract(verifier)) {
+    refuse(
+      'SPONSOR_CONFIG_INVALID',
+      'SPONSOR_ACCOUNT_VERIFIER is not a contract address.'
+    )
+  }
   const publicKey = env.SPONSOR_PUBLIC_KEY?.trim() ?? ''
   if (!StrKey.isValidEd25519PublicKey(publicKey)) {
     refuse(
@@ -183,6 +193,7 @@ export function sponsorConfig(env: EnvLike = process.env): SponsorConfig {
     ),
     accountWasmHash: wasm,
     accountDeployer: deployer,
+    accountVerifier: verifier,
     publicKey,
   }
 }
@@ -491,17 +502,65 @@ export function contractIdFor(
 
 type Union<T> = { type: string; value: T }
 
+/** A P-256 public key in uncompressed form: 0x04, then X and Y. */
+const P256_KEY_BYTES = 65
+/** WebAuthn credential ids are 16 to 1023 bytes. */
+const MIN_CREDENTIAL_ID_BYTES = 16
+const MAX_CREDENTIAL_ID_BYTES = 1023
+
 /**
- * Checks a passkey account's deploy payload (`{ func, auth }` from
- * `smart-account-kit`'s `createWallet`): a `CreateContractV2` from the
- * allowlisted deployer with the allowlisted account WASM, authorized by that
- * deployer only and for exactly that creation, giving `expectedContractId`.
+ * The constructor arguments a passkey account must be born with (the kit's
+ * `buildDeployTransaction`): exactly one signer,
+ * `External(verifier, signerKey)`, and no policies. `signerKey` is the
+ * verified public key followed by the credential id.
+ */
+export function accountConstructorArgs(
+  verifier: string,
+  signerKey: Buffer
+): xdr.ScVal[] {
+  const signer = xdr.ScVal.scvVec([
+    xdr.ScVal.scvSymbol('External'),
+    new Address(verifier).toScVal(),
+    xdr.ScVal.scvBytes(signerKey),
+  ])
+  return [xdr.ScVal.scvVec([signer]), xdr.ScVal.scvMap([])]
+}
+
+/**
+ * Reads the verified signer key (hex: the 65-byte uncompressed P-256 public
+ * key, then the credential id). The policy does not tie the credential id to
+ * the address: the salt is the caller's, and `expectedContractId` names the
+ * address.
+ */
+function signerKeyBytes(hex: string): Buffer {
+  const min = (P256_KEY_BYTES + MIN_CREDENTIAL_ID_BYTES) * 2
+  const max = (P256_KEY_BYTES + MAX_CREDENTIAL_ID_BYTES) * 2
+  if (
+    !/^(?:[0-9a-f]{2})+$/.test(hex) ||
+    hex.length < min ||
+    hex.length > max ||
+    !hex.startsWith('04')
+  ) {
+    refuse('SPONSOR_DEPLOY_REFUSED', 'The signer key is not a passkey key.')
+  }
+  return Buffer.from(hex, 'hex')
+}
+
+/**
+ * Checks a passkey account's deploy payload (`{ func, auth }`, in the shape
+ * of `smart-account-kit`'s `createWallet`): a `CreateContractV2` from the
+ * allowlisted deployer with the allowlisted account WASM, giving
+ * `expectedContractId`, whose constructor installs exactly one signer (the
+ * allowlisted verifier and the verified `signerKey`) and no policies, and
+ * authorized by that deployer only and for exactly that creation.
  */
 export function checkDeployPayload(args: {
   func: string
   auth: string[]
   wasmHash: string
   deployer: string
+  verifier: string
+  signerKey: string
   expectedContractId: string
   passphrase: string
 }): { func: xdr.HostFunction; auth: xdr.SorobanAuthorizationEntry[] } {
@@ -543,6 +602,20 @@ export function checkDeployPayload(args: {
     refuse(
       'SPONSOR_DEPLOY_REFUSED',
       'The payload does not create the expected account.'
+    )
+  }
+  // The deployer is public, so the code and address alone do not make an
+  // account ours: its only signer must be the passkey that was verified.
+  const signerKey = signerKeyBytes(args.signerKey)
+  const expectedArgs = accountConstructorArgs(args.verifier, signerKey)
+  const gotArgs = create.constructorArgs
+  if (
+    gotArgs.length !== expectedArgs.length ||
+    gotArgs.some((a, i) => b64(a) !== b64(expectedArgs[i]!))
+  ) {
+    refuse(
+      'SPONSOR_DEPLOY_REFUSED',
+      'The account is not born with exactly the verified passkey as signer.'
     )
   }
   if (auth.length !== 1) {

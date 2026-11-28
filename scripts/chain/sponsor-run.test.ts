@@ -50,6 +50,7 @@ const cfg = (over: Partial<SponsorConfig> = {}): SponsorConfig => ({
   minBalanceStroops: FLOOR,
   accountWasmHash: WASM,
   accountDeployer: null,
+  accountVerifier: null,
   publicKey: Keypair.random().publicKey(),
   ...over,
 })
@@ -506,15 +507,27 @@ describe('runDeploy', () => {
     func: deploy.func,
     auth: deploy.auth,
     contractId: deploy.contractId,
+    signerKey: deploy.signerKey,
   }
   const withDeploy = (o: FakeOptions = {}) => {
     const f = fake(o)
-    f.d.cfg = cfg({ accountWasmHash: WASM, accountDeployer: deploy.deployer })
+    f.d.cfg = cfg({
+      accountWasmHash: WASM,
+      accountDeployer: deploy.deployer,
+      accountVerifier: deploy.verifier,
+    })
     return f
   }
 
   it('deploys the allowlisted account', async () => {
     expect(await code(runDeploy(withDeploy().d, payload))).toBe('ALLOWED')
+  })
+
+  it('refuses before signing an account not born with the given passkey', async () => {
+    const f = withDeploy()
+    f.d.cfg = { ...f.d.cfg, accountVerifier: contract(9) }
+    expect(await code(runDeploy(f.d, payload))).toBe('SPONSOR_DEPLOY_REFUSED')
+    expect(f.sent).toEqual([])
   })
 
   it('deploy refuses below the balance floor', async () => {
@@ -541,6 +554,11 @@ describe('runDeploy', () => {
 
   it('refuses when account creation is not configured', async () => {
     expect(await code(runDeploy(fake().d, payload))).toBe(
+      'SPONSOR_DEPLOY_DISABLED'
+    )
+    const noVerifier = withDeploy()
+    noVerifier.d.cfg = { ...noVerifier.d.cfg, accountVerifier: null }
+    expect(await code(runDeploy(noVerifier.d, payload))).toBe(
       'SPONSOR_DEPLOY_DISABLED'
     )
   })

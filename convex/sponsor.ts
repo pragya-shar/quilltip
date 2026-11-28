@@ -188,6 +188,7 @@ function fingerprint(s: Settings, derived: string | null): string {
         token: s.cfg.tokenContractId,
         wasm: s.cfg.accountWasmHash,
         deployer: s.cfg.accountDeployer,
+        verifier: s.cfg.accountVerifier,
         publicKey: s.cfg.publicKey,
         floor: s.cfg.minBalanceStroops.toString(),
         rpc: s.rpcUrl,
@@ -598,12 +599,19 @@ export const submit = action({
 })
 
 /**
- * Deploys a passkey account from the kit's `{ func, auth }` payload.
- * Internal: the caller has verified the passkey registration behind it.
- * The same commitment, record and pending path as a balance call.
+ * Deploys a passkey account from a `{ func, auth }` payload. Internal: the
+ * caller has verified the passkey registration behind it and passes that
+ * passkey's key (`signerKey`, hex: public key, then credential id); the
+ * account must be born with it as its only signer. The same commitment,
+ * record and pending path as a balance call.
  */
 export const deployAccount = internalAction({
-  args: { func: v.string(), auth: v.array(v.string()), contractId: v.string() },
+  args: {
+    func: v.string(),
+    auth: v.array(v.string()),
+    contractId: v.string(),
+    signerKey: v.string(),
+  },
   handler: async (ctx, args): Promise<{ txHash: string; ledger: number }> => {
     let requestId: string | null = null
     const { state, hooks } = hooksFor(ctx, () => requestId)
