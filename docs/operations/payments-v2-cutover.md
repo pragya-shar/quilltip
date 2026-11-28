@@ -27,11 +27,14 @@ later work.
 1. The release tag is on a commit that contains each payment and sign-up
    fix: #583, #565, #577, #596 (the fix for #584), #597 and #572, all merged.
    The release commit also contains the content limits for article image
-   sources (#615, open) and the v1 client removal (#559). The checks in
-   section 1.3 pass on that commit. The tab debit fix (#585) is merged and
+   sources (#625 for #615, open) and the v1 client removal (#559). The checks
+   in section 1.3 pass on that commit. The tab debit fix (#585) is merged and
    needs no operator step: its table and field ship with the stage 1 push,
    and its test variables `TAB_DEBIT_SCAN_LIMIT` and `TAB_DEBIT_READ_BUDGET`
-   stay unset on the live deployment.
+   stay unset on the live deployment. The short-paid pair fix (#619) is
+   merged and needs no operator step. #559 raises the page-load budgets of
+   `/articles` and `/[username]/[slug]` by 1 KB, to 217 KB and 220 KB, for a
+   bundler chunk split.
 2. The owner has decided the backend push method, and the push uses a deploy
    key whose `--dry-run` output names the live deployment (section 5.0.2). On
    the tagged commit, `npx tsc -p convex/tsconfig.json --noEmit` exits 0, and
@@ -46,6 +49,11 @@ later work.
    available for the Vercel hand-off steps (section 1.5).
 6. The site origin is confirmed (section 1.6, item 4): the live deployment's
    `SITE_URL` and `WALLET_LINK_ORIGINS` match the origin readers load.
+7. The site's `NEXT_PUBLIC_CONVEX_URL` (Vercel production) and the live
+   deployment's `CONVEX_CLOUD_URL` have the same origin: the deployment's
+   own `https://<name>.convex.cloud`, not a custom domain. Uploaded images
+   load only from that origin (stage 1, step 4). The Vercel owner sets the
+   site variable.
 
 ## Terms
 
@@ -654,19 +662,29 @@ the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
    records it before step 3.
 3. The operator pushes the tagged release commit's functions and schema with
    the procedure in section 5.0.2 (dry run, confirm the target, push).
-4. Image sources check. Run the read-only query that lists the published
-   articles with an image from a source outside the release's allowed image
-   sources (#615):
+4. Image sources check (#615). Run the internal, read-only report of the
+   sources of article images:
 
    ```bash
-   # PENDING: the query name and invocation follow from the change for #615.
+   bunx convex run articleImageHosts:countImageHosts
    ```
 
-   **Pending:** this step is complete only when the command above is filled
-   in. The query exists only in the release code, so it runs after the push
-   and before the merge in step 5. Send the list to the owner before step 5:
-   after the merge, images from other sources stop rendering in those
-   articles. The owner decides whether the window continues. Record the list.
+   It takes no arguments. It returns `storageOrigin`, the article counts
+   (`articles.published` and `articles.draft`), and `images` and `covers`:
+   one row per host with `allowed`, `published` and `draft`. It returns no
+   article text, title, author or ID. The function exists only in the
+   release code, so it runs after the push and before the merge in step 5.
+   - `storageOrigin` must equal the origin of the site's
+     `NEXT_PUBLIC_CONVEX_URL` (go/no-go item 7). If they differ, stop and do
+     not merge: every uploaded image would stop showing.
+   - List for the owner, before step 5, every host in `images` or `covers`
+     with `allowed: false` and `published` above 0. After the merge, images
+     from those hosts stop showing in published articles. Older articles
+     can hold storage addresses of other Convex deployments; those images
+     stop showing too.
+   - The owner's default is to continue and record the hosts. The check
+     makes this a decision before the release site goes live. Record the
+     full output.
 
 5. Merge the release PR (`overhaul/v2` into `main`) right after step 4, and
    continue with stage 2. With the default plan, Vercel builds and promotes
