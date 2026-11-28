@@ -42,6 +42,12 @@ const result = await Bun.build({
         build.onResolve({ filter: /^convex\/react$/ }, () => ({
           path: path.join(here, 'convex-react.ts'),
         }))
+        // The arrival after a first publish: a stand-in for Write's.
+        build.onResolve({ filter: /\/liveArrivalLoader$/ }, (args) =>
+          args.importer.includes('/e2e/fixtures/')
+            ? undefined
+            : { path: path.join(here, 'liveArrivalLoader.ts') }
+        )
       },
     },
   ],

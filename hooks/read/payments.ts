@@ -39,6 +39,11 @@ export type TipTarget =
   | { kind: 'article'; articleId: Id<'articles'> }
   | { kind: 'passage'; articleId: Id<'articles'>; passage: PassageRef }
 
+/** A tip on a whole article: the target every article tip uses. */
+export function tipTargetOf(articleId: Id<'articles'>): TipTarget {
+  return { kind: 'article', articleId }
+}
+
 export type TipMeta = {
   articleTitle: string
   writerName: string

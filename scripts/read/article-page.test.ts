@@ -24,6 +24,12 @@ vi.mock('next/navigation', () => ({
   usePathname: () => '/tomas/ledger',
 }))
 vi.mock('@/components/read/read.css', () => ({}))
+// The islands render on the server with no backend: no answers yet.
+vi.mock('convex/react', () => ({
+  useQuery: () => undefined,
+  useMutation: () => async () => null,
+  useConvexAuth: () => ({ isLoading: true, isAuthenticated: false }),
+}))
 vi.mock('next/link', async () => {
   const { createElement } = await import('react')
   return {
@@ -84,6 +90,34 @@ describe('the article route with no answer from the backend', () => {
     reads.moved.mockResolvedValue('/tomas-r/ledger')
     await expect(ArticlePage(args)).rejects.toThrow(
       'NEXT_REDIRECT /tomas-r/ledger'
+    )
+  })
+})
+
+describe('the article route and ?live=1', () => {
+  it('sends the same HTML and metadata with and without the parameter', async () => {
+    reads.article.mockResolvedValue({
+      _id: 'a1',
+      slug: 'ledger',
+      title: 'Ledger',
+      content: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'One. Two.' }] },
+        ],
+      },
+      author: { name: 'Tomás Reyes', username: 'tomas' },
+    })
+    const at = (query: Record<string, string>) => ({
+      params: Promise.resolve({ username: 'tomas', slug: 'ledger' }),
+      searchParams: Promise.resolve(query),
+    })
+    const plain = renderToStaticMarkup(await ArticlePage(at({})))
+    const live = renderToStaticMarkup(await ArticlePage(at({ live: '1' })))
+    expect(plain).toContain('id="read-body"')
+    expect(live).toBe(plain)
+    expect(await generateMetadata(at({ live: '1' }))).toEqual(
+      await generateMetadata(at({}))
     )
   })
 })

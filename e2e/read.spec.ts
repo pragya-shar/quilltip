@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ARTICLE_PATH, LINES, TITLE } from './fixtures/read/article'
+import { ARTICLE, ARTICLE_PATH, LINES, TITLE } from './fixtures/read/article'
 
 // The article view on the application shell, on a fake payments runtime
 // (e2e/fixtures/read). Real input only: touch taps on touch contexts, keys
@@ -876,4 +876,95 @@ test('with no balance, the button names what it adds money for', async ({
       name: 'Add money to tip $1',
     })
   ).toBeVisible()
+})
+
+// --- The arrival after a first publish (`?live=1`) ----------------------
+
+const ARRIVAL_KEY = 'quilltip:just-published:v1'
+const arrival = (page: Page) => page.getByTestId('live-arrival')
+
+/** Opens the article once, sets the publish token, then opens `?live=1`. */
+async function arriveLive(
+  page: Page,
+  token: { articleId: string; age: number } | null,
+  query = ''
+) {
+  await open(page, query)
+  await page.evaluate(
+    ({ key, token }) => {
+      if (token)
+        sessionStorage.setItem(
+          key,
+          JSON.stringify({
+            articleId: token.articleId,
+            at: Date.now() - token.age,
+          })
+        )
+    },
+    { key: ARRIVAL_KEY, token }
+  )
+  await open(page, `${query}&live=1`)
+}
+
+test('a reader with ?live=1 sees nothing, and the parameter is gone', async ({
+  page,
+}) => {
+  await arriveLive(page, { articleId: ARTICLE._id, age: 0 })
+  await expect(page).not.toHaveURL(/[?&]live=/)
+  await expect(page).toHaveURL(new RegExp(`run=${run}`))
+  await expect(arrival(page)).toHaveCount(0)
+  // The token is spent all the same.
+  expect(
+    await page.evaluate((key) => sessionStorage.getItem(key), ARRIVAL_KEY)
+  ).toBeNull()
+})
+
+test('the author arrives once: the slot runs, and Done, Escape and a reload end it', async ({
+  page,
+}) => {
+  await arriveLive(
+    page,
+    { articleId: ARTICLE._id, age: 1_000 },
+    '&pay=own-article'
+  )
+  await expect(page).not.toHaveURL(/[?&]live=/)
+  await expect(arrival(page)).toContainText(`Live: ${ARTICLE._id}`)
+  await expect(arrival(page)).toContainText(TITLE)
+  await expect(arrival(page)).toContainText(`${ARTICLE_PATH}#s-1-0`)
+  await press(page, arrival(page).getByRole('button', { name: 'Done' }))
+  await expect(arrival(page)).toHaveCount(0)
+
+  await arriveLive(
+    page,
+    { articleId: ARTICLE._id, age: 1_000 },
+    '&pay=own-article'
+  )
+  await expect(arrival(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(arrival(page)).toHaveCount(0)
+
+  // A reload runs nothing again: the parameter and the token are gone.
+  await arriveLive(
+    page,
+    { articleId: ARTICLE._id, age: 1_000 },
+    '&pay=own-article'
+  )
+  await expect(arrival(page)).toBeVisible()
+  await page.reload()
+  await expect(
+    page.getByRole('heading', { level: 1, name: TITLE })
+  ).toBeVisible()
+  await expect(arrival(page)).toHaveCount(0)
+})
+
+test('a stale or wrong-article token does nothing', async ({ page }) => {
+  for (const token of [
+    { articleId: ARTICLE._id, age: 61_000 },
+    { articleId: 'another-article', age: 0 },
+    null,
+  ]) {
+    await arriveLive(page, token, '&pay=own-article')
+    await expect(page).not.toHaveURL(/[?&]live=/)
+    await expect(arrival(page)).toHaveCount(0)
+  }
 })

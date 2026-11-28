@@ -15,9 +15,11 @@ import { declaredSheet } from '@/shell/sheets'
 import { sheetStack } from '@/shell/sheetStack'
 import { openSignIn } from '@/shell/signIn'
 import { preloadSheet } from '@/shell/sheets/loadSheet'
+import { LiveArrivalSlot } from './LiveArrivalSlot'
 import { RECEIPT_SHEET, type ReceiptProps } from './receipt'
 import type { ChosenPassage } from '@/hooks/read/usePassageSelection'
 import {
+  tipTargetOf,
   useTip,
   type Money,
   type TipMeta,
@@ -46,6 +48,10 @@ type TipBarProps = {
   onLockChange: (locked: boolean) => void
   /** Once per accepted tip, with the line captured at the press. */
   onSent: (tip: SentTip) => void
+  /** The arrival after a first publish is armed (`liveArrival.ts`). */
+  arrivalArmed?: boolean
+  /** The arrival is over. */
+  onArrivalDone?: () => void
 }
 
 /** Presses this close together, or this soon after a sheet closes, are one. */
@@ -120,6 +126,8 @@ export function TipBar({
   onKeepChange,
   onLockChange,
   onSent,
+  arrivalArmed = false,
+  onArrivalDone = () => {},
 }: TipBarProps) {
   const balance = useBalanceReading()
   const target = useMemo<TipTarget>(
@@ -136,7 +144,7 @@ export function TipBar({
               endContainerPath: passage.endContainerPath,
             },
           }
-        : { kind: 'article', articleId: article.id },
+        : tipTargetOf(article.id),
     [article.id, passage]
   )
   const meta = useMemo<TipMeta>(
@@ -289,6 +297,12 @@ export function TipBar({
     // The shell's dock: it reports its height, so toasts sit above the
     // bar and never cover a control the reader needs next.
     <Dock className="qt-read__dock">
+      <LiveArrivalSlot
+        article={article}
+        armed={arrivalArmed}
+        own={tip.unavailable === 'own-article'}
+        onDone={onArrivalDone}
+      />
       {peek ? (
         // The receipt peek: a quiet row, not an announcement. The tip
         // control's own "Sent $1" (with focus) is the one announcement.

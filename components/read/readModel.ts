@@ -107,4 +107,6 @@ export function toReadArticle(
 
 /** The body's ids in the server HTML, which the islands attach to. */
 export const READ_BODY_ID = 'read-body'
+/** The article's title, the h1. */
+export const READ_TITLE_ID = 'read-title'
 export const READ_MARGIN_ID = 'read-margin'

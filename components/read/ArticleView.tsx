@@ -10,6 +10,7 @@ import { ReadingProgress } from './ReadingProgress'
 import {
   READ_BODY_ID,
   READ_MARGIN_ID,
+  READ_TITLE_ID,
   type ReadArticle,
   type ReadNextItem,
 } from './readModel'
@@ -35,9 +36,9 @@ export function ArticleView({ article, bodyHtml, readNext }: ArticleViewProps) {
       <ReadingProgress />
       <div className="qt-page qt-read" data-width="read">
         <PushedHeader fallbackHref="/" backLabel="Back to Today" />
-        <article className="qt-read__article" aria-labelledby="read-title">
+        <article className="qt-read__article" aria-labelledby={READ_TITLE_ID}>
           <header className="qt-read__head">
-            <Heading level={1} variant="display" id="read-title">
+            <Heading level={1} variant="display" id={READ_TITLE_ID}>
               {article.title}
             </Heading>
             <p className="qt-read__byline">

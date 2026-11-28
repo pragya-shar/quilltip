@@ -35,6 +35,7 @@ import {
 import { useReadingPosition } from '@/hooks/read/useReadingPosition'
 import { paintPassages, type PaintedSpan } from './paintPassages'
 import { READ_BODY_ID, READ_MARGIN_ID, type ReadArticle } from './readModel'
+import { takeLiveArrival } from './liveArrival'
 import { TipBar, type SentTip } from './TipBar'
 
 type Tick = { top: number; height: number; kind: 'chosen' | 'place' }
@@ -308,6 +309,14 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   }, [status])
   // Unpublished or deleted since the page was rendered: its text leaves the
   // page at once (a cached server copy can be up to a minute old).
+  // `?live=1` and the publish token are read once and cleared, for every
+  // visitor; the arrival runs only for the author (see liveArrival.ts).
+  const [arrivalArmed, setArrivalArmed] = useState(false)
+  useEffect(() => {
+    setArrivalArmed(takeLiveArrival(article.id))
+  }, [article.id])
+  const arrivalDone = useCallback(() => setArrivalArmed(false), [])
+
   const gone = status === 'gone'
   useEffect(() => {
     if (!gone) return
@@ -413,6 +422,8 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
         onKeepChange={(next) => void onKeepChange(next)}
         onLockChange={setLocked}
         onSent={onSent}
+        arrivalArmed={arrivalArmed}
+        onArrivalDone={arrivalDone}
       />
     </>
   )
