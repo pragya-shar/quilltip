@@ -102,8 +102,7 @@ export const readingFaceStyle = {
     readingExtItalicFace.style.fontFamily,
     'Quilltip Read Italic Fallback'
   ),
-  // The display title and the lead-in line have fallbacks of their own
-  // (system/font-fallbacks.css).
+  // The display title has fallbacks of its own (system/font-fallbacks.css).
   '--qt-face-display': readingStack(
     readingFace.style.fontFamily,
     readingExtFace.style.fontFamily,
@@ -113,10 +112,5 @@ export const readingFaceStyle = {
     readingFace.style.fontFamily,
     readingExtFace.style.fontFamily,
     'Quilltip Display Wide Fallback'
-  ),
-  '--qt-face-read-caps': readingStack(
-    readingFace.style.fontFamily,
-    readingExtFace.style.fontFamily,
-    'Quilltip Read Caps Fallback'
   ),
 } as CSSProperties
