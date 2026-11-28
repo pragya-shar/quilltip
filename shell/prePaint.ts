@@ -30,21 +30,8 @@ export function hasAuthToken(
   return false
 }
 
-/**
- * The pre-paint script, plain ES5, never throws. It also settles the
- * cross-document view transition (shell/shell.css `@view-transition`): a
- * quick full reload aborts it, and its promises would reject unhandled
- * ("Transition was aborted"). Registered here because `pagereveal` fires
- * before the first render.
- */
+/** The pre-paint script, plain ES5, never throws. */
 export const PRE_PAINT_SCRIPT = [
-  'try{',
-  'var q=function(e){var v=e&&e.viewTransition;if(!v)return;',
-  'var n=function(){};',
-  'for(var p=["ready","finished","updateCallbackDone"],j=0;j<p.length;j++)',
-  'if(v[p[j]]&&v[p[j]].catch)v[p[j]].catch(n)};',
-  'addEventListener("pagereveal",q);addEventListener("pageswap",q);',
-  '}catch(e){}',
   'try{',
   'var d=document.documentElement,s=localStorage,t=s.getItem("theme");',
   'if(t==="light"||t==="dark")d.dataset.theme=t;',

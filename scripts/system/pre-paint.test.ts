@@ -33,29 +33,9 @@ describe('the pre-paint script', () => {
     expect(root.attrs['data-session']).toBe('held')
   })
 
-  it('settles an aborted view transition, so nothing rejects unhandled', async () => {
+  it('starts no view transition work', () => {
     const { listeners } = run()
-    const aborted = () => Promise.reject(new Error('Transition was aborted'))
-    const unhandled: unknown[] = []
-    const onUnhandled = (reason: unknown) => unhandled.push(reason)
-    process.on('unhandledRejection', onUnhandled)
-    try {
-      for (const type of ['pagereveal', 'pageswap']) {
-        expect(listeners[type]).toHaveLength(1)
-        listeners[type]![0]!({
-          viewTransition: {
-            ready: aborted(),
-            finished: aborted(),
-            updateCallbackDone: aborted(),
-          },
-        })
-        listeners[type]![0]!({ viewTransition: null })
-      }
-      await new Promise((resolve) => setTimeout(resolve, 20))
-    } finally {
-      process.off('unhandledRejection', onUnhandled)
-    }
-    expect(unhandled).toEqual([])
+    expect(Object.keys(listeners)).toEqual([])
   })
 
   it('never throws, even with storage blocked', () => {

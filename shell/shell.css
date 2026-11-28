@@ -392,13 +392,7 @@
   }
 }
 
-/* Cross-document navigations (into and out of the application, and full
- * reloads within it) fade instead of flashing white. */
-@view-transition {
-  navigation: auto;
-}
-@media (prefers-reduced-motion: reduce) {
-  @view-transition {
-    navigation: none;
-  }
-}
+/* No cross-document view transition: in WebKit it swallowed the first tap
+ * after a full load (reloads, and every crossing from the legacy pages),
+ * and in Chromium an aborted one threw. A first tap that does nothing costs
+ * more than a fade is worth. */
