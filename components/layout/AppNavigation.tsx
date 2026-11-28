@@ -10,7 +10,7 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { AuthActionsSkeleton } from './AuthActionsSkeleton'
 import { AccountNavigationMenu } from './AccountNavigationMenu'
 import { AppMobileMenu } from './AppMobileMenu'
-import { EarlyMenuScript } from './EarlyMenuScript'
+import { useEarlyScripts } from '@/components/providers/Providers'
 import { isProtectedPath } from '@/lib/navigation/protectedRoutes'
 import { takeEarlyMenuOpen } from '@/lib/navigation/earlyMenu'
 import {
@@ -24,6 +24,7 @@ export default function AppNavigation() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()
   const pathname = usePathname()
   const menuId = useId()
+  const earlyScripts = useEarlyScripts()
   const menuRef = useRef<HTMLDialogElement>(null)
   const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -103,8 +104,15 @@ export default function AppNavigation() {
           )}
           <ThemeToggle />
         </nav>
-        {/* Before the scripts run only (lib/navigation/earlyMenu.ts). */}
-        {!scriptsActive && <EarlyMenuScript />}
+        {/* Before the scripts run only (lib/navigation/earlyMenu.ts): written
+            just before the menu button, so it runs before the button is
+            parsed. The text comes from the root layout, not this bundle. */}
+        {!scriptsActive && earlyScripts.menu && (
+          <script
+            nonce={earlyScripts.nonce}
+            dangerouslySetInnerHTML={{ __html: earlyScripts.menu }}
+          />
+        )}
         <button
           ref={menuTriggerRef}
           type="button"

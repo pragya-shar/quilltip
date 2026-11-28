@@ -2,7 +2,6 @@
 
 import Link from 'next/link'
 import { useEffect, useId, type RefObject } from 'react'
-import { X } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 import { LandingWordmark } from '@/components/landing/LandingWordmark'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
@@ -92,7 +91,20 @@ export function AppMobileMenu({
           closeMenu()
         }}
       >
-        <X size={16} aria-hidden />
+        {/* Lucide's X, drawn inline: the menu is in every page's first load. */}
+        <svg
+          width="16"
+          height="16"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M18 6 6 18M6 6l12 12" />
+        </svg>
       </button>
       <h2 id={titleId}>Find your way</h2>
       <p id={descriptionId}>Reading, writing, and your account.</p>

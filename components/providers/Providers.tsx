@@ -21,7 +21,7 @@ const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
  * What a client component needs to write an inline script into the server
  * HTML: the request's CSP nonce and the script text. The root layout passes
  * both in, so the text is not part of the client bundle
- * (components/layout/EarlyMenuScript.tsx).
+ * (components/layout/AppNavigation.tsx).
  */
 interface EarlyScripts {
   nonce?: string
