@@ -2,7 +2,11 @@
 
 import { useEffect, useRef } from 'react'
 import { Icon } from '@/system/components/Icon'
-import { focusDestination } from '@/system/inputModality'
+import {
+  focusDestination,
+  inputModality,
+  recentlyPressed,
+} from '@/system/inputModality'
 import { CloseIcon } from '@/system/icons'
 import { PocketBody } from './PocketBody'
 
@@ -27,10 +31,15 @@ export function PocketPanel({
   })
   useEffect(() => {
     if (!open) return
-    opener.current =
-      document.activeElement instanceof HTMLElement
+    // Opened by a key: the focused control. Opened by a press: the control
+    // pressed, since Safari focuses no pressed link (as useModal does).
+    const active =
+      document.activeElement instanceof HTMLElement &&
+      document.activeElement !== document.body
         ? document.activeElement
         : null
+    opener.current =
+      (inputModality() === 'pointer' ? recentlyPressed() : null) ?? active
     focusDestination(title.current)
     // Escape closes it while focus is inside.
     const onKey = (event: KeyboardEvent) => {
