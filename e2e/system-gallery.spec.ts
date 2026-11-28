@@ -951,3 +951,33 @@ test('sign-out says what it would strand, once, and a broken check never blocks'
       .getByText('Signed out (gallery), no checks answered')
   ).toBeVisible({ timeout: 3000 })
 })
+
+test('a field error is read once: by focus, or by a live region', async ({
+  page,
+}) => {
+  await open(page)
+  const email = page
+    .locator('[data-specimen="Error"]')
+    .getByRole('textbox', { name: 'Email' })
+  await expect(email).toHaveAttribute('aria-invalid', 'true')
+  await expect(email).toHaveAccessibleDescription(
+    'Enter an email like name@example.com.'
+  )
+  // Focus moves to the field, so nothing else repeats the error.
+  await expect(
+    page.locator(
+      '[data-specimen="Error"] [role="alert"], [data-specimen="Error"] [aria-live]'
+    )
+  ).toHaveCount(0)
+
+  const live = page.locator('[data-specimen="Error while focus is elsewhere"]')
+  const region = live.locator('[aria-live="polite"]')
+  await expect(region).toHaveCount(1)
+  await expect(region).toHaveText('')
+  await press(page, live.getByRole('button', { name: 'Check address' }))
+  await expect(region).toHaveText('That address is taken. Try another.')
+  await expect(
+    live.getByRole('textbox', { name: 'Your Quilltip address' })
+  ).toHaveAttribute('aria-invalid', 'true')
+  await expect(live.locator('[role="alert"]')).toHaveCount(0)
+})

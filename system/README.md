@@ -282,6 +282,12 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
    into the top modal and back; a toast keeps its time and is announced
    once.
 
+9. **A field error is read once.** On submit, move focus to the first
+   invalid `TextField`; its error comes with it (`aria-describedby`,
+   "invalid"). When focus stays elsewhere (a server answer while the reader
+   is on the button), pass `errorAnnouncement="live"`: a polite live region,
+   present from the start, says it. Never both.
+
 ## Money
 
 - Amounts come from the money layer (`hooks/payments`): a `Money` value

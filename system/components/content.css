@@ -433,6 +433,9 @@
     font-size: var(--qt-text-ui-s);
     line-height: var(--qt-lh-ui-s);
   }
+  .qt-field__error[data-empty] {
+    display: none;
+  }
   .qt-field__error {
     color: var(--qt-danger);
     font-size: var(--qt-text-ui-s);
