@@ -22,10 +22,13 @@ import type { Id } from '../../convex/_generated/dataModel'
 import type { ActionCtx, MutationCtx } from '../../convex/_generated/server'
 import type { RawRpcEvent } from '../../convex/lib/chain/rpc'
 import {
+  DEFAULT_DUE_RULE,
   DUE_AGE_MS,
+  DUE_AMOUNT,
   EXPIRING_LEDGERS,
   MAX_SETTLE_BATCH,
   dueReasons,
+  dueRuleFromEnv,
   orderDue,
   runSettlementCycle,
   type LookupOutcome,
@@ -48,7 +51,11 @@ import {
   type StoredReceipt,
 } from '../../convex/lib/chain/voucher'
 import { bytesToHex, hexToBytes } from '../../convex/lib/chain/ids'
-import { convexSettlementLedger, settlerConfig } from '../../convex/tabSettler'
+import {
+  convexSettlementLedger,
+  runDueRule,
+  settlerConfig,
+} from '../../convex/tabSettler'
 import { signEd25519 } from '../../lib/stellar/v2/tab/encoding'
 import shared from '../../contracts/shared/test-vectors.json'
 import { rpcEventId } from './coreEvents'
@@ -667,6 +674,63 @@ describe('due rules and ordering', () => {
     ])
   })
 
+  it('reads the due thresholds from the environment, with the defaults otherwise', () => {
+    expect(dueRuleFromEnv({})).toEqual(DEFAULT_DUE_RULE)
+    expect(DEFAULT_DUE_RULE).toEqual({ ageMs: DUE_AGE_MS, amount: DUE_AMOUNT })
+    expect(
+      dueRuleFromEnv({
+        TAB_SETTLE_DUE_AGE_MS: '30000',
+        TAB_SETTLE_DUE_AMOUNT: '1000000',
+      })
+    ).toEqual({ ageMs: 30_000, amount: BigInt(1_000_000) })
+    // A malformed value never stops settlement: the default applies.
+    expect(
+      dueRuleFromEnv({
+        TAB_SETTLE_DUE_AGE_MS: '30s',
+        TAB_SETTLE_DUE_AMOUNT: '-1',
+      })
+    ).toEqual(DEFAULT_DUE_RULE)
+  })
+
+  it('applies a configured due rule: age 0 makes every pair due at once', () => {
+    const young = base({ oldestUnsettledAt: T0 })
+    expect(dueReasons(young, at)).toEqual([])
+    expect(dueReasons(young, at, { ageMs: 0, amount: DUE_AMOUNT })).toEqual([
+      'age',
+    ])
+    expect(
+      dueReasons(base({ oldestUnsettledAt: T0 - 30_001 }), at, {
+        ageMs: 30_000,
+        amount: DUE_AMOUNT,
+      })
+    ).toEqual(['age'])
+    expect(
+      dueReasons(base({ oldestUnsettledAt: T0 - 30_000 }), at, {
+        ageMs: 30_000,
+        amount: DUE_AMOUNT,
+      })
+    ).toEqual([])
+    expect(
+      dueReasons(base({ unsettledAmount: '1000000' }), at, {
+        ageMs: DUE_AGE_MS,
+        amount: BigInt(1_000_000),
+      })
+    ).toEqual(['amount'])
+    expect(
+      orderDue([young], at, { ageMs: 0, amount: DUE_AMOUNT }).map(
+        (c) => c.voucherId
+      )
+    ).toEqual(['v'])
+  })
+
+  it('settles every ready pair in a run an acceptance requested', () => {
+    expect(runDueRule(false, {})).toEqual(DEFAULT_DUE_RULE)
+    expect(runDueRule(true, {})).toEqual({ ...DEFAULT_DUE_RULE, ageMs: 0 })
+    expect(runDueRule(false, { TAB_SETTLE_DUE_AGE_MS: '45000' }).ageMs).toBe(
+      45_000
+    )
+  })
+
   it('submits due pairs in that order, at most 32 per settlement', async () => {
     const t = convexTest(schema, modules)
     const fake = new FakeTab()
@@ -1152,7 +1216,8 @@ describe('key windows and starvation', () => {
         ).length
     )
     expect(unpaid).toBe(250)
-  })
+    // 571 seeded pairs: allow more than the default 5 s on a loaded machine.
+  }, 30_000)
 })
 
 describe('guard and configuration', () => {

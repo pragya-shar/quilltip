@@ -8,6 +8,8 @@ import AppNavigation from '@/components/layout/AppNavigation'
 import { SETTINGS_PATH } from '@/lib/navigation/siteNavigation'
 
 const ACCOUNT_SECTIONS = [
+  { href: '/dashboard/balance', label: 'Balance' },
+  { href: '/dashboard/earnings', label: 'Earnings' },
   { href: '/dashboard/wallet', label: 'Wallet' },
   { href: '/dashboard/tab', label: 'Tab' },
   { href: '/dashboard/stats', label: 'Stats' },
