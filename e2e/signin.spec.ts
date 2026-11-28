@@ -476,6 +476,57 @@ test.describe('the page follows the person', () => {
   })
 })
 
+test.describe('nothing moves under the pointer', () => {
+  // An invalid last field, then a press on the button: the field blurs as
+  // the press starts, and nothing may appear then and move the button.
+  // Errors come with the press itself, so the press lands.
+  async function pressStays(page: Page, button: Locator, landed: Locator) {
+    const before = (await button.boundingBox())!
+    await page.mouse.move(
+      before.x + before.width / 2,
+      before.y + before.height / 2
+    )
+    await page.mouse.down()
+    const during = (await button.boundingBox())!
+    await page.mouse.up()
+    expect(during).toEqual(before)
+    await expect(landed).toBeVisible()
+  }
+
+  test('signing in', async ({ page }) => {
+    await page.goto('/signin')
+    await page.getByLabel('Email').fill(EMAIL)
+    await page.getByLabel('Password', { exact: true }).focus()
+    await pressStays(
+      page,
+      page.getByRole('button', { name: 'Sign in', exact: true }),
+      page.getByText('Enter your password.')
+    )
+  })
+
+  test('creating an account', async ({ page }) => {
+    await page.goto('/signin?mode=create')
+    await page.getByLabel('Email').fill('new.reader@example.com')
+    await page.getByLabel('Password', { exact: true }).fill('seven77')
+    await pressStays(
+      page,
+      page.getByRole('button', { name: 'Create account' }),
+      page.getByText('Use at least 8 characters.')
+    )
+  })
+
+  test('choosing a new password', async ({ page }) => {
+    await page.goto('/signin/reset#code=12345678')
+    await page.getByLabel('Email', { exact: true }).fill(EMAIL)
+    await page.getByLabel('New password').fill('short')
+    await pressStays(
+      page,
+      page.getByRole('button', { name: 'Change password' }),
+      page.getByText('Use at least 8 characters.')
+    )
+  })
+})
+
 test.describe('the way back is returnTo', () => {
   test('next is not read on /signin: it goes to Today', async ({ page }) => {
     await page.goto('/signin?next=%2Farticle')
