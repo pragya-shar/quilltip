@@ -164,6 +164,82 @@ test('the tip control works from the keyboard, and focus follows the tip', async
   await expect(tip).toBeFocused()
 })
 
+test('the tip control and a menu return focus without moving the page', async ({
+  page,
+}) => {
+  await open(page)
+  const at = () => page.evaluate(() => Math.round(window.scrollY))
+  // The tip control in the middle of the screen.
+  const group = liveTip(page)
+  await group.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+  let start = await at()
+  const amount = group.getByRole('button', { name: 'Change amount' })
+  await press(page, amount)
+  await expect(group.getByRole('radiogroup')).toBeVisible()
+  expect(await at(), 'opening the amounts').toBe(start)
+  await page.keyboard.press('Escape')
+  await expect(group.getByRole('radiogroup')).toBeHidden()
+  await expect(amount).toBeFocused()
+  expect(await at(), 'closing the amounts').toBe(start)
+  // A menu, opened and closed.
+  const specimen = page.locator(
+    '[data-specimen="Menu whose first action is not available"]'
+  )
+  const trigger = specimen.getByRole('button', { name: 'Article actions' })
+  await trigger.evaluate((el) => el.scrollIntoView({ block: 'center' }))
+  start = await at()
+  await press(page, trigger)
+  const menu = specimen.getByRole('menu', { name: 'Article actions' })
+  await expect(menu).toBeVisible()
+  expect(await at(), 'opening the menu').toBe(start)
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
+  await expect(trigger).toBeFocused()
+  expect(await at(), 'closing the menu').toBe(start)
+})
+
+test('the check on a tipped line sits at the end of its own last line', async ({
+  page,
+}) => {
+  await open(page)
+  const marks = page.locator('.qt-mark[data-state~="mine"]')
+  expect(await marks.count()).toBeGreaterThan(1)
+  const placed = await marks.evaluateAll((all) =>
+    all.map((mark) => {
+      const lines = [...mark.getClientRects()]
+      const last = lines.at(-1)!
+      const check = mark.nextElementSibling?.matches('.qt-mark__check')
+        ? mark.nextElementSibling.firstElementChild!.getBoundingClientRect()
+        : null
+      return {
+        text: mark.textContent!.trim().slice(0, 24),
+        lines: lines.length,
+        check: check && {
+          top: check.top,
+          bottom: check.bottom,
+          left: check.left,
+        },
+        line: { top: last.top, bottom: last.bottom, right: last.right },
+      }
+    })
+  )
+  // The gallery has one that wraps.
+  expect(placed.some((p) => p.lines > 1)).toBe(true)
+  for (const p of placed) {
+    expect(p.check, p.text).not.toBeNull()
+    const { check, line } = p
+    // Inside its own line's height (the mark's fill bleeds 0.14 em) ...
+    expect(check!.top, `${p.text}: top`).toBeGreaterThanOrEqual(line.top - 4)
+    expect(check!.bottom, `${p.text}: bottom`).toBeLessThanOrEqual(
+      line.bottom + 4
+    )
+    // ... and after its last word.
+    expect(check!.left, `${p.text}: left`).toBeGreaterThanOrEqual(
+      line.right - 2
+    )
+  }
+})
+
 test('focus follows the tip by touch or pointer too, with no ring', async ({
   page,
 }) => {

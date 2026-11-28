@@ -292,6 +292,120 @@ test('an address change inside the view keeps the sheet open and the history ent
   expect(after.pages).toEqual([...before.pages.slice(0, -1), '/shelf-renamed'])
 })
 
+/** Every text block's place in the page's layout (not on screen). */
+const textLayout = (page: Page) =>
+  page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>('main p, main h1, main h2')]
+      .map((el) => {
+        let top = 0
+        for (
+          let n: HTMLElement | null = el;
+          n;
+          n = n.offsetParent as HTMLElement | null
+        )
+          top += n.offsetTop
+        return top
+      })
+      .join(',')
+  )
+
+const pushedHeader = (page: Page) => page.locator('.qt-pushed__header')
+
+test('the pushed header leaves on a scroll down and returns on the reader’s scroll up, moving no text', async ({
+  page,
+}) => {
+  await page.goto('/reading')
+  const header = pushedHeader(page)
+  await expect(header).toBeVisible()
+  const layout = await textLayout(page)
+  await page.mouse.move(200, 400)
+  await page.mouse.wheel(0, 900)
+  await expect(header).toHaveAttribute('data-hidden', '')
+  expect(await textLayout(page), 'hiding it').toBe(layout)
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        getComputedStyle(document.documentElement).getPropertyValue(
+          '--qt-pushed-header-h'
+        )
+      )
+    )
+    .toBe('0px')
+  // The reader scrolls up a little: it is back, over the page.
+  await page.mouse.wheel(0, -120)
+  await expect(header).not.toHaveAttribute('data-hidden', '')
+  expect(await textLayout(page), 'showing it').toBe(layout)
+  const height = Math.round((await header.boundingBox())!.height)
+  const vars = await page.evaluate(() => {
+    const style = getComputedStyle(document.documentElement)
+    return {
+      h: style.getPropertyValue('--qt-pushed-header-h'),
+      padding: parseFloat(style.scrollPaddingTop),
+    }
+  })
+  expect(vars.h).toBe(`${height}px`)
+  expect(vars.padding).toBeGreaterThanOrEqual(height)
+  const box = (await header.boundingBox())!
+  expect(Math.round(box.y)).toBe(0)
+})
+
+test('the pushed header carries the title only after 140 px of scroll', async ({
+  page,
+}) => {
+  await page.goto('/reading')
+  const title = pushedHeader(page).locator('.qt-pushed__title')
+  await expect(title).not.toHaveAttribute('data-shown', '')
+  await page.mouse.move(200, 400)
+  await page.mouse.wheel(0, 400)
+  await page.mouse.wheel(0, -60)
+  await expect(title).toHaveAttribute('data-shown', '')
+  await expect(title).toBeVisible()
+})
+
+test('a scroll by script never brings the pushed header back', async ({
+  page,
+}) => {
+  await page.goto('/reading')
+  const header = pushedHeader(page)
+  await page.mouse.move(200, 400)
+  await page.mouse.wheel(0, 1200)
+  await expect(header).toHaveAttribute('data-hidden', '')
+  // A place restored or an anchor landed, above where the reader is.
+  await page.evaluate(() => window.scrollTo(0, window.scrollY - 400))
+  await page.waitForTimeout(400)
+  await expect(header).toHaveAttribute('data-hidden', '')
+})
+
+test('the way back is reachable by keyboard at any depth', async ({
+  page,
+  browserName,
+}) => {
+  await page.goto('/reading')
+  const header = pushedHeader(page)
+  await page.mouse.move(200, 400)
+  await page.mouse.wheel(0, 1500)
+  await expect(header).toHaveAttribute('data-hidden', '')
+  const y = await page.evaluate(() => window.scrollY)
+  // From the content, one step back: the header's last control.
+  await page.locator('#content').focus()
+  await page.keyboard.press(
+    browserName === 'webkit' ? 'Shift+Alt+Tab' : 'Shift+Tab'
+  )
+  await expect(header).not.toHaveAttribute('data-hidden', '')
+  expect(
+    await header.evaluate((el) => el.contains(document.activeElement))
+  ).toBe(true)
+  const focused = (await page.evaluate(() => {
+    const r = document.activeElement!.getBoundingClientRect()
+    return { top: r.top, bottom: r.bottom }
+  }))!
+  expect(focused.top).toBeGreaterThanOrEqual(0)
+  expect(focused.bottom).toBeLessThanOrEqual(
+    await page.evaluate(() => window.innerHeight)
+  )
+  expect(await page.evaluate(() => window.scrollY), 'no scroll').toBe(y)
+})
+
 test('a change of path closes the sheets over the old page', async ({
   page,
 }) => {
@@ -331,6 +445,85 @@ test('signed out, a registered sign-in sheet opens over the page', async ({
   await page.keyboard.press('Escape')
   await expect(sheet).toBeHidden()
 })
+
+for (const [width, height, keyboard] of [
+  [390, 844, 336],
+  [360, 640, 260],
+] as const)
+  test(`a sheet with a field stays above the keyboard (${width} by ${height})`, async ({
+    page,
+  }) => {
+    test.skip(wide(), 'Phone widths')
+    await page.setViewportSize({ width, height })
+    // A visual viewport the test can shrink, as the on-screen keyboard does
+    // in iOS Safari (the layout stays; the visible area gets shorter).
+    await page.addInitScript(() => {
+      const viewport = new EventTarget()
+      let covered = 0
+      Object.defineProperties(viewport, {
+        height: { get: () => window.innerHeight - covered },
+        width: { get: () => window.innerWidth },
+        offsetTop: { get: () => 0 },
+        offsetLeft: { get: () => 0 },
+        pageTop: { get: () => window.scrollY },
+        scale: { get: () => 1 },
+      })
+      Object.defineProperty(window, 'visualViewport', {
+        value: viewport,
+        configurable: true,
+      })
+      ;(window as unknown as { __keyboard: (h: number) => void }).__keyboard = (
+        h
+      ) => {
+        covered = h
+        viewport.dispatchEvent(new Event('resize'))
+      }
+    })
+    const setKeyboard = (h: number) =>
+      page.evaluate((px) => {
+        ;(window as unknown as { __keyboard: (h: number) => void }).__keyboard(
+          px
+        )
+      }, h)
+    await page.goto('/shelf?balance=signed-out&signin=sheet')
+    await page.evaluate(() => window.scrollTo(0, 200))
+    const scrolled = await page.evaluate(() => window.scrollY)
+    await press(nav(page).getByRole('link', { name: 'Sign in' }))
+    const sheet = page.getByRole('dialog', { name: 'Sign in to Quilltip' })
+    await expect(sheet).toBeVisible()
+    const field = sheet.getByLabel('Password')
+    await field.focus()
+    await setKeyboard(keyboard)
+    const visible = height - keyboard
+    const inView = async (name: string, locator: Locator) => {
+      await expect
+        .poll(
+          async () => {
+            const box = (await locator.boundingBox())!
+            return box.y >= 0 && box.y + box.height <= visible
+          },
+          { message: `${name} inside the visible area (0 to ${visible} px)` }
+        )
+        .toBe(true)
+    }
+    await inView('the focused field', field)
+    await inView(
+      'the primary action',
+      sheet.getByRole('button', { name: 'Sign in' })
+    )
+    await expect(field).toBeFocused()
+    expect(await page.evaluate(() => window.scrollY), 'the page behind').toBe(
+      scrolled
+    )
+    // The keyboard closes: the sheet is back at the bottom.
+    await setKeyboard(0)
+    await expect
+      .poll(async () => {
+        const panel = (await sheet.locator('.qt-modal__panel').boundingBox())!
+        return Math.round(panel.y + panel.height)
+      })
+      .toBe(height)
+  })
 
 test('a declared sheet opens before its code has loaded, then fills in', async ({
   page,
@@ -385,6 +578,32 @@ test('a converted balance reads about, and every state keeps the slot width', as
     widths.push(Math.round(box!.width))
   }
   expect(new Set(widths).size).toBe(1)
+})
+
+test('the docked tip bar opens and closes its amounts without moving the page', async ({
+  page,
+}) => {
+  await page.goto('/reading')
+  await page.evaluate(() => window.scrollTo(0, 900))
+  await page.waitForTimeout(200)
+  const at = () => page.evaluate(() => Math.round(window.scrollY))
+  const start = await at()
+  expect(start).toBeGreaterThan(0)
+  const dock = page.locator('.qt-dock')
+  const amount = dock.getByRole('button', { name: 'Change amount' })
+  // Closed by Escape: focus returns to the amount control.
+  await press(amount)
+  await expect(dock.getByRole('radiogroup')).toBeVisible()
+  expect(await at(), 'opening the amounts').toBe(start)
+  await page.keyboard.press('Escape')
+  await expect(dock.getByRole('radiogroup')).toBeHidden()
+  await expect(amount).toBeFocused()
+  expect(await at(), 'closing the amounts by Escape').toBe(start)
+  // Closed by choosing an amount.
+  await press(amount)
+  await press(dock.getByRole('radio', { name: '$3', exact: true }))
+  await expect(dock.getByRole('radiogroup')).toBeHidden()
+  expect(await at(), 'closing the amounts by a choice').toBe(start)
 })
 
 for (const width of [360, 390]) {
