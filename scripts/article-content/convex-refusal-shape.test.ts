@@ -301,6 +301,11 @@ const SERVER_REFUSALS = [
     change: { user: true },
   },
   {
+    name: 'an article stored with no content',
+    text: 'Cannot publish: content is required',
+    change: { article: { content: null } },
+  },
+  {
     name: 'a stored body with no text',
     text: 'Cannot publish: article body is empty',
     change: {
