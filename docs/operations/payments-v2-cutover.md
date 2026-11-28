@@ -62,10 +62,11 @@ later work.
    site variable.
 8. Before the window closes, `SETTLEMENT_ENABLED` is `true` on the live
    deployment and the `settle due tab vouchers` cron has run in the last 10
-   minutes (Convex dashboard, **Schedules**, cron jobs), and a healthy
-   settler run is recorded (stage 3, **Check**: `nothing_due` or `idle` with
-   `rejected` 0, or a verified `confirmed` settlement). The logs show no `TAB_SETTLER_UNAVAILABLE`
-   and no `TAB_SETTLER_RUN_FAILED`. The settler must run at least once
+   minutes (Convex dashboard, **Schedules**, cron jobs). A healthy settler
+   run is recorded (stage 3, **Check**: `nothing_due` with `rejected` 0, or a
+   verified `confirmed` settlement), and the acceptor check returned
+   `listed` (stage 3, **Check**). The logs show no `TAB_SETTLER_UNAVAILABLE`,
+   no `TAB_SETTLER_RUN_FAILED` and no `TAB_ACCEPTOR_UNAVAILABLE`. The settler must run at least once
    within the 3-day withdrawal delay (51,840 ledgers): a reader who starts a
    withdrawal can withdraw after it, and receipts not settled by then stay
    unpaid. The settler settles every pair of a closing tab first.
@@ -1049,17 +1050,35 @@ payments off if needed (section 6).
   `TAB_SETTLER_RUN_FAILED` alone does not find it. Do not start stage 6 until
   a healthy run is recorded.
 
-- The acceptor, as far as it can be checked before stage 6. After
-  `SETTLEMENT_ENABLED=true` is set, and again after any change to
-  `TAB_ACCEPTOR_SECRET`, run `chain/config:refreshChainConfig` from the
-  dashboard and check the logs. A valid acceptor seed whose public key is not
-  among the Tab's `acceptor_keys` logs `TAB_ACCEPTOR_MISMATCH`. A missing or
-  malformed acceptor secret logs nothing here: the refresh treats it as
-  acceptance being off. It shows only at the first tab tip, which refuses
-  with `TAB_ACCEPTOR_UNAVAILABLE`. So before stage 6 the field check in step
-  3 is the only check of the acceptor's format, and the tab tip in section
-  7.1 is the first proof that the acceptor works. If that tip refuses with
-  `TAB_ACCEPTOR_UNAVAILABLE` or `TAB_ACCEPTOR_MISMATCH`, follow section 6.
+- The acceptor, before stage 6. After `TAB_ACCEPTOR_SECRET` is saved, and
+  again after any change to it, the operator runs the internal action
+  `chain/config:checkAcceptor` once from the Convex dashboard (**Functions**,
+  no arguments) and reads the value it returns. It derives the public key of
+  the exact saved value as acceptance does (`parseAcceptorSeed`), reads the
+  Tab contract's `acceptor_keys` at that moment, and compares them. It
+  returns the public key and the listed keys only, never the secret, and
+  writes nothing. It works with settlement on or off.
+  - `"status": "listed"` with `"whitespace": false`: ready. Record the time
+    and the public key.
+  - `"malformed"` or `"unset"`: the first tab tip would refuse with
+    `TAB_ACCEPTOR_UNAVAILABLE`. Save the secret again (step 3, **Tab
+    secrets**) and run the check again.
+  - `"not_listed"`: a valid seed of another key, for example the settler
+    seed in the acceptor variable. The tip would refuse with
+    `TAB_ACCEPTOR_MISMATCH`. Save the acceptor identity's secret.
+  - `"keys_unread"`: no Tab contract is set, or the view failed (`error`).
+    Fix that and run the check again.
+  - `"whitespace": true`: acceptance trims it, but the field check does not
+    allow it. Save the value again without it.
+
+  Do not start stage 6 until the check returns `listed`. The config refresh
+  (`chain/config:refreshChainConfig`, hourly) also logs
+  `TAB_ACCEPTOR_UNAVAILABLE` for a missing or malformed acceptor secret while
+  `SETTLEMENT_ENABLED=true`, and adds it to `chainConfig.lastError`. Before
+  #684 it treated such a secret as acceptance being off and logged nothing.
+  Both changes reach a deployment with its next backend push. On a backend
+  without them, the field check in step 3 is the only check of the format,
+  and the tab tip of section 7.1 is the first proof.
 
 **Rollback:** set `SETTLEMENT_ENABLED=false` and remove the contract IDs and
 `INDEXER_START_LEDGER`. Nothing user-facing uses the set while
@@ -1276,9 +1295,10 @@ row again.
 
 ### Stage 6. Switch on v2
 
-1. Confirm that the healthy settler run of stage 3 (**Check**) is recorded,
-   with its time and result. If `TAB_SETTLER_SECRET` changed after it,
-   record a new healthy run first.
+1. Confirm that the healthy settler run and the `listed` acceptor check of
+   stage 3 (**Check**) are recorded, with their times and results. If
+   `TAB_SETTLER_SECRET` or `TAB_ACCEPTOR_SECRET` changed after them, record
+   a new run or check first.
 2. Run the stage 4 backfill again for the three tables (dry run, apply, dry
    run), so that the v1 rows confirmed during the drain carry
    `contractVersion: 'v1'`.
