@@ -4,6 +4,9 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   AVATARS,
   OTHER_CONVEX_IMAGE,
+  PLAYLIST,
+  REBUILT_EMBED,
+  STORED_EMBED,
   OWN_IMAGE,
   OWN_ORIGIN,
   UNSPLASH_IMAGE,
@@ -47,6 +50,12 @@ const jpeg = readFileSync(
 async function watch(page: Page) {
   const otherRequests: string[] = []
   const policyErrors: string[] = []
+  const frameRequests: string[] = []
+  // Video frames load an empty page here; record which addresses are asked.
+  await page.route(/^https:\/\/(www\.)?youtube(-nocookie)?\.com\//, (route) => {
+    frameRequests.push(route.request().url())
+    return route.fulfill({ body: '<!doctype html>', contentType: 'text/html' })
+  })
   await page.route('https://images.unsplash.com/**', (route) =>
     route.fulfill({ body: jpeg, contentType: 'image/jpeg' })
   )
@@ -68,7 +77,7 @@ async function watch(page: Page) {
     )
       policyErrors.push(message.text())
   })
-  return { otherRequests, policyErrors }
+  return { otherRequests, policyErrors, frameRequests }
 }
 
 /** The images of one reader, each scrolled into view until it has loaded. */
@@ -161,9 +170,9 @@ for (const width of [375, 1440]) {
       // The server HTML, as sent: every src in it is on the allowlist.
       const raw = await page.request.get('/?js=0&csp=0')
       expect(raw.headers()['content-security-policy']).toBeUndefined()
-      const sources = [...(await raw.text()).matchAll(/\ssrc="([^"]*)"/g)].map(
-        (match) => match[1]!.replaceAll('&amp;', '&')
-      )
+      const sources = [
+        ...(await raw.text()).matchAll(/<img[^>]*\ssrc="([^"]*)"/g),
+      ].map((match) => match[1]!.replaceAll('&amp;', '&'))
       expect(sources).toEqual([OWN_IMAGE, UNSPLASH_IMAGE])
       expect(
         sources.filter((src) => !isAllowedImageSource(src, OWN_ORIGIN))
@@ -302,6 +311,60 @@ for (const width of [375, 1440]) {
       await page.goto('/?renderer=off&csp=0')
       await expect(photo(page, 'other')).toHaveCount(1)
       expect(seen.otherRequests).toContain(AVATARS.other)
+    })
+
+    // Video embeds (#633): the frame is built from the id, never stored.
+    test('every reader builds the video frame from its id on the no-cookie host', async ({
+      page,
+    }) => {
+      const seen = await watch(page)
+      const raw = await (await page.request.get('/?js=0')).text()
+      expect(raw).not.toContain(STORED_EMBED.replaceAll('&', '&amp;'))
+      expect(raw).not.toContain('videoseries')
+      await page.goto('/')
+      for (const reader of ['client', 'highlight', 'writer']) {
+        await expect(
+          page.locator(`[data-reader="${reader}"] img`),
+          reader
+        ).toHaveCount(2)
+      }
+      for (const reader of ['server', 'client', 'highlight', 'writer']) {
+        const frames = page.locator(`[data-reader="${reader}"] iframe`)
+        await expect(frames, reader).toHaveCount(1)
+        await expect(frames, reader).toHaveAttribute('src', REBUILT_EMBED)
+        // The playlist gets no frame: an empty hidden block.
+        await expect(
+          page.locator(
+            `[data-reader="${reader}"] [data-youtube-video][hidden]`
+          ),
+          reader
+        ).toHaveCount(1)
+      }
+      await expect.poll(() => seen.frameRequests.length).toBeGreaterThan(0)
+      expect(
+        seen.frameRequests.filter((url) => !url.startsWith(REBUILT_EMBED))
+      ).toEqual([])
+      expect(seen.policyErrors).toEqual([])
+    })
+
+    test('the video dialog refuses a playlist and keeps a video by its id', async ({
+      page,
+    }) => {
+      await watch(page)
+      await page.goto('/')
+      const frames = page.locator('[data-reader="writer"] iframe')
+      await expect(frames).toHaveCount(1)
+      await page.getByRole('button', { name: 'Add a video' }).click()
+      const address = page.getByLabel('YouTube address')
+      await address.fill(PLAYLIST)
+      await page.getByRole('button', { name: 'Add video' }).click()
+      await expect(page.getByRole('alert')).toHaveText(
+        'Use the address of a YouTube video: a watch, youtu.be, shorts or live link. Playlists and channels cannot be added.'
+      )
+      await address.fill('https://youtu.be/dQw4w9WgXcQ?si=shared&t=5')
+      await page.getByRole('button', { name: 'Add video' }).click()
+      await expect(frames).toHaveCount(2)
+      await expect(frames.nth(1)).toHaveAttribute('src', REBUILT_EMBED)
     })
 
     test('the image dialog refuses an outside address and names what is allowed', async ({

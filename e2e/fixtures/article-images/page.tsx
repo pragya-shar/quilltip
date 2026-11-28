@@ -10,6 +10,7 @@ import { WritingImage } from '../../../components/editor/WritingImage'
 import { WritingMedia } from '../../../components/editor/WritingMedia'
 import { getArticleAppearance } from '../../../lib/editor/articleAppearance'
 import { UserAvatar } from '../../../components/ui/user-avatar'
+import { createYoutubeExtension } from '../../../lib/tiptap/youtubeExtension'
 import '../../../components/articles/reader.css'
 import '../../../components/editor/writing-workspace.css'
 import { AVATARS, article } from './article'
@@ -17,25 +18,34 @@ import { AVATARS, article } from './article'
 function Fixture() {
   // The highlight view's image node (HighlightableArticle), read-only.
   const highlight = useEditor({
-    extensions: [StarterKit.configure({ link: false }), ResizableImage],
+    extensions: [
+      StarterKit.configure({ link: false }),
+      ResizableImage,
+      createYoutubeExtension(),
+    ],
     content: article,
     editable: false,
     immediatelyRender: false,
   })
   // The writing workspace's image node (useWritingWorkspace).
   const writer = useEditor({
-    extensions: [StarterKit.configure({ link: false }), WritingImage],
+    extensions: [
+      StarterKit.configure({ link: false }),
+      WritingImage,
+      createYoutubeExtension(),
+    ],
     content: article,
     immediatelyRender: false,
   })
   const [dialog, setDialog] = useState(false)
+  const [videoDialog, setVideoDialog] = useState(false)
   const workspace = {
     showBodyImageDialog: dialog,
     showCoverImageDialog: false,
-    showBodyYouTubeDialog: false,
+    showBodyYouTubeDialog: videoDialog,
     setShowBodyImageDialog: setDialog,
     setShowCoverImageDialog: () => {},
-    setShowBodyYouTubeDialog: () => {},
+    setShowBodyYouTubeDialog: setVideoDialog,
     setCoverImage: () => {},
     setHasUnsavedChanges: () => {},
     editor: writer,
@@ -69,9 +79,15 @@ function Fixture() {
       </section>
       <section data-reader="writer" className="writing-workspace">
         <h2>Writing editor</h2>
-        <EditorContent editor={writer} />
+        {/* As the workspace wraps it (WritingWorkspaceView). */}
+        <div className="writer-body">
+          <EditorContent editor={writer} />
+        </div>
         <button type="button" onClick={() => setDialog(true)}>
           Add an image
+        </button>
+        <button type="button" onClick={() => setVideoDialog(true)}>
+          Add a video
         </button>
         <WritingMedia
           workspace={workspace as never}

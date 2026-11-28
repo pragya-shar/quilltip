@@ -1,7 +1,8 @@
 import { v } from 'convex/values'
 import { internal } from './_generated/api'
 import { internalAction, internalQuery } from './_generated/server'
-import { articleImageSources } from './lib/articleImages'
+import { articleEmbedSources, articleImageSources } from './lib/articleImages'
+import { youtubeVideoId } from '../lib/articles/youtubeVideo'
 import {
   isAllowedImageSource,
   ownImageSource,
@@ -14,8 +15,9 @@ import {
  * addresses (`lib/security/imageSources.ts`). Each address is judged on its
  * own, so one host can have both (`img.youtube.com` outside `/vi/`, `http`
  * against `https`). Profile photos are counted the same way, allowed and
- * refused per host (#633). No address, article text, title, author, name or
- * id.
+ * refused per host (#633). Video embeds are counted by whether the renderers
+ * can rebuild their frame from a video id (`rebuilt`) or show no frame
+ * (`noFrame`). No address, article text, title, author, name or id.
  *
  *   npx convex run articleImageHosts:countImageHosts
  *
@@ -43,6 +45,19 @@ type Count = {
 }
 type Row = Count & { host: string }
 type Tally = Map<string, Count>
+
+const embedCounts = v.object({
+  publishedRebuilt: v.number(),
+  publishedNoFrame: v.number(),
+  draftRebuilt: v.number(),
+  draftNoFrame: v.number(),
+})
+type EmbedCount = {
+  publishedRebuilt: number
+  publishedNoFrame: number
+  draftRebuilt: number
+  draftNoFrame: number
+}
 
 const ZERO: Count = {
   publishedAllowed: 0,
@@ -128,6 +143,7 @@ export const imageHostPage = internalQuery({
   returns: v.object({
     images: counts,
     covers: counts,
+    embeds: embedCounts,
     published: v.number(),
     draft: v.number(),
     continueCursor: v.string(),
@@ -141,7 +157,20 @@ export const imageHostPage = internalQuery({
     const covers: Tally = new Map()
     let published = 0
     let draft = 0
+    const embeds: EmbedCount = {
+      publishedRebuilt: 0,
+      publishedNoFrame: 0,
+      draftRebuilt: 0,
+      draftNoFrame: 0,
+    }
     for (const article of page.page) {
+      for (const src of articleEmbedSources(article.content)) {
+        const rebuilt = youtubeVideoId(src) !== null
+        if (article.published && rebuilt) embeds.publishedRebuilt += 1
+        else if (article.published) embeds.publishedNoFrame += 1
+        else if (rebuilt) embeds.draftRebuilt += 1
+        else embeds.draftNoFrame += 1
+      }
       if (article.published) published += 1
       else draft += 1
       for (const src of articleImageSources(article.content)) {
@@ -152,6 +181,7 @@ export const imageHostPage = internalQuery({
     return {
       images: rows(images),
       covers: rows(covers),
+      embeds,
       published,
       draft,
       continueCursor: page.continueCursor,
@@ -180,6 +210,7 @@ export const countImageHosts = internalAction({
     articles: v.object({ published: v.number(), draft: v.number() }),
     images: counts,
     covers: counts,
+    embeds: embedCounts,
     avatars: avatarCounts,
   }),
   handler: async (ctx) => {
@@ -187,11 +218,18 @@ export const countImageHosts = internalAction({
     const covers: Tally = new Map()
     let published = 0
     let draft = 0
+    const embeds: EmbedCount = {
+      publishedRebuilt: 0,
+      publishedNoFrame: 0,
+      draftRebuilt: 0,
+      draftNoFrame: 0,
+    }
     let cursor: string | null = null
     for (;;) {
       const page: {
         images: Row[]
         covers: Row[]
+        embeds: EmbedCount
         published: number
         draft: number
         continueCursor: string
@@ -201,6 +239,9 @@ export const countImageHosts = internalAction({
       })
       merge(images, page.images)
       merge(covers, page.covers)
+      for (const key of Object.keys(embeds) as (keyof EmbedCount)[]) {
+        embeds[key] += page.embeds[key]
+      }
       published += page.published
       draft += page.draft
       if (page.isDone) break
@@ -234,6 +275,7 @@ export const countImageHosts = internalAction({
       articles: { published, draft },
       images: rows(images),
       covers: rows(covers),
+      embeds,
       avatars: [...avatars.entries()]
         .map(([host, row]) => ({ host, ...row }))
         .sort((a, b) => b.allowed + b.refused - (a.allowed + a.refused)),

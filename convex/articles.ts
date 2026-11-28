@@ -37,7 +37,7 @@ import {
 } from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
 import { storedArticleContent } from './lib/articleContent'
-import { assertPublishableImages } from './lib/articleImages'
+import { assertPublishableImages, withShownCover } from './lib/articleImages'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import {
   permanentStorageEnabled,
@@ -173,7 +173,7 @@ async function loadReadingRoomArticle(
     authors.set(article.authorId, await enrichWithUser(ctx, article.authorId))
   }
   return {
-    ...stripWriterNotes(article),
+    ...withShownCover(stripWriterNotes(article)),
     readTime: estimateArticleReadingMinutes(article.content),
     author: authors.get(article.authorId) ?? null,
   }
@@ -377,7 +377,7 @@ export const listArticles = query({
     )
     const enrichedArticles = await Promise.all(
       slice.map(async (article) => ({
-        ...stripWriterNotes(article),
+        ...withShownCover(stripWriterNotes(article)),
         readTime: estimateArticleReadingMinutes(article.content),
         author: writers.has(article.authorId)
           ? (writers.get(article.authorId) ?? null)
@@ -717,7 +717,7 @@ export const getArticleBySlug = query({
     }
 
     return {
-      ...stripWriterNotes(article),
+      ...withShownCover(stripWriterNotes(article)),
       arweaveStatus: readableArweaveStatus(article.arweaveStatus),
       author: {
         id: author._id,
@@ -797,7 +797,11 @@ export const getArticleById = query({
 
     const author = await ctx.db.get(article.authorId)
     return {
-      ...stripWriterNotes(article),
+      // The author's editor reads the cover as stored; readers do not get
+      // one from another host (#633).
+      ...(isAuthor
+        ? stripWriterNotes(article)
+        : withShownCover(stripWriterNotes(article))),
       ...(isAuthor ? { writerNotes: article.writerNotes } : {}),
       author: author
         ? {

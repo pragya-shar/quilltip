@@ -195,7 +195,20 @@ test('countImageHosts counts allowed and refused addresses per host, by publishe
       title: 'Older pictures',
       slug: 'older-pictures',
       excerpt: 'An older piece with pictures.',
-      content: body(otherConvex, own),
+      content: {
+        ...body(otherConvex, own),
+        content: [
+          ...body(otherConvex, own).content,
+          // One video the renderers rebuild, one they show without a frame.
+          { type: 'youtube', attrs: { src: 'https://youtu.be/dQw4w9WgXcQ' } },
+          {
+            type: 'youtube',
+            attrs: {
+              src: 'https://www.youtube.com/embed/videoseries?list=PLx',
+            },
+          },
+        ],
+      },
       coverImage: otherConvex,
       tags: [],
       authorId,
@@ -217,6 +230,16 @@ test('countImageHosts counts allowed and refused addresses per host, by publishe
       '/relative.png'
     )
   )
+  await draft({
+    type: 'doc',
+    content: [
+      {
+        type: 'paragraph',
+        content: [{ type: 'text', text: 'Words to read.' }],
+      },
+      { type: 'youtube', attrs: { src: 'https://evil.example/embed/x' } },
+    ],
+  })
   // Twelve more drafts, so the outside host appears on two pages of ten.
   for (let n = 0; n < 12; n += 1) await draft(body(otherConvex))
   const report = await t.action(internal.articleImageHosts.countImageHosts, {})
@@ -235,7 +258,7 @@ test('countImageHosts counts allowed and refused addresses per host, by publishe
   })
   expect(report).toEqual({
     storageOrigin: OWN,
-    articles: { published: 2, draft: 13 },
+    articles: { published: 2, draft: 14 },
     images: [
       row('someone-else-456.convex.cloud', 0, 1, 0, 12),
       row('own-deployment-123.convex.cloud', 3, 0, 0, 0),
@@ -248,6 +271,12 @@ test('countImageHosts counts allowed and refused addresses per host, by publishe
       row('own-deployment-123.convex.cloud', 1, 0, 0, 0),
       row('someone-else-456.convex.cloud', 0, 1, 0, 0),
     ],
+    embeds: {
+      publishedRebuilt: 1,
+      publishedNoFrame: 1,
+      draftRebuilt: 0,
+      draftNoFrame: 1,
+    },
     avatars: [],
   })
   // No address, title, text, author or id in the answer.
