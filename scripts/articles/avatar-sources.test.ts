@@ -4,7 +4,7 @@ import { ConvexError } from 'convex/values'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
-import { avatarSourceRefusal } from '../../lib/security/imageSources'
+import { AVATAR_SOURCE_REFUSAL } from '../../lib/security/imageSources'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 
@@ -49,15 +49,13 @@ test('updateProfile accepts only an upload and keeps the old photo otherwise (#6
         (e: unknown) => e
       )
     expect(error, src).toBeInstanceOf(ConvexError)
-    expect((error as ConvexError<string>).data).toBe(avatarSourceRefusal(src))
+    expect((error as ConvexError<string>).data).toBe(AVATAR_SOURCE_REFUSAL)
   }
   expect((await t.run((ctx) => ctx.db.get(id)))?.avatar).toBe(own)
 })
 
-test('the refusal names the photo and says photos are uploaded (#633)', () => {
-  expect(avatarSourceRefusal(otherConvex)).toBe(
-    `This photo cannot be used: ${otherConvex}. Profile photos must be uploaded.`
-  )
+test('the refusal names no address and says photos are uploaded (#633)', () => {
+  expect(AVATAR_SOURCE_REFUSAL).toBe('Profile photos must be uploaded.')
 })
 
 test('updateProfile keeps an uploaded photo, and clearing still works (#633)', async () => {

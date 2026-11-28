@@ -36,7 +36,7 @@ import {
 } from '../../lib/editor/publish-feedback'
 import { convexErrorMessage } from '../../lib/feedback/convexErrorMessage'
 import {
-  avatarSourceRefusal,
+  AVATAR_SOURCE_REFUSAL,
   imageSourceRefusal,
 } from '../../lib/security/imageSources'
 import { uploadAvatarFile, uploadFile } from '../../lib/upload'
@@ -226,7 +226,7 @@ test.each(DEPLOYMENTS)(
         variant: 'destructive',
         title: 'Could not publish',
         detail:
-          'This image cannot be used: https://outside-host.example/pictures/one.png. Images must be uploaded, or come from img.youtube.com, images.unsplash.com, plus.unsplash.com or arweave.net.',
+          'An image from outside-host.example cannot be used. Images must be uploaded, or come from img.youtube.com, images.unsplash.com, plus.unsplash.com or arweave.net.',
       })
       expect(publishErrorFeedback(error).detail).toBe(
         imageSourceRefusal(outside)
@@ -308,10 +308,8 @@ test.each(DEPLOYMENTS)(
       expect((error as Error).message).toMatch(
         /^\[CONVEX M\(users:updateProfile\)\]/
       )
-      expect(convexErrorMessage(error)).toBe(
-        'This photo cannot be used: https://outside-host.example/photos/me.png. Profile photos must be uploaded.'
-      )
-      expect(convexErrorMessage(error)).toBe(avatarSourceRefusal(photo))
+      expect(convexErrorMessage(error)).toBe('Profile photos must be uploaded.')
+      expect(convexErrorMessage(error)).toBe(AVATAR_SOURCE_REFUSAL)
     } finally {
       await client.close()
     }
@@ -342,11 +340,11 @@ test.each(DEPLOYMENTS)(
       // The upload starts with the `uploadIngress:issueTicket` action.
       expect(await uploadAvatarFile(photoFile(), refusing)).toEqual({
         success: false,
-        error: avatarSourceRefusal(outside),
+        error: AVATAR_SOURCE_REFUSAL,
       })
       expect(await uploadFile(photoFile(), refusing, 'article_image')).toEqual({
         success: false,
-        error: avatarSourceRefusal(outside),
+        error: AVATAR_SOURCE_REFUSAL,
       })
       expect(await uploadAvatarFile(photoFile(), failing)).toEqual({
         success: false,
@@ -404,6 +402,30 @@ test('the workspace renders the publish message in its one place, and the publis
     'setPublishFeedback(publishErrorFeedback(error))'
   )
   expect(publishCatch).not.toContain('toast')
+})
+
+test('the upload and photo paths never show an error message of their own', () => {
+  const root = join(__dirname, '../..')
+  for (const file of [
+    'components/editor/WritingMedia.tsx',
+    'components/editor/WritingImage.tsx',
+    'components/profile/ProfileAvatarEditor.tsx',
+    'lib/upload.ts',
+  ]) {
+    const source = readFileSync(join(root, file), 'utf8')
+    expect(source, file).not.toMatch(/\b(e|err|error|caught)\.message\b/)
+  }
+  // The workspace reads the raw message only to spot the title refusal.
+  const workspace = readFileSync(
+    join(root, 'components/editor/useWritingWorkspace.ts'),
+    'utf8'
+  )
+  expect(
+    [...workspace.matchAll(/\b(e|err|error|caught)\.message\b/g)].length
+  ).toBe(1)
+  expect(workspace).toContain(
+    "const raw = error instanceof Error ? error.message : ''"
+  )
 })
 
 test('convexErrorMessage reads string data and a data message, and nothing else', () => {

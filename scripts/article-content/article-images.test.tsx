@@ -106,13 +106,41 @@ describe('image sources (#615)', () => {
     }
   })
 
-  it('the refusal names the image and the hosts that are allowed', () => {
+  const allowed =
+    'Images must be uploaded, or come from img.youtube.com, images.unsplash.com, plus.unsplash.com or arweave.net.'
+
+  it('the refusal names the host only, and the hosts that are allowed', () => {
     expect(imageSourceRefusal(otherConvex)).toBe(
-      `This image cannot be used: ${otherConvex}. Images must be uploaded, or come from img.youtube.com, images.unsplash.com, plus.unsplash.com or arweave.net.`
+      `An image from someone-else-456.convex.cloud cannot be used. ${allowed}`
     )
-    expect(imageSourceRefusal(`https://x.example/${'a'.repeat(300)}`)).toMatch(
-      /^This image cannot be used: https:\/\/x\.example\/a+\.\.\.\. Images must/
+    // A long path, a query, a port and credentials do not reach the message.
+    expect(
+      imageSourceRefusal(
+        `https://user:pass@x.example:8443/${'a'.repeat(300)}?q=${'b'.repeat(50)}#c`
+      )
+    ).toBe(`An image from x.example cannot be used. ${allowed}`)
+    expect(imageSourceRefusal('  http://x.example/a.png  ')).toBe(
+      `An image from x.example cannot be used. ${allowed}`
     )
+  })
+
+  it('an address with no host to name gets a fixed phrase', () => {
+    for (const src of [
+      '/relative/picture.png',
+      'not an address',
+      'data:image/png;base64,iVBORw0KGgo=',
+      'blob:https://x.example/0b1c',
+      'javascript:alert(1)',
+      'ftp://x.example/a.png',
+      `https://${'a'.repeat(63)}.${'b'.repeat(63)}.${'c'.repeat(63)}.${'d'.repeat(63)}.example/a.png`,
+      // A listed host refused for its scheme or path.
+      'http://images.unsplash.com/photo-1',
+      'https://img.youtube.com/elsewhere/a.jpg',
+    ]) {
+      expect(imageSourceRefusal(src), src).toBe(
+        `That image address cannot be used. ${allowed}`
+      )
+    }
   })
 })
 

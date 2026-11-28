@@ -77,11 +77,14 @@ export function WritingImageView({
     try {
       const compressed = await compressImage(file, 1200, 0.8)
       const result = await uploadFile(compressed, convex, 'article_image')
-      if (!result.success || !result.url)
-        throw new Error(result.error || 'Could not replace image.')
+      if (!result.success || !result.url) {
+        // lib/upload gives a refusal's own words, or a plain line.
+        setError(result.error || 'Could not replace the image. Try again.')
+        return
+      }
       updateAttributes({ src: result.url, width: null, height: null })
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not replace image.')
+    } catch {
+      setError('Could not replace the image. Try again.')
     } finally {
       setBusy(false)
     }

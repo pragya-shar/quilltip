@@ -842,10 +842,7 @@ export function useWritingWorkspace() {
           return
         }
         console.error('Error uploading image:', err)
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Upload failed. Please try again.'
+        const message = 'The upload failed. Try again.'
         setBodyUploadAnnouncement({ type: 'error', text: message })
         toast.error(message)
       } finally {

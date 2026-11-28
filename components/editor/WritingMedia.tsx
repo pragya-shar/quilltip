@@ -85,14 +85,14 @@ export function WritingMedia({
         (p) => setProgress(p.percentage),
         controller.signal
       )
-      if (!result.success || !result.url)
-        throw new Error(result.error || 'Upload failed.')
+      if (!result.success || !result.url) {
+        // lib/upload gives a refusal's own words, or a plain line.
+        setError(result.error || 'The upload failed. Try again.')
+        return
+      }
       insertImage(result.url)
     } catch (e) {
-      if (!isAbortError(e))
-        setError(
-          e instanceof Error ? e.message : 'Could not upload this image.'
-        )
+      if (!isAbortError(e)) setError('Could not upload this image. Try again.')
     } finally {
       setBusy(false)
       abort.current = null

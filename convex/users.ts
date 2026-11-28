@@ -8,7 +8,7 @@ import { syncAvatarUploadReference } from './lib/uploadReferences'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import { profileBioError, profileNameError } from '../lib/profile/profileRules'
 import {
-  avatarSourceRefusal,
+  AVATAR_SOURCE_REFUSAL,
   isOwnStorageAddress,
 } from '../lib/security/imageSources'
 
@@ -92,7 +92,7 @@ export const updateProfile = mutation({
       args.avatar?.trim() &&
       !isOwnStorageAddress(args.avatar.trim(), process.env.CONVEX_CLOUD_URL)
     ) {
-      throw new ConvexError(avatarSourceRefusal(args.avatar.trim()))
+      throw new ConvexError(AVATAR_SOURCE_REFUSAL)
     }
 
     const updates: {

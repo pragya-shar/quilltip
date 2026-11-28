@@ -379,6 +379,11 @@ for (const width of [375, 1440]) {
       await expect(page.getByRole('alert')).toHaveText(
         imageSourceRefusal(OTHER_CONVEX_IMAGE)
       )
+      // The host only, never the address.
+      await expect(page.getByRole('alert')).toContainText(
+        'An image from someone-else-456.convex.cloud cannot be used.'
+      )
+      await expect(page.getByRole('alert')).not.toContainText('/api/storage/')
       await expect(page.getByRole('alert')).toContainText(
         'Images must be uploaded, or come from img.youtube.com, images.unsplash.com, plus.unsplash.com or arweave.net.'
       )
