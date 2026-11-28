@@ -81,6 +81,15 @@ export function TabTipAvailabilityNotice({
       )
     case 'tab-closing':
       return <PaymentNotice kind="tab-closing" action={walletAction} />
+    case 'tab-short':
+      return (
+        <PaymentNotice
+          kind="insufficient-balance"
+          source="tab"
+          short={availability.short}
+          action={{ href: manageHref, label: TAB_ACTIONS.topUp }}
+        />
+      )
     case 'key': {
       const d = availability.device
       switch (d.kind) {

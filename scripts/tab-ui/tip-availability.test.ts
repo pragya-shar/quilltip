@@ -43,6 +43,37 @@ describe('tabTipAvailability', () => {
       })
     ).toEqual({ kind: 'gate', gate: { kind: 'signed-out' } })
   })
+  it('reports a tab whose tips still settling exceed its balance (#617)', () => {
+    const short = { ...base, tab: { ...tab, available: '-300' } }
+    expect(tabTipAvailability(short)).toEqual({
+      kind: 'tab-short',
+      short: '300',
+    })
+    // Whatever this device holds: no quick tip is accepted until a top-up.
+    expect(tabTipAvailability({ ...short, device: undefined })).toEqual({
+      kind: 'tab-short',
+      short: '300',
+    })
+    expect(
+      tabTipAvailability({ ...short, device: { kind: 'gone', keyId: 1 } }).kind
+    ).toBe('tab-short')
+    // Closing and no tab still come first; nothing free is still ready.
+    expect(
+      tabTipAvailability({
+        ...short,
+        status: {
+          kind: 'closing',
+          unlockLedger: 1,
+          ready: false,
+          unlocksAround: null,
+          unlocksAt: null,
+        },
+      }).kind
+    ).toBe('tab-closing')
+    expect(
+      tabTipAvailability({ ...base, tab: { ...tab, available: '0' } })
+    ).toEqual({ kind: 'ready', keyId: 4, free: '0' })
+  })
   it('refuses articles with co-author splits first', () => {
     expect(
       tabTipAvailability({

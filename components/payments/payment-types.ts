@@ -75,6 +75,11 @@ export type PaymentNoticeProps = {
       source: 'tab'
       /** Confirmed balance minus tips still settling. */
       available?: BaseUnits
+      /**
+       * Tips still settling exceed the tab balance by this much (#617): the
+       * notice says the tab is short instead of "not enough".
+       */
+      short?: BaseUnits
       action?: NoticeAction
     }
   | { kind: 'session-key-none'; action?: NoticeAction }

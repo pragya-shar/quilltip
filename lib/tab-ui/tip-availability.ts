@@ -5,7 +5,7 @@
  */
 import type { WalletGateState } from '@/lib/payments/ui-state'
 import type { DeviceKeyView } from './key-plan'
-import type { TabStatusView } from './tab-status'
+import { tabShortBy, type TabStatusView } from './tab-status'
 import type { MyTab, TabSettlementView, WalletAccess } from './types'
 
 export type TabTipAvailability =
@@ -21,6 +21,11 @@ export type TabTipAvailability =
   | { kind: 'gate'; gate: WalletGateState }
   | { kind: 'tab-none' }
   | { kind: 'tab-closing' }
+  /**
+   * Tips already sent exceed the tab balance by `short`: no quick tip is
+   * accepted until the reader tops up.
+   */
+  | { kind: 'tab-short'; short: string }
   | { kind: 'key'; device: Exclude<DeviceKeyView, { kind: 'ready' }> }
 
 export type AvailabilityInput = {
@@ -64,6 +69,8 @@ export function tabTipAvailability(
     return { kind: 'tab-none' }
   }
   if (status.kind === 'closing') return { kind: 'tab-closing' }
+  const short = tabShortBy(tab)
+  if (short) return { kind: 'tab-short', short }
   if (!device) return { kind: 'loading' }
   if (device.kind !== 'ready') return { kind: 'key', device }
   return { kind: 'ready', keyId: device.keyId, free: tab.available }
