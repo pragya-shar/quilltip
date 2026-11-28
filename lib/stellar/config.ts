@@ -1,56 +1,5 @@
 import { pickRpcUrl, resolveStellarNetwork } from './network'
 import { assertClientNetwork } from './network-guard'
-import { TESTNET_FALLBACK_XLM_TO_USD_RATE } from './price-fallback'
-
-// Stellar address pattern (G... for accounts, C... for contracts). Checked
-// with a plain pattern: this module loads on reader pages, and a schema
-// library would add its full weight to them for three optional values.
-const STELLAR_ADDRESS_PATTERN = /^[GC][A-Z0-9]{55}$/
-
-// Validate environment variables at module load
-function validateStellarEnv() {
-  const env = {
-    NEXT_PUBLIC_TIPPING_CONTRACT_ID:
-      process.env.NEXT_PUBLIC_TIPPING_CONTRACT_ID || undefined,
-    NEXT_PUBLIC_NFT_CONTRACT_ID:
-      process.env.NEXT_PUBLIC_NFT_CONTRACT_ID || undefined,
-    NEXT_PUBLIC_PLATFORM_ADDRESS:
-      process.env.NEXT_PUBLIC_PLATFORM_ADDRESS || undefined,
-  }
-
-  const invalidKeys = Object.entries(env)
-    .filter(
-      ([, value]) => value !== undefined && !STELLAR_ADDRESS_PATTERN.test(value)
-    )
-    .map(([key]) => key)
-
-  if (invalidKeys.length > 0) {
-    const invalid = invalidKeys.join(', ')
-    const message = `[Stellar Config] Invalid environment variables: ${invalid}`
-    if (process.env.NODE_ENV === 'production') {
-      throw new Error(message)
-    } else if (typeof window !== 'undefined') {
-      console.warn(`${message}. Some features may not work.`)
-    }
-  }
-
-  // Warn about missing optional vars in development only (avoid production console noise)
-  if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production') {
-    if (!env.NEXT_PUBLIC_TIPPING_CONTRACT_ID) {
-      console.warn(
-        '[Stellar Config] NEXT_PUBLIC_TIPPING_CONTRACT_ID is not set. Tipping will not work.'
-      )
-    }
-    if (!env.NEXT_PUBLIC_PLATFORM_ADDRESS) {
-      console.warn(
-        '[Stellar Config] NEXT_PUBLIC_PLATFORM_ADDRESS is not set. Platform fee collection disabled.'
-      )
-    }
-  }
-}
-
-// Run validation
-validateStellarEnv()
 
 // Next.js inlines NEXT_PUBLIC_* values only for literal property access, so
 // each value is read explicitly here. Invalid combinations throw at load.
@@ -74,15 +23,6 @@ assertClientNetwork({
   convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL,
 })
 
-// The v2 Article NFT has its own variable. If both name the same contract,
-// the v1 NFT code stays unconfigured instead of calling the v2 contract.
-const V1_NFT_CONTRACT_ID = process.env.NEXT_PUBLIC_NFT_CONTRACT_ID || ''
-const v1NftContractId =
-  V1_NFT_CONTRACT_ID &&
-  V1_NFT_CONTRACT_ID === process.env.NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID?.trim()
-    ? ''
-    : V1_NFT_CONTRACT_ID
-
 export const STELLAR_CONFIG = {
   // Network configuration (see lib/stellar/network.ts)
   NETWORK: STELLAR_NETWORK_CONFIG.network,
@@ -90,30 +30,4 @@ export const STELLAR_CONFIG = {
   SOROBAN_RPC_URL: STELLAR_NETWORK_CONFIG.rpcUrl,
   NETWORK_PASSPHRASE: STELLAR_NETWORK_CONFIG.passphrase,
   WALLET_NETWORK: STELLAR_NETWORK_CONFIG.walletNetwork,
-
-  // Contract addresses (2 contracts - Unified Tipping + NFT)
-  // TIPPING_CONTRACT_ID handles BOTH article AND highlight tipping
-  TIPPING_CONTRACT_ID: process.env.NEXT_PUBLIC_TIPPING_CONTRACT_ID || '',
-  NFT_CONTRACT_ID: v1NftContractId,
-
-  // Platform settings
-  PLATFORM_ADDRESS: process.env.NEXT_PUBLIC_PLATFORM_ADDRESS || '',
-  PLATFORM_FEE_BPS: 250, // 2.5% platform fee
-
-  // Tipping settings
-  MINIMUM_TIP_STROOPS: 420000, // ~0.042 XLM (approximately 1 cent at $0.24/XLM)
-  MINIMUM_TIP_CENTS: 1, // 1 cent minimum
-
-  // NFT settings
-  NFT_TIP_THRESHOLD_XLM: 10, // 10 XLM minimum tips to mint NFT
-  NFT_TIP_THRESHOLD_STROOPS: 100_000_000, // 10 XLM in stroops
-  NFT_METADATA_BASE_URL:
-    process.env.NEXT_PUBLIC_NFT_METADATA_URL ||
-    'https://quilltip.me/api/nft/metadata',
-  NFT_ROYALTY_BPS: 500, // 5% royalty in basis points
-
-  // Fallback conversion rate, used only on TESTNET when all price oracles
-  // fail. On any other network the client refuses to quote instead.
-  // Updated: Jan 2026 - Conservative rate based on recent market (~$0.21-0.24)
-  XLM_TO_USD_RATE: TESTNET_FALLBACK_XLM_TO_USD_RATE,
 } as const

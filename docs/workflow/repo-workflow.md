@@ -64,8 +64,7 @@ an explicitly selected running app; see [setup](../SETUP.md). For Rust changes,
 run the affected contract check:
 
 ```bash
-cargo check --locked --target wasm32v1-none --manifest-path contracts/tipping/Cargo.toml
-cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nft/Cargo.toml
+cd contracts && cargo check --workspace --locked --target wasm32v1-none
 ```
 
 [CI](../../.github/workflows/ci.yml) runs on pushes to `main` and PRs into `main`.

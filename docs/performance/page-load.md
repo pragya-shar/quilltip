@@ -890,14 +890,21 @@ after the build. It runs `next experimental-analyze --output`, then for `/`,
    | -------------------- | -----: | -------: |
    | `/`                  | 211 KB | 208.7 KB |
    | `/login`             | 202 KB | 199.2 KB |
-   | `/articles`          | 216 KB | 213.8 KB |
-   | `/[username]/[slug]` | 219 KB | 216.7 KB |
+   | `/articles`          | 217 KB | 216.4 KB |
+   | `/[username]/[slug]` | 220 KB | 219.4 KB |
 
    Each budget is the measured size plus about 2 KB (CI measures about
    0.2 KB more than a local build), so removing a lazy boundary (the mobile
    menu, the account menu) or a few KB of growth fails; raise a budget in the
    change that needs it. A size failure lists the route's ten largest
    first-load modules.
+
+   The two article routes were raised by 1 KB when the v1 payment code was
+   removed (#451). Their module bytes fell (333 B on the article page), but
+   the bundler split the shared code into one more first-load file with the
+   same chunk-group membership; the overage is that file's overhead. CI on
+   the base: 215.7 and 218.8 KB, 15 and 16 files. After the removal: 216.4
+   and 219.4 KB, 16 and 17 files.
 
 2. Lists the source modules in the route's first load from the analyzer's
    data (the bootstrap and render chunk groups; on-demand chunks are left

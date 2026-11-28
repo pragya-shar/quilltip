@@ -23,29 +23,8 @@ export function testnetBadgeLabel(): string {
     : 'Testnet — practice funds only'
 }
 
-export function tipSpeedNote(): string {
-  const network = networkLabelLowercase()
-  return `Tips typically confirm in a few seconds on Stellar ${network} with near-zero fees.`
-}
-
-export function tipDialogFooterNote(): string {
-  if (getNetwork() === 'MAINNET') {
-    return 'Tips confirm in seconds on Stellar mainnet.'
-  }
-  return 'Tips confirm in seconds. Practice funds on testnet.'
-}
-
-export function tipFlowShortNote(): string {
-  const network = networkLabelLowercase()
-  if (getNetwork() === 'MAINNET') {
-    return `Fast confirmation on Stellar ${network}. You sign in your wallet → the network confirms → your dashboard updates.`
-  }
-  return `Fast testnet confirmation. You sign in your wallet → the network confirms → your dashboard updates.`
-}
-
 // Backwards-compatible exports (existing imports across the app).
 export const TESTNET_PRACTICE_NOTE = practiceFundsNote()
-export const TESTNET_TIP_SPEED_NOTE = tipSpeedNote()
 
 export const MAINNET_COMING_NOTE =
   'We are working toward a mainnet launch where tips will use real funds. Until then, everything on Quilltip is testnet practice.'

@@ -1,11 +1,6 @@
 // Tip limits (cents)
 export const TIP_MIN_CENTS = 1
-export const TIP_MIN_USD = TIP_MIN_CENTS / 100
 export const TIP_MAX_CENTS = 10_000
-export const TIP_MAX_USD = TIP_MAX_CENTS / 100
-
-export const TIP_XLM_PRESETS = [1, 2, 5] as const
-export type TipXlmPreset = (typeof TIP_XLM_PRESETS)[number]
 
 // Editor content styling (prose class for Tiptap)
 export const EDITOR_PROSE_CLASS =

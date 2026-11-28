@@ -20,11 +20,6 @@ export interface ArticleNftV2Props {
   authorId: Id<'users'>
   currentUserId?: Id<'users'>
   embedded?: boolean
-  /**
-   * The v1 panel, for a deployment with v2 off or no NFT contract set. Without
-   * it, that state shows `NftUnavailableView`.
-   */
-  renderV1?: () => React.ReactNode
 }
 
 /**
@@ -38,7 +33,6 @@ export default function ArticleNftV2({
   authorId,
   currentUserId,
   embedded = false,
-  renderV1,
 }: ArticleNftV2Props) {
   const nft = useArticleNftV2({ articleId, authorId, currentUserId })
   const headingId = useId()
@@ -50,12 +44,8 @@ export default function ArticleNftV2({
     // The same placeholder as the lazy boundary, so nothing jumps.
     return <NftSidebarSkeleton />
   }
-  if (panel.kind === 'v1') {
-    return renderV1 ? (
-      <>{renderV1()}</>
-    ) : (
-      <NftUnavailableView embedded={embedded} />
-    )
+  if (panel.kind === 'unavailable') {
+    return <NftUnavailableView embedded={embedded} />
   }
   // An unpublished or missing article shows no NFT.
   if (panel.kind === 'hidden') return null

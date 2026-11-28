@@ -6,7 +6,6 @@ import { rememberResetEmail } from '@/lib/auth/passwordReset'
 import { useAuthActions } from '@convex-dev/auth/react'
 import { useRouter } from 'next/navigation'
 import { getLoginCopy } from '@/lib/copy/auth-intent'
-import { shouldUseFullPageAuthNavigation } from '@/lib/auth/postAuthNavigation'
 import { useForm, type Resolver } from 'react-hook-form'
 import type { LoginFormData } from '@/lib/validations/auth'
 import { ArrowRight } from '@/components/landing/LandingIcons'
@@ -85,13 +84,6 @@ export default function LoginForm({
     submitting.current = true
     setIsLoading(true)
     setError(null)
-    // Loaded on submit with the validation code. If it cannot load, sign-in
-    // still works; only a pending tip resumes without a full page load.
-    const readPendingTipIntent =
-      await import('@/lib/tip/pendingTipIntent').then(
-        (mod) => mod.readPendingTipIntent,
-        () => () => null
-      )
 
     try {
       await signIn('password', {
@@ -101,14 +93,6 @@ export default function LoginForm({
       })
 
       setSuccess(true)
-      // Full navigation for tip-resume flows so auth + URL params are stable
-      // before the article page mounts (avoids inconsistent client-side resume).
-      const pendingTipIntent = readPendingTipIntent()
-      if (shouldUseFullPageAuthNavigation(postLoginPath, pendingTipIntent)) {
-        window.location.assign(postLoginPath)
-        return
-      }
-
       router.replace(postLoginPath)
     } catch {
       submitting.current = false

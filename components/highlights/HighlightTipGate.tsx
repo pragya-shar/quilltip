@@ -7,9 +7,9 @@ import type { Id } from '@/convex/_generated/dataModel'
 import { TipsUnavailableNote } from '@/components/tipping/TipsUnavailableNote'
 
 /**
- * Shows the passage tip action, or a note while v1 tips are paused before
- * payments v2 is on (`getArticleTipAvailability` returns `paused`). Other
- * states render the action unchanged.
+ * Shows the passage tip action, or the paused note while no payment flow can
+ * take a tip (`getArticleTipAvailability` returns `paused` or `disabled`).
+ * Other states render the action; the v2 button handles them itself.
  */
 export function HighlightTipGate({
   articleId,
@@ -21,7 +21,11 @@ export function HighlightTipGate({
   const availability = useQuery(api.chain.articles.getArticleTipAvailability, {
     articleId,
   })
-  if (availability?.status === 'paused') {
+  // `disabled`: payments v2 is off, so no flow can take the tip.
+  if (
+    availability?.status === 'paused' ||
+    availability?.status === 'disabled'
+  ) {
     return <TipsUnavailableNote reason="paused" />
   }
   return <>{children}</>

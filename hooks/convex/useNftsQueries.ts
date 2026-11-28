@@ -2,10 +2,6 @@ import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/types/convex'
 
-export function useNFTByArticle(articleId: Id<'articles'> | undefined) {
-  return useQuery(api.nfts.getNFTByArticle, articleId ? { articleId } : 'skip')
-}
-
 export type NFTsByOwnerPaginatedArgs = {
   ownerId: Id<'users'>
   page?: number
