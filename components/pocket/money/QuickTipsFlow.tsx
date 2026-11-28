@@ -27,7 +27,6 @@ import {
 import {
   NOTHING_SET_UP,
   QUICK_TIPS_DEFINITION,
-  QUICK_TIPS_FOOT,
   LEDGER_FINE_PRINT,
   TURN_OFF_LATER,
   feeRow,
@@ -406,7 +405,6 @@ export function QuickTipsFlow({
       <div ref={message} tabIndex={-1} className="qt-add__content">
         {body}
       </div>
-      <p className="qt-add__foot">{QUICK_TIPS_FOOT}</p>
     </div>
   )
 }

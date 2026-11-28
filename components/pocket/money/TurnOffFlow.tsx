@@ -17,7 +17,6 @@ import {
   type WalletRow,
 } from '@/lib/addMoney/services'
 import {
-  QUICK_TIPS_FOOT,
   TURN_OFF_BODY,
   TURN_OFF_GAP,
   TURN_OFF_UNCONFIRMED,
@@ -319,7 +318,6 @@ export function TurnOffFlow({
       <div ref={message} tabIndex={-1} className="qt-add__content">
         {body}
       </div>
-      <p className="qt-add__foot">{QUICK_TIPS_FOOT}</p>
     </div>
   )
 }

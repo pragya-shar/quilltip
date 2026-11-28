@@ -16,11 +16,9 @@ export function networkName(
   return 'Stellar testnet'
 }
 
-/** The foot of every Add money state. */
+/** The one testnet line, at the foot of the sheet where money comes in. */
 export const TESTNET_FOOT =
-  'Stellar testnet. Test XLM only. Do not send real money here.'
-/** The foot of the quick tips and turn off sheets. */
-export const QUICK_TIPS_FOOT = 'Stellar testnet. Test XLM only.'
+  'Quilltip runs on Stellar testnet. Tips are practice money.'
 
 /** The one definition, in these words wherever the choice appears. */
 export const QUICK_TIPS_DEFINITION =

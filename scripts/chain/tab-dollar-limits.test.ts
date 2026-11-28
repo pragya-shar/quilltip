@@ -4,10 +4,11 @@
  * tip fits. The XLM settings stay only as guards against a broken price.
  */
 import { convexTest } from 'convex-test'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api } from '../../convex/_generated/api'
 import {
+  LEDGER,
   READER,
   VALID_UNTIL,
   XLM,
@@ -18,12 +19,15 @@ import {
   modules,
   prepare,
   seed,
+  setLedger,
   submit,
   tip,
   withTabEnv,
 } from './tab-kit'
 
 withTabEnv()
+
+const DAY_LEDGERS = 17_280
 
 async function setPrice(
   t: Awaited<ReturnType<typeof at>>['t'],
@@ -144,5 +148,27 @@ describe('limits a reader feels are in dollars, at any price', () => {
     expect(await errorCode(prepare(t, s, { cents: 10 }))).toBe(
       'TAB_DAILY_LIMIT'
     )
+  })
+
+  it('starts each UTC day at zero, in cents as in base units', async () => {
+    vi.setSystemTime(Date.UTC(2026, 11, 2, 23, 50))
+    const { t, s } = await at(0.12)
+    for (let i = 0; i < 4; i++) await tip(t, s, { cents: 500 })
+    expect(await errorCode(prepare(t, s, { cents: 500 }))).toBe(
+      'TAB_DAILY_LIMIT'
+    )
+    // A new UTC day: the day's total starts again.
+    vi.setSystemTime(Date.UTC(2026, 11, 3, 0, 0, 30))
+    await setLedger(t, LEDGER + DAY_LEDGERS)
+    await t.run(async (ctx) => {
+      const p = await ctx.db.query('xlmPriceCache').first()
+      await ctx.db.patch(p!._id, { fetchedAt: Date.now() })
+    })
+    await tip(t, s, { cents: 500 })
+    const account = await t.run((ctx) => ctx.db.query('tabAccounts').first())
+    expect(account).toMatchObject({
+      acceptedDay: '2026-12-03',
+      acceptedTodayCents: 500,
+    })
   })
 })
