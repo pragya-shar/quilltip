@@ -25,9 +25,8 @@ import { internalAction, internalMutation, query } from '../_generated/server'
 import { readChainEnv, type ChainEnv } from '../lib/chain/env'
 import { createBackendRpcClient, type RpcClient } from '../lib/chain/rpc'
 import { bytesToHex } from '../lib/chain/ids'
-import { loadAcceptor, parseAcceptorSeed } from '../lib/chain/voucher'
+import { acceptorPublicKeyHex, loadAcceptor } from '../lib/chain/voucher'
 import { assertBackendTestnet } from '../lib/networkGuard'
-import { publicKeyOf } from '../../lib/stellar/v2/tab/encoding'
 
 /** Any valid account works as the source of a view simulation. */
 const VIEW_SOURCE = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
@@ -339,7 +338,7 @@ function acceptorErrorMessage(error: unknown): string {
 /**
  * Check of the saved acceptor secret before v2 is switched on (cutover
  * runbook, stage 3). It derives the public key from `TAB_ACCEPTOR_SECRET`
- * exactly as acceptance does (`parseAcceptorSeed`), reads the Tab contract's
+ * exactly as acceptance does (`acceptorPublicKeyHex`), reads the Tab contract's
  * `acceptor_keys` now, and compares them. It works with settlement on or
  * off. It returns the public key and the listed keys only, never the secret,
  * and writes nothing.
@@ -379,7 +378,7 @@ export const checkAcceptor = internalAction({
     }
     let publicKey: string
     try {
-      publicKey = bytesToHex(publicKeyOf(parseAcceptorSeed(secret)))
+      publicKey = acceptorPublicKeyHex(secret)
     } catch (error) {
       return {
         status: 'malformed' as const,

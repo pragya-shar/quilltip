@@ -12,9 +12,9 @@
  * - the Tab contract is not paused;
  * - `TAB_SETTLER_SECRET` parses as `settlerKeypair` parses it, and its
  *   address holds the Tab's `settler` role;
- * - `TAB_ACCEPTOR_SECRET` parses as acceptance parses it
- *   (`parseAcceptorSeed`), and its public key is one of the Tab's acceptor
- *   keys.
+ * - `TAB_ACCEPTOR_SECRET` parses as acceptance parses it, and its public
+ *   key (`acceptorPublicKeyHex`, the derivation acceptance uses) is one of
+ *   the Tab's acceptor keys.
  *
  * It does not include `CHAIN_V2_ENABLED`, so it can be read before the
  * switch-on; tab features need both.
@@ -32,10 +32,8 @@ import { ConvexError } from 'convex/values'
 import { Keypair, StrKey } from '@stellar/stellar-sdk'
 import type { Doc } from '../../_generated/dataModel'
 import type { QueryCtx } from '../../_generated/server'
-import { publicKeyOf } from '../../../lib/stellar/v2/tab/encoding'
 import { readChainEnv } from './env'
-import { bytesToHex } from './ids'
-import { parseAcceptorSeed } from './voucher'
+import { acceptorPublicKeyHex } from './voucher'
 
 type EnvLike = Record<string, string | undefined>
 
@@ -87,7 +85,7 @@ export function acceptorKeyOf(secret: string | undefined): SecretState {
   try {
     return {
       status: 'ok',
-      value: bytesToHex(publicKeyOf(parseAcceptorSeed(secret))),
+      value: acceptorPublicKeyHex(secret),
     }
   } catch {
     return { status: 'malformed' }
