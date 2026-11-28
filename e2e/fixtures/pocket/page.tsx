@@ -214,9 +214,9 @@ const source: PocketSource = {
   },
   useAddMoney: () => {
     const act = useFakeAct(
-      'Add $5',
-      'Adding $5',
-      '$5 added to your balance',
+      'Add $10',
+      'Adding $10',
+      '$10 added to your balance',
       actKind === 'add-fail'
     )
     return actKind === 'add' || actKind === 'add-fail' ? act : null

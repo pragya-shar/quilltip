@@ -627,11 +627,11 @@ test.describe('receipts and money sheets', () => {
     await add.focus()
     await press(add)
     const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await press(sheet.getByRole('button', { name: 'Add $5' }))
-    await expect.poll(async () => (await focused(page)).text).toBe('Adding $5')
+    await press(sheet.getByRole('button', { name: 'Add $10' }))
+    await expect.poll(async () => (await focused(page)).text).toBe('Adding $10')
     await expect
       .poll(async () => (await focused(page)).text)
-      .toBe('$5 added to your balance')
+      .toBe('$10 added to your balance')
     await press(sheet.getByRole('button', { name: 'Done' }))
     await expect(sheet).toBeHidden()
     await expect.poll(async () => (await focused(page)).text).toBe('Add money')
@@ -684,7 +684,7 @@ test.describe('receipts and money sheets', () => {
     const add = page.getByRole('button', { name: 'Add money' })
     await press(add)
     const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await press(sheet.getByRole('button', { name: 'Add $5' }))
+    await press(sheet.getByRole('button', { name: 'Add $10' }))
     const done = sheet.getByRole('button', { name: 'Done' })
     await expect(done).toBeVisible()
     const beforeDone = await under()
@@ -703,12 +703,12 @@ test.describe('receipts and money sheets', () => {
     await page.goto('/pocket?scenario=ready&act=add-fail')
     await press(page.getByRole('button', { name: 'Add money' }))
     const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await press(sheet.getByRole('button', { name: 'Add $5' }))
+    await press(sheet.getByRole('button', { name: 'Add $10' }))
     await expect
       .poll(async () => (await focused(page)).text)
       .toBe('That did not go through. Nothing was added.')
     await press(sheet.getByRole('button', { name: 'Try again' }))
-    await expect(sheet.getByRole('button', { name: 'Add $5' })).toBeVisible()
+    await expect(sheet.getByRole('button', { name: 'Add $10' })).toBeVisible()
   })
 
   test('the Withdraw sheet opened with no way to withdraw says what has arrived', async ({

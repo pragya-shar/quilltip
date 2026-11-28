@@ -10,8 +10,9 @@ import type { PerfRoutes } from './types'
  */
 export const routes: PerfRoutes = {
   firstLoad: [
-    // Measured 184.5 KB gzip (the shell alone is about 181): the first CI
-    // measurement plus 2 KB, within the signed-in ceiling of 195.
+    // Measured 179.9 KB gzip: the page server-renders a placeholder and
+    // imports the balance after hydration. The budget keeps room for the
+    // shell's own growth, within the signed-in ceiling of 195.
     { route: '/pocket', budgetKb: 187, access: 'signed-in' },
   ],
   pageLoad: [

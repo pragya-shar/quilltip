@@ -20,15 +20,15 @@ import type { ActivityView, BalanceView, EarningsView } from './types'
  */
 export type MoneyActPhase =
   | { phase: 'idle' }
-  /** Started; nothing is final. `status`: "Adding $5". */
+  /** Started; nothing is final. `status`: "Adding $10". */
   | { phase: 'working'; status: string }
-  /** The server confirmed it. `result`: "$5 added to your balance". */
+  /** The server confirmed it. `result`: "$10 added to your balance". */
   | { phase: 'done'; result: string }
   /** It did not happen. `reason` says what was and was not moved. */
   | { phase: 'failed'; reason: string }
 
 export type MoneyAct = {
-  /** The button, stating what it does: "Add $5". */
+  /** The button, stating what it does: "Add $10". */
   label: string
   state: MoneyActPhase
   start(): void
