@@ -25,7 +25,6 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   renameSync,
   rmSync,
@@ -45,6 +44,7 @@ import {
   stopWithThisProcess,
   type StartOptions,
 } from '../perf/production-app'
+import { scrubFailureNotes } from './scrub-failure-notes'
 
 const repoRoot = resolve(__dirname, '../..')
 const DEPLOYMENT = 'anonymous:anonymous-agent'
@@ -221,23 +221,6 @@ export function startApp(
   })
 }
 
-/**
- * Removes `secret` from the failure notes Playwright writes (each failed
- * test's error-context.md under test-results). Their page snapshot lists the
- * value of every input, a password input too, and CI uploads the notes.
- */
-export function redactFailureNotes(dir: string, secret: string) {
-  if (!secret || !existsSync(dir)) return
-  const files = readdirSync(dir, { recursive: true, encoding: 'utf8' })
-  for (const file of files) {
-    if (!file.endsWith('error-context.md')) continue
-    const path = join(dir, file)
-    const text = readFileSync(path, 'utf8')
-    if (text.includes(secret))
-      writeFileSync(path, text.replaceAll(secret, '[this run’s password]'))
-  }
-}
-
 /** A new RS256 key for Convex Auth, as scripts/generateKeys.mjs writes it. */
 async function signingKey(): Promise<{ privateKey: string; jwks: string }> {
   const keys = await crypto.subtle.generateKey(
@@ -360,6 +343,12 @@ async function main(): Promise<number> {
 
     // After the key: signing up issues a token signed with it.
     const account = await createAccount(convexUrl!)
+    const secrets = { password: account.password, privateKey }
+    // For CI's own scrub of the failure notes, which runs even when this
+    // process is stopped before its scrub below (scrub-failure-notes.ts).
+    const secretsFile = process.env.AUTH_E2E_SECRETS_FILE
+    if (secretsFile)
+      writeFileSync(secretsFile, JSON.stringify(secrets), { mode: 0o600 })
 
     const appVars = {
       NEXT_PUBLIC_CONVEX_URL: convexUrl!,
@@ -414,7 +403,7 @@ async function main(): Promise<number> {
         },
       }
     )
-    redactFailureNotes(resolve(repoRoot, 'test-results'), account.password)
+    scrubFailureNotes(resolve(repoRoot, 'test-results'), secrets)
     return result.status ?? 1
   } finally {
     for (const child of children.reverse()) child.kill()
