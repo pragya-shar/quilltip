@@ -18,6 +18,7 @@ import {
   installVarialEmulator,
   type VarialMode,
 } from './helpers/varialEmulator'
+import { expectNoticeTookFocus } from './helpers/noticeFocus'
 
 /**
  * The v2 article NFT (mint at the threshold and transfer) through the real
@@ -1024,7 +1025,11 @@ test.describe('transfer', () => {
 
   test('works with the keyboard alone, with focus where it belongs', async ({
     page,
+    browserName,
   }) => {
+    // Safari's Tab skips buttons with default settings; Option+Tab reaches
+    // them.
+    const next = browserName === 'webkit' ? 'Alt+Tab' : 'Tab'
     await open(page, 'state=owner')
     const trigger = panel(page).getByRole('button', { name: 'Transfer NFT' })
     await trigger.focus()
@@ -1037,12 +1042,12 @@ test.describe('transfer', () => {
       dialog.getByRole('heading', { name: 'Check the recipient' })
     ).toBeFocused()
     // Tab reaches Copy, Change recipient, then Transfer NFT.
-    await page.keyboard.press('Tab')
+    await page.keyboard.press(next)
     await expect(
       dialog.getByRole('button', { name: 'Copy address' })
     ).toBeFocused()
-    await page.keyboard.press('Tab')
-    await page.keyboard.press('Tab')
+    await page.keyboard.press(next)
+    await page.keyboard.press(next)
     await expect(
       dialog.getByRole('button', { name: 'Transfer NFT' })
     ).toBeFocused()
@@ -1050,6 +1055,34 @@ test.describe('transfer', () => {
     await expect(dialog).toHaveCount(0)
     await expect(trigger).toBeFocused()
   })
+})
+
+test.describe('refusal focus', () => {
+  for (const how of ['click', 'Enter'] as const) {
+    test(`a refused mint takes focus on the refusal title (${how})`, async ({
+      page,
+    }) => {
+      await open(
+        page,
+        'state=author-eligible&server=prepare-error:ALREADY_MINTED'
+      )
+      const button = panel(page).getByRole('button', {
+        name: 'Mint article NFT',
+      })
+      await expect(button).toBeVisible()
+      if (how === 'click') await button.click()
+      else {
+        await button.focus()
+        await page.keyboard.press('Enter')
+      }
+      await chooseVarialIfAsked(page)
+      await expectNoticeTookFocus(
+        page,
+        panel(page),
+        'This article’s NFT is already minted'
+      )
+    })
+  }
 })
 
 test.describe('on a touch screen', () => {

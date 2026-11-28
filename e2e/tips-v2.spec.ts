@@ -12,6 +12,11 @@ import {
   type VarialMode,
 } from './helpers/varialEmulator'
 import {
+  expectNoticeAnnounced,
+  expectNoticeQuiet,
+  expectNoticeTookFocus,
+} from './helpers/noticeFocus'
+import {
   expectEscapeReturnsTo,
   expectFocusWraps,
   expectOpensOnTitle,
@@ -134,7 +139,7 @@ async function shot(page: Page, id: string, width: number) {
 const seen = (scope: Locator, text: string | RegExp) =>
   scope.getByText(text).and(scope.page().locator(':not(.sr-only)'))
 
-/** A refusal: the panel the reader sees, announced once in its region. */
+/** A refusal: the panel the reader sees, read once through its focused title. */
 async function expectRefusal(scope: Locator, title: string, detail: string) {
   const notice = scope.locator('.pay-notice[data-state="refused"]')
   const panel = notice.locator('.pay-panel')
@@ -146,7 +151,13 @@ async function expectRefusal(scope: Locator, title: string, detail: string) {
   await expect(note).toBeVisible()
   // A visually hidden detail (1 px, clipped) also counts as visible.
   expect((await note.boundingBox())!.height).toBeGreaterThan(8)
-  await expect(notice.getByRole('status')).toHaveText(`${title}. ${detail}`)
+  // The refusal replaced the progress that had focus, so its title takes
+  // focus and reads the notice, described by its detail; the live region
+  // stays empty, so it is read once (#610).
+  await expect(heading).toBeFocused()
+  await expect(heading).toHaveAccessibleDescription(detail)
+  await scope.page().waitForTimeout(400)
+  await expect(notice.getByRole('status')).toHaveText('')
 }
 
 /**
@@ -1285,10 +1296,12 @@ test.describe('dialog focus', () => {
       })
     ).toBeVisible()
     await expect(picker).toHaveCount(0)
-    // The refusal replaces the progress, and focus falls to the dialog, as
-    // it does without the picker. The picker's close leaves it there.
+    // The refusal replaces the progress and its title takes focus (#610).
+    // The picker's close leaves it there.
     await page.waitForTimeout(400)
-    await expect(dialog).toBeFocused()
+    await expect(
+      dialog.getByRole('heading', { name: 'Too many tips in a short time' })
+    ).toBeFocused()
   })
 
   test('the passage dialog returns focus to the passage button', async ({
@@ -1344,6 +1357,78 @@ test.describe('dialog focus', () => {
     await expect(picker.getByRole('button', { name: /^Varial/ })).toBeFocused()
     await expectFocusWraps(page, picker)
     await expectEscapeReturnsTo(page, picker, connectButton)
+  })
+})
+
+const RATE_TITLE = 'Too many tips in a short time'
+
+test.describe('refusal focus', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+
+  for (const how of ['click', 'Enter'] as const) {
+    const press = async (page: Page, button: Locator) => {
+      await expect(button).toBeVisible()
+      if (how === 'click') return button.click()
+      await button.focus()
+      await page.keyboard.press('Enter')
+    }
+
+    test(`a refused tip takes focus on the refusal title (${how})`, async ({
+      page,
+    }) => {
+      await open(page, 'prepare=rate')
+      const dialog = await openArticleTip(page)
+      await connect(dialog)
+      await press(page, dialog.getByRole('button', { name: 'Send tip' }))
+      await expectNoticeTookFocus(page, dialog, RATE_TITLE)
+    })
+
+    test(`a refused passage tip takes focus on the refusal title (${how})`, async ({
+      page,
+    }) => {
+      await open(page, 'prepare=rate')
+      await page.getByRole('button', { name: 'Tip passage' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Tip this passage' })
+      await connect(dialog)
+      await press(page, dialog.getByRole('button', { name: 'Send tip' }))
+      await expectNoticeTookFocus(page, dialog, RATE_TITLE)
+    })
+
+    test(`a refused basket takes focus on the refusal title (${how})`, async ({
+      page,
+    }) => {
+      await open(page, 'basket=2&prepare=rate')
+      await page.getByRole('button', { name: /Tip basket/ }).click()
+      const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+      await connect(sheet)
+      await press(page, sheet.getByRole('button', { name: /^Send 2 tips/ }))
+      await expectNoticeTookFocus(page, sheet, RATE_TITLE)
+    })
+  }
+
+  test('a refusal that arrives after the reader moved on is read, not focused', async ({
+    page,
+  }) => {
+    await open(page, 'prepare=rate&prepareDelay=1500')
+    const dialog = await openArticleTip(page)
+    await connect(dialog)
+    await dialog.getByRole('button', { name: 'Send tip' }).click()
+    const close = dialog.getByRole('button', { name: 'Close' })
+    await close.focus()
+    await expectNoticeAnnounced(dialog, RATE_TITLE)
+    await expect(close).toBeFocused()
+  })
+
+  test('a notice that is there when the dialog opens is not a heading and takes no focus', async ({
+    page,
+  }) => {
+    await open(page, 'article=price')
+    const dialog = await openArticleTip(page)
+    await expectOpensOnTitle(dialog)
+    // A standing condition of the article, shown with the form: not the
+    // result of pressing anything.
+    await connect(dialog)
+    await expectNoticeQuiet(page, dialog, 'No XLM price right now')
   })
 })
 

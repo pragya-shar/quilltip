@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { SCENARIOS } from './fixtures/tab-ui/scenarios'
 import { contrastScan, surfaceColours } from './helpers/lightSurface'
+import { expectNoticeTookFocus } from './helpers/noticeFocus'
 
 /**
  * The tab screens (issue #449) in every state, against the fixture page on
@@ -897,4 +898,42 @@ test('collect: wallet refusal and waiting for confirmation', async ({
   await page.getByRole('button', { name: /^Collect / }).click()
   await expect(visibleText(page, /Waiting for confirmation/)).toBeVisible()
   await shot(page, 'collect-checking')
+})
+
+test.describe('refusal focus', () => {
+  for (const how of ['click', 'Enter'] as const) {
+    const press = async (page: Page, name: RegExp) => {
+      const button = page.getByRole('button', { name })
+      await expect(button).toBeVisible()
+      if (how === 'click') return button.click()
+      await button.focus()
+      await page.keyboard.press('Enter')
+    }
+
+    test(`a refused quick tip takes focus on the refusal title (${how})`, async ({
+      page,
+    }) => {
+      await open(page, 'tip-over-balance')
+      await press(page, /from tab$/)
+      await expectNoticeTookFocus(
+        page,
+        page.locator('.tab-ui'),
+        'Not enough in your tab'
+      )
+    })
+
+    test(`a refused top-up takes focus on the refusal title (${how})`, async ({
+      page,
+    }) => {
+      await open(page, 'op-paused')
+      await page.getByRole('button', { name: 'Top up', exact: true }).click()
+      await page.getByLabel('Amount in XLM').fill('2')
+      await press(page, /^Add /)
+      await expectNoticeTookFocus(
+        page,
+        page.locator('.tab-ui'),
+        'Payments are paused'
+      )
+    })
+  }
 })
