@@ -369,3 +369,32 @@ test('a sheet that goes while the page moves focus leaves focus there', async ({
     page.getByRole('button', { name: 'Where the page went' })
   ).toBeFocused()
 })
+
+test('while auth loads with a held token, the Balance item opens the balance', async ({
+  page,
+}) => {
+  await page.goto('/shelf?balance=auth-loading')
+  await page.evaluate(() =>
+    localStorage.setItem('__convexAuthJWT_test', 'held')
+  )
+  await page.reload()
+  // The fixture runs no pre-paint script, so the word on the item is not
+  // the point here: where it goes, and what a press does, are.
+  const item = nav(page).locator('[data-balance]:visible')
+  await expect(item).toHaveAttribute('href', '/pocket')
+  await press(item)
+  // Over the page, not off to the sign-in page.
+  await expect(page).toHaveURL(/\/shelf\?balance=auth-loading$/)
+  const pocket = wide()
+    ? page.getByRole('complementary', { name: 'Balance' })
+    : page.getByRole('dialog', { name: 'Balance' })
+  await expect(pocket).toBeVisible()
+})
+
+test('while auth loads with no token, the item is still the way to sign in', async ({
+  page,
+}) => {
+  await page.goto('/shelf?balance=auth-loading')
+  const item = nav(page).locator('[data-balance]:visible')
+  await expect(item).toHaveAttribute('href', /\/(login|signin)/)
+})
