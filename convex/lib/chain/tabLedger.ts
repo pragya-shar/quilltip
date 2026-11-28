@@ -18,6 +18,7 @@ import { ConvexError } from 'convex/values'
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../../_generated/server'
+import { evaluateTabReadiness } from './tabReadiness'
 import {
   creditAuthorEarnings,
   newRowTotalsFields,
@@ -352,6 +353,11 @@ export async function checkTabTip(
     .first()
   if (!config || config.chainEpoch !== chain.chainEpoch || !config.minTip) {
     tabError('CHAIN_CONFIG_MISSING', 'The chain configuration is not loaded.')
+  }
+  // Keys, settlement and the Tab's state: the same check the screens read
+  // (`tabReady`), so a tip is not prepared or accepted that cannot settle.
+  if (!evaluateTabReadiness(args.env ?? process.env, config).ready) {
+    tabError('TAB_NOT_READY', 'Quick tips are unavailable right now.')
   }
   const minTip = BigInt(config.minTip)
   const limits = tabLimits(args.env)

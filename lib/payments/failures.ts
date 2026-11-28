@@ -320,6 +320,7 @@ const TAB_REFUSALS: Record<string, TabRefusal> = {
     kind: 'refused',
     copy: TAB_REFUSAL_COPY.unavailable,
   },
+  TAB_NOT_READY: { kind: 'refused', copy: TAB_REFUSAL_COPY.unavailable },
   TAB_ACCEPTOR_MISMATCH: {
     kind: 'refused',
     copy: TAB_REFUSAL_COPY.unavailable,

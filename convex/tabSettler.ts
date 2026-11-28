@@ -94,6 +94,9 @@ export function convexSettlementLedger(ctx: ActionCtx): SettlementLedger {
         error,
       })
     },
+    recordRun: async (at) => {
+      await ctx.runMutation(t.recordSettlerRun, { at })
+    },
     finish: async (settlementId, result) => {
       await ctx.runMutation(t.finish, {
         settlementId: settlementId as Id<'tabSettlements'>,

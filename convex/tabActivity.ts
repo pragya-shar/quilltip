@@ -15,6 +15,7 @@ import type { Doc } from './_generated/dataModel'
 import { query, type QueryCtx } from './_generated/server'
 import { readChainEnv } from './lib/chain/env'
 import { DAY_LEDGERS, tabAccountForReader } from './lib/chain/tabLedger'
+import { readTabReadiness } from './lib/chain/tabReadiness'
 import { verifiedStellarAddress } from './lib/walletVerification'
 
 /** The settler alerts while unsettled value is this close to its window end. */
@@ -155,10 +156,16 @@ export type TabTipRow = {
  * while `SETTLEMENT_ENABLED=true` (`loadAcceptor`), so while it is off no
  * quick tip is accepted. Needs no tab and no sign-in: the screens state it
  * before a reader opens or tops up a tab.
+ *
+ * `tabReady`: the keys, settlement and the Tab's state allow opening, top-ups
+ * and tab tips now (`tabReadiness.ts`). False also while settlement is off.
  */
 export const getTabSettlement = query({
   args: {},
-  handler: async () => ({ settlementEnabled: settlementEnabled() }),
+  handler: async (ctx) => ({
+    settlementEnabled: settlementEnabled(),
+    tabReady: (await readTabReadiness(ctx)).ready,
+  }),
 })
 
 /**

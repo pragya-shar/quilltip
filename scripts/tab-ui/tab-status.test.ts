@@ -233,7 +233,9 @@ describe('settlementHealth', () => {
       waiting: false,
     })
     // No tab, so no activity: the flag alone decides.
-    expect(settlementHealth(null, now, { settlementEnabled: false })).toEqual({
+    expect(
+      settlementHealth(null, now, { settlementEnabled: false, tabReady: false })
+    ).toEqual({
       kind: 'off',
       waiting: false,
     })
@@ -242,10 +244,12 @@ describe('settlementHealth', () => {
       settlementHealth(
         { ...off, settlementEnabled: true, oldestUnsettledAt: null },
         now,
-        { settlementEnabled: false }
+        { settlementEnabled: false, tabReady: false }
       )
     ).toEqual({ kind: 'off', waiting: false })
-    expect(settlementHealth(null, now, { settlementEnabled: true })).toEqual({
+    expect(
+      settlementHealth(null, now, { settlementEnabled: true, tabReady: true })
+    ).toEqual({
       kind: 'ok',
     })
   })

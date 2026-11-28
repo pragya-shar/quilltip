@@ -13,7 +13,10 @@ export type TabTipAvailability =
   | { kind: 'ready'; keyId: number; free: string }
   /** Payments v2 or the Tab contract is off on this deployment. */
   | { kind: 'unavailable' }
-  /** Settlement is switched off, so Convex accepts no tab tips. */
+  /**
+   * Convex accepts no tab tips: settlement is switched off, or its keys or
+   * the Tab's state are not ready (`tabReady`).
+   */
   | { kind: 'settlement-off' }
   /** The article pays co-authors: a tab tip pays exactly one writer. */
   | { kind: 'splits' }
@@ -64,7 +67,14 @@ export function tabTipAvailability(
   }
   if (status.kind === 'loading' || input.settlement === undefined)
     return { kind: 'loading' }
-  if (!input.settlement.settlementEnabled) return { kind: 'settlement-off' }
+  // Settlement is off, or its keys or the Tab's state are not ready
+  // (`tabReady`): say so before anything is prepared, not as a refusal after.
+  if (
+    !input.settlement.settlementEnabled ||
+    input.settlement.tabReady === false
+  ) {
+    return { kind: 'settlement-off' }
+  }
   if (status.kind === 'none' || status.kind === 'closed' || !tab) {
     return { kind: 'tab-none' }
   }

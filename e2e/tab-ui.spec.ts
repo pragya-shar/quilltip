@@ -52,6 +52,7 @@ const EXPECT: Record<string, string | RegExp> = {
   'home-settlement-off': 'Quick tips are paused on Stellar testnet',
   'home-settlement-off-none': 'Quick tips are paused on Stellar testnet',
   'home-settlement-off-open': 'Quick tips are paused on Stellar testnet',
+  'home-not-ready': 'Quick tips are paused on Stellar testnet',
   'home-closing': 'Your withdrawal is waiting to unlock',
   'home-closing-overdue': 'Unlocks soon',
   'home-short': 'Your tab is short',
@@ -86,6 +87,7 @@ const EXPECT: Record<string, string | RegExp> = {
   'tip-key-revoked': 'Quick tips are off for this device',
   'tip-key-unchecked': 'Quick tips can’t be checked right now',
   'tip-settlement-off': 'Quick tips are unavailable right now',
+  'tip-not-ready': 'Quick tips are unavailable right now',
   'tip-settlement-off-no-tab': 'Quick tips are unavailable right now',
   'tip-signed-out': 'Sign in to continue',
   'tip-v2-disabled': 'Quick tips are unavailable right now',
@@ -390,6 +392,26 @@ test('settlement off with tips waiting: says they settle when quick tips are bac
   await expect(
     visibleText(page, /Tips you already sent from your tab are recorded/)
   ).toBeVisible()
+})
+
+test('keys not ready, settlement on (#692): the same holds, exits stay, and no settle promise', async ({
+  page,
+}) => {
+  await open(page, 'home-not-ready')
+  await expect(
+    visibleText(page, 'Quick tips are paused on Stellar testnet')
+  ).toBeVisible()
+  await expect(
+    visibleText(page, /can’t tip from your tab or add funds to it/)
+  ).toBeVisible()
+  // A tip waits, but whether it settles depends on the key at fault.
+  await expect(
+    visibleText(page, /Tips you already sent from your tab are recorded/)
+  ).toHaveCount(0)
+  for (const name of ['Top up', 'Set up quick tips', 'Renew quick tips'])
+    await expect(page.getByRole('button', { name, exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Close tab' })).toBeVisible()
+  expect((await backend(page)).calls).toEqual([])
 })
 
 // --- Keys: this device, and each quick tip key state -------------------------
