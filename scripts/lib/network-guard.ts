@@ -37,7 +37,7 @@ export function liveWindowApprovalRefusal(
   if (!env[LIVE_WINDOW_APPROVAL_ENV]?.trim()) return null
   return {
     code: 'LIVE_WINDOW_NOT_FOR_TOOL',
-    message: `${LIVE_WINDOW_APPROVAL_ENV} is set. It applies only to \`bun run live-window\`. Unset it for this run.`,
+    message: `${LIVE_WINDOW_APPROVAL_ENV} is set. It applies only to \`bun scripts/live-window.ts\`. Unset it for this run.`,
   }
 }
 

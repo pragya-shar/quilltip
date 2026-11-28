@@ -17,7 +17,6 @@
     "brand:check": "bun scripts/brand/apply-spelling.ts --check",
     "guard:testnet": "bun scripts/check-network-guard.ts",
     "guard:convex": "bun scripts/check-network-guard.ts --convex",
-    "live-window": "bun scripts/live-window.ts",
     "test:unit": "vitest run --config scripts/unit.config.mts",
     "test:contracts": "cd contracts/tipping && cargo test --locked && cd ../article-nft && cargo test --locked",
     "test:reader": "vitest run --config scripts/articles/convex.config.mts",

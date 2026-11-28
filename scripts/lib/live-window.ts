@@ -11,7 +11,9 @@
  * - the deployment is a live deployment and the only Convex target, selected
  *   by a development deploy key for that deployment;
  * - the checkout is at the release commit, with no changes and no untracked
- *   files, and the command runs from that checkout;
+ *   files, and the command runs from that checkout (a second check: the
+ *   code a run pushes is not taken from the checkout but built from the
+ *   commit's objects, scripts/lib/live-window-build.ts);
  * - the window has started and has not ended (at most LIVE_WINDOW_MAX_HOURS);
  * - the operation and its arguments are on the lists below;
  * - the Stellar checks pass for TESTNET (mainnet is refused as always).
@@ -35,6 +37,7 @@ import {
   type NetworkGuardResult,
 } from '../../convex/lib/networkGuard'
 import { TESTNET_PASSPHRASE } from '../../convex/lib/stellarNetwork'
+import { SYSTEM_BIN_DIRS, systemBinary } from './live-window-build'
 import {
   assertScriptConvexDeployAllowed,
   convexInputs,
@@ -664,14 +667,17 @@ const ASSIGNMENT = new RegExp(
 const COMMITTED_ASSIGNMENT = `${LIVE_WINDOW_APPROVAL_ENV}=["']?[a-z0-9-]+@[0-9a-f]{40}`
 
 /**
- * The environment for git: the caller's environment without GIT_* variables,
- * so GIT_DIR, GIT_WORK_TREE, GIT_INDEX_FILE or GIT_CONFIG_* cannot point the
- * checks at another repository or change how git reads this one.
+ * The environment for git: none of the caller's variables (no GIT_* that
+ * could point the checks at another repository, and no CONVEX_DEPLOY_KEY or
+ * approval for git to see), and no global or system config.
  */
-function gitEnv(): NodeJS.ProcessEnv {
-  return Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))
-  ) as NodeJS.ProcessEnv
+function gitEnv(): Record<string, string> {
+  return {
+    PATH: SYSTEM_BIN_DIRS.join(':'),
+    HOME: os.homedir(),
+    GIT_CONFIG_NOSYSTEM: '1',
+    GIT_CONFIG_GLOBAL: '/dev/null',
+  }
 }
 
 function git(
@@ -680,9 +686,13 @@ function git(
   input?: string,
   options: { workTree?: boolean; indexFile?: string } = {}
 ): string | null {
+  // System git by absolute path: under `bun run`, PATH starts with the
+  // checkout's node_modules/.bin.
+  const binary = systemBinary('git')
+  if (!binary) return null
   try {
     return execFileSync(
-      'git',
+      binary,
       [
         // Replace refs (`git replace`) would show another commit's tree for
         // the approved commit.
@@ -703,7 +713,7 @@ function git(
         env: {
           ...gitEnv(),
           ...(options.indexFile ? { GIT_INDEX_FILE: options.indexFile } : {}),
-        },
+        } as NodeJS.ProcessEnv,
         input,
         maxBuffer: 64 * 1024 * 1024,
         stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'ignore'],
@@ -745,7 +755,9 @@ export function isAllowedUntrackedPath(
 }
 
 /**
- * Paths where the checkout differs from HEAD, read from the files themselves:
+ * The second, non-authoritative check of the checkout (the pushed code comes
+ * from the window build, not from these files). Paths where the checkout
+ * differs from HEAD, read from the files themselves:
  * each tracked file is hashed without filters and compared with the HEAD tree,
  * so the index flags `assume-unchanged` and `skip-worktree`, an fsmonitor,
  * clean filters and exclude files cannot hide a change. Untracked paths are
@@ -1229,7 +1241,7 @@ export function liveWindowWarning(
 }
 
 export type LiveWindowLogEntry = {
-  event: 'check' | 'allowed' | 'refused' | 'finished' | 'dashboard'
+  event: 'check' | 'allowed' | 'refused' | 'built' | 'finished' | 'dashboard'
   operation: string
   deployment?: string
   commit?: string
@@ -1238,6 +1250,8 @@ export type LiveWindowLogEntry = {
   exitCode?: number | null
   /** SHA-256 of the archive an export wrote or an import read. */
   sha256?: string
+  /** The git tree the run's build was exported from and checked against. */
+  tree?: string
 }
 
 export function liveWindowLogPath(env: EnvLike, home = os.homedir()): string {
@@ -1260,6 +1274,7 @@ export function formatLiveWindowLogLine(
     codes: entry.codes ?? [],
     exitCode: entry.exitCode ?? null,
     sha256: entry.sha256 ?? null,
+    tree: entry.tree ?? null,
   })}\n`
 }
 
