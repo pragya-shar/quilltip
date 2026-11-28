@@ -60,6 +60,10 @@ price each tip is quoted at:
 - `TAB_DAILY_LIMIT_CENTS`: the most a reader's tips may add up to in a UTC
   day, counted in the tips' own cents. Default `2000` ($20).
 
+Both take whole cents written as digits only, from `1` to `999999` (no
+leading zero, no decimal point: `500`, not `500.0` or `$5`). Any other value
+stops balance tips with `TAB_CONFIG_INVALID`.
+
 `TAB_TIP_MAX` and `TAB_DAILY_LIMIT` (XLM base units) are guards against a
 broken price only. Their defaults are 1000 XLM and 5000 XLM. A deployment
 that sets them to small values, such as the former 5 XLM and 20 XLM, keeps
