@@ -86,11 +86,8 @@ export function imageSources(convexUrl: string | undefined): ImageSource[] {
   return [...(own ? [own] : []), ...LISTED_IMAGE_SOURCES]
 }
 
-/** Whether an image at `src` may load: an absolute address on a source. */
-export function isAllowedImageSource(
-  src: unknown,
-  convexUrl: string | undefined
-): boolean {
+/** Whether `src` is an absolute address on one of `sources`. */
+function onSource(src: unknown, sources: readonly ImageSource[]): boolean {
   if (typeof src !== 'string') return false
   let url: URL
   try {
@@ -99,13 +96,21 @@ export function isAllowedImageSource(
     return false
   }
   if (url.username || url.password) return false
-  return imageSources(convexUrl).some(
+  return sources.some(
     (source) =>
       url.protocol === `${source.protocol}:` &&
       url.hostname === source.hostname &&
       url.port === source.port &&
       url.pathname.startsWith(source.pathPrefix)
   )
+}
+
+/** Whether an image at `src` may load: an absolute address on a source. */
+export function isAllowedImageSource(
+  src: unknown,
+  convexUrl: string | undefined
+): boolean {
+  return onSource(src, imageSources(convexUrl))
 }
 
 function sourceOrigin(source: ImageSource): string {
@@ -144,8 +149,21 @@ export function imageSourceRefusal(src: unknown): string {
   return `This image cannot be used: ${shown}. Images must be uploaded, or come from ${listedImageHostsText()}.`
 }
 
-/** The refusal for a profile photo from another host (#633). */
+/**
+ * Whether `src` is an upload in this deployment's own storage (#633). Saving
+ * a profile photo accepts only these: photos are uploaded, never pasted. The
+ * readers still show a stored photo on a listed host (`isAllowedImageSource`).
+ */
+export function isOwnStorageAddress(
+  src: unknown,
+  convexUrl: string | undefined
+): boolean {
+  const own = ownImageSource(convexUrl)
+  return own !== null && onSource(src, [own])
+}
+
+/** The refusal for a profile photo that is not an upload (#633). */
 export function avatarSourceRefusal(src: string): string {
   const shown = src.length > 120 ? `${src.slice(0, 117)}...` : src
-  return `This photo cannot be used: ${shown}. Profile photos must be uploaded, or come from ${listedImageHostsText()}.`
+  return `This photo cannot be used: ${shown}. Profile photos must be uploaded.`
 }

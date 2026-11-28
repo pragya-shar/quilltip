@@ -88,9 +88,10 @@ thumbnails in the older editor's video dialog), and `images.unsplash.com`,
 adds them). The same list sets `img-src`, the image optimizer's
 `remotePatterns` in `next.config.ts`, the article renderers and the publish
 check in Convex. Uploads, covers and profile photos are `ctx.storage.getUrl`
-addresses, `<CONVEX_CLOUD_URL>/api/storage/<id>`. A profile photo address is
-checked when it is saved (`users.updateProfile`), and `UserAvatar` shows the
-initials for a stored one from another host. The app reads that
+addresses, `<CONVEX_CLOUD_URL>/api/storage/<id>`. Profile photos are uploaded
+only: `users.updateProfile` accepts an address in this deployment's storage
+and nothing else, and `UserAvatar` shows the initials for a stored photo
+outside the list. The app reads that
 origin from `NEXT_PUBLIC_CONVEX_URL`, so the two must name the same
 deployment. An article image from another host is not rendered, and an
 article holding one cannot be published until the image is uploaded or

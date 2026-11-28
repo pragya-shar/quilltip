@@ -32,13 +32,15 @@ async function setup(avatar?: string) {
   return { t, id, writer: t.withIdentity({ subject: `${id}|session` }) }
 }
 
-test('updateProfile refuses a photo from another host and keeps the old one (#633)', async () => {
+test('updateProfile accepts only an upload and keeps the old photo otherwise (#633)', async () => {
   const { t, id, writer } = await setup(own)
   for (const src of [
     otherConvex,
     `${OWN}/api/query`,
     'https://tracker.example/pixel.png',
-    'http://images.unsplash.com/photo-1',
+    // A listed host is not an upload: photos are uploaded, never pasted.
+    unsplash,
+    'https://arweave.net/bNbA3TEQVL60xlgCcqdz4ZPHFZ711cZ3hmkpGttDt_U',
   ]) {
     const error = await writer
       .mutation(api.users.updateProfile, { avatar: src })
@@ -52,28 +54,30 @@ test('updateProfile refuses a photo from another host and keeps the old one (#63
   expect((await t.run((ctx) => ctx.db.get(id)))?.avatar).toBe(own)
 })
 
-test('the refusal names the photo and the hosts that are allowed (#633)', () => {
+test('the refusal names the photo and says photos are uploaded (#633)', () => {
   expect(avatarSourceRefusal(otherConvex)).toBe(
-    `This photo cannot be used: ${otherConvex}. Profile photos must be uploaded, or come from img.youtube.com, images.unsplash.com, plus.unsplash.com or arweave.net.`
+    `This photo cannot be used: ${otherConvex}. Profile photos must be uploaded.`
   )
 })
 
-test('updateProfile keeps an uploaded or listed photo, and clearing still works (#633)', async () => {
+test('updateProfile keeps an uploaded photo, and clearing still works (#633)', async () => {
   const { t, id, writer } = await setup()
   await writer.mutation(api.users.updateProfile, { avatar: own })
   expect((await t.run((ctx) => ctx.db.get(id)))?.avatar).toBe(own)
-  await writer.mutation(api.users.updateProfile, { avatar: unsplash })
-  expect((await t.run((ctx) => ctx.db.get(id)))?.avatar).toBe(unsplash)
   // An empty address removes the photo, as before.
   await writer.mutation(api.users.updateProfile, { avatar: '' })
   expect((await t.run((ctx) => ctx.db.get(id)))?.avatar).toBe('')
   await writer.mutation(api.users.updateProfile, { avatar: own })
   await writer.mutation(api.users.clearAvatar, {})
   expect((await t.run((ctx) => ctx.db.get(id)))?.avatar).toBeUndefined()
-  // A name change alone is not checked against the photo.
+  // A name change alone is not checked against a stored photo, which stays.
   await t.run((ctx) => ctx.db.patch(id, { avatar: otherConvex }))
   await writer.mutation(api.users.updateProfile, { name: 'Photo Writer Two' })
-  expect((await t.run((ctx) => ctx.db.get(id)))?.name).toBe('Photo Writer Two')
+  const after = await t.run((ctx) => ctx.db.get(id))
+  expect([after?.name, after?.avatar]).toEqual([
+    'Photo Writer Two',
+    otherConvex,
+  ])
 })
 
 test('countImageHosts counts profile photo hosts, allowed and refused, with nothing else (#633)', async () => {

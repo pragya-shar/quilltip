@@ -9,7 +9,7 @@ import { verifiedStellarAddress } from './lib/walletVerification'
 import { profileBioError, profileNameError } from '../lib/profile/profileRules'
 import {
   avatarSourceRefusal,
-  isAllowedImageSource,
+  isOwnStorageAddress,
 } from '../lib/security/imageSources'
 
 // Get the current authenticated user
@@ -85,11 +85,12 @@ export const updateProfile = mutation({
       const message = profileBioError(bio)
       if (message) throw new ConvexError(message)
     }
-    // A photo address only from this deployment's storage or the listed hosts
-    // (lib/security/imageSources.ts, #633). An empty address removes it.
+    // A profile photo is an upload: only an address in this deployment's own
+    // storage (lib/security/imageSources.ts, #633). The mutation is public, so
+    // a direct call is held to the same rule. An empty address removes it.
     if (
       args.avatar?.trim() &&
-      !isAllowedImageSource(args.avatar.trim(), process.env.CONVEX_CLOUD_URL)
+      !isOwnStorageAddress(args.avatar.trim(), process.env.CONVEX_CLOUD_URL)
     ) {
       throw new ConvexError(avatarSourceRefusal(args.avatar.trim()))
     }

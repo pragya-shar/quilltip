@@ -6,6 +6,7 @@ import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { UserAvatar } from '../../components/ui/user-avatar'
 import { shownAvatar } from '../../lib/tiptap/articleImage'
+import { isOwnStorageAddress } from '../../lib/security/imageSources'
 
 const OWN = 'https://own-deployment-123.convex.cloud'
 const own = `${OWN}/api/storage/5c1e2f0a-photo`
@@ -77,6 +78,18 @@ describe('profile photos (#633)', () => {
     expect(shownAvatar(null)).toBeUndefined()
   })
 
+  it('saving accepts only an upload; showing keeps the shared list (#633)', () => {
+    // Write: own storage only. Render: the shared list, so an older photo on
+    // a listed host still shows.
+    expect(isOwnStorageAddress(own, OWN)).toBe(true)
+    expect(isOwnStorageAddress(unsplash, OWN)).toBe(false)
+    expect(isOwnStorageAddress(`${OWN}/api/query`, OWN)).toBe(false)
+    expect(isOwnStorageAddress(otherConvex, OWN)).toBe(false)
+    expect(isOwnStorageAddress(own, undefined)).toBe(false)
+    expect(isOwnStorageAddress(42, OWN)).toBe(false)
+    expect(shownAvatar(unsplash)).toBe(unsplash)
+  })
+
   it.each([own, unsplash])('shows an allowed photo: %s', (src) => {
     const seen = render(src)
     expect(seen.images).toEqual([src])
@@ -111,14 +124,16 @@ describe('profile photos (#633)', () => {
     ])
   })
 
-  it('the profile page share image and the photo dialog use the same check', () => {
+  it('the profile page share image uses the check, and the editor only uploads', () => {
     const read = (path: string) =>
       readFileSync(join(__dirname, '../..', path), 'utf8')
     expect(read('app/[username]/page.tsx')).toContain(
       'const avatar = shownAvatar(profile.avatar)'
     )
     const editor = read('components/profile/ProfileAvatarEditor.tsx')
-    expect(editor).toContain('if (!shownAvatar(avatarUrl)) {')
-    expect(editor).toContain('toast.error(avatarSourceRefusal(avatarUrl))')
+    for (const gone of ['Paste image URL', 'updateProfile', 'wikimedia']) {
+      expect(editor).not.toContain(gone)
+    }
+    expect(editor).toContain('uploadAvatarFile(')
   })
 })

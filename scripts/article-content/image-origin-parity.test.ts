@@ -128,7 +128,7 @@ describe('one deployment origin for images in every place (#615)', () => {
       'const convexUrl = process.env.CONVEX_CLOUD_URL'
     )
     expect(read('convex/users.ts')).toContain(
-      'isAllowedImageSource(args.avatar.trim(), process.env.CONVEX_CLOUD_URL)'
+      'isOwnStorageAddress(args.avatar.trim(), process.env.CONVEX_CLOUD_URL)'
     )
   })
 })
