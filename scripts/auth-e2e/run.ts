@@ -4,6 +4,9 @@
  *
  *   bun run test:e2e:auth [--skip-build] [<playwright args>]
  *
+ * AUTH_E2E_PORT sets the app's port and AUTH_E2E_CONVEX_PORT the local
+ * backend's (its site port is the next one); both are free ports otherwise.
+ *
  * 1. Checks the pinned local backend binary against its recorded SHA-256
  *    (downloading it once if needed), starts `convex dev` for the anonymous
  *    local deployment `anonymous-agent` on that version, and waits until the
@@ -310,6 +313,15 @@ async function main(): Promise<number> {
           'always',
           '--local-backend-version',
           LOCAL_BACKEND_VERSION,
+          // A shared machine may give each run its own ports.
+          ...(process.env.AUTH_E2E_CONVEX_PORT
+            ? [
+                '--local-cloud-port',
+                process.env.AUTH_E2E_CONVEX_PORT,
+                '--local-site-port',
+                String(Number(process.env.AUTH_E2E_CONVEX_PORT) + 1),
+              ]
+            : []),
         ],
         convexEnv,
         /Convex functions ready/,
