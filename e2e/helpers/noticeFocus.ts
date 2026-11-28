@@ -15,13 +15,39 @@ const SETTLE_MS = 400
 const regionFor = (scope: Locator, title: string) =>
   scope.getByRole('status').filter({ hasText: title })
 
-/** The title took focus, and the notice is not also announced. */
+export type NoticeHeading = {
+  /** The title's heading level on this surface. */
+  level: 2 | 3 | 4 | 5 | 6
+  /** What the focused title reads as its description; null for none. */
+  description: string | RegExp | null
+}
+
+/**
+ * The title took focus as a heading at the surface's level, reads the
+ * detail as its description, and the notice is not also announced.
+ */
 export async function expectNoticeTookFocus(
   page: Page,
   scope: Locator,
-  title: string
+  title: string,
+  { level, description }: NoticeHeading
 ) {
-  await expect(scope.getByRole('heading', { name: title })).toBeFocused()
+  const heading = scope.getByRole('heading', { name: title, level })
+  await expect(heading).toBeFocused()
+  await expect(heading).toHaveAccessibleDescription(description ?? '')
+  // Also as the referenced elements' own text, joined as the ids are: a
+  // label and a detail in one element read without a space between them in
+  // some screen readers ("Stellar testnetYour tab").
+  const referenced = await heading.evaluate((element) =>
+    (element.getAttribute('aria-describedby') ?? '')
+      .split(/\s+/)
+      .filter(Boolean)
+      .map((id) => document.getElementById(id)?.textContent?.trim() ?? '')
+      .join(' ')
+  )
+  if (description === null) expect(referenced).toBe('')
+  else if (typeof description === 'string') expect(referenced).toBe(description)
+  else expect(referenced).toMatch(description)
   await page.waitForTimeout(SETTLE_MS)
   await expect(regionFor(scope, title)).toHaveCount(0)
 }

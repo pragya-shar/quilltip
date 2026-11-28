@@ -1367,6 +1367,10 @@ test.describe('dialog focus', () => {
 })
 
 const RATE_TITLE = 'Too many tips in a short time'
+const RATE_HEADING = {
+  level: 3,
+  description: 'Wait 42 seconds, then try again. Nothing was paid.',
+} as const
 
 test.describe('refusal focus', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
@@ -1386,7 +1390,7 @@ test.describe('refusal focus', () => {
       const dialog = await openArticleTip(page)
       await connect(dialog)
       await press(page, dialog.getByRole('button', { name: 'Send tip' }))
-      await expectNoticeTookFocus(page, dialog, RATE_TITLE)
+      await expectNoticeTookFocus(page, dialog, RATE_TITLE, RATE_HEADING)
     })
 
     test(`a refused passage tip takes focus on the refusal title (${how})`, async ({
@@ -1397,7 +1401,7 @@ test.describe('refusal focus', () => {
       const dialog = page.getByRole('dialog', { name: 'Tip this passage' })
       await connect(dialog)
       await press(page, dialog.getByRole('button', { name: 'Send tip' }))
-      await expectNoticeTookFocus(page, dialog, RATE_TITLE)
+      await expectNoticeTookFocus(page, dialog, RATE_TITLE, RATE_HEADING)
     })
 
     test(`a refused basket takes focus on the refusal title (${how})`, async ({
@@ -1408,9 +1412,24 @@ test.describe('refusal focus', () => {
       const sheet = page.getByRole('dialog', { name: 'Tip basket' })
       await connect(sheet)
       await press(page, sheet.getByRole('button', { name: /^Send 2 tips/ }))
-      await expectNoticeTookFocus(page, sheet, RATE_TITLE)
+      await expectNoticeTookFocus(page, sheet, RATE_TITLE, RATE_HEADING)
     })
   }
+
+  test('an article that cannot take tips at send takes focus on that note', async ({
+    page,
+  }) => {
+    await open(page, 'prepare=unregistered')
+    const dialog = await openArticleTip(page)
+    await connect(dialog)
+    await dialog.getByRole('button', { name: 'Send tip' }).click()
+    await expectNoticeTookFocus(
+      page,
+      dialog,
+      'Tips aren’t on for this article yet.',
+      { level: 3, description: null }
+    )
+  })
 
   test('a refusal that arrives after the reader moved on is read, not focused', async ({
     page,

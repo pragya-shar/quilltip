@@ -917,10 +917,12 @@ test.describe('refusal focus', () => {
     }) => {
       await open(page, 'tip-over-balance')
       await press(page, /from tab$/)
+      // The testnet label and the detail, read with a space between them.
       await expectNoticeTookFocus(
         page,
         page.locator('.tab-ui'),
-        'Not enough in your tab'
+        'Not enough in your tab',
+        { level: 4, description: /^Stellar testnet (Your tab|Top up)/ }
       )
     })
 
@@ -934,7 +936,11 @@ test.describe('refusal focus', () => {
       await expectNoticeTookFocus(
         page,
         page.locator('.tab-ui'),
-        'Payments are paused'
+        'Payments are paused',
+        {
+          level: 3,
+          description: /^Quilltip has paused new payments on Stellar testnet\./,
+        }
       )
     })
   }

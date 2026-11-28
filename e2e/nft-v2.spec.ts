@@ -856,6 +856,10 @@ test.describe('transfer', () => {
     await toReview(page, ADA)
     await page.getByRole('button', { name: 'Transfer NFT' }).last().click()
     await expect(page.getByText('Check the address again')).toBeVisible()
+    // Under the review step's h3 title.
+    await expect(
+      page.getByRole('heading', { name: 'Check the address again', level: 4 })
+    ).toBeVisible()
     const l = await log(page)
     expect(l.prepared).toHaveLength(2)
     expect(l.signed).toHaveLength(0)
@@ -989,10 +993,12 @@ test.describe('refusal focus', () => {
         await page.keyboard.press('Enter')
       }
       await chooseVarialIfAsked(page)
+      // Under the panel's h5 title.
       await expectNoticeTookFocus(
         page,
         panel(page),
-        'This article’s NFT is already minted'
+        'This article’s NFT is already minted',
+        { level: 6, description: 'Each article has one NFT. Nothing was sent.' }
       )
     })
   }

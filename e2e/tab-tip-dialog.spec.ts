@@ -575,7 +575,11 @@ test.describe('keyboard and screen readers', () => {
       await expectNoticeTookFocus(
         page,
         tabSection(dialog),
-        'Daily quick-tip limit reached'
+        'Daily quick-tip limit reached',
+        {
+          level: 4,
+          description: 'Tip from your wallet, or try again tomorrow.',
+        }
       )
     })
   }
