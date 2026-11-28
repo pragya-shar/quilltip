@@ -36,6 +36,8 @@ type Snapshot = {
   claimable: string
   clock: LedgerClock
   rpcDown: boolean
+  /** `getMyTab` still loading (#643). */
+  tabPending?: boolean
   funds: WalletFunds | null
   limits: TabLimits | null
   calls: string[]
@@ -118,6 +120,7 @@ export function createFixtureServices(params: {
     }),
     useMyTab: () => {
       const s = ready(useSnapshot())
+      if (s?.tabPending) return undefined
       return s ? (s.address ? s.tab : null) : undefined
     },
     useMyTabTips: () => {

@@ -54,6 +54,8 @@ const EXPECT: Record<string, string | RegExp> = {
   'home-short': 'Your tab is short',
   'wallet-short': 'Waiting for balance',
   'wallet-funded': 'Settling',
+  'wallet-zero': 'Settling',
+  'wallet-short-tab-loading': 'Loading your tips…',
   'home-withdraw-ready': 'Your balance is ready to withdraw',
   'home-closed': 'Your tab is closed',
   'key-none': 'Quick tips aren’t set up on this device',
@@ -575,6 +577,12 @@ for (const width of [375, 1440]) {
         'Settling',
         `Sent from a tab and not settled yet. ${TIMED}.`,
       ],
+      // Available exactly 0: the tab covers its tips, so it is not short.
+      [
+        'wallet-zero',
+        'Settling',
+        `Sent from a tab and not settled yet. ${TIMED}.`,
+      ],
     ] as const) {
       test(`${id}: the history row and its receipt agree`, async ({ page }) => {
         await open(page, id)
@@ -597,6 +605,23 @@ for (const width of [375, 1440]) {
         await expect(settled).toContainText('Settled')
       })
     }
+
+    test('while the tab is still loading, the history waits and shows no timed wording', async ({
+      page,
+    }) => {
+      await open(page, 'wallet-short-tab-loading')
+      const loading = page.getByRole('status').filter({
+        hasText: 'Loading your tips…',
+      })
+      await expect(loading).toBeVisible()
+      // The tips are known; only the tab is not. Nothing renders early.
+      await page.waitForTimeout(500)
+      await expect(page.locator('.account-tip-row')).toHaveCount(0)
+      await expect(page.getByText(/Settles at 5 XLM/)).toHaveCount(0)
+      expect(await page.locator('.tab-ui').ariaSnapshot()).not.toContain(
+        'Settles at 5 XLM'
+      )
+    })
   })
 }
 

@@ -13,10 +13,9 @@ import { CreatorStatsPanel } from '../../../components/dashboard/CreatorStatsPan
 import { CompactEarningsFigures } from '../../../components/dashboard/CompactEarningsFigures'
 import { TabHome } from '../../../components/tab/TabHome'
 import { TabTipAction } from '../../../components/tab/TabTipAction'
-import { WalletTipHistory } from '../../../components/account/WalletTipHistory'
+import { WalletActivityView } from '../../../components/dashboard/WalletActivityView'
 import { useTabServices } from '../../../hooks/tab/TabServicesContext'
 import type { TipActivityItem } from '../../../lib/account/tipActivity'
-import { tabIsShort } from '../../../lib/tab-ui/tab-short'
 import type { MyTabTips } from '../../../lib/tab-ui/types'
 import '../../../components/account/account.css'
 import '../../../components/tab/tab.css'
@@ -29,7 +28,7 @@ if (params.get('theme') === 'dark')
 /**
  * The wallet page's tip history and receipt (#643), from the fixture's tab
  * tips as the reader's sent tips. `WalletActivity` reads the same tab state
- * from `getMyTab` and passes `tabIsShort(tab)` the same way.
+ * the same way: both render `WalletActivityView`, which waits for the tab.
  */
 function walletItems(tips: MyTabTips['tips']): TipActivityItem[] {
   return tips.map((tip) => ({
@@ -52,12 +51,15 @@ function walletItems(tips: MyTabTips['tips']): TipActivityItem[] {
 function WalletFixture() {
   const services = useTabServices()
   const tab = services.useMyTab()
-  const activity = services.useMyTabTips()
-  if (tab === undefined || activity === undefined) return null
+  const tips = services.useMyTabTips()
   return (
-    <WalletTipHistory
-      items={walletItems(activity?.tips ?? [])}
-      readerTabShort={tabIsShort(tab)}
+    <WalletActivityView
+      activity={
+        tips === undefined
+          ? { status: 'loading' }
+          : { status: 'ready', items: walletItems(tips?.tips ?? []) }
+      }
+      tab={tab}
     />
   )
 }

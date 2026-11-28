@@ -93,6 +93,8 @@ export type FixtureState = {
   clock: LedgerClock
   /** Stellar RPC cannot be reached: the ledger read fails. */
   rpcDown: boolean
+  /** `getMyTab` has not answered yet; every other read has (#643). */
+  tabPending: boolean
   funds: WalletFunds | null
   limits: TabLimits | null
   send: SendBehaviour
@@ -203,6 +205,7 @@ export function baseState(scenario: string): FixtureState {
     claimable: '0',
     clock: { sequence: LEDGER, closedAt: NOW },
     rpcDown: false,
+    tabPending: false,
     funds: {
       balance: (BigInt(120) * XLM).toString(),
       reserve: (BigInt(1) * XLM).toString(),
