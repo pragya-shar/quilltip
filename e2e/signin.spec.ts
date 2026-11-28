@@ -167,6 +167,50 @@ test.describe('a kept intent comes back, and nothing is sent', () => {
   })
 })
 
+test('the first open draws the sheet with its form in the same frame', async ({
+  page,
+}) => {
+  // Every animation frame from the press: is a dialog open, does it hold
+  // the form, and was a loading placeholder ever drawn?
+  await page.addInitScript(() => {
+    const w = window as unknown as {
+      __frames: { open: boolean; form: boolean; busy: boolean }[]
+      __watch: () => void
+    }
+    w.__frames = []
+    w.__watch = () => {
+      const tick = () => {
+        const dialog = document.querySelector('dialog[open]')
+        w.__frames.push({
+          open: Boolean(dialog),
+          form: Boolean(dialog?.querySelector('input[name="email"]')),
+          busy: Boolean(dialog?.querySelector('[aria-busy="true"]')),
+        })
+        if (w.__frames.length < 90) requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    }
+  })
+  await page.goto('/article')
+  await expect(tipButton(page)).toHaveAttribute('data-phase', 'signed-out')
+  await page.evaluate(() =>
+    (window as unknown as { __watch: () => void }).__watch()
+  )
+  await press(tipButton(page))
+  await expect(sheet(page, /^Tip this line/)).toBeVisible()
+  const frames = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          __frames: { open: boolean; form: boolean; busy: boolean }[]
+        }
+      ).__frames
+  )
+  const first = frames.find((frame) => frame.open)
+  expect(first).toEqual({ open: true, form: true, busy: false })
+  expect(frames.some((frame) => frame.busy)).toBe(false)
+})
+
 test.describe('above a keyboard', () => {
   // The visible height left by a phone keyboard: 390 x 844 and 360 x 640
   // less the keyboard. The real keyboard (iOS Safari) is not run here.
