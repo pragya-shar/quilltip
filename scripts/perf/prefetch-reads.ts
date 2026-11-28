@@ -31,11 +31,15 @@ import {
   resetFixtureBackendReads,
   startFixtureBackend,
 } from './fixture-backend'
-import { startProductionApp } from './production-app'
+import {
+  fixtureBackendPort,
+  perfPort,
+  startProductionApp,
+} from './production-app'
 import { READING } from './no-script-reading'
 
-const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
-const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
+const CONVEX_PORT = fixtureBackendPort()
+const APP_PORT = await perfPort('PERF_APP_PORT')
 const BASE_URL = `http://127.0.0.1:${APP_PORT}`
 const ENGINES = (process.env.PERF_READING_ENGINES ?? 'chromium,webkit').split(
   ','
@@ -98,13 +102,7 @@ async function scrollAndHover(page: Page) {
  */
 async function stopApp(app: Awaited<ReturnType<typeof startProductionApp>>) {
   if (!app) return
-  try {
-    // The whole process group when the app has its own (next-server runs
-    // as a grandchild of `bunx`); otherwise this throws and kill() remains.
-    if (app.pid) process.kill(-app.pid, 'SIGTERM')
-  } catch {
-    /* No process group of its own. */
-  }
+  // The helper's kill() stops the app's whole process group.
   app.kill()
   await waitUntilStopped(BASE_URL)
 }
@@ -143,7 +141,7 @@ async function main() {
       // This run's id: the app's server sends it on every read, and the
       // fixture backend counts only reads that carry it.
       fixtureRun.token = process.env.PERF_RUN_TOKEN = randomUUID()
-      const app = await startProductionApp(APP_PORT, BASE_URL)
+      const app = await startProductionApp(APP_PORT, BASE_URL, { backend })
       const browser = await (engine === 'webkit' ? webkit : chromium).launch()
       try {
         const page = await browser.newPage({
