@@ -4,10 +4,9 @@ import { ActivityRow } from '@/system/components/ActivityRow'
 import { Avatar } from '@/system/components/Avatar'
 import { Icon } from '@/system/components/Icon'
 import { TipIcon } from '@/system/icons'
-import { figureState, spokenDollars } from '@/system/money/figure'
 import { sheetStack } from '@/shell/sheetStack'
 import { rowWords, whenShort } from './copy'
-import { rowAmount } from './rowAmount'
+import { rowAmount, rowSpoken } from './rowAmount'
 import { RECEIPT_SHEET } from './sheetIds'
 import type { ActivityItem } from '@/lib/pocket/types'
 
@@ -34,13 +33,7 @@ export function PocketActivityRow({
   // The money layer's spoken text first, the system's helper otherwise. A
   // tip that did not complete carries no direction, as on screen.
   const sign = words.status === 'failed' ? '' : reader ? '−' : '+'
-  const direction = sign === '−' ? 'minus ' : sign === '+' ? 'plus ' : ''
-  const state = figureState(amount)
-  const said = amount.spoken
-    ? `${direction}${amount.spoken}`
-    : state.kind === 'value'
-      ? spokenDollars({ ...state.parts, sign })
-      : null
+  const said = rowSpoken(amount, sign)
   const label = [name, said, 'open receipt'].filter(Boolean).join(', ')
   return (
     <ActivityRow

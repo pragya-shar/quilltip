@@ -41,6 +41,7 @@ let lastKnownWriter: boolean | null = null
 export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   const reading = useBalanceReading()
   const source = usePocketSource()
+  const wired = source.useWired()
   const balance = source.useBalance()
   const earnings = source.useEarnings()
   const reader = source.useActivity('reader')
@@ -88,7 +89,7 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
         <MoneyFigure value={null} status="loading" size="xl" />
       </div>
     )
-  if (!source.wired)
+  if (!wired)
     // Before the money layer is connected: the shell's own reading of what
     // can be tipped (the bar shows the same), and plainly what is not here
     // yet, with the pages that show it today.

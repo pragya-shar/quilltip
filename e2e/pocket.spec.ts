@@ -248,7 +248,7 @@ const SCENARIOS: Record<string, Expect> = {
   offline: {
     spend: '≈$2.54',
     rows: 6,
-    texts: ['Offline. These figures are from 2 minutes ago.'],
+    texts: ['Offline. These figures are from 6 minutes ago.'],
   },
   loading: { noFigures: true, earnings: null },
   unavailable: {
@@ -360,9 +360,7 @@ test.describe('every money scenario', () => {
       '+$0.0975'
     )
     await expect(rows.first()).toContainText('from a $0.10 tip')
-    await expect(page.locator('.qt-pocket__rows')).not.toContainText(
-      'Theo Marsh'
-    )
+    await expect(page.locator('.qt-pocket__rows')).not.toContainText('Wen Hsu')
   })
 
   test('Your tips and Tips to you are two labelled lists', async ({ page }) => {
@@ -432,7 +430,7 @@ test.describe('every money scenario', () => {
       /^[\d,]+\.\d+ XLM$/
     )
     await expect(sheet).toContainText('Your balance is held in Lumens.')
-    await expect(sheet).toContainText('At today’s price of $0.127328')
+    await expect(sheet).toContainText('At today’s price of $0.1273')
     await expect(sheet).toContainText('Tips are sent in dollars.')
     await page.keyboard.press('Escape')
     await expect
@@ -510,9 +508,7 @@ test.describe('receipts and money sheets', () => {
   }) => {
     await page.goto('/?scenario=ready')
     await openFromBar(page)
-    const link = pocket(page)
-      .getByRole('button', { name: 'Theo Marsh' })
-      .first()
+    const link = pocket(page).getByRole('button', { name: 'Wen Hsu' }).first()
     await link.focus()
     await press(link)
     const receipt = page.getByRole('dialog', { name: 'Receipt' })
@@ -532,14 +528,14 @@ test.describe('receipts and money sheets', () => {
     await page.keyboard.press('Escape')
     await expect(receipt).toBeHidden()
     await expect(pocket(page)).toBeVisible()
-    await expect.poll(async () => (await focused(page)).text).toBe('Theo Marsh')
+    await expect.poll(async () => (await focused(page)).text).toBe('Wen Hsu')
   })
 
   test('a partly paid tip says what arrived and what waits', async ({
     page,
   }) => {
     await page.goto('/pocket?scenario=partly-paid&role=reader')
-    await press(page.getByRole('button', { name: 'Theo Marsh' }).first())
+    await press(page.getByRole('button', { name: 'Wen Hsu' }).first())
     const receipt = page.getByRole('dialog', { name: 'Receipt' })
     await expect(receipt).toContainText(
       '$0.10 reached the writer; $0.15 is waiting'
@@ -655,7 +651,7 @@ test.describe('review cases', () => {
     page,
   }) => {
     await page.goto('/pocket?scenario=sending')
-    await press(page.getByRole('button', { name: 'Theo Marsh' }))
+    await press(page.getByRole('button', { name: 'Wen Hsu' }))
     const receipt = page.getByRole('dialog', { name: 'Receipt' })
     await expect(receipt).toContainText('Sending')
     await expect(receipt).not.toContainText('share')
@@ -674,13 +670,13 @@ test.describe('review cases', () => {
     ).toHaveCount(2)
     await expect(
       page.getByRole('button', {
-        name: 'Theo Marsh, minus 10 cents, open receipt',
+        name: 'Wen Hsu, minus 10 cents, open receipt',
         exact: true,
       })
     ).toHaveCount(2)
     await expect(
       page.getByRole('button', {
-        name: 'Theo Marsh, minus 50 cents, open receipt',
+        name: 'Wen Hsu, minus 50 cents, open receipt',
         exact: true,
       })
     ).toHaveCount(1)
@@ -832,7 +828,7 @@ test.describe('focus, contrast and fit', () => {
         expect(await auditControlContrast(page), name).toEqual([])
       }
       await page.goto('/pocket?scenario=ready')
-      await press(page.getByRole('button', { name: 'Theo Marsh' }).first())
+      await press(page.getByRole('button', { name: 'Wen Hsu' }).first())
       await expect(page.getByRole('dialog', { name: 'Receipt' })).toBeVisible()
       await settled(page)
       expect(await auditTextContrast(page), 'receipt').toEqual([])

@@ -1,5 +1,6 @@
 'use client'
 
+import { LocalPaymentsShell } from './LocalPaymentsShell'
 import { Pocket } from './Pocket'
 
 /**
@@ -10,6 +11,7 @@ import { Pocket } from './Pocket'
 export function PocketPage() {
   return (
     <div className="qt-pocket-page__live">
+      <LocalPaymentsShell />
       <Pocket headingLevel={2} />
     </div>
   )

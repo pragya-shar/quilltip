@@ -1,13 +1,15 @@
 'use client'
 
 import { createContext, useContext } from 'react'
+import { liveSource } from './liveSource'
 import type { ActivityView, BalanceView, EarningsView } from './types'
 
 /**
- * Where the balance reads money from: one seam, so the live money layer and
- * a fixture are interchangeable. This file holds no component code, so the
- * shell can mount a live provider without loading the balance's screens in
- * a page's first load.
+ * Where the balance reads money from: the money layer by default
+ * (`liveSource`), or a fixture through `PocketSourceContext`. Only the
+ * balance's own components import this file, and they load with the sheet
+ * or panel when it opens and with /pocket: the money layer is never in a
+ * public first load.
  */
 
 /**
@@ -34,9 +36,9 @@ export type MoneyAct = {
 }
 
 export type PocketSource = {
-  /** False until the live money layer is connected in this build: the
+  /** False where no money layer can answer (no backend client): the
    * balance then says so and points to the pages that work. */
-  wired: boolean
+  useWired(): boolean
   /** The money layer's own formatters: `money` writes exact dollars (to six
    * decimals when there are fractions of a cent, as `formatMoney` does);
    * `token` writes a base-unit amount ("2.8571428 XLM"). */
@@ -61,6 +63,7 @@ const unavailableBalance: BalanceView = {
   pending: null,
   deviceReady: false,
   device: 'unavailable',
+  limits: null,
   amounts: [],
   noAmountReason: null,
   settlement: { enabled: false, expectedWithinMs: 0 },
@@ -90,7 +93,7 @@ const unavailableActivity: ActivityView = {
 
 /** Until the money layer is connected: nothing to read. */
 export const unwiredSource: PocketSource = {
-  wired: false,
+  useWired: () => false,
   format: { money: () => '', token: () => '' },
   useBalance: () => unavailableBalance,
   useEarnings: () => unavailableEarnings,
@@ -99,7 +102,7 @@ export const unwiredSource: PocketSource = {
   useWithdraw: () => null,
 }
 
-export const PocketSourceContext = createContext<PocketSource>(unwiredSource)
+export const PocketSourceContext = createContext<PocketSource>(liveSource)
 
 export function usePocketSource(): PocketSource {
   return useContext(PocketSourceContext)

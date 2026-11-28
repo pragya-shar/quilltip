@@ -349,9 +349,11 @@ function forRole(v: FakePayments, role: FakeRole): FakePayments {
           ? balance(
               {
                 status: 'none',
-                available: convertedMoney(0),
+                // No balance is held: an exact zero, not a conversion.
+                available: money(0),
                 pending: money(0),
-                exact: { token: 'XLM', available: '0' },
+                exact: null,
+                price: null,
                 deviceReady: false,
                 device: 'needs-setup',
                 limits: null,

@@ -1,5 +1,6 @@
 'use client'
 
+import { LocalPaymentsShell } from './LocalPaymentsShell'
 import { Pocket } from './Pocket'
 
 /**
@@ -7,5 +8,10 @@ import { Pocket } from './Pocket'
  * desktop panel (`shell/pocket/PocketBody`, loaded when it first opens).
  */
 export function PocketContent() {
-  return <Pocket />
+  return (
+    <>
+      <LocalPaymentsShell />
+      <Pocket />
+    </>
+  )
 }

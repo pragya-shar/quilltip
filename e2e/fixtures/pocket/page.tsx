@@ -26,7 +26,6 @@ import {
   SCENARIOS,
   elsewhereTip,
   exactCents,
-  forRole,
   scenario,
   tokenAmount,
   type Role,
@@ -36,7 +35,8 @@ import { ArticleStandIn } from './ArticleStandIn'
 import { ElsewherePage } from './ElsewherePage'
 import { TodayStandIn } from './TodayStandIn'
 
-// The Pocket inside the real application shell, with no backend: what
+// The balance inside the real application shell, on the money layer's own
+// fake scenarios (./scenarios), with no backend: what
 // e2e/pocket.spec.ts drives. The address picks the money:
 //   ?scenario=  one of SCENARIOS (default ready)
 //   ?role=      both (default), reader, writer
@@ -82,7 +82,7 @@ const NOW = Date.now()
 // `?writer-converted`: the money layer marks the writer's figures as
 // converted at today's price: two decimals and the flag; the figure adds
 // the approximate mark.
-const base = forRole(scenario(name, NOW), role)
+const base = scenario(name, NOW, role)
 const approx = (figure: Money | null): Money | null =>
   figure && {
     cents: figure.cents,
@@ -191,7 +191,7 @@ function useEarningsState(view: EarningsView): EarningsView {
 }
 
 const source: PocketSource = {
-  wired: !params.has('unwired'),
+  useWired: () => !params.has('unwired'),
   format: { money: exactCents, token: tokenAmount },
   useBalance: () => views.balance,
   useEarnings: () => useEarningsState(views.earnings),
