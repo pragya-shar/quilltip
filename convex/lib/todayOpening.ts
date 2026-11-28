@@ -9,8 +9,10 @@
  * the newest articles published before the day began, until enough writers
  * are found (at most 200 articles read). Each candidate gets a score from a
  * hash of (day, article id); the lowest opens Today, the next ones are "More
- * to read". Tips play no part. A writer whose newest article is older than
- * those of the candidates found is not a candidate that day.
+ * to read". When too few are found, the day's own articles follow, newest
+ * first, so Today is empty only when nothing eligible is published. Tips
+ * play no part. A writer whose newest article is older than those of the
+ * candidates found is not a candidate that day.
  */
 
 /** One UTC day: the place is called Today, and its opening is the

@@ -63,10 +63,12 @@ type Candidate = {
 }
 
 /**
- * One candidate per writer (their newest eligible article), from the
- * articles published before `before`, newest first, read in pages until
- * `wanted` writers are found or CANDIDATE_PAGES pages were read: at most
- * CANDIDATE_PAGE × CANDIDATE_PAGES (200) article documents per call.
+ * One candidate per writer (their newest eligible article) among the
+ * articles published in [from, before), newest first, added to `byWriter`
+ * (a writer already there keeps their place). Pages are read until `wanted`
+ * writers are found or `pages` pages were read; returns the pages read.
+ * Both passes of a call share CANDIDATE_PAGES, so a call reads at most
+ * CANDIDATE_PAGE × CANDIDATE_PAGES (200) article documents.
  *
  * A page after the first starts at the last page's oldest time, inclusive,
  * and skips what it already saw, so articles published in the same
@@ -76,21 +78,28 @@ type Candidate = {
  */
 async function candidates(
   ctx: QueryCtx,
-  before: number,
-  wanted: number
-): Promise<Map<string, Candidate>> {
-  const byWriter = new Map<string, Candidate>()
+  range: { from: number | null; before: number },
+  wanted: number,
+  byWriter: Map<string, Candidate>,
+  pages: number
+): Promise<number> {
   const seen = new Set<string>()
-  let bound = { time: before, inclusive: false }
-  for (let page = 0; page < CANDIDATE_PAGES; page++) {
+  let bound = { time: range.before, inclusive: false }
+  let read = 0
+  while (read < pages) {
     const { time, inclusive } = bound
+    read++
     const docs = await ctx.db
       .query('articles')
-      .withIndex('by_published_date', (q) =>
-        inclusive
-          ? q.eq('published', true).lte('publishedAt', time)
-          : q.eq('published', true).lt('publishedAt', time)
-      )
+      .withIndex('by_published_date', (q) => {
+        const lower =
+          range.from === null
+            ? q.eq('published', true)
+            : q.eq('published', true).gte('publishedAt', range.from)
+        return inclusive
+          ? lower.lte('publishedAt', time)
+          : lower.lt('publishedAt', time)
+      })
       .order('desc')
       .take(CANDIDATE_PAGE)
     let fresh = 0
@@ -111,7 +120,7 @@ async function candidates(
     if (oldest === undefined) break
     bound = { time: oldest, inclusive: fresh > 0 }
   }
-  return byWriter
+  return read
 }
 
 /**
@@ -139,15 +148,35 @@ export const opening = query({
     // Enough writers for the opening and the list, plus some skipped ones
     // (at most 20 count toward the read; the rest only reorder).
     const wanted = 1 + MORE_LIMIT + Math.min(skip.size, SKIP_READ_LIMIT)
-    // Articles published before this day began, so the choice holds all
-    // day. One pass: a catalogue whose every article is newer than the day
-    // opens on the next day.
-    const byWriter = await candidates(ctx, window.startsAt, wanted)
-
+    // Articles published before this day began come first, in the day's
+    // order, so the opening holds all day once one exists.
+    const before = new Map<string, Candidate>()
+    const used = await candidates(
+      ctx,
+      { from: null, before: window.startsAt },
+      wanted,
+      before,
+      CANDIDATE_PAGES
+    )
     const compare = compareForWindow(window.index)
-    const ranked = [...byWriter.values()].sort((a, b) =>
+    const ranked = [...before.values()].sort((a, b) =>
       compare(a.article._id, b.article._id)
     )
+    // Too few: the day's own articles, up to `at`, follow, newest first, so
+    // a catalogue whose every article is from today is never empty. On the
+    // first day the newest article opens Today.
+    if (before.size < wanted && used < CANDIDATE_PAGES) {
+      const today = new Map(before)
+      await candidates(
+        ctx,
+        { from: window.startsAt, before: at + 1 },
+        wanted,
+        today,
+        CANDIDATE_PAGES - used
+      )
+      for (const [writer, candidate] of today)
+        if (!before.has(writer)) ranked.push(candidate)
+    }
     // Finished articles move to the back; they open only when nothing else can.
     const ordered = [
       ...ranked.filter(({ article }) => !skip.has(article._id)),

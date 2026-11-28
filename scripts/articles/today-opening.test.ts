@@ -239,7 +239,7 @@ describe('today.opening', () => {
     }
   })
 
-  test('an article published during the window waits for the next window', async () => {
+  test('an article published during the day follows the day’s order, and the opening holds', async () => {
     const t = convexTest(schema, modules)
     const [older] = await catalogue(t, 1)
     const fresh = await t.run(async (ctx) => {
@@ -254,35 +254,66 @@ describe('today.opening', () => {
     })
     const now = await t.query(api.today.opening, { at: NOW })
     expect(now.opening!.articleId).toBe(older)
-    expect(now.more).toEqual([])
-
-    const later = new Set<string>()
-    for (let w = 1; w < 12; w++) {
-      const r = await t.query(api.today.opening, { at: NOW + w * WINDOW_MS })
-      later.add(r.opening!.articleId)
-      for (const m of r.more) later.add(m.articleId)
-    }
-    expect(later.has(fresh)).toBe(true)
+    expect(now.more.map((m) => m.articleId)).toEqual([fresh])
+    // Later the same day: the same opening.
+    const later = await t.query(api.today.opening, { at: NOW + 10 * HOUR })
+    expect(later.opening!.articleId).toBe(older)
   })
 
-  test('a catalogue newer than the day opens on the next day', async () => {
+  test('a catalogue whose every article is from today opens on its newest', async () => {
     const t = convexTest(schema, modules)
-    const id = await t.run(async (ctx) => {
-      const authorId = await writer(ctx, 'first')
-      return article(
-        ctx,
-        authorId,
-        'first',
-        'first',
-        windowOf(NOW).startsAt + 1
-      )
+    const start = windowOf(NOW).startsAt
+    const [first, second, third] = await t.run(async (ctx) => {
+      const ids: Id<'articles'>[] = []
+      for (const [i, at] of [
+        start + 1,
+        start + 2 * HOUR,
+        start + 3 * HOUR,
+      ].entries()) {
+        const authorId = await writer(ctx, `today${i}`)
+        ids.push(await article(ctx, authorId, `today${i}`, `t${i}`, at))
+      }
+      return ids
     })
-    // One pass, no fallback: nothing opens today, the article opens tomorrow.
-    expect((await t.query(api.today.opening, { at: NOW })).opening).toBeNull()
-    const tomorrow = await t.query(api.today.opening, {
-      at: NOW + WINDOW_MS,
+    const result = await t.query(api.today.opening, { at: NOW })
+    expect(result.opening!.articleId).toBe(third)
+    expect(result.more.map((m) => m.articleId)).toEqual([second, first])
+  })
+
+  test('an article published after the moment rendered is not shown yet', async () => {
+    const t = convexTest(schema, modules)
+    const start = windowOf(NOW).startsAt
+    const [early, late] = await t.run(async (ctx) => {
+      const a = await writer(ctx, 'early')
+      const b = await writer(ctx, 'late')
+      return [
+        await article(ctx, a, 'early', 'early', start + 1),
+        await article(ctx, b, 'late', 'late', NOW + 1),
+      ]
     })
-    expect(tomorrow.opening!.articleId).toBe(id)
+    const now = await t.query(api.today.opening, { at: NOW })
+    expect(now.opening!.articleId).toBe(early)
+    expect(now.more).toEqual([])
+    const after = await t.query(api.today.opening, { at: NOW + 1 })
+    expect(after.opening!.articleId).toBe(late)
+  })
+
+  test('a finished article from today moves to the back like any other', async () => {
+    const t = convexTest(schema, modules)
+    const start = windowOf(NOW).startsAt
+    const [older, newer] = await t.run(async (ctx) => {
+      const a = await writer(ctx, 'older')
+      const b = await writer(ctx, 'newer')
+      return [
+        await article(ctx, a, 'older', 'older', start + 1),
+        await article(ctx, b, 'newer', 'newer', start + HOUR),
+      ]
+    })
+    const result = await t.query(api.today.opening, {
+      at: NOW,
+      exclude: [newer],
+    })
+    expect(result.opening!.articleId).toBe(older)
   })
 
   test('a finished article is skipped while another exists', async () => {
