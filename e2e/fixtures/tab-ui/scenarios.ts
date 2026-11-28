@@ -17,7 +17,7 @@ import {
 } from './backend'
 import { FIXTURE_WRITER } from './constants'
 
-export type View = 'home' | 'tip' | 'collect' | 'stats'
+export type View = 'home' | 'tip' | 'collect' | 'stats' | 'wallet'
 
 export type DeviceSetup =
   | 'none'
@@ -159,6 +159,55 @@ const S: Scenario[] = [
     view: 'home',
     device: 'ready',
     seed: short,
+  },
+  {
+    id: 'wallet-short',
+    title: 'Wallet tip history and receipts, tab short (#643)',
+    view: 'wallet',
+    device: 'ready',
+    seed: short,
+  },
+  {
+    id: 'wallet-short-tab-loading',
+    title: 'Wallet tip history, tab short, tab still loading (#643)',
+    view: 'wallet',
+    device: 'ready',
+    seed: (s) => {
+      short(s)
+      s.tabPending = true
+    },
+  },
+  {
+    id: 'wallet-zero',
+    title: 'Wallet tip history, tab holds exactly what its tips need (#643)',
+    view: 'wallet',
+    device: 'ready',
+    seed: (s) => {
+      // 0.8 XLM in the tab, 0.8 XLM settling: available is exactly 0.
+      openTab(s, (BigInt(8) * XLM) / BigInt(10))
+      s.tips = [
+        tipRow(0, 'ACCEPTED', {
+          amount: ((BigInt(8) * XLM) / BigInt(10)).toString(),
+          acceptedAt: NOW - 30 * 60_000,
+        }),
+        tipRow(2, 'SETTLED'),
+      ]
+      recomputeTab(s)
+    },
+  },
+  {
+    id: 'wallet-funded',
+    title: 'Wallet tip history and receipts, tab covers its tips (#643)',
+    view: 'wallet',
+    device: 'ready',
+    seed: (s) => {
+      open(s, 10)
+      s.tips = [
+        tipRow(0, 'ACCEPTED', { acceptedAt: NOW - 30 * 60_000 }),
+        tipRow(2, 'SETTLED'),
+      ]
+      recomputeTab(s)
+    },
   },
   {
     id: 'home-loading',

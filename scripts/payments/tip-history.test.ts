@@ -8,6 +8,7 @@ import {
 } from '../../convex/lib/chain/schema'
 import {
   receiptStatusNote,
+  shownTipStatus,
   tipGenerationLabel,
   tipStatusLabel,
 } from '../../components/account/TipReceiptDialog'
@@ -173,5 +174,52 @@ describe('the contract generation of a row', () => {
     )
     expect(html).toContain('Confirming')
     expect(html).not.toContain('Unrecognized')
+  })
+})
+
+/** A reader's accepted tab tips while the tab is short (#643). */
+describe('accepted tab tips on a short tab', () => {
+  const sent = { status: 'ACCEPTED', direction: 'sent' as const }
+
+  it('show as waiting for a top-up, with no amount or time', () => {
+    const status = shownTipStatus(sent, true)
+    expect(tipStatusLabel(status)).toBe('Waiting for balance')
+    const note = receiptStatusNote({ ...sent, status })
+    expect(note).toBe(
+      'This tip is recorded, but the tab ran short. It settles after the next top-up.'
+    )
+    expect(note).not.toMatch(/5 XLM|6 hours/)
+  })
+
+  it('keep the settling wording when the tab is not short', () => {
+    const status = shownTipStatus(sent, false)
+    expect(tipStatusLabel(status)).toBe('Settling')
+    expect(receiptStatusNote({ ...sent, status })).toBe(
+      'Sent from a tab and not settled yet. Settles at 5 XLM to this writer, or after 6 hours.'
+    )
+  })
+
+  it('leave settled tips and the writer’s received tips as they are', () => {
+    expect(shownTipStatus({ status: 'SETTLED', direction: 'sent' }, true)).toBe(
+      'SETTLED'
+    )
+    expect(
+      shownTipStatus({ status: 'ACCEPTED', direction: 'received' }, true)
+    ).toBe('ACCEPTED')
+  })
+
+  it('read "Waiting for balance" in the wallet history', () => {
+    const items = normalizeTipActivity(
+      sources([{ contractVersion: 'v2', status: 'ACCEPTED' }])
+    )
+    const short = renderToStaticMarkup(
+      createElement(WalletTipHistory, { items, readerTabShort: true })
+    )
+    expect(short).toContain('Waiting for balance')
+    expect(short).not.toContain('Settling')
+    const funded = renderToStaticMarkup(
+      createElement(WalletTipHistory, { items, readerTabShort: false })
+    )
+    expect(funded).toContain('Settling')
   })
 })

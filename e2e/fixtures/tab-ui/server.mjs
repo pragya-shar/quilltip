@@ -149,6 +149,7 @@ async function api(url, request) {
         claimable: state.claimable,
         clock: { ...state.clock, closedAt: Date.now() },
         rpcDown: state.rpcDown,
+        tabPending: state.tabPending,
         funds: state.funds,
         limits: state.limits,
         calls: state.calls,

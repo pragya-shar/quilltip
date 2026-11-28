@@ -15,7 +15,7 @@ import {
   TAB_SETTLEMENT,
 } from '@/lib/copy/tab'
 import { localKeyIds } from '@/lib/tab-ui/key-plan'
-import { tabBalances, tabShortBy } from '@/lib/tab-ui/tab-status'
+import { tabBalances, tabIsShort, tabShortBy } from '@/lib/tab-ui/tab-status'
 import { TabBalance } from './TabBalance'
 import { TabCloseSection } from './TabCloseSection'
 import { TabDeviceKeys } from './TabDeviceKeys'
@@ -130,7 +130,7 @@ export function TabHome() {
 
   // Tips already sent exceed an open tab's balance: the Top up below is the
   // way out, so the notice carries no action of its own.
-  const short = tab?.status === 'OPEN' ? tabShortBy(tab) : null
+  const short = tab && tabIsShort(tab) ? tabShortBy(tab) : null
   const conditions = (
     <>
       {paused ? <PaymentNotice kind="paused" audience="reader" /> : null}
@@ -268,7 +268,7 @@ export function TabHome() {
           onRevoke={(keyId) => start({ flow: 'tab-revoke-key', keyId })}
         />
       ) : null}
-      <TabTipHistory activity={activity ?? null} />
+      <TabTipHistory activity={activity ?? null} tabShort={short !== null} />
       {status.kind === 'open' || status.kind === 'closing' ? (
         <TabCloseSection
           status={status}

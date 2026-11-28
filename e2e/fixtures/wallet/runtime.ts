@@ -423,6 +423,9 @@ export function useQuery(ref: unknown, args?: unknown) {
       paused: { core: false },
     }
   }
+  // The wallet page reads the reader's tab for its tip history (#643); these
+  // readers have none.
+  if (name === 'tabs.getMyTab') return null
   if (name === 'tipsV2.getTipEligibility') return tipEligibility()
   if (name === 'tipsV2.getTipStatus') {
     return tipStatus((args as { submissionId: string }).submissionId)
