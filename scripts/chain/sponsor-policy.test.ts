@@ -713,6 +713,16 @@ describe('configuration', () => {
       code(() => sponsorConfig({ ...env, SPONSOR_DAILY_BUDGET_STROOPS: '1.5' }))
     ).toBe('SPONSOR_CONFIG_INVALID')
     expect(() => sponsorConfig({ ...env, STELLAR_NETWORK: 'PUBLIC' })).toThrow()
+    // Off: nothing after the switch is read, so a missing verifier is not the cause.
+    expect(
+      code(() =>
+        sponsorConfig({
+          ...env,
+          SPONSOR_ENABLED: 'false',
+          SPONSOR_ACCOUNT_VERIFIER: undefined,
+        })
+      )
+    ).toBe('SPONSOR_DISABLED')
   })
 
   it('refuses a missing or malformed secret without echoing it', () => {

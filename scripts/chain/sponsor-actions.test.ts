@@ -745,6 +745,48 @@ describe('nothing but codes in the log lines a public caller can receive', () =>
     expect(JSON.stringify(detail?.args)).toContain('below the floor')
   })
 
+  it('a missing or malformed verifier: not ready, deploy refused with a code only', async () => {
+    for (const verifier of [undefined, 'MARKER-not-a-contract']) {
+      const { t, as } = await setup({ SPONSOR_ACCOUNT_VERIFIER: verifier })
+      const lines = captureLogs()
+      expect(await t.action(internal.sponsor.checkReadiness, {})).toBeNull()
+      expect(await t.query(api.sponsorStore.passkeyTipAvailable, {})).toBe(
+        false
+      )
+      const d = await outcome(
+        t.action(internal.sponsor.deployAccount, DEPLOY_PAYLOAD)
+      )
+      expect(d.code).toBe('SPONSOR_CONFIG_INVALID')
+      expect(d.message).toBe('Sponsored calls are paused for now.')
+      expect((await outcome(prepare(as))).code).toBe('SPONSOR_CONFIG_INVALID')
+      const text = lines.join('\n')
+      expect(text).toContain('SPONSOR_CONFIG_INVALID')
+      expect(text).not.toMatch(/MARKER|SPONSOR_ACCOUNT_VERIFIER/)
+      expect(node.simulated).toEqual([])
+      expect(node.sent).toEqual([])
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('with the sponsor off, a missing verifier is never read and the secret is never parsed', async () => {
+    const { t, as } = await setup({
+      SPONSOR_ENABLED: 'false',
+      SPONSOR_ACCOUNT_VERIFIER: undefined,
+      SPONSOR_SECRET: 'MARKER-secret',
+    })
+    const lines = captureLogs()
+    expect(await t.action(internal.sponsor.checkReadiness, {})).toBeNull()
+    expect(await t.query(api.sponsorStore.passkeyTipAvailable, {})).toBe(false)
+    const d = await outcome(
+      t.action(internal.sponsor.deployAccount, DEPLOY_PAYLOAD)
+    )
+    expect(d.code).toBe('SPONSOR_DISABLED')
+    expect((await outcome(prepare(as))).code).toBe('SPONSOR_DISABLED')
+    expect(lines.join('\n')).not.toMatch(/MARKER|SPONSOR_ACCOUNT_VERIFIER/)
+    expect(node.simulated).toEqual([])
+    expect(node.sent).toEqual([])
+  })
+
   it('a simulation error under a classified code keeps its text out of the answer', async () => {
     const { t, as } = await setup()
     await t.action(internal.sponsor.checkReadiness, {})
