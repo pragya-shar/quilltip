@@ -79,7 +79,15 @@ export default async function ArticlePage({
     <ArticlePageClient
       username={username}
       slug={slug}
-      initialArticle={initialArticle ?? undefined}
+      initialArticle={
+        initialArticle
+          ? // A cover from another host is not sent to the page (#615).
+            {
+              ...initialArticle,
+              coverImage: shownCoverImage(initialArticle.coverImage),
+            }
+          : undefined
+      }
       initialBodyHtml={renderArticleHtml(initialArticle?.content)}
       unavailableRetryHref={
         initialArticle === undefined

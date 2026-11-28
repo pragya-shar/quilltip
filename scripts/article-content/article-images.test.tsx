@@ -45,6 +45,13 @@ describe('image sources (#615)', () => {
     [`${OWN}/http/pixel`, false],
     [`${OWN}/`, false],
     [`${OWN}/api/storagex/a`, false],
+    // Paths that only look like the storage path.
+    [`${OWN}/api/storage/../x`, false],
+    [`${OWN}/api/storage/%2e%2e/x`, false],
+    [`${OWN}/api/storage%2F..%2Fx`, false],
+    [`${OWN}/api%2Fstorage/x`, false],
+    [`${OWN}/x?/api/storage/y`, false],
+    [`${OWN}/x#/api/storage/y`, false],
     // Hosts that only end with an allowed one.
     ['https://evilarweave.net/x', false],
     ['https://a.images.unsplash.com/x', false],

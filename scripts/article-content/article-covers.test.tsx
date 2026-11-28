@@ -122,5 +122,22 @@ describe('article covers (#615)', () => {
     expect(page).toContain(
       'const images = cover ? [{ url: cover }] : undefined'
     )
+    // The article sent to the page carries no outside cover either.
+    expect(page).toContain(
+      'coverImage: shownCoverImage(initialArticle.coverImage),'
+    )
+  })
+
+  it('the article view and the writing workspace use the same check', async () => {
+    const { readFileSync } = await import('node:fs')
+    const { join } = await import('node:path')
+    const read = (path: string) =>
+      readFileSync(join(__dirname, '../..', path), 'utf8')
+    expect(read('components/articles/ArticlePageClient.tsx')).toContain(
+      'coverImage: shownCoverImage(article.coverImage),'
+    )
+    const workspace = read('components/editor/WritingWorkspaceView.tsx')
+    expect(workspace).toContain('if (shownCoverImage(w.coverImage)) {')
+    expect(workspace).toContain('{shownCoverImage(w.coverImage) ? (')
   })
 })
