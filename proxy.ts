@@ -219,13 +219,16 @@ export async function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Match all request paths except for the ones starting with:
-     * - api/ (API routes; writers may have a handle that starts with "api",
-     *   and their pages need the proxy's headers and checks)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
+     * Match all request paths except:
+     * - /api and /api/... (API routes). Only that segment: a writer's handle
+     *   may start with "api" (/apiary/...), and writer pages need the
+     *   proxy's headers and checks.
+     * - /_next/static/... and /_next/image... (static files and the image
+     *   optimizer; handles cannot start with "_").
+     * - /favicon.ico exactly (the dot is escaped, so no other path matches).
+     * Matching is case-sensitive, as routing is: /API/x is a writer page.
+     * scripts/perf/proxy-matcher.test.ts compiles this list as Next.js does.
      */
-    '/((?!api/|_next/static|_next/image|favicon.ico).*)',
+    '/((?!api(?:/|$)|_next/static|_next/image|favicon\\.ico$).*)',
   ],
 }

@@ -17,7 +17,7 @@
 //   redirect, with no article text;
 // - a draft: 404 and no draft text.
 // A client cannot send the proxy's answer itself, and pages of a writer whose
-// handle starts with "api" go through the proxy too.
+// handle starts with "api" go through the proxy too (#623); /api does not.
 
 import { rmSync } from 'fs'
 import { join } from 'path'
@@ -98,7 +98,7 @@ async function expectLoad(
     has?: string[]
     lacks?: string[]
     location?: string
-    /** The proxy ran: the response carries its security policy. */
+    /** Whether the proxy ran: only its responses carry the security policy. */
     csp?: boolean
     headers?: Record<string, string>
     /** Longest the whole answer may take. */
@@ -122,8 +122,11 @@ async function expectLoad(
   }
   if (expect.maxMs !== undefined && ms > expect.maxMs)
     problems.push(`took ${Math.round(ms)} ms, limit ${expect.maxMs} ms`)
-  if (expect.csp && !response.headers.get('content-security-policy'))
+  const policy = response.headers.get('content-security-policy')
+  if (expect.csp === true && !policy)
     problems.push('no Content-Security-Policy header: the proxy did not run')
+  if (expect.csp === false && policy)
+    problems.push('a Content-Security-Policy header: the proxy ran')
   const seconds = ((Date.now() - started) / 1000).toFixed(1)
   console.log(
     `${`${label}, ${kind}`.padEnd(58)} t=${seconds.padStart(4)} s  ${status}  ${problems.length ? 'FAILS' : 'ok'}`
@@ -235,16 +238,38 @@ async function main() {
     })
     setFixtureWriterHandle(FIXTURE_WRITER)
 
-    // A writer whose handle starts with "api" gets the proxy too.
-    await expectLoad(
-      'handle starting with api',
-      '/apiwriter/an-article',
-      'page',
-      {
-        status: 404,
-        csp: true,
-      }
-    )
+    // A writer whose handle starts with "api" gets the proxy too (#623): its
+    // security policy, its route check, and its removal of a client's route
+    // header. /api itself does not.
+    setFixtureWriterHandle('apiary')
+    const apiary = '/apiary/fixture-article-8'
+    await expectLoad('handle apiary, published', apiary, 'page', {
+      status: 200,
+      has: [PROSE],
+      csp: true,
+    })
+    await expectLoad('handle apiary, no such article', '/apiary/x', 'page', {
+      status: 404,
+      csp: true,
+    })
+    const apiaryVersion = fixtureArticleVersion('fixture-article-8')
+    setFixtureArticlePublished('fixture-article-8', false)
+    for (const kind of ['page', 'navigation'] as const)
+      await expectLoad(
+        'handle apiary, unpublished, sent its old version',
+        apiary,
+        kind,
+        {
+          ...(kind === 'page'
+            ? { status: 404, csp: true }
+            : { notStatus: 200 }),
+          lacks: [PROSE],
+          headers: { [ARTICLE_ROUTE_HEADER]: `found ${apiaryVersion}` },
+        }
+      )
+    setFixtureArticlePublished('fixture-article-8', true)
+    setFixtureWriterHandle(FIXTURE_WRITER)
+    await expectLoad('API route path', '/api/x', 'page', { csp: false })
 
     // A draft never appears.
     for (const kind of ['page', 'navigation'] as const)
