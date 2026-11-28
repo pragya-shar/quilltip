@@ -65,6 +65,7 @@ import {
   TIP_LADDER,
   balanceViewOf,
   effectiveChoice,
+  sendablePressedAmount,
   tipBlocked,
   readerItemsOf,
   pageState,
@@ -672,11 +673,14 @@ export function PaymentsEngine() {
       if (!controller.ready) continue
       const tap = paymentsStore.takeTap(id, pair)
       if (!tap || controller.unavailable) continue
-      if (!controller.amounts.some((a) => a.cents === tap.cents)) {
+      const cents = sendablePressedAmount(
+        tap.cents,
+        controller.amounts.map((a) => a.cents)
+      )
+      if (cents === null) {
         paymentsStore.missTap(id)
         continue
       }
-      const cents = tap.cents
       const b = balanceRef.current
       const decision = tapOnce(
         phases.current,
