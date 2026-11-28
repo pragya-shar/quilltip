@@ -24,6 +24,7 @@ import {
   type MutationCtx,
   type QueryCtx,
 } from '../_generated/server'
+import { rebuildCollected } from '../lib/chain/balanceRecount'
 import { readChainEnv } from '../lib/chain/env'
 import { recordClaim, uniqueVerifiedUser } from '../lib/chain/tabLedger'
 
@@ -217,6 +218,12 @@ export const recomputeCollected = internalMutation({
         collectedBaseUnits: collected,
         updatedAt: now,
       })
+      // The ready and collected figures a writer sees are kept beside this
+      // total. Rebuild them from the corrected total, or a later settled tip
+      // would be counted as already collected.
+      for (const d of found) {
+        await rebuildCollected(ctx, row.userId, d.token, now)
+      }
     }
     return {
       status: args.apply === true ? 'applied' : 'dry_run',

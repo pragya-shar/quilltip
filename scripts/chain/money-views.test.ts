@@ -29,7 +29,10 @@ import {
   receiptShareCents,
 } from '../../convex/lib/moneyViews'
 import { SETTLE_REQUEST_LEASE } from '../../convex/lib/chain/settleSchedule'
-import { RECOUNT_PAGE } from '../../convex/lib/chain/balanceRecount'
+import {
+  RECOUNT_PAGE,
+  rebuildCollected,
+} from '../../convex/lib/chain/balanceRecount'
 import { RECENT_REQUESTS } from '../../convex/balance'
 import {
   ACCEPTOR_PUBLIC,
@@ -1054,6 +1057,49 @@ describe('totals at any history length and across collects', () => {
     await ingest(t, claim)
     const reopened = await as(t, s.authorId).query(api.earnings.mine, {})
     expect(reopened).toEqual(after)
+  })
+
+  it('a corrected collected total also corrects the collected bookkeeping, so the next settled tip is ready', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const net = await settleTwo(t, s)
+    await ingest(t, ev.claimed(WRITER, net))
+    // A total counted twice before claim records existed, with the collected
+    // bookkeeping built from that doubled total.
+    await t.run(async (ctx) => {
+      const row = await ctx.db
+        .query('authorEarnings')
+        .withIndex('by_user', (q) => q.eq('userId', s.authorId))
+        .first()
+      await ctx.db.patch(row!._id, {
+        collectedBaseUnits: {
+          ...row!.collectedBaseUnits,
+          [TOKEN]: (net * BigInt(2)).toString(),
+        },
+      })
+      await rebuildCollected(ctx, s.authorId, TOKEN, Date.now())
+    })
+    const corrected = await t.mutation(
+      internal.chain.tabClaims.recomputeCollected,
+      { apply: true }
+    )
+    expect(corrected.differences).toHaveLength(1)
+
+    // One more tip settles: its share is ready, not swallowed.
+    await tip(t, s, { cents: 100 })
+    const tipGross = BigInt(10_000_000)
+    const cumulative = BigInt(50_000_000)
+    await ingest(
+      t,
+      ev.tabSettled({ cumulative, paidAfter: cumulative, gross: tipGross })
+    )
+    const after = (await checkInvariants(t, s)).views.earnings
+    expect(after.collectedCents).toBe(390)
+    expectCents(after.availableCents, 97.5)
+    expect(after.baseUnits).toMatchObject({
+      available: netOf(tipGross).toString(),
+      collected: net.toString(),
+    })
   })
 
   // A stored `Claimed` event processed a second time (a restore re-queues
