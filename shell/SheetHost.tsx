@@ -3,6 +3,7 @@
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { Sheet } from '@/system/components/Sheet'
+import { watchInputModality } from '@/system/inputModality'
 import { appHistory } from './appHistory'
 import { firstPage } from './firstPage'
 import { PocketBody } from './pocket/PocketBody'
@@ -24,6 +25,9 @@ export function SheetHost() {
   const wide = useWide()
   // Mounted once with the shell: from now on, pages arrive by navigation.
   useEffect(() => firstPage.markShown(), [])
+  // From the first page on, so the press that opens the first sheet is
+  // known (Safari focuses no pressed control: the sheet's opener).
+  useEffect(() => watchInputModality(), [])
   useEffect(() => {
     const onPop = () => appHistory.popstate()
     window.addEventListener('popstate', onPop, true)

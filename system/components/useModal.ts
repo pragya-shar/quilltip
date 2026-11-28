@@ -4,6 +4,7 @@ import { useEffect, useRef, type RefObject } from 'react'
 import {
   focusDestination,
   inputModality,
+  recentlyPressed,
   watchInputModality,
 } from '../inputModality'
 import { modalStack } from '../modalStack'
@@ -37,7 +38,8 @@ export function focusables(root: HTMLElement): HTMLElement[] {
  * - Tab and Shift+Tab move through every control and wrap, with or without
  *   Option (Safari reaches buttons only with Option+Tab; both wrap here).
  * - Escape goes through `onClose`, so React stays the source of truth.
- * - Focus returns to the element that opened it, or to the page content if
+ * - Focus returns to the element that opened it (the focused one, or the
+ *   one pressed when Safari focused none), or to the page content if
  *   that element is gone (never the page body); if the page moved focus
  *   elsewhere while it closed, focus stays there.
  * - The page behind does not scroll (iOS Safari included).
@@ -63,11 +65,17 @@ export function useModal(
     // Remember the opener only when opening, not when an effect re-runs
     // with the dialog already open (React StrictMode in development).
     if (!dialog.open) {
-      openerRef.current =
+      // Opened by a key: the focused control. Opened by a press: the control
+      // that was pressed, since Safari focuses no pressed button and leaves
+      // focus wherever it was (the body, or the page's main).
+      const active =
         document.activeElement instanceof HTMLElement &&
         document.activeElement !== document.body
           ? document.activeElement
           : null
+      const pressedControl =
+        inputModality() === 'pointer' ? recentlyPressed() : null
+      openerRef.current = pressedControl ?? active
     }
     delete dialog.dataset.closing
     const wasOpen = dialog.open

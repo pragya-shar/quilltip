@@ -270,7 +270,8 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
    control and wrap, and so do Option+Tab and Shift+Option+Tab in Safari
    (by default Safari's plain Tab reaches only text fields).
 4. **Focus goes back.** On Escape or Close, focus returns to the element
-   that opened the sheet, or to the page content (`#content`, else `main`)
+   that opened the sheet (opened by a key, the focused control; opened by a
+   tap or a click, the control pressed, since Safari focuses none), or to the page content (`#content`, else `main`)
    if that element is gone, never the page body. If the page has moved
    focus by the time a sheet goes (it unmounted mid-close), focus stays
    where the page put it. Lazily loaded sheets keep focus on the title after

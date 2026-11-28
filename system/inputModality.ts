@@ -7,6 +7,11 @@
  */
 let last: 'keyboard' | 'pointer' = 'pointer'
 let listening = false
+let pressed: { el: HTMLElement; at: number } | null = null
+
+/** What counts as the control a press was on. */
+const CONTROL =
+  'button, a[href], [role="button"], [role="menuitem"], input, select, textarea, summary, [tabindex]:not([tabindex="-1"])'
 
 function listen() {
   if (listening || typeof document === 'undefined') return
@@ -18,12 +23,37 @@ function listen() {
     },
     true
   )
-  document.addEventListener('pointerdown', () => (last = 'pointer'), true)
+  document.addEventListener(
+    'pointerdown',
+    (event) => {
+      last = 'pointer'
+      // Safari does not focus a pressed button or link, so a modal it
+      // opens has no focused opener: remember the control instead.
+      const target = event.target as Element | null
+      const control = target?.closest?.(CONTROL)
+      pressed =
+        control instanceof HTMLElement
+          ? { el: control, at: performance.now() }
+          : null
+    },
+    true
+  )
 }
 
 export function inputModality(): 'keyboard' | 'pointer' {
   listen()
   return last
+}
+
+/**
+ * The control the last pointer press was on, if it was within `withinMs`
+ * and is still on the page: the opener of a modal that a press opened, in
+ * browsers that do not focus a pressed button (Safari).
+ */
+export function recentlyPressed(withinMs = 2000): HTMLElement | null {
+  listen()
+  if (!pressed || performance.now() - pressed.at > withinMs) return null
+  return pressed.el.isConnected ? pressed.el : null
 }
 
 /** Starts listening early, before the first press that opens anything. */

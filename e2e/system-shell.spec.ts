@@ -92,7 +92,9 @@ test('the balance opens the Pocket over the page and gives focus back', async ({
   ).toBeAttached()
   await page.keyboard.press('Escape')
   await expect(pocket).toBeHidden()
-  if (!hasTouch()) await expect(item).toBeFocused()
+  // Back on the item, opened by a tap or a click as well (Safari focuses no
+  // pressed link, so the sheet remembers what was pressed).
+  await expect(item).toBeFocused()
   await expect(item).toHaveAttribute('aria-expanded', 'false')
 })
 

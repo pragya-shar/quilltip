@@ -580,6 +580,17 @@ for (const kind of [
     ).toBe(true)
     await press(page, modal.getByRole('button', { name: kind.close }))
     await expect(modal).toBeHidden()
+    // Opened by a press, closed by a press: focus is back on the opener,
+    // in WebKit too (Safari focuses no pressed button).
+    await expect(opener).toBeFocused()
+
+    // Opened by a press, closed by Escape: the same.
+    await page.waitForTimeout(450) // the press hold after a modal closes
+    await press(page, opener)
+    await expect(modal).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(modal).toBeHidden()
+    await expect(opener).toBeFocused()
   })
 }
 
