@@ -38,17 +38,24 @@ import {
   readingRoomListKey,
 } from '@/lib/articles/readingRoomListArgs'
 import { getBrowseContextMessage } from './ArticlesBrowseDiscoveryHeader'
+import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
 
 type ReadingRoomList = NonNullable<ReturnType<typeof useReadingRoomArticles>>
 
 export function ReadingRoom({
   initialList,
   initialListKey,
+  unavailableRetryHref,
 }: {
   /** Server copy of the list, used until the live query answers. */
   initialList?: ReadingRoomList
   /** `readingRoomListKey` of the arguments `initialList` was loaded with. */
   initialListKey?: string
+  /**
+   * Set when the server could not read the list in time: until the live
+   * query answers, show a fallback that reads without scripts.
+   */
+  unavailableRetryHref?: string
 } = {}) {
   const router = useRouter()
   const pathname = usePathname()
@@ -328,6 +335,11 @@ export function ReadingRoom({
             Sign in or create an account
           </Link>
         </section>
+      ) : !result && unavailableRetryHref ? (
+        <ReadingUnavailable
+          what="The articles"
+          retryHref={unavailableRetryHref}
+        />
       ) : !result ? (
         <div className="reading-room-loading" role="status" aria-live="polite">
           <span>Loading articles…</span>

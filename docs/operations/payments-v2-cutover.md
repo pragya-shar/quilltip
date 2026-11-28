@@ -226,8 +226,9 @@ Every v2 change to an existing table is additive or relaxes a field:
 
 - **New tables:** `chainConfig`, `chainArticles`, `chainSubmissions`,
   `chainEvents`, `chainCursor`, `chainLeases`, `tabAccounts`,
-  `tabSessionKeys`, `tabReceipts`, `tabVouchers`, `tabSettlements`, and
-  `walletChallenges`. `overhaul/v2` also adds `feedback` and `rateLimits`,
+  `tabSessionKeys`, `tabReceipts`, `tabVouchers`, `tabSettlements`,
+  `tabBalanceDebits`, `tabReserveReleases`, `tabClaims`,
+  `tabClaimCorrections`, and `walletChallenges`. `overhaul/v2` also adds `feedback` and `rateLimits`,
   which are not payment tables but ship in the same release.
 - **New optional fields:** the v2 fields on `tips` and `highlightTips`
   (`contractVersion`, `channel`, `clientRef`, base-unit amounts, review
@@ -833,8 +834,10 @@ Never roll back by pushing `main`'s earlier backend code (section 2.2).
 
 A code rollback to an earlier commit of the release branch has a similar
 limit. Once a tab settlement is recorded, `tabAccounts.settledUnindexed` and
-`tabVouchers.indexedPaid` hold values. Any code pushed after stage 1 must keep
-both optional fields in its schema, or Convex refuses the push.
+`tabVouchers.indexedPaid` hold values, and a tab that waited for a
+reconciliation has had `tabAccounts.reconcileRequired`. Any code pushed after
+stage 1 must keep these optional fields in its schema, or Convex refuses the
+push.
 
 ### 6.1 Return to v2 after rollback B
 
@@ -953,16 +956,16 @@ The result is a list of transaction hashes that the restored rows must match.
 
 Start from the stage 0 snapshot and decide per table, with the second export:
 
-| Table group                                                                                                                                                             | Source in the restore file                                                                                                                                                                                                                                                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Tables the defect damaged                                                                                                                                               | Stage 0 snapshot. Re-apply rows from the second export only after review, one by one.                                                                                                                                                                                                                                                                                                         |
-| Other non-payment tables (`users`, `articles`, `authAccounts`, `authSessions`, `authRefreshTokens`, `_storage`, uploads, highlights, and the rest)                      | Second export. This keeps new accounts, edited articles and drafts, uploaded files, profile changes and wallet verifications.                                                                                                                                                                                                                                                                 |
-| Payment tables with a transaction per row (`tips` except tab tips, `highlightTips`, `articleNFTs`, `nftTransfers`, `chainSubmissions`, `tabSettlements`, `withdrawals`) | A row from the second export only if its transaction hash is in the step 3 list, or if it is not final yet (for example `PENDING`, `PREPARED` or `SUBMITTED`; verification, the recheck cron and the settler resolve it against the chain). Otherwise the stage 0 row if it existed, else leave it out and list it for review. Keep `earningsAppliedAt` and `earningsSkipReason` as exported. |
-| Tab ledger (`tabAccounts`, `tabSessionKeys`, `tabVouchers`, `tabReceipts`, and the `tips` rows with `channel` `tab`)                                                    | Second export. Accepted vouchers and receipts are signed by the reader and settle on chain later; they have no transaction of their own. Each tab tip's `tips` row is linked to its receipt (`tabReceiptId`, `tipRowId`): keep the two together, or the receipt points to a missing tip and the writer's earnings lose it.                                                                    |
-| `chainArticles`                                                                                                                                                         | Second export (the indexer needs these rows to link events).                                                                                                                                                                                                                                                                                                                                  |
-| `chainEvents`, `chainCursor`                                                                                                                                            | Second export, unless the defect damaged them. They record which events are already applied to the rows above, so the indexer continues from its cursor and applies nothing twice.                                                                                                                                                                                                            |
-| `authorEarnings`                                                                                                                                                        | Second export, unless the defect damaged it or a credited payment row is left out (see below).                                                                                                                                                                                                                                                                                                |
-| `chainLeases`, `chainConfig`                                                                                                                                            | Left out; the leases restart empty and step 6 loads the config.                                                                                                                                                                                                                                                                                                                               |
+| Table group                                                                                                                                                             | Source in the restore file                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Tables the defect damaged                                                                                                                                               | Stage 0 snapshot. Re-apply rows from the second export only after review, one by one.                                                                                                                                                                                                                                                                                                                                                                                                               |
+| Other non-payment tables (`users`, `articles`, `authAccounts`, `authSessions`, `authRefreshTokens`, `_storage`, uploads, highlights, and the rest)                      | Second export. This keeps new accounts, edited articles and drafts, uploaded files, profile changes and wallet verifications.                                                                                                                                                                                                                                                                                                                                                                       |
+| Payment tables with a transaction per row (`tips` except tab tips, `highlightTips`, `articleNFTs`, `nftTransfers`, `chainSubmissions`, `tabSettlements`, `withdrawals`) | A row from the second export only if its transaction hash is in the step 3 list, or if it is not final yet (for example `PENDING`, `PREPARED` or `SUBMITTED`; verification, the recheck cron and the settler resolve it against the chain). Otherwise the stage 0 row if it existed, else leave it out and list it for review. Keep `earningsAppliedAt` and `earningsSkipReason` as exported.                                                                                                       |
+| Tab ledger (`tabAccounts`, `tabSessionKeys`, `tabVouchers`, `tabReceipts`, `tabBalanceDebits`, and the `tips` rows with `channel` `tab`)                                | Second export. Accepted vouchers and receipts are signed by the reader and settle on chain later; they have no transaction of their own. Each tab tip's `tips` row is linked to its receipt (`tabReceiptId`, `tipRowId`): keep the two together, or the receipt points to a missing tip and the writer's earnings lose it. Take `tabBalanceDebits` from the same export as `tabAccounts`: an absolute balance subtracts the debit rows after it, so a missing row would leave the balance too high. |
+| `chainArticles`                                                                                                                                                         | Second export (the indexer needs these rows to link events).                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `chainEvents`, `chainCursor`                                                                                                                                            | Second export, unless the defect damaged them. They record which events are already applied to the rows above, so the indexer continues from its cursor and applies nothing twice.                                                                                                                                                                                                                                                                                                                  |
+| `authorEarnings`, `tabClaims`, `tabClaimCorrections`                                                                                                                    | Second export, unless the defect damaged `authorEarnings` or a credited payment row is left out (see below). Take `tabClaims` from the same export as `authorEarnings`: a claim record marks a `Claimed` event as counted in `collectedBaseUnits`, so a record without its amount is never counted, and an amount without its record is counted again when `chainEvents` is rebuilt.                                                                                                                |
+| `chainLeases`, `chainConfig`                                                                                                                                            | Left out; the leases restart empty and step 6 loads the config.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 
 Rules for conflicts:
 
@@ -993,17 +996,17 @@ writers with such tips. So:
   - `earnedBaseUnits`: the net of the direct v2 tips plus the `earnedNet` of
     the writer's `tabVouchers` rows;
   - `pendingBaseUnits`: the `pendingNet` of those vouchers;
-  - `collectedBaseUnits`: the `Claimed` amounts for the writer's address.
+  - `collectedBaseUnits`: not by hand. Step 6 sets it from the claim
+    records.
 - A hand-written number in the restore file needs a decimal point (`7.0`,
   not `7`): the import reads an integer as `int64` and refuses it for a
   number field. Correcting the row in the dashboard after the import avoids
   this.
 
 If `chainEvents` or `chainCursor` was damaged, leave both out and rebuild
-them with a replay in step 6. The replay applies every event again. Most
-handlers ignore an effect they already applied, but `Claimed` adds its amount
-to `collectedBaseUnits` each time: with `authorEarnings` from the second
-export, correct those fields by hand afterwards. A replay from `INDEXER_START_LEDGER` needs every
+them with a replay in step 6. The replay applies every event again, and each
+handler ignores an effect it already applied: a `Claimed` event with a
+`tabClaims` record adds nothing to `collectedBaseUnits`. A replay from `INDEXER_START_LEDGER` needs every
 event since that ledger within the RPC retention (about 7 days); older events
 come from an archive RPC or a hosted indexer through
 `chain/indexer:ingestBackfill`.
@@ -1051,8 +1054,14 @@ them out, rebuild them:
 bunx convex run chain/indexer:replayFrom '{"fromLedger": <INDEXER_START_LEDGER>}'
 ```
 
-The replay links each event to the restored rows. Then correct
-`collectedBaseUnits` if step 4 says so.
+The replay links each event to the restored rows.
+
+Then check collected tab earnings against the claim records (chain runbook,
+"Collected earnings"). Run `chain/tabClaims:seedClaimRecords` with
+`"apply": true` until `isDone`: it records each applied `Claimed` event that
+has no record and changes no total. Then run
+`chain/tabClaims:recomputeCollected` as a dry run. Apply it, with the
+incident note, only for the differences that step 4 explains.
 
 #### Step 7. Reopen payments
 
@@ -1084,6 +1093,9 @@ the incident) only when all of these are true:
    events indexed after the resume, with their effect on the rows they
    apply to (`chainEvents`, `chainCursor`, and for example `tabAccounts` and
    `tabVouchers` for a settlement indexed late); and the price cache.
+6. `chain/tabClaims:seedClaimRecords` reports `seeded: 0` and
+   `chain/tabClaims:recomputeCollected` reports no differences, both as dry
+   runs.
 
 Then roll the site forward or back as needed, and remove the pause notice.
 
@@ -1186,13 +1198,13 @@ the variables are gone.
 
 ## 9. Maintenance schedule
 
-| Task                                 | When                                                                                           | Command or place                                                                         |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                       |
-| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                      |
-| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3) |
-| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                |
-| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                 |
-| Live deployment snapshot             | Weekly during the hold, and before each removal PR is deployed                                 | Convex dashboard snapshot export                                                         |
-| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                           |
-| Removal PRs                          | After the hold of one release                                                                  | Section 8                                                                                |
+| Task                                 | When                                                                                           | Command or place                                                                                                                                       |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                                                                                     |
+| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                                                                                    |
+| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3); any tab under "Waiting for a reconciliation" (chain runbook) |
+| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                                                                              |
+| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                                                                               |
+| Live deployment snapshot             | Weekly during the hold, and before each removal PR is deployed                                 | Convex dashboard snapshot export                                                                                                                       |
+| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                                                                                         |
+| Removal PRs                          | After the hold of one release                                                                  | Section 8                                                                                                                                              |

@@ -11,6 +11,8 @@ import type { LoginFormData } from '@/lib/validations/auth'
 import { ArrowRight } from '@/components/landing/LandingIcons'
 import { AccountField } from './AccountField'
 import { AccountPasswordToggle } from './AccountPasswordToggle'
+import { AccountSubmitLabel } from './AccountSubmitLabel'
+import { useEarlySubmit } from './useEarlySubmit'
 
 const REDIRECT_TIMEOUT_MS = 15_000
 
@@ -48,6 +50,7 @@ export default function LoginForm({
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const submitting = useRef(false)
+  const earlySubmit = useEarlySubmit('login')
 
   const router = useRouter()
   const copy = getLoginCopy(returnToPath)
@@ -106,9 +109,11 @@ export default function LoginForm({
     )
 
   return (
-    // method="post" keeps credentials out of the URL if someone submits
-    // before the page script has loaded.
+    // A submit before the page scripts run is held, then sent through
+    // onSubmit (useEarlySubmit). method="post" keeps credentials out of the
+    // URL if the inline script that holds it did not run.
     <form
+      {...earlySubmit}
       method="post"
       noValidate
       onSubmit={handleSubmit(onSubmit)}
@@ -161,13 +166,9 @@ export default function LoginForm({
         </div>
       </AccountField>
       <button className="account-primary" type="submit" disabled={isLoading}>
-        {isLoading ? (
-          'One moment…'
-        ) : (
-          <>
-            Log in <ArrowRight size={20} />
-          </>
-        )}
+        <AccountSubmitLabel busy={isLoading} busyLabel="One moment…">
+          Log in <ArrowRight size={20} />
+        </AccountSubmitLabel>
       </button>
     </form>
   )

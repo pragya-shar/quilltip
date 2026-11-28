@@ -1,5 +1,6 @@
 'use client'
 
+import { createContext, useContext } from 'react'
 import { ConvexAuthProvider } from '@convex-dev/auth/react'
 import { ConvexReactClient } from 'convex/react'
 import { Toaster } from '@/components/ui/sonner'
@@ -16,29 +17,56 @@ import { AuthSessionProvider } from './AuthContext'
 // (review of #503).
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
-interface ProvidersProps {
-  children: React.ReactNode
-  /** CSP nonce for the inline theme script. */
+/**
+ * What a client component needs to write an inline script into the server
+ * HTML: the request's CSP nonce and the script text. The root layout passes
+ * both in, so the text is not part of the client bundle
+ * (components/layout/AppNavigation.tsx).
+ */
+interface EarlyScripts {
   nonce?: string
+  menu?: string
 }
 
-export default function Providers({ children, nonce }: ProvidersProps) {
+const EarlyScriptContext = createContext<EarlyScripts>({})
+
+export function useEarlyScripts(): EarlyScripts {
+  return useContext(EarlyScriptContext)
+}
+
+interface ProvidersProps {
+  children: React.ReactNode
+  /** CSP nonce for the inline theme and early-menu scripts. */
+  nonce?: string
+  /** Text of the early-menu script (lib/navigation/earlyMenu.ts). */
+  earlyMenuScript?: string
+}
+
+export default function Providers({
+  children,
+  nonce,
+  earlyMenuScript,
+}: ProvidersProps) {
   return (
-    <ConvexAuthProvider client={convex}>
-      <AuthSessionProvider>
-        <ThemeProvider nonce={nonce}>
-          <WalletActivationProvider>
-            <ErrorBoundary
-              fallback={({ reset }) => <WalletErrorFallback onRetry={reset} />}
-            >
-              <WalletProvider>
-                {children}
-                <Toaster />
-              </WalletProvider>
-            </ErrorBoundary>
-          </WalletActivationProvider>
-        </ThemeProvider>
-      </AuthSessionProvider>
-    </ConvexAuthProvider>
+    <EarlyScriptContext.Provider value={{ nonce, menu: earlyMenuScript }}>
+      <ConvexAuthProvider client={convex}>
+        <AuthSessionProvider>
+          <ThemeProvider nonce={nonce}>
+            <WalletActivationProvider>
+              <ErrorBoundary
+                fallback={({ reset }) => (
+                  <WalletErrorFallback onRetry={reset} />
+                )}
+              >
+                <WalletProvider>
+                  {children}
+                  <Toaster />
+                </WalletProvider>
+              </ErrorBoundary>
+            </WalletActivationProvider>
+          </ThemeProvider>
+        </AuthSessionProvider>
+      </ConvexAuthProvider>
+    </EarlyScriptContext.Provider>
   )
 }

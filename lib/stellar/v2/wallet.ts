@@ -447,6 +447,12 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         ...(options.theme ? { theme: options.theme } : {}),
         authModal: { showInstallLabel: true, hideUnsupportedWallets: false },
       })
+      // Starting, the kit writes its own copy of the last choice to storage
+      // (with its wallet-path lists). With no reader signed in nothing of it
+      // may stay (#562), also when the kit finishes loading after sign-out
+      // has already cleared storage (#554: a quick sign-out from the mobile
+      // menu).
+      if (!rememberFor) forgetRememberedWallet(options.storage)
       loaded.kit.on(loaded.events.stateUpdated, (event) => {
         const address = (event as { payload?: { address?: string } }).payload
           ?.address
@@ -689,7 +695,9 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
   async function assertSignedForNetwork(
     current: WalletConnection,
     signedTxXdr: string,
-    address: string
+    address: string,
+    /** The address the caller named as the signer, if it named one. */
+    linked?: string
   ) {
     if (current.networkReported || !options.verifySignature) return
     let check: SignatureCheck
@@ -715,7 +723,7 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
       throw new WalletError(
         'wrong-account',
         'The wallet signed with a different account',
-        { walletId: current.walletId }
+        { walletId: current.walletId, expectedAddress: linked }
       )
     }
   }
@@ -884,14 +892,21 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
           walletId: current.walletId,
         })
       }
+      // Caught after the wallet answered; nothing is sent. The error names the
+      // caller's signer (the linked address) only when the caller gave one.
       if (result.signerAddress && result.signerAddress !== address) {
         throw new WalletError(
           'wrong-account',
           'The wallet signed with a different account',
-          { walletId: current.walletId }
+          { walletId: current.walletId, expectedAddress: opts.address }
         )
       }
-      await assertSignedForNetwork(current, result.signedTxXdr, address)
+      await assertSignedForNetwork(
+        current,
+        result.signedTxXdr,
+        address,
+        opts.address
+      )
       return {
         signedTxXdr: result.signedTxXdr,
         signerAddress: result.signerAddress ?? address,

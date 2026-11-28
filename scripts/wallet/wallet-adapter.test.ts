@@ -431,6 +431,61 @@ describe('signTransaction', () => {
     )
   })
 
+  test('another signer after the wallet answered names the caller’s linked signer, only when the caller gave one (#582)', async () => {
+    const fake = fakeKit()
+    const wallet = adapterFor(fake)
+    await wallet.connect()
+    fake.kit.signTransaction.mockResolvedValue({
+      signedTxXdr: 'AAAA:signed',
+      signerAddress: OTHER,
+    })
+    const named = await rejection(
+      wallet.signTransaction('AAAA', { address: ADDRESS })
+    )
+    expect(named).toMatchObject({
+      kind: 'wrong-account',
+      expectedAddress: ADDRESS,
+    })
+    expect(named.walletAddress).toBeUndefined()
+    expect(walletErrorMessage(named)?.detail).toBe(
+      'Switch your wallet to GBZX…MADI, the address linked to your Quilltip account, or reconnect. Nothing was sent.'
+    )
+    const unnamed = await rejection(wallet.signTransaction('AAAA'))
+    expect(unnamed.expectedAddress).toBeUndefined()
+    expect(walletErrorMessage(unnamed)?.detail).toBe(
+      'Switch back to the connected account in your wallet, or reconnect. Nothing was sent.'
+    )
+  })
+
+  test('a wrong account found before signing keeps its sentence in walletErrorMessage, though it names the linked signer (#582)', () => {
+    const before = new WalletError(
+      'wrong-account',
+      'The wallet is on another account than the one that signs',
+      { walletId: 'varial', expectedAddress: ADDRESS, walletAddress: OTHER }
+    )
+    expect(walletErrorMessage(before)?.detail).toBe(
+      'Switch back to the connected account in your wallet, or reconnect. Nothing was sent.'
+    )
+  })
+
+  test('a signature by another account, found by the signature check, names the linked signer (#582)', async () => {
+    const fake = fakeKit({ walletNetwork: 'unsupported' })
+    const wallet = adapterFor(fake, {
+      verifySignature: async () => 'wrong-account',
+    })
+    await wallet.connect({ walletId: 'xbull' })
+    fake.kit.signTransaction.mockResolvedValue({
+      signedTxXdr: 'AAAA:signed',
+      signerAddress: ADDRESS,
+    })
+    expect(
+      await rejection(wallet.signTransaction('AAAA', { address: ADDRESS }))
+    ).toMatchObject({ kind: 'wrong-account', expectedAddress: ADDRESS })
+    expect(
+      (await rejection(wallet.signTransaction('AAAA'))).expectedAddress
+    ).toBeUndefined()
+  })
+
   test('refuses an empty signature', async () => {
     const fake = fakeKit()
     const wallet = adapterFor(fake)
@@ -670,6 +725,35 @@ describe('restore after a page load (#562)', () => {
     await wallet.disconnect()
     await wallet.connect({ walletId: 'varial' })
     expect([...mem.store.keys()]).toEqual([KEY])
+  })
+
+  test('a kit that starts with no reader signed in leaves no copy behind', async () => {
+    // The kit writes its keys when it starts; sign-out may already have
+    // cleared storage by then (#554).
+    const fake = fakeKit()
+    const mem = memory()
+    fake.kit.init.mockImplementation(() => {
+      mem.store.set(KIT_KEY, 'varial')
+      mem.store.set('@StellarWalletsKit/hardwareWalletPaths', '[]')
+      mem.store.set('@StellarWalletsKit/wcSessionPaths', '[]')
+    })
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    wallet.setRemembering(null)
+    await wallet.init()
+    expect([...mem.store.keys()]).toEqual([])
+  })
+
+  test('a kit that starts for a signed-in reader keeps its keys', async () => {
+    const fake = fakeKit()
+    const mem = memory({ [KEY]: record('varial') })
+    fake.kit.init.mockImplementation(() => {
+      mem.store.set(KIT_KEY, 'varial')
+    })
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    wallet.setRemembering('reader-1')
+    await wallet.init()
+    expect(mem.store.get(KIT_KEY)).toBe('varial')
+    expect(mem.store.get(KEY)).toBe(record('varial'))
   })
 
   test('signed out: does not restore and asks nothing', async () => {

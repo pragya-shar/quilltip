@@ -7,6 +7,7 @@ import { articleHref } from '@/lib/library/bookmarks'
 import Pagination from '@/components/articles/Pagination'
 import { PaginationTransition } from '@/components/profile/PaginationTransition'
 import Link from 'next/link'
+import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
 import {
   PROFILE_ARTICLES_PER_PAGE,
   toProfileArticlesPage,
@@ -19,6 +20,7 @@ export function ProfileArticlesTabContent({
   isOwnProfile,
   displayName,
   initialData,
+  unavailableRetryHref,
 }: {
   username: string
   page: number
@@ -26,6 +28,8 @@ export function ProfileArticlesTabContent({
   displayName: string
   /** The server-rendered first view; live results replace it. */
   initialData?: ProfileArticlesPage
+  /** Set when the server could not read the articles in time. */
+  unavailableRetryHref?: string
 }) {
   const live = useListArticles({
     author: username,
@@ -42,7 +46,14 @@ export function ProfileArticlesTabContent({
   const basePath = `/${encodeURIComponent(username)}`
 
   if (data === undefined) {
-    return <p role="status">Loading articles…</p>
+    return unavailableRetryHref ? (
+      <ReadingUnavailable
+        what="The articles"
+        retryHref={unavailableRetryHref}
+      />
+    ) : (
+      <p role="status">Loading articles…</p>
+    )
   }
 
   if (data.total === 0) {
