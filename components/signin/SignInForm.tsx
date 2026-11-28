@@ -81,21 +81,6 @@ export function SignInForm({
   const password = useRef<HTMLInputElement>(null)
   const notice = useRef<HTMLDivElement>(null)
   const status = useRef<HTMLParagraphElement>(null)
-  const otherWay = useRef<HTMLDivElement>(null)
-  // With the password focused, its two buttons stay in view, also when the
-  // keyboard opens or the visible area changes after focus (the sheet then
-  // scrolls its body; this runs after the shell's own scroll).
-  const keepButtonsInView = () =>
-    requestAnimationFrame(() => {
-      if (document.activeElement !== password.current) return
-      otherWay.current?.scrollIntoView({ block: 'nearest' })
-    })
-  useEffect(() => {
-    const viewport = window.visualViewport
-    if (!viewport) return
-    viewport.addEventListener('resize', keepButtonsInView)
-    return () => viewport.removeEventListener('resize', keepButtonsInView)
-  })
   // A press before the page script runs is held, then sent once from here.
   const early = useEarlySubmit('signin')
   // Signed in and handed over: the status stays (the page may still wait a
@@ -269,7 +254,6 @@ export function SignInForm({
                 mode === 'create' ? 'new-password' : 'current-password'
               }
               enterKeyHint="go"
-              onFocus={keepButtonsInView}
               {...(mode === 'create' ? PASSWORD_RULES : null)}
               // The rule shows once: an error about it takes the hint's place.
               hint={
@@ -311,7 +295,7 @@ export function SignInForm({
           </Button>
           {/* The other way in is as easy to find as this one: most people
               who meet the sheet from a first tip are new. */}
-          <div ref={otherWay} className="qt-signin__other" hidden={waiting}>
+          <div className="qt-signin__other" hidden={waiting}>
             <Button variant="secondary" size="l" block onClick={switchMode}>
               {mode === 'sign-in' ? 'Create an account' : 'I have an account'}
             </Button>
