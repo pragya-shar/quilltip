@@ -44,8 +44,8 @@ later work.
    procedure in section 6.2 has been read.
 4. The TTL extension of the new contract set (stage 3, step 2) is planned in
    the window. A newly deployed set reports its role entries as `due`.
-5. The owner has approved the window for the operator (the **Live window
-   approval** section), and the person who controls the Vercel project is
+5. The owner has approved the window for the operator (section 5.0.3,
+   **Live window approval**), and the person who controls the Vercel project is
    available for the Vercel hand-off steps (section 1.5).
 6. The site origin is confirmed (section 1.6, item 4): the live deployment's
    `SITE_URL` and `WALLET_LINK_ORIGINS` match the origin readers load.
@@ -72,7 +72,7 @@ later work.
 Repository tools refuse to deploy to the live deployment or to change its
 environment by default (`assertScriptConvexDeployAllowed`).
 The operator changes the live deployment only inside the approved window, as
-the **Live window approval** section describes. Never weaken or bypass the
+section 5.0.3 (**Live window approval**) describes. Never weaken or bypass the
 network guard.
 
 ## 1. Preconditions
@@ -212,7 +212,7 @@ once, including the rollback in section 6:
 - The operator runs the window from one machine. That machine holds the
   credential for the live deployment (section 5.0.2) and the key directory
   for the `live` contract set (created by stage 3). The owner has approved
-  the window (the **Live window approval** section).
+  the window (section 5.0.3, **Live window approval**).
 - The Vercel owner is available for the hand-off steps: stage 1, step 2;
   stage 2, step 1; stage 3, step 4; and the variable removal in section 8.
 - The operator has a Convex user ID in `OPS_USER_IDS` on the live deployment,
@@ -232,7 +232,11 @@ Record each answer in the cutover tracking issue.
 1. **Backend push method.** The deployment type of the live deployment
    (development or production) and the deploy key the operator uses for it.
    Section 5.0.2 gives the procedure for each case. The repository does not
-   record either, so the owner confirms them before stage 0.
+   record either, so the owner confirms them before stage 0. The window tool
+   (section 5.0.3) accepts only a development deploy key for
+   `upbeat-mockingbird-579`, so it cannot run against a production-type
+   deployment. If the live deployment is production-type, stop: the window
+   needs a reviewed change to the tool before stage 0.
 2. **v1 maintenance jobs.** Whether `legacyTipCleanup:run` and
    `authorEarningsBackfill:run` were applied on the live deployment before is
    not recorded. Do not assume either way. After stage 1, run both as dry runs
@@ -251,9 +255,9 @@ Record each answer in the cutover tracking issue.
    - checks the origin readers load: `curl -sI https://quilltip.me` and
      `curl -sI https://www.quilltip.me`. The one that answers 200 rather than
      redirecting is the site origin, written `<site origin>` in this runbook;
-   - reads `SITE_URL` and `WALLET_LINK_ORIGINS` on the live deployment
-     (`bunx convex env list --include-values` with the credential from
-     section 5.0.2, or the dashboard).
+   - reads `SITE_URL` and `WALLET_LINK_ORIGINS` on the live deployment in
+     the dashboard (**Settings → Environment Variables**). Reading the
+     deployment's variables is not a window operation (section 5.0.3).
 
    `SITE_URL` sets three things: the password-reset link
    (`convex/lib/passwordResetEmail.ts`), the origin allowed to request a
@@ -266,8 +270,8 @@ Record each answer in the cutover tracking issue.
    `WALLET_LINK_ORIGINS`. Record the decision before stage 0.
 
 5. **Who runs the window.** The operator runs the backend steps from one
-   machine in one window that the owner approved (the **Live window
-   approval** section). Vercel settings stay with the Vercel owner. Each
+   machine in one window that the owner approved (section 5.0.3,
+   **Live window approval**). Vercel settings stay with the Vercel owner. Each
    Vercel step is a hand-off with a check that the operator runs.
 
 ## 2. Schema and API compatibility
@@ -575,7 +579,8 @@ anything is pushed.
 
 1. Get a deploy key for the live deployment itself:
    - production-type deployment: a production deploy key (dashboard,
-     **Settings → Deploy keys**);
+     **Settings → Deploy keys**). The window tool refuses it (section 1.6,
+     item 1);
    - development-type deployment: a development deploy key for that
      deployment (dashboard, **Settings → Deploy keys**, or, with a Convex
      login that has access to the deployment,
@@ -662,7 +667,9 @@ has ended, if the value is malformed, if a `.env*` file or a committed file
 holds it, if another Convex target is set, or if `CONVEX_DEPLOY_KEY` is not a
 development deploy key for that deployment. Mainnet is refused as always.
 
-1. Set it, in the clean checkout of the tag, after `bun install --frozen-lockfile`:
+1. Check that `~/.quilltip/live-window/builds` is absent or empty, so that
+   every build of this window is new. Then set the approval, in the clean
+   checkout of the tag, after `bun install --frozen-lockfile`:
 
    ```bash
    unset CONVEX_DEPLOYMENT CONVEX_DEPLOYMENT_TOKEN CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY
@@ -1419,6 +1426,24 @@ bunx convex run chain/indexer:replayFrom '{"fromLedger": <INDEXER_START_LEDGER>}
 ```
 
 The replay links each event to the restored rows.
+
+Events older than the RPC retention (step 3) go in with
+`chain/indexer:ingestBackfill` before the replay. Its input is a JSON array
+of events in RPC `getEvents` form (`type`, `ledger`, `ledgerClosedAt`,
+`contractId`, `id`, `txHash`, `topic`, `value`, and the optional
+`operationIndex`, `transactionIndex` and `inSuccessfulContractCall`), such
+as the file that `chain:backfill-events` writes (chain runbook, "Indexer
+behind retention"). Keep the file outside the repository. Send it in pages
+of 100 events (`.[100:200]` for the second page, and so on):
+
+```bash
+bun scripts/live-window.ts run convex-run chain/indexer:ingestBackfill "$(jq -c '{events: .[0:100]}' <events>.json)"
+```
+
+Stored events are skipped, so a page sent twice changes nothing. If the
+replay starts after the ledger the index covers, pass
+`"gapBackfilled": true` to `chain/indexer:replayFrom` once the gap is
+filled; without it, the replay refuses with `REPLAY_GAP`.
 
 Then check collected tab earnings against the claim records (chain runbook,
 "Collected earnings"). Run `chain/tabClaims:seedClaimRecords` with
