@@ -19,15 +19,16 @@ export const routes: PerfRoutes = {
     {
       name: 'today',
       path: '/',
-      // Measured 54 KB of server HTML (9 KB gzip) on the fixture backend:
-      // the shell's own page is 33 KB, and Today adds its opening (up to
-      // 220 words) and the "More to read" items, each once in the HTML and
-      // once in the page's server-component payload (about 1.5 KB an item;
-      // each link is the shell's AppLink, a client component, so it adds a
-      // reference and its props there), plus the row-reservation script,
-      // also twice (2 KB). Budget: that measurement plus 2.
+      // Measured 54.8 KB of server HTML (9 KB gzip) on the fixture
+      // backend: the shell's own page is 33 KB, and Today adds its opening
+      // (up to 90 words) and the "More to read" items, each once in the HTML
+      // and once in the page's server-component payload (about 2 KB an
+      // item; each link is the shell's AppLink, a client component, so it
+      // adds a reference and its props there), plus the row-reservation
+      // script, also twice (2 KB). Budget: that measurement plus 2, for the
+      // fixture's 8 list items; a live page shows up to 12 (about 8 KB more).
       budget: {
-        htmlKb: 56,
+        htmlKb: 57,
         cssKb: 28,
         fontKb: 101,
         cls: 0.05,
