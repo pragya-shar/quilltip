@@ -17,6 +17,8 @@ import { createServer, type AddressInfo } from 'net'
 import { join } from 'path'
 
 const START_TIMEOUT_MS = 60_000
+/** Longest one request to the starting app may take. */
+const REQUEST_TIMEOUT_MS = 2000
 
 /**
  * The port in `envName`, or a free port on 127.0.0.1. Another process can
@@ -48,7 +50,7 @@ export function fixtureBackendPort(): number {
 
 async function answers(url: string) {
   try {
-    await fetch(url, { signal: AbortSignal.timeout(2000) })
+    await fetch(url, { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
     return true
   } catch {
     return false
@@ -62,6 +64,37 @@ function localBuildId(buildDir: string) {
     return readFileSync(file, 'utf8').trim()
   } catch {
     throw new Error(`No production build here (${file}); run the build`)
+  }
+}
+
+/**
+ * Makes `app.kill()` stop the app's whole process group, and stops it when
+ * this process exits or gets SIGINT or SIGTERM, so a stopped or interrupted
+ * check leaves no server on its port.
+ */
+function stopGroupWithCheck(app: ChildProcess) {
+  const stopGroup = (signal: NodeJS.Signals = 'SIGTERM') => {
+    if (app.pid === undefined) return
+    try {
+      process.kill(-app.pid, signal)
+    } catch {
+      // The group is gone already.
+    }
+  }
+  const onSignal = (signal: NodeJS.Signals) => {
+    stopGroup()
+    process.exit(signal === 'SIGINT' ? 130 : 143)
+  }
+  const onExit = () => stopGroup()
+  process.once('SIGINT', onSignal)
+  process.once('SIGTERM', onSignal)
+  process.once('exit', onExit)
+  app.kill = (signal?: NodeJS.Signals | number) => {
+    stopGroup(typeof signal === 'string' ? signal : 'SIGTERM')
+    process.off('SIGINT', onSignal)
+    process.off('SIGTERM', onSignal)
+    process.off('exit', onExit)
+    return true
   }
 }
 
@@ -99,7 +132,10 @@ export async function startProductionApp(
     '-H',
     '127.0.0.1',
   ]
+  // Its own process group: `bunx` starts next-server as a grandchild, which a
+  // signal to `bunx` alone would leave serving.
   const app = spawn(file, args, {
+    detached: true,
     stdio: ['ignore', 'pipe', 'pipe'],
     env: {
       ...process.env,
@@ -108,6 +144,7 @@ export async function startProductionApp(
       PORT: String(port),
     },
   })
+  stopGroupWithCheck(app)
   let exit: string | undefined
   const stderr: string[] = []
   app.on('exit', (code, signal) => {
@@ -131,7 +168,9 @@ export async function startProductionApp(
       )
     let html: string | undefined
     try {
-      const response = await fetch(`${baseUrl}/login`)
+      const response = await fetch(`${baseUrl}/login`, {
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+      })
       if (response.ok) html = await response.text()
     } catch {
       /* Not listening yet. */
@@ -160,7 +199,9 @@ async function expectBackend(
   stop: (reason: string) => never
 ) {
   const before = requests()
-  await fetch(`${baseUrl}/perf-backend-probe`).catch(() => {})
+  await fetch(`${baseUrl}/perf-backend-probe`, {
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  }).catch(() => {})
   if (requests() === before)
     stop(
       `The app on ${baseUrl} did not query the fixture backend on port ${fixtureBackendPort()}. Build with NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:${fixtureBackendPort()}, or set PERF_CONVEX_PORT to the port of the build.`
