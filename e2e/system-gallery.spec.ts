@@ -1455,3 +1455,47 @@ test("a person's image comes only from allowed sources, and sends no referrer", 
   await expect(other).toHaveText('OH')
   await expect(row.getByRole('img', { name: 'No Image' })).toHaveText('NI')
 })
+
+test('icons draw from one sprite, and nothing moves while it arrives', async ({
+  page,
+}) => {
+  // A slow first load: the sprite comes a second after the page.
+  let release = () => {}
+  const held = new Promise<void>((done) => (release = done))
+  const sprites: string[] = []
+  await page.route('**/icons.svg*', async (route) => {
+    sprites.push(route.request().url())
+    await held
+    await route.continue()
+  })
+  await page.goto('/')
+  await expect(page.locator('.qt-shell')).toBeVisible()
+  const icons = page.locator('svg:has(> use)')
+  await expect(icons.first()).toBeVisible()
+  const boxes = () =>
+    icons.evaluateAll((svgs) =>
+      svgs
+        .slice(0, 40)
+        .map((svg) => {
+          const r = svg.getBoundingClientRect()
+          return `${Math.round(r.x)},${Math.round(r.y)},${r.width}x${r.height}`
+        })
+        .join(' ')
+    )
+  const drawn = () =>
+    icons.evaluateAll(
+      (svgs) =>
+        svgs.filter(
+          (svg) =>
+            (svg.querySelector('use') as SVGUseElement).getBBox().width > 0
+        ).length
+    )
+  const before = await boxes()
+  expect(before).not.toContain('0x0')
+  release()
+  await expect.poll(drawn).toBe(await icons.count())
+  expect(await boxes(), 'nothing moved when the sprite arrived').toBe(before)
+  // One address for every icon, carrying the sprite's version.
+  expect(new Set(sprites.map((u) => new URL(u).search)).size).toBe(1)
+  expect(new URL(sprites[0]!).search).toMatch(/^\?v=[0-9a-f]{10}$/)
+})
