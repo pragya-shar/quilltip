@@ -118,6 +118,23 @@ export function readLifetimeTotals(
 }
 
 /**
+ * The tab tips settled on chain as the totals keep them, for the writer's
+ * money views (`convex/earnings.ts`, `lib/chain/balanceFigures.ts`), which
+ * read them and never write them.
+ */
+export function tabSettledOf(
+  row: Doc<'authorEarnings'> | null | undefined,
+  token: string | null
+): { tipCount: number; cents: number; baseUnits: bigint } {
+  const t = readLifetimeTotals(row)
+  return {
+    tipCount: t.tabTipCount,
+    cents: t.tabEarnedCents,
+    baseUnits: token ? BigInt(t.tabSettledBaseUnits[token] ?? '0') : BigInt(0),
+  }
+}
+
+/**
  * What one tip row adds to its author's totals: a verified v1 tip, or a tab
  * tip settled on chain (`earningsAppliedAt`). Wallet tips are credited per
  * recipient share by the earnings sync, so a wallet row adds nothing here.

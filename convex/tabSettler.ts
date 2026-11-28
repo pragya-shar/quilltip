@@ -9,17 +9,20 @@
  * settlement runs wherever tab tips are accepted.
  */
 import { Keypair, StrKey, rpc } from '@stellar/stellar-sdk'
-import { ConvexError } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { internal } from './_generated/api'
 import type { Id } from './_generated/dataModel'
 import { internalAction, type ActionCtx } from './_generated/server'
 import { readChainEnv } from './lib/chain/env'
 import { createBackendRpcClient } from './lib/chain/rpc'
 import {
+  dueRuleFromEnv,
   runSettlementCycle,
+  type DueRule,
   type SettlementLedger,
   type SettlementSubmitter,
 } from './lib/chain/settler'
+import { MAX_SETTLE_FOLLOW_UPS } from './lib/chain/settleSchedule'
 import { localKeySubmitter } from './lib/chain/settlementSubmitter'
 
 type EnvLike = Record<string, string | undefined>
@@ -107,12 +110,33 @@ function log(code: string, details: Record<string, unknown>) {
   console.error(JSON.stringify({ code, ...details }))
 }
 
-/** Cron, every 10 minutes. Does nothing unless settlement is enabled. */
+/**
+ * The due rule of a run. The cron applies `TAB_SETTLE_DUE_AGE_MS` and
+ * `TAB_SETTLE_DUE_AMOUNT` (defaults 6 h and 5 XLM). A run requested by an
+ * acceptance (`settleSchedule.requestSettlement`) settles every ready pair.
+ */
+export function runDueRule(
+  requested: boolean,
+  env: EnvLike = process.env
+): DueRule {
+  const rule = dueRuleFromEnv(env)
+  return requested ? { ...rule, ageMs: 0 } : rule
+}
+
+/**
+ * Cron, every 10 minutes, and the run an acceptance schedules when
+ * `TAB_SETTLE_AFTER_ACCEPT_MS` is set. Does nothing unless settlement is
+ * enabled.
+ */
 export const settleDue = internalAction({
-  args: {},
-  handler: async (ctx) => {
+  args: {
+    requested: v.optional(v.boolean()),
+    followUp: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
     const config = settlerConfig()
     if (!config.enabled) return { status: 'disabled', reason: config.reason }
+    const requested = args.requested === true
     const { chain } = config
     const keypair = settlerKeypair()
     const rpcClient = createBackendRpcClient()
@@ -124,7 +148,7 @@ export const settleDue = internalAction({
       server,
       rpcClient,
     })
-    return runSettlementCycle({
+    const result = await runSettlementCycle({
       holder: `settler-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       passphrase: chain.passphrase,
       tabContractId: chain.tabContractId,
@@ -140,6 +164,20 @@ export const settleDue = internalAction({
       now: () => Date.now(),
       log,
       sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      due: runDueRule(requested),
     })
+    // A requested run that found another run or an open settlement asks
+    // again, so the tips that scheduled it do not wait for the cron.
+    const followUp = args.followUp ?? 0
+    if (
+      requested &&
+      (result.status === 'busy' || result.status === 'pending') &&
+      followUp < MAX_SETTLE_FOLLOW_UPS
+    ) {
+      await ctx.runMutation(internal.tabSettlement.requestFollowUp, {
+        followUp: followUp + 1,
+      })
+    }
+    return result
   },
 })
