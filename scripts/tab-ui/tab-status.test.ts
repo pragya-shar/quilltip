@@ -6,6 +6,7 @@ import {
   settlementHealth,
   tabBalances,
   tabPaused,
+  tabShortBy,
   tabStatusView,
 } from '../../lib/tab-ui/tab-status'
 import type { ChainConfigView, MyTab } from '../../lib/tab-ui/types'
@@ -143,6 +144,14 @@ describe('tabBalances', () => {
       free: '70',
     })
     expect(tabBalances(tab({ available: '-5' })).free).toBe('0')
+  })
+})
+
+describe('tabShortBy (#617)', () => {
+  it('is how far tips still settling exceed the balance, or null', () => {
+    expect(tabShortBy({ available: '-3000000' })).toBe('3000000')
+    expect(tabShortBy({ available: '0' })).toBeNull()
+    expect(tabShortBy({ available: '70' })).toBeNull()
   })
 })
 
