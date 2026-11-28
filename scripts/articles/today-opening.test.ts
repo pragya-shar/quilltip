@@ -310,6 +310,7 @@ describe('today.opening', () => {
   test('at the hour boundary an article of the past hour joins the hour’s order', async () => {
     const t = convexTest(schema, modules)
     const [older] = await catalogue(t, 1)
+    if (!older) throw new Error('the catalogue made no article')
     const nextHour = windowOf(HALF_PAST).endsAt
     const fresh = await t.run(async (ctx) => {
       const authorId = await writer(ctx, 'fresh')
@@ -321,7 +322,7 @@ describe('today.opening', () => {
     expect(before.more.map((m) => m.articleId)).toEqual([fresh])
     // The first moment of the next hour: both are in that hour's order.
     const after = await t.query(api.today.opening, { at: nextHour })
-    const order = [older!, fresh].sort(
+    const order = [older, fresh].sort(
       compareForWindow(windowOf(nextHour).index)
     )
     expect([
