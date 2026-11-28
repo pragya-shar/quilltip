@@ -24,6 +24,13 @@ import {
   tip,
   withTabEnv,
 } from './tab-kit'
+import {
+  centsToStroops,
+  checkTabTip,
+  TAB_PRICE_MAX_AGE_MS,
+  tabLimits,
+} from '../../convex/lib/chain/tabLedger'
+import { checkTabTipAmount } from '../../lib/tab-ui/tip-limits'
 
 withTabEnv()
 
@@ -31,13 +38,29 @@ const DAY_LEDGERS = 17_280
 
 async function setPrice(
   t: Awaited<ReturnType<typeof at>>['t'],
-  priceUsd: number
+  priceUsd: number,
+  fetchedAt?: number
 ) {
   await t.run(async (ctx) => {
     const p = await ctx.db.query('xlmPriceCache').first()
-    await ctx.db.patch(p!._id, { priceUsd })
+    await ctx.db.patch(p!._id, {
+      priceUsd,
+      ...(fetchedAt === undefined ? {} : { fetchedAt }),
+    })
   })
 }
+
+/** What each read states, and what prepare answers, for one reader. */
+async function reads(t: Awaited<ReturnType<typeof at>>['t'], s: Seeded) {
+  const reader = as(t, s.readerId)
+  return {
+    session: (await reader.query(api.balance.session, {}))?.limits ?? null,
+    terms: await reader.query(api.balance.publicTipTerms, {}),
+    myTab: (await reader.query(api.tabs.getMyTab, {}))?.tipLimits ?? null,
+  }
+}
+
+type Seeded = Awaited<ReturnType<typeof at>>['s']
 
 async function at(priceUsd: number) {
   const t = convexTest(schema, modules)
@@ -164,6 +187,9 @@ describe('limits a reader feels are in dollars, at any price', () => {
     expect(
       (await as(t, s.readerId).query(api.balance.session, {}))?.limits
     ).toMatchObject({ acceptedTodayCents: 1800 })
+    expect(
+      (await as(t, s.readerId).query(api.tabs.getMyTab, {}))?.tipLimits
+    ).toMatchObject({ acceptedTodayCents: 1800 })
     expect(await errorCode(prepare(t, s, { cents: 500 }))).toBe(
       'TAB_DAILY_LIMIT'
     )
@@ -193,5 +219,175 @@ describe('limits a reader feels are in dollars, at any price', () => {
       acceptedDay: '2026-12-03',
       acceptedTodayCents: 500,
     })
+  })
+})
+
+describe('the settings, the guards and the price', () => {
+  it('moves both caps with TAB_TIP_MAX_CENTS and TAB_DAILY_LIMIT_CENTS', async () => {
+    vi.stubEnv('TAB_TIP_MAX_CENTS', '300')
+    vi.stubEnv('TAB_DAILY_LIMIT_CENTS', '700')
+    const { t, s } = await at(0.12)
+    const r = await reads(t, s)
+    expect(r.session).toMatchObject({ perTipCents: 300, dailyCents: 700 })
+    expect(r.terms).toMatchObject({ perTipCents: 300 })
+    expect(r.myTab).toMatchObject({ tipMaxCents: 300, dailyLimitCents: 700 })
+    expect(await errorCode(prepare(t, s, { cents: 301 }))).toBe(
+      'TAB_ABOVE_TIP_MAX'
+    )
+    await tip(t, s, { cents: 300 })
+    await tip(t, s, { cents: 300 })
+    expect(await errorCode(prepare(t, s, { cents: 101 }))).toBe(
+      'TAB_DAILY_LIMIT'
+    )
+    await tip(t, s, { cents: 100 })
+  })
+
+  for (const name of ['TAB_TIP_MAX_CENTS', 'TAB_DAILY_LIMIT_CENTS'])
+    for (const value of ['0', '0500', '5.00', '1000000', '$5'])
+      it(`refuses ${name}=${value} everywhere`, async () => {
+        vi.stubEnv(name, value)
+        const { t, s } = await at(0.12)
+        expect(await reads(t, s)).toEqual({
+          session: null,
+          terms: null,
+          myTab: null,
+        })
+        expect(await errorCode(prepare(t, s, { cents: 100 }))).toBe(
+          'TAB_CONFIG_INVALID'
+        )
+      })
+
+  it('keeps the XLM daily guard when it is below the dollar day', async () => {
+    // 10 XLM is $1.20 at $0.12: the guard binds before $20.
+    vi.stubEnv('TAB_DAILY_LIMIT', (BigInt(10) * XLM).toString())
+    const { t, s } = await at(0.12)
+    expect((await reads(t, s)).session).toMatchObject({ dailyCents: 120 })
+    await tip(t, s, { cents: 100 })
+    expect(await errorCode(prepare(t, s, { cents: 100 }))).toBe(
+      'TAB_DAILY_LIMIT'
+    )
+  })
+
+  it('states the per-tip figure from the XLM guard when it binds', async () => {
+    // 2 XLM is 24 cents at $0.12.
+    vi.stubEnv('TAB_TIP_MAX', (BigInt(2) * XLM).toString())
+    const { t, s } = await at(0.12)
+    const r = await reads(t, s)
+    expect(r.session).toMatchObject({ perTipCents: 24 })
+    expect(r.terms).toMatchObject({ perTipCents: 24 })
+    expect(await errorCode(prepare(t, s, { cents: 25 }))).toBe(
+      'TAB_ABOVE_TIP_MAX'
+    )
+    await tip(t, s, { cents: 24 })
+  })
+
+  it('bounds a price read far too low by 100 XLM a tip and 400 XLM a day', async () => {
+    // At $0.05 the guards equal the dollar limits: $5 and $20 still fit.
+    const low = await at(0.05)
+    for (let i = 0; i < 4; i++) await tip(low.t, low.s, { cents: 500 })
+    // At $0.006, "$5" would be 833 XLM: the 100 XLM guard refuses it.
+    const broken = await at(0.006)
+    expect(await errorCode(prepare(broken.t, broken.s, { cents: 500 }))).toBe(
+      'TAB_ABOVE_TIP_MAX'
+    )
+    expect(tabLimits({}, 0.006)).toEqual({
+      tipMax: BigInt(100) * XLM,
+      dailyLimit: BigInt(400) * XLM,
+    })
+  })
+
+  it('states no limit from a price prepare would refuse as too old', async () => {
+    const { t, s } = await at(0.12)
+    // A minute inside the age limit: still a price.
+    await setPrice(t, 0.12, Date.now() - TAB_PRICE_MAX_AGE_MS + 60_000)
+    const fresh = await reads(t, s)
+    expect(fresh.session).toMatchObject({ perTipCents: 500 })
+    expect(fresh.terms).toMatchObject({
+      perTipCents: 500,
+      priceMaxAgeMs: TAB_PRICE_MAX_AGE_MS,
+    })
+    // A minute past it: no read states a limit, and prepare refuses.
+    await setPrice(t, 0.12, Date.now() - TAB_PRICE_MAX_AGE_MS - 60_000)
+    const stale = await reads(t, s)
+    expect(stale.session).toBeNull()
+    expect(stale.terms).toBeNull()
+    expect(await errorCode(prepare(t, s, { cents: 100 }))).toBe(
+      'TAB_PRICE_UNAVAILABLE'
+    )
+  })
+
+  it('refuses every unusable price with the coded refusal', async () => {
+    const { t, s } = await at(0.12)
+    const check = (priceUsd: number | null) =>
+      errorCode(
+        t.run((ctx) =>
+          checkTabTip(ctx, {
+            userId: s.readerId,
+            articleId: s.articleId,
+            keyId: 0,
+            amount: BigInt(1) * XLM,
+            amountCents: 12,
+            priceUsd,
+            now: Date.now(),
+          })
+        )
+      )
+    for (const price of [null, 0, -1, NaN, Infinity, -Infinity])
+      expect(await check(price)).toBe('TAB_PRICE_UNAVAILABLE')
+    expect(await check(0.12)).toBe('no error')
+    // So small a price that the amount overflows: no usable price either.
+    expect(
+      await errorCode(
+        Promise.resolve().then(() => centsToStroops(2000, 1e-300))
+      )
+    ).toBe('TAB_PRICE_UNAVAILABLE')
+    await setPrice(t, 1e-300)
+    expect(await errorCode(prepare(t, s, { cents: 100 }))).toBe(
+      'TAB_PRICE_UNAVAILABLE'
+    )
+    // Without a finite price only the XLM guards remain.
+    expect(tabLimits({}, Infinity)).toEqual(tabLimits({}, null))
+  })
+
+  it('tells the older tip dialog the day in cents, as the server counts it', async () => {
+    const check = async (t: Awaited<ReturnType<typeof at>>['t'], s: Seeded) => {
+      const tab = (await as(t, s.readerId).query(api.tabs.getMyTab, {}))!
+      return checkTabTipAmount({
+        cents: 500,
+        limits: tab.tipLimits!,
+        free: tab.available,
+        now: Date.now(),
+      })
+    }
+    // $10 at $0.12, then the price rises: $10 is left, and $5 fits.
+    const rise = await at(0.12)
+    await tip(rise.t, rise.s, { cents: 500 })
+    await tip(rise.t, rise.s, { cents: 500 })
+    await setPrice(rise.t, 0.5)
+    expect(await check(rise.t, rise.s)).toMatchObject({ ok: true })
+    await tip(rise.t, rise.s, { cents: 500 })
+    // $20 at $0.50, then the price falls: nothing is left.
+    const fall = await at(0.5)
+    for (let i = 0; i < 4; i++) await tip(fall.t, fall.s, { cents: 500 })
+    await setPrice(fall.t, 0.05)
+    expect(await check(fall.t, fall.s)).toMatchObject({
+      ok: false,
+      reason: 'daily-limit',
+      left: '0',
+    })
+    expect(await errorCode(prepare(fall.t, fall.s, { cents: 500 }))).toBe(
+      'TAB_DAILY_LIMIT'
+    )
+  })
+
+  it('accepts a prepared tip at its quote within 5 minutes, also after the price is gone', async () => {
+    const { t, s } = await at(0.12)
+    const p = await prepare(t, s, { cents: 500 })
+    await t.run(async (ctx) => {
+      const price = await ctx.db.query('xlmPriceCache').first()
+      await ctx.db.delete(price!._id)
+    })
+    vi.setSystemTime(Date.now() + 4 * 60 * 1000)
+    expect((await submit(t, s, p)).alreadyAccepted).toBe(false)
   })
 })

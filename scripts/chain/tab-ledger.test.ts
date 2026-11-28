@@ -425,7 +425,7 @@ describe('rejections', () => {
       const c = await ctx.db.query('chainConfig').first()
       await ctx.db.patch(c!._id, { minTip: '100000' })
     })
-    // TAB_TIP_MAX defaults to 5 XLM.
+    // The per-tip limit is $5 (TAB_TIP_MAX_CENTS), 5 XLM at this $1 price.
     expect(await errorCode(prepare(t, s, { cents: 501 }))).toBe(
       'TAB_ABOVE_TIP_MAX'
     )
@@ -435,7 +435,8 @@ describe('rejections', () => {
     expect(await errorCode(prepare(t, s, { cents: 201 }))).toBe(
       'TAB_OVER_KEY_LIMIT'
     )
-    // TAB_DAILY_LIMIT 20 XLM: a second key with room, 10 XLM already today.
+    // The daily limit is $20 (TAB_DAILY_LIMIT_CENTS): a second key with
+    // room, $10 already today.
     await ingest(t, ev.keyRegistered(READER, 1, VALID_UNTIL, BigInt(50) * XLM))
     await tip(t, s, { cents: 500, keyId: 1 })
     await tip(t, s, { cents: 500, keyId: 1 })
@@ -573,8 +574,11 @@ describe('tip limits in getMyTab (#546)', () => {
     const limits = (await reader.query(api.tabs.getMyTab, {}))!.tipLimits!
     expect(limits).toEqual({
       tipMax: '50000000',
-      dailyLimit: '200000000',
+      // The XLM guard (400 XLM); the day itself is counted in cents.
+      dailyLimit: '4000000000',
+      dailyLimitCents: 2000,
       acceptedToday: '0',
+      acceptedTodayCents: 0,
       acceptedDay: '2026-12-02',
       minTip: '100000',
       priceUsd: 1,
@@ -595,6 +599,7 @@ describe('tip limits in getMyTab (#546)', () => {
     const after = (await reader.query(api.tabs.getMyTab, {}))!.tipLimits!
     expect(after).toMatchObject({
       acceptedToday: '50000000',
+      acceptedTodayCents: 500,
       acceptedDay: '2026-12-02',
     })
     // Nothing in the query depends on the time: a subscription left open
@@ -604,12 +609,10 @@ describe('tip limits in getMyTab (#546)', () => {
       after
     )
     const nextDay = T0 + 24 * 3600 * 1000
+    // The next day starts again at the whole day, in cents and in the guard.
     expect(
-      tabTipLimitsAt(
-        { ...after, priceFetchedAt: nextDay },
-        nextDay
-      ).dailyLeft.toString()
-    ).toBe('200000000')
+      tabTipLimitsAt({ ...after, priceFetchedAt: nextDay }, nextDay)
+    ).toMatchObject({ dailyLeftCents: 2000, dailyLeft: BigInt(4_000_000_000) })
   })
 
   it('gives the price with its age, so the client and prepare agree it is stale', async () => {

@@ -412,6 +412,8 @@ describe('what each side is told', () => {
       quickTipMaxCents: limits.quickTipMaxCents,
       defaultTipCents: limits.defaultTipCents,
       priceUsd: expect.any(Number),
+      priceAt: expect.any(Number),
+      priceMaxAgeMs: 30 * 60 * 1000,
     })
     expect(Object.keys(terms!)).not.toContain('availableCents')
   })
@@ -1730,7 +1732,7 @@ describe('balance session', () => {
       availableCents: 1000,
       pendingCents: 0,
       limits: {
-        perTipCents: 500, // TAB_TIP_MAX 5 XLM at $1
+        perTipCents: 500, // TAB_TIP_MAX_CENTS, $5
         dailyCents: 2000,
         minTipCents: 1,
         defaultTipCents: 100,

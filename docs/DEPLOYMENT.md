@@ -65,11 +65,20 @@ leading zero, no decimal point: `500`, not `500.0` or `$5`). Any other value
 stops balance tips with `TAB_CONFIG_INVALID`.
 
 `TAB_TIP_MAX` and `TAB_DAILY_LIMIT` (XLM base units) are guards against a
-broken price only. Their defaults are 1000 XLM and 5000 XLM. A deployment
-that sets them to small values, such as the former 5 XLM and 20 XLM, keeps
-those as the limits a reader meets (about $0.62 and $2.47 at $0.1235 a
-Lumen). Unset them, or set them to guard values, when this version deploys.
-With no current price, no tip is priced or accepted.
+broken price. Their defaults are 100 XLM a tip and 400 XLM a day: $5 and $20
+at $0.05 a Lumen. The dollar limits hold at any price down to $0.05. Below
+it the guards bind, so a reader meets 100 XLM a tip and 400 XLM a day, and a
+price read far too low cannot make a $5 tip more than 100 XLM.
+
+A deployment that sets them to small values, such as the former 5 XLM and
+20 XLM, keeps those as the limits a reader meets: at $0.1235 a Lumen the
+largest tip is $0.61 and a day stops at $2.47, and the day's remainder shown
+to the reader is wrong after a price move. Unset them, or set them to guard
+values, when this version deploys.
+
+A tip is priced only with a price younger than 30 minutes; with none, no new
+tip is priced and the reads state no limits. A tip prepared before that is
+still accepted within 5 minutes, at the price it was quoted at.
 
 ## Soroban contracts
 

@@ -148,10 +148,17 @@ export function tipLimitsFor(
 ): NonNullable<MyTab['tipLimits']> {
   const tipMax = BigInt(o.tipMax ?? TIP_MAX.toString())
   const priceUsd = o.priceUsd === undefined ? PRICE_USD : o.priceUsd
+  const acceptedToday = o.acceptedToday ?? '0'
   return {
     tipMax: tipMax.toString(),
     dailyLimit: DAILY_LIMIT.toString(),
-    acceptedToday: o.acceptedToday ?? '0',
+    // The fixture's price is fixed, so the day in cents and in XLM agree.
+    dailyLimitCents: Number(DAILY_LIMIT / STROOPS_PER_CENT),
+    acceptedToday,
+    acceptedTodayCents:
+      o.acceptedTodayCents !== undefined
+        ? o.acceptedTodayCents
+        : Number(BigInt(acceptedToday) / STROOPS_PER_CENT),
     acceptedDay: o.acceptedDay ?? utcDayOf(Date.now()),
     minTip: o.minTip === undefined ? '100000' : o.minTip,
     priceUsd,
