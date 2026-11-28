@@ -122,3 +122,69 @@ test('the forms say the same rule the server holds', () => {
   )
   expect(passwordRuleMessage('abcdefgh')).toBeNull()
 })
+
+// The sign-in sheet's create form, given an email that has an account,
+// signs in with the password typed. Those sign-ins are the library's own,
+// so they count against the same per-account limit (10 failed attempts an
+// hour) as any other sign-in; sign-up's "already exists" answer is the
+// library's and is unchanged.
+test('sign-ins after an existing email on create are throttled like any sign-in', async () => {
+  const t = newTest()
+  const email = 'taken@example.test'
+  const password = 'the right passphrase'
+  await signUp(t, email, password)
+  const failed = async (p: Promise<unknown>) =>
+    p.then(
+      () => false,
+      () => true
+    )
+  for (let attempt = 0; attempt < 10; attempt++) {
+    // What the form does: create first, then sign in with the same values.
+    expect(await failed(signUp(t, email, `guess number ${attempt}`))).toBe(true)
+    expect(
+      await failed(
+        signIn(t, {
+          email,
+          password: `guess number ${attempt}`,
+          flow: 'signIn',
+        })
+      )
+    ).toBe(true)
+  }
+  // The limit is spent: even the right password is refused for now.
+  expect(await failed(signIn(t, { email, password, flow: 'signIn' }))).toBe(
+    true
+  )
+})
+
+test('the same guesses as direct sign-ins spend the same limit', async () => {
+  const t = newTest()
+  const email = 'direct@example.test'
+  const password = 'the right passphrase'
+  await signUp(t, email, password)
+  for (let attempt = 0; attempt < 9; attempt++)
+    await signIn(t, {
+      email,
+      password: `guess ${attempt}`,
+      flow: 'signIn',
+    }).catch(() => null)
+  // Under the limit, the right password still signs in.
+  expect(
+    (await signIn(t, { email, password, flow: 'signIn' })).tokens
+  ).toBeTruthy()
+})
+
+// Stated as it is: sign-up answers "already exists" without spending the
+// sign-in limit. That answer predates the sheet; the sheet adds only
+// sign-ins, which are throttled (above).
+test('sign-up answers for a taken email do not spend the sign-in limit', async () => {
+  const t = newTest()
+  const email = 'answers@example.test'
+  const password = 'the right passphrase'
+  await signUp(t, email, password)
+  for (let attempt = 0; attempt < 12; attempt++)
+    await signUp(t, email, `guess ${attempt}`).catch(() => null)
+  expect(
+    (await signIn(t, { email, password, flow: 'signIn' })).tokens
+  ).toBeTruthy()
+})
