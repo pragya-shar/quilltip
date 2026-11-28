@@ -7,7 +7,9 @@ import { PushedHeader } from '@/shell/PushedHeader'
 import { PushedScreen } from '@/shell/PushedScreen'
 import { ResetPassword } from '@/components/signin/ResetPassword'
 import { returnPathFrom } from '@/lib/auth/returnPath'
-import { signInHref } from '@/shell/signIn'
+// Not '@/shell/signIn': that module brings the sheet registry, and with it
+// the sign-in sheet, into this page's first load.
+import { signInHref } from '@/shell/signInHref'
 
 export const metadata: Metadata = {
   title: 'Choose a new password',
