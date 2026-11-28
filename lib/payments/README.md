@@ -44,8 +44,8 @@ a screen can say "as of 4 minutes ago"; null until read).
 `status` stays `ready` (or `closing`) and the dollar value is unknown, never
 "≈ $0.00": `available` is `null`, `price` is `null`, `exact` holds the token
 amount, `amounts` is empty and `noAmountReason` is `'price'` (a control's
-`blocked` is `'price'`). Show `exact` with "Dollar value not available right
-now". Tip-time figures (`pending`, `limits`) are unaffected. The price per
+`blocked` is `'price'`). Show `exact` with "Dollar amounts are not available
+right now, so tipping is paused." Tip-time figures (`pending`, `limits`) are unaffected. The price per
 token is floored to four decimals ($0.12735 reads "$0.1273").
 
 If the reader spent from the balance outside the app, spendable can be

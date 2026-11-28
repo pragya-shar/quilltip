@@ -242,7 +242,9 @@ const SCENARIOS: Record<string, Expect> = {
   'no-price': {
     earnings: { withdraw: '$0.6825', onWay: '$0.00' },
     rows: 6,
-    texts: ['Dollar value not available right now.'],
+    texts: [
+      'Dollar amounts are not available right now, so tipping is paused.',
+    ],
     absent: [/≈/, /Held in Lumens/, /New accounts get/],
   },
   offline: {
@@ -451,7 +453,9 @@ test.describe('every money scenario', () => {
       /^[\d,]+(\.\d+)? XLM$/
     )
     await expect(spend.locator('.qt-money__label')).toHaveText('Ready to tip')
-    await expect(spend).toContainText('Dollar value not available right now.')
+    await expect(spend).toContainText(
+      'Dollar amounts are not available right now, so tipping is paused.'
+    )
     // Never a dollar figure for it, zero or converted, and nothing to open.
     expect(await spend.textContent()).not.toMatch(/\$|≈/)
     await expect(

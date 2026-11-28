@@ -90,7 +90,9 @@ export function SpendableSection({
           Held in Lumens. The dollar figure moves with the price.
         </p>
       ) : noPrice ? (
-        <p className="qt-pocket__fine">Dollar value not available right now.</p>
+        <p className="qt-pocket__fine">
+          Dollar amounts are not available right now, so tipping is paused.
+        </p>
       ) : null}
       {outgoing ? (
         <p className="qt-pocket__line">
