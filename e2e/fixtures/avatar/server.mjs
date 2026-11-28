@@ -8,7 +8,12 @@ const root = path.resolve(import.meta.dirname, '../../..')
 const result = await Bun.build({
   entrypoints: [path.join(import.meta.dirname, 'page.tsx')],
   target: 'browser',
-  define: { 'process.env.NODE_ENV': '"production"' },
+  define: {
+    'process.env.NODE_ENV': '"production"',
+    // This fixture's own origin stands in for the deployment's file storage:
+    // profile photos are its /api/storage/ addresses (#633).
+    'process.env.NEXT_PUBLIC_CONVEX_URL': '"http://127.0.0.1:4176"',
+  },
   plugins: [
     {
       name: 'avatar-convex-boundary',
@@ -32,7 +37,10 @@ Bun.serve({
   port: 4176,
   fetch(request) {
     const url = new URL(request.url)
-    if (url.pathname === '/save') return new Response('{}')
+    // The upload ingress answers with a storage id; removal succeeds.
+    if (url.pathname === '/upload')
+      return Response.json({ storageId: 'fixture-storage-id' })
+    if (url.pathname === '/remove') return new Response('{}')
     if (url.pathname.endsWith('.svg'))
       return new Response(
         '<svg xmlns="http://www.w3.org/2000/svg" width="100" height="100"><rect width="100" height="100" fill="purple"/></svg>',

@@ -1,0 +1,64 @@
+/* Fixture-only layout: the tip dialog surface shown in place, and a plain
+   dashboard-like page panel. */
+body {
+  margin: 0;
+  background: var(--ui-surface);
+  color: var(--ui-foreground);
+}
+.pay-fixture,
+.pay-fixture-index {
+  display: grid;
+  justify-items: center;
+  padding: 24px 16px 48px;
+}
+.pay-fixture-dialog {
+  position: relative;
+  display: grid;
+  margin: 0 auto;
+}
+.pay-fixture-dialog h2 {
+  margin: 0;
+}
+.pay-fixture-page {
+  display: grid;
+  gap: 16px;
+  width: min(40rem, 100%);
+  padding: 24px;
+  border: 1px solid var(--ui-border);
+  border-radius: 6px;
+  background: var(--ui-surface);
+  font-family: var(--ui-font);
+}
+.pay-fixture-heading {
+  margin: 0;
+  font: 600 18px/1.35 var(--ui-font);
+}
+.pay-fixture-send {
+  min-height: 48px;
+  border-radius: 999px;
+  background: var(--ui-primary);
+  color: var(--ui-primary-foreground);
+  font: 600 15px/1.2 var(--ui-font);
+}
+.pay-fixture-send:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 3px;
+}
+.pay-fixture-index ul {
+  columns: 3 14rem;
+  font-family: var(--ui-font);
+}
+
+/* The dashboard surface fills the fixture width, as it does in the app. */
+.pay-fixture-account {
+  justify-self: stretch;
+  min-height: auto;
+  padding: 16px 0;
+}
+.pay-fixture-account .account-folio {
+  display: grid;
+  gap: 16px;
+  min-height: auto;
+  margin: 0;
+  padding: 16px 24px 32px;
+}

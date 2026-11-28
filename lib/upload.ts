@@ -4,6 +4,7 @@
 
 import { ConvexReactClient } from 'convex/react'
 import { api } from '@/convex/_generated/api'
+import { convexErrorMessage } from '@/lib/feedback/convexErrorMessage'
 import { Id } from '@/convex/_generated/dataModel'
 
 export const MAX_IMAGE_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -192,10 +193,8 @@ export async function uploadFile(
     console.error('Upload error:', error)
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Network error occurred during upload',
+      // The refusal's own words, never the raw client error (#633).
+      error: convexErrorMessage(error) ?? 'The upload failed. Try again.',
     }
   }
 }
@@ -278,10 +277,8 @@ export async function uploadAvatarFile(
     console.error('Avatar upload error:', error)
     return {
       success: false,
-      error:
-        error instanceof Error
-          ? error.message
-          : 'Network error occurred during upload',
+      // The refusal's own words, never the raw client error (#633).
+      error: convexErrorMessage(error) ?? 'The upload failed. Try again.',
     }
   }
 }

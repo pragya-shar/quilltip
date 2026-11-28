@@ -1,10 +1,15 @@
 import { ConvexError, getConvexSize, v } from 'convex/values'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import {
   paginationOptsValidator,
   paginationResultValidator,
 } from 'convex/server'
 import schema from './schema'
 import { canDeleteDraft } from '../lib/articles/articleDeletion'
+import {
+  PUBLISHED_ARTICLE_LOCKED_MESSAGE,
+  isArticleLocked,
+} from '../lib/articles/publishedLock'
 import type { Doc, Id } from './_generated/dataModel'
 import {
   query,
@@ -31,6 +36,19 @@ import {
   syncReadingRoomArticle,
 } from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
+import { storedArticleContent } from './lib/articleContent'
+import { assertPublishableImages, withShownCover } from './lib/articleImages'
+import { verifiedStellarAddress } from './lib/walletVerification'
+import {
+  permanentStorageEnabled,
+  readableArweaveStatus,
+} from './permanentStorage'
+import {
+  ARTICLE_SCHEMA,
+  CanonicalArticleError,
+  articleContentHashHex,
+} from './lib/chain/ids'
+import { CanonicalJsonError } from './lib/chain/canonicalJson'
 import {
   generateUniqueArticleSlugForAuthor,
   isPlaceholderArticleSlug,
@@ -66,7 +84,7 @@ import {
 
 const WRITER_NOTES_MAX_LENGTH = 5000
 const PUBLISH_RECEIVING_WALLET_ERROR =
-  'Connect a receiving wallet before publishing so readers can tip this article'
+  'Verify your receiving wallet before publishing so readers can tip this article'
 
 function stripWriterNotes<T extends { writerNotes?: string }>(
   article: T
@@ -108,9 +126,11 @@ function validateArticleInput(args: {
   }
 }
 
-function assertAuthorCanReceiveTips(user: { stellarAddress?: string | null }) {
-  if (!user.stellarAddress) {
-    throw new Error(PUBLISH_RECEIVING_WALLET_ERROR)
+function assertAuthorCanReceiveTips(user: Doc<'users'>) {
+  // Readers can tip only a wallet the writer proved control of. A refusal for
+  // the writer: a ConvexError, so production keeps its text (#633).
+  if (!verifiedStellarAddress(user)) {
+    throw new ConvexError(PUBLISH_RECEIVING_WALLET_ERROR)
   }
 }
 
@@ -154,7 +174,7 @@ async function loadReadingRoomArticle(
     authors.set(article.authorId, await enrichWithUser(ctx, article.authorId))
   }
   return {
-    ...stripWriterNotes(article),
+    ...withShownCover(stripWriterNotes(article)),
     readTime: estimateArticleReadingMinutes(article.content),
     author: authors.get(article.authorId) ?? null,
   }
@@ -358,7 +378,7 @@ export const listArticles = query({
     )
     const enrichedArticles = await Promise.all(
       slice.map(async (article) => ({
-        ...stripWriterNotes(article),
+        ...withShownCover(stripWriterNotes(article)),
         readTime: estimateArticleReadingMinutes(article.content),
         author: writers.has(article.authorId)
           ? (writers.get(article.authorId) ?? null)
@@ -689,7 +709,7 @@ export const getArticleBySlug = query({
     const tips = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', article._id))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const tipStats = {
@@ -698,13 +718,15 @@ export const getArticleBySlug = query({
     }
 
     return {
-      ...stripWriterNotes(article),
+      ...withShownCover(stripWriterNotes(article)),
+      arweaveStatus: readableArweaveStatus(article.arweaveStatus),
       author: {
         id: author._id,
         name: author.name,
         username: author.username,
         avatar: author.avatar,
-        stellarAddress: author.stellarAddress,
+        // Tips go only to a verified address.
+        stellarAddress: verifiedStellarAddress(author),
       },
       tipStats,
     }
@@ -776,7 +798,11 @@ export const getArticleById = query({
 
     const author = await ctx.db.get(article.authorId)
     return {
-      ...stripWriterNotes(article),
+      // The author's editor reads the cover as stored; readers do not get
+      // one from another host (#633).
+      ...(isAuthor
+        ? stripWriterNotes(article)
+        : withShownCover(stripWriterNotes(article))),
       ...(isAuthor ? { writerNotes: article.writerNotes } : {}),
       author: author
         ? {
@@ -784,7 +810,7 @@ export const getArticleById = query({
             name: author.name,
             username: author.username,
             avatar: author.avatar,
-            stellarAddress: author.stellarAddress,
+            stellarAddress: verifiedStellarAddress(author),
           }
         : null,
     }
@@ -880,15 +906,17 @@ export const createArticle = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
+    const content = storedArticleContent(args.content)
 
     // Validate input
     validateArticleInput(args)
 
     if (args.published) {
       assertPublishableArticleTitle(args.title)
-      if (!tiptapJsonHasNonEmptyText(args.content)) {
-        throw new Error('Cannot publish: article body is empty')
+      if (!tiptapJsonHasNonEmptyText(content)) {
+        throw new ConvexError('Cannot publish: article body is empty')
       }
+      assertPublishableImages({ content, coverImage: args.coverImage })
     }
 
     const user = await ctx.db.get(userId)
@@ -913,7 +941,7 @@ export const createArticle = mutation({
     const articleId = await ctx.db.insert('articles', {
       slug: finalSlug,
       title: args.title,
-      content: args.content,
+      content,
       excerpt: args.excerpt,
       coverImage: args.coverImage,
       published: args.published || false,
@@ -925,18 +953,21 @@ export const createArticle = mutation({
       tags: args.tags || [],
       searchContent: buildSearchContent(args.title, args.excerpt, {
         tags: args.tags,
-        content: args.content,
+        content,
       }),
       viewCount: 0,
       highlightCount: 0,
       tipCount: 0,
       totalTipsUsd: 0,
-      readTime: estimateArticleReadingMinutes(args.content),
+      readTime: estimateArticleReadingMinutes(content),
       createdAt: now,
       updatedAt: now,
     })
 
-    await syncArticleUploadReferences(ctx, articleId, null, args)
+    await syncArticleUploadReferences(ctx, articleId, null, {
+      ...args,
+      content,
+    })
 
     if (args.published) {
       const row = await ctx.db.get(articleId)
@@ -963,10 +994,17 @@ export const updateArticle = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
+    const content =
+      args.content === undefined
+        ? undefined
+        : storedArticleContent(args.content)
 
     const article = await ctx.db.get(args.id)
     if (!article) throw new Error('Article not found')
     if (article.authorId !== userId) throw new Error('Not authorized')
+    if (isArticleLocked(article)) {
+      throw new ConvexError(PUBLISHED_ARTICLE_LOCKED_MESSAGE)
+    }
 
     // Validate input
     validateArticleInput({
@@ -1003,9 +1041,9 @@ export const updateArticle = mutation({
       }
     }
 
-    if (args.content !== undefined) {
-      updates.content = args.content
-      updates.readTime = estimateArticleReadingMinutes(args.content)
+    if (content !== undefined) {
+      updates.content = content
+      updates.readTime = estimateArticleReadingMinutes(content)
     }
 
     if (args.excerpt !== undefined) updates.excerpt = args.excerpt
@@ -1015,7 +1053,7 @@ export const updateArticle = mutation({
     if (
       args.title !== undefined ||
       args.excerpt !== undefined ||
-      args.content !== undefined ||
+      content !== undefined ||
       args.tags !== undefined
     ) {
       updates.searchContent = buildSearchContent(
@@ -1023,7 +1061,7 @@ export const updateArticle = mutation({
         args.excerpt !== undefined ? args.excerpt : article.excerpt,
         {
           tags: args.tags !== undefined ? args.tags : article.tags,
-          content: args.content !== undefined ? args.content : article.content,
+          content: content !== undefined ? content : article.content,
         }
       )
     }
@@ -1057,6 +1095,61 @@ export const updateArticle = mutation({
   },
 })
 
+/**
+ * The content anchor recorded at publish: SHA-256 of canonicalArticleBytes.
+ * contentVersion is 1 at first publish. A row that already carries a
+ * canonical hash (published before, then returned to draft) keeps its version
+ * when the bytes are unchanged and moves to the next version otherwise.
+ */
+async function publishContentAnchor(article: Doc<'articles'>) {
+  const fields = {
+    articleId: article._id,
+    authorId: article.authorId,
+    title: article.title,
+    content: article.content,
+  }
+  try {
+    if (
+      article.contentHashSchema === ARTICLE_SCHEMA &&
+      article.contentHash &&
+      article.contentVersion
+    ) {
+      const current = await articleContentHashHex({
+        ...fields,
+        contentVersion: article.contentVersion,
+      })
+      if (current === article.contentHash) {
+        return { contentHash: current, contentVersion: article.contentVersion }
+      }
+      const next = article.contentVersion + 1
+      return {
+        contentHash: await articleContentHashHex({
+          ...fields,
+          contentVersion: next,
+        }),
+        contentVersion: next,
+      }
+    }
+    return {
+      contentHash: await articleContentHashHex({
+        ...fields,
+        contentVersion: 1,
+      }),
+      contentVersion: 1,
+    }
+  } catch (error) {
+    if (
+      error instanceof CanonicalJsonError ||
+      error instanceof CanonicalArticleError
+    ) {
+      throw new ConvexError(
+        'Cannot publish: the article contains characters that cannot be saved. Remove them and try again.'
+      )
+    }
+    throw error
+  }
+}
+
 // Publish article
 export const publishArticle = mutation({
   args: {
@@ -1078,11 +1171,12 @@ export const publishArticle = mutation({
     // Validate article has required content before publishing
     assertPublishableArticleTitle(article.title)
     if (!article.content) {
-      throw new Error('Cannot publish: content is required')
+      throw new ConvexError('Cannot publish: content is required')
     }
     if (!tiptapJsonHasNonEmptyText(article.content)) {
-      throw new Error('Cannot publish: article body is empty')
+      throw new ConvexError('Cannot publish: article body is empty')
     }
+    assertPublishableImages(article)
 
     assertArticleListingReady({
       title: article.title,
@@ -1090,6 +1184,7 @@ export const publishArticle = mutation({
       authorUsername: article.authorUsername,
     })
 
+    const anchor = await publishContentAnchor(article)
     const now = Date.now()
 
     let slug = article.slug
@@ -1104,9 +1199,11 @@ export const publishArticle = mutation({
       }
     }
 
-    // Only schedule Arweave upload if one isn't already pending or completed
+    // Schedule an upload only when this deployment stores articles
+    // permanently, and none is already pending or completed.
     const shouldUpload =
-      !article.arweaveStatus || article.arweaveStatus === 'failed'
+      permanentStorageEnabled() &&
+      (!article.arweaveStatus || article.arweaveStatus === 'failed')
 
     await ctx.db.patch(args.id, {
       published: true,
@@ -1118,6 +1215,9 @@ export const publishArticle = mutation({
       }),
       ...(slug !== article.slug ? { slug } : {}),
       ...(shouldUpload ? { arweaveStatus: 'pending' } : {}),
+      contentHash: anchor.contentHash,
+      contentVersion: anchor.contentVersion,
+      contentHashSchema: ARTICLE_SCHEMA,
       updatedAt: now,
     })
 
@@ -1140,10 +1240,15 @@ export const publishArticle = mutation({
       updatedAt: now,
     })
 
-    return { id: args.id, slug }
+    return {
+      id: args.id,
+      slug,
+      contentHash: anchor.contentHash,
+      contentVersion: anchor.contentVersion,
+    }
   },
 })
-// Delete an unpublished draft; published articles remain in QuillTip.
+// Delete an unpublished draft; published articles remain in Quilltip.
 export const deleteArticle = mutation({
   args: {
     id: v.id('articles'),
@@ -1158,7 +1263,7 @@ export const deleteArticle = mutation({
     if (article.authorId !== userId) throw new Error('Not authorized')
 
     if (!canDeleteDraft(article)) {
-      throw new Error('Published articles cannot be deleted from QuillTip')
+      throw new Error('Published articles cannot be deleted from Quilltip')
     }
 
     // Tip rows are financial records; keep the article they point at.
@@ -1222,6 +1327,7 @@ export const saveDraft = mutation({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
+    const content = storedArticleContent(args.content)
 
     // Validate input
     validateArticleInput(args)
@@ -1231,6 +1337,9 @@ export const saveDraft = mutation({
       const article = await ctx.db.get(args.id)
       if (!article) throw new Error('Draft not found')
       if (article.authorId !== userId) throw new Error('Not authorized')
+      if (isArticleLocked(article)) {
+        throw new ConvexError(PUBLISHED_ARTICLE_LOCKED_MESSAGE)
+      }
 
       const patch: {
         title: string
@@ -1245,8 +1354,8 @@ export const saveDraft = mutation({
         searchContent: string
       } = {
         title: args.title,
-        content: args.content,
-        readTime: estimateArticleReadingMinutes(args.content),
+        content,
+        readTime: estimateArticleReadingMinutes(content),
         excerpt: args.excerpt,
         coverImage: args.coverImage,
         tags: args.tags,
@@ -1254,7 +1363,7 @@ export const saveDraft = mutation({
         updatedAt: Date.now(),
         searchContent: buildSearchContent(args.title, args.excerpt, {
           tags: args.tags,
-          content: args.content,
+          content,
         }),
       }
 
@@ -1295,7 +1404,7 @@ export const saveDraft = mutation({
       const articleId = await ctx.db.insert('articles', {
         slug: finalSlug,
         title: args.title,
-        content: args.content,
+        content,
         excerpt: args.excerpt,
         coverImage: args.coverImage,
         writerNotes: args.writerNotes,
@@ -1307,17 +1416,20 @@ export const saveDraft = mutation({
         tags: args.tags || [],
         searchContent: buildSearchContent(args.title, args.excerpt, {
           tags: args.tags,
-          content: args.content,
+          content,
         }),
         viewCount: 0,
         highlightCount: 0,
         tipCount: 0,
         totalTipsUsd: 0,
-        readTime: estimateArticleReadingMinutes(args.content),
+        readTime: estimateArticleReadingMinutes(content),
         createdAt: now,
         updatedAt: now,
       })
-      await syncArticleUploadReferences(ctx, articleId, null, args)
+      await syncArticleUploadReferences(ctx, articleId, null, {
+        ...args,
+        content,
+      })
       return articleId
     }
   },

@@ -6,6 +6,31 @@ bun.lock
 *.tsbuildinfo
 public
 contracts/*/target
+contracts/target
+# Contract bindings are generated from the Wasm; scripts/contracts/bindings.ts --check compares them byte for byte.
+lib/stellar/v2/bindings
+contracts/**/fuzz/target
+contracts/**/fuzz/corpus
+contracts/**/fuzz/artifacts
+contracts/**/fuzz/coverage
+# Soroban test snapshots are generated files; CI diffs them byte for byte.
+contracts/**/test_snapshots
 
 # Local Superpowers execution ledgers are not project source.
 .superpowers
+
+# Local tool, agent, and editor caches. Prettier reads only .gitignore and this
+# file, not global Git excludes, so list them here.
+.convex
+.vercel
+.claude
+.serena
+.agents
+.gstack
+.impeccable
+.playwright-mcp
+.stellar
+**/.stellar
+test-results
+playwright-report
+contracts/*/target

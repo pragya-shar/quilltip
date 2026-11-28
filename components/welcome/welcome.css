@@ -1,0 +1,132 @@
+/* New-writer setup: a focused page in the account palette. */
+.welcome-surface {
+  min-height: 100svh;
+  background: #d0a7a3;
+  color: #390c18;
+  font:
+    16px/1.55 'Account Syne',
+    'Syne 600 Fallback',
+    sans-serif;
+  font-synthesis: none;
+  color-scheme: light;
+}
+.welcome-surface :is(h1, p) {
+  margin: 0;
+}
+.welcome-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  max-width: 1200px;
+  height: 72px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+.welcome-main {
+  padding: 24px 16px 64px;
+}
+.welcome-card {
+  margin: 0 auto;
+  padding: 40px 48px 44px;
+  border-radius: 5px;
+  background: #faf5ec;
+  box-shadow: 0 18px 40px -24px rgb(57 12 24 / 0.45);
+  max-width: 600px;
+}
+.welcome-step {
+  font-size: 14px;
+  color: #5e535a;
+  font-variant-numeric: tabular-nums;
+}
+.welcome-card h1 {
+  margin-top: 6px;
+  font:
+    400 40px/1.15 'Account Alegreya',
+    'Alegreya Fallback',
+    Georgia,
+    serif;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.welcome-card h1:focus {
+  outline: none;
+}
+.welcome-card h1:focus-visible {
+  outline: 2px solid #790333;
+  outline-offset: 4px;
+}
+.welcome-lead {
+  margin-top: 10px;
+  color: #5e535a;
+  max-width: 46ch;
+}
+.welcome-step-body {
+  animation: welcome-step-in 220ms cubic-bezier(0.23, 1, 0.32, 1);
+}
+@keyframes welcome-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+.welcome-form {
+  padding-top: 24px;
+}
+.welcome-photo-row {
+  padding-top: 0;
+}
+.welcome-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.welcome-skip {
+  min-height: 48px;
+  margin-left: auto;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #790333;
+  font: inherit;
+  font-size: 15px;
+  text-decoration: underline;
+  text-underline-offset: 5px;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+.welcome-surface :is(a, button):focus-visible {
+  outline: 2px solid #790333;
+  outline-offset: 3px;
+}
+@media (max-width: 600px) {
+  .welcome-header {
+    height: 64px;
+    padding: 0 16px;
+  }
+  .welcome-main {
+    padding: 8px 12px 40px;
+  }
+  .welcome-card {
+    padding: 28px 20px 32px;
+  }
+  .welcome-card h1 {
+    font-size: 32px;
+  }
+  .welcome-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .welcome-actions .settings-primary {
+    width: 100%;
+  }
+  .welcome-skip {
+    margin-left: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .welcome-step-body {
+    animation: none;
+  }
+}

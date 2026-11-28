@@ -1,9 +1,13 @@
 'use client'
 
 import Link from 'next/link'
-import { DollarSign, Wallet } from 'lucide-react'
-import { useAuthorEarnings } from '@/hooks/convex'
-import { networkLabelLowercase } from '@/lib/copy/network-status'
+import { Wallet } from 'lucide-react'
+import { useMyEarningsSummary } from '@/hooks/convex'
+import {
+  isTestnetValue,
+  networkLabelLowercase,
+} from '@/lib/copy/network-status'
+import { CompactEarningsFigures } from '@/components/dashboard/CompactEarningsFigures'
 import type { CurrentUserDoc } from '@/types/convex'
 import { Skeleton } from '@/components/ui/skeleton'
 
@@ -12,7 +16,7 @@ type CompactEarningsCardProps = {
 }
 
 export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
-  const earnings = useAuthorEarnings()
+  const earnings = useMyEarningsSummary()
   const hasWallet = Boolean(user.stellarAddress)
 
   if (earnings === undefined) {
@@ -54,24 +58,20 @@ export function CompactEarningsCard({ user }: CompactEarningsCardProps) {
     )
   }
 
-  const totalEarned = earnings?.totalEarnedUsd ?? 0
-  const tipCount = earnings?.tipCount ?? 0
-
+  // The lifetime totals once the row is rebuilt (#552), the previous figures
+  // until then.
+  const shown = earnings?.lifetime ?? earnings
   return (
     <div className="rounded-[var(--card-radius)] border border-border bg-card p-[var(--card-padding)] shadow-[var(--card-shadow)]">
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-sm font-medium text-muted-foreground">
-          Total tips received
-        </span>
-        <DollarSign className="h-4 w-4 text-success-foreground" />
-      </div>
-      <p className="text-2xl font-bold text-foreground">
-        ${totalEarned.toFixed(2)}
-      </p>
-      <p className="mt-1 text-sm text-muted-foreground">
-        {tipCount} {networkLabelLowercase()} tip{tipCount === 1 ? '' : 's'}{' '}
-        received
-      </p>
+      <CompactEarningsFigures
+        earnedStroops={shown?.earnedStroops ?? '0'}
+        estimatedUsd={shown?.estimatedUsd ?? 0}
+        tipCount={shown?.tipCount ?? 0}
+        isTestnet={earnings ? earnings.network !== 'MAINNET' : isTestnetValue()}
+        complete={earnings?.lifetime ? true : (earnings?.complete ?? true)}
+        unpricedTipCount={shown?.unpricedTipCount ?? 0}
+        updating={earnings?.updating ?? false}
+      />
     </div>
   )
 }

@@ -61,15 +61,16 @@ export function WalletSetupHelp({
                 Choose a Stellar wallet
               </button>{' '}
               and follow its setup steps. Keep your recovery phrase somewhere
-              safe. Never share it; QuillTip will never ask for it.
+              safe. Never share it; Quilltip will never ask for it.
             </li>
             <li>
               In your wallet’s network settings, select <strong>Testnet</strong>
-              . QuillTip uses free test XLM with no monetary value. No purchase
+              . Quilltip uses free test XLM with no monetary value. No purchase
               is needed.
             </li>
             <li>
-              In Freighter, use the testnet funding prompt, or open{' '}
+              In Varial (formerly Freighter), use the testnet funding prompt, or
+              open{' '}
               <a
                 href="https://lab.stellar.org/account/fund"
                 target="_blank"
@@ -94,6 +95,12 @@ export function WalletSetupHelp({
               Never enter a secret key.
             </p>
           )}
+          <p>
+            Tips are Stellar smart contract (Soroban) transactions. Varial
+            (formerly Freighter) and xBull sign them. Support in other wallets
+            varies; if a wallet cannot sign a tip, connect Varial or xBull
+            instead.
+          </p>
           <p>
             Before approving a tip, check the recipient, amount, network, and
             fee in your wallet.

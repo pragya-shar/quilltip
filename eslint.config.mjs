@@ -3,11 +3,17 @@ import reactPlugin from 'eslint-plugin-react'
 import hooksPlugin from 'eslint-plugin-react-hooks'
 import jsxA11yPlugin from 'eslint-plugin-jsx-a11y'
 import tseslint from 'typescript-eslint'
+import noBufferGlobal from './scripts/eslint/no-buffer-global.mjs'
 import oneComponentPerFile from './scripts/eslint/one-component-per-file.mjs'
 
 export default [
   {
-    ignores: ['.next/**', 'node_modules/**', 'convex/_generated/**'],
+    ignores: [
+      '.next/**',
+      'node_modules/**',
+      'convex/_generated/**',
+      'lib/stellar/v2/bindings/**',
+    ],
   },
   ...tseslint.configs.recommended,
   {
@@ -17,6 +23,39 @@ export default [
       local: { rules: { 'one-component-per-file': oneComponentPerFile } },
     },
     rules: { 'local/one-component-per-file': 'error' },
+  },
+  {
+    // The Convex default runtime and the browser have no global Buffer.
+    // lib/stellar/v2/tab/ is shared by both.
+    files: ['convex/**/*.ts', 'lib/stellar/v2/tab/**/*.ts'],
+    plugins: {
+      quilltip: { rules: { 'no-buffer-global': noBufferGlobal } },
+    },
+    rules: { 'quilltip/no-buffer-global': 'error' },
+  },
+  {
+    // Browser code takes Zod from lib/zod.ts, which turns off the eval probe
+    // that the content security policy blocks.
+    files: [
+      'app/**/*.{ts,tsx}',
+      'components/**/*.{ts,tsx}',
+      'hooks/**/*.{ts,tsx}',
+      'lib/**/*.{ts,tsx}',
+    ],
+    ignores: ['lib/zod.ts'],
+    rules: {
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'zod',
+              message: "Import { z } from '@/lib/zod' (CSP-safe settings).",
+            },
+          ],
+        },
+      ],
+    },
   },
   {
     files: ['**/*.{js,jsx,ts,tsx}'],

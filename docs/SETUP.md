@@ -1,15 +1,23 @@
 # Local setup
 
 Use Node.js 24 LTS and the Bun version in `package.json`'s `packageManager` field.
+`@stellar/stellar-sdk` 17 needs Node.js 22.12 or later; `package.json` `engines`
+states this for hosting builds.
 Install from `bun.lock`; do not mix package-manager lockfiles. A Convex account
 and development deployment are required. Wallet/contract tools are needed only
 for payment or contract work.
+
+`bun run check` refuses to start on a Bun older than the pinned version. If your
+installed Bun is older, run scripts through `npx bun@<pinned version> run <script>`.
 
 ## First checkout
 
 ```bash
 bun install --frozen-lockfile
 cp .env.example .env.local
+# Set CONVEX_DEPLOYMENT and NEXT_PUBLIC_CONVEX_URL to a non-production
+# deployment (see "Convex deployments"), then:
+bun run guard:convex
 bunx convex dev --once
 bunx convex env set SITE_URL http://localhost:3000
 bun run dev
@@ -20,10 +28,10 @@ Convex Auth signing-key setup is covered by the
 [auth setup guide](https://labs.convex.dev/auth/setup). Existing deployments may
 already have it; keep keys on Convex, never in tracked files.
 
-`bun run dev` first runs `predev` (`convex dev --until-success`), then starts
-Next.js and Convex together. This can push functions/schema to the configured
+`bun run dev` first runs `predev` (`scripts/convex-dev.ts`: the Convex guard,
+then `convex dev --until-success`), then starts Next.js and Convex together. This can push functions/schema to the configured
 backend. For UI-only work against an already configured backend, use
-`bun run dev:frontend`. Start `bun run dev:backend` separately only when needed.
+`bun run dev:frontend`; it runs the operational guard before starting Next.js. Start `bun run dev:backend` separately only when needed.
 
 Before reusing `http://localhost:3000`, inspect the listener and its checkout:
 
@@ -35,6 +43,137 @@ lsof -a -p <listener-pid> -d cwd
 An HTTP 200 or `EADDRINUSE` does not identify which checkout is serving the app.
 Avoid launching a duplicate backend or stopping another chat's server.
 
+## Convex deployments
+
+| Deployment               | Type | Use                                                       |
+| ------------------------ | ---- | --------------------------------------------------------- |
+| `efficient-tern-39`      | dev  | v2 integration and operational testing on Stellar testnet |
+| `upbeat-mockingbird-579` | —    | Serves the live site. Guarded tools refuse it by default. |
+
+`efficient-tern-39` (`https://efficient-tern-39.convex.cloud`) is the shared
+non-production backend for v2 work. It is configured with `STELLAR_NETWORK=TESTNET`,
+the testnet tipping contract, `ARWEAVE_ENABLED=false`, and its own Auth signing
+keys. To target it, put these lines in `.env.local`:
+
+```bash
+CONVEX_DEPLOYMENT=dev:efficient-tern-39
+NEXT_PUBLIC_CONVEX_URL=https://efficient-tern-39.convex.cloud
+QUILLTIP_NETWORK_GUARD_OPT_IN=testnet
+```
+
+Data on this deployment is disposable test data. Pushing functions to it with
+`bun run dev:backend` (add `--once` for a single push) updates the shared
+integration backend, so coordinate before pushing schema changes.
+
+## Testnet guard
+
+Tools that submit Stellar transactions or change a Convex deployment must call the
+testnet guard before doing any work. Each call states its kind:
+
+- **Operational** runs exercise app or backend flows that record testnet activity.
+  Use `assertScriptTestnetOnly(operation)` or `bun run guard:testnet`.
+- **Deploy** work pushes functions or schema, imports data, runs migrations, or
+  changes deployment env. Use `assertScriptConvexDeployAllowed(operation)` or
+  `bun run guard:convex`. `predev` and `dev:backend` run `scripts/convex-dev.ts`,
+  which runs this check and then `convex dev`. It refuses flags that can select
+  another deployment (`--prod`, `--url`, `--admin-key`, `--deployment`,
+  `--deployment-name`, `--env-file`, `--configure`, and others). Run other
+  Convex CLI commands only after `bun run guard:convex` passes in the same
+  environment.
+- Playwright runs must target a local app server. Suites that use a Convex
+  backend also run the operational guard; `bun run test:e2e:fixtures` needs no
+  backend.
+- Convex functions: `assertBackendTestnet()` for network checks, and
+  `assertNonProductionBackend(operation)` for maintenance functions (deploy kind).
+
+- Convex functions that support LOCAL mode call `assertBackendNetwork()`.
+- Scripts that call the Stellar CLI build the command with `runStellarCli` or
+  `buildStellarCliCommand` from `scripts/lib/stellar-cli.ts`. The wrapper runs
+  the operational guard and passes `--network`, `--rpc-url`, and
+  `--network-passphrase` explicitly; callers must not pass those flags (or `-n`)
+  before `--`. Arguments after `--` go to the contract function unchanged.
+
+Script helpers live in `scripts/lib/network-guard.ts`; the shared logic is in
+`convex/lib/networkGuard.ts`. Every run needs `QUILLTIP_NETWORK_GUARD_OPT_IN`:
+`testnet` for TESTNET, `local` for LOCAL mode. The guard applies two separate
+controls:
+
+1. **Stellar network.** Only `TESTNET`, or `LOCAL` (below), is accepted. A missing
+   or conflicting network, the mainnet passphrase in any casing or spacing, an
+   unknown passphrase, passphrase values that disagree, a mainnet Horizon or RPC
+   URL in any URL form, or an unknown endpoint is refused. Mainnet has no override.
+2. **Convex backend allowlist.** The target must be a local backend or a
+   deployment on the allowlist in `convex/lib/networkGuard.ts`. Add a personal
+   non-production deployment with `QUILLTIP_CONVEX_ALLOWLIST` (comma-separated).
+   Production-type deployments are refused. The live backend is refused by
+   default and cannot be added to the allowlist. An owner-approved operational
+   run may target it only when `QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL` is set
+   to the live deployment name for that run. Deploy work is refused on the live
+   backend even with that variable, and deploy work refuses to run while the
+   variable is set. Never put it in a shared `.env` file.
+
+   The one exception is an approved maintenance window, for the payments v2
+   cutover only. `bun scripts/live-window.ts` runs a fixed list of operations on the
+   live deployment when `QUILLTIP_LIVE_WINDOW_APPROVAL` is set in the shell to
+   `<deployment>@<release commit>@<YYYY-MM-DDTHH:MMZ>+<hours>h` (at most 4
+   hours). It refuses unless the checkout is clean and at that commit, the
+   window is open, the value is in no `.env` file and no committed file, a
+   development deploy key for that deployment is the only Convex target, and
+   the Stellar checks pass for TESTNET. Each use prints a warning and appends a
+   line to `~/.quilltip/live-window.log` (or `QUILLTIP_LIVE_WINDOW_LOG`, outside
+   the repository). Each run pushes code it builds from the approved commit's
+   git objects in a private folder, not the checkout.
+   `bun scripts/live-window.ts check` evaluates the approval without
+   any network call. Every other tool refuses to run while the variable is set,
+   and `guard:convex` still refuses every live deploy. A replace-all import
+   also needs `QUILLTIP_LIVE_WINDOW_RESTORE=<deployment>@sha256:<digest>` for
+   the reviewed restore file. The operations and the
+   procedure are in the
+   [cutover runbook](operations/payments-v2-cutover.md#503-live-window-approval);
+   the rules are in `scripts/lib/live-window.ts`.
+
+The guard reads these Stellar variables:
+
+| Variable                                               | Read by                        | Accepted values                                                                                                       |
+| ------------------------------------------------------ | ------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_STELLAR_NETWORK`, `STELLAR_NETWORK`       | client, Convex, scripts        | `TESTNET`, or `LOCAL`. All set values must agree.                                                                     |
+| `NEXT_PUBLIC_STELLAR_RPC_URL`, `STELLAR_RPC_URL`       | client, Convex, scripts        | TESTNET: `https://soroban-testnet.stellar.org` or a local URL. LOCAL: `localhost` or `127.0.0.1` only.                |
+| `NEXT_PUBLIC_SOROBAN_RPC_URL`                          | client, scripts (earlier name) | Same as `NEXT_PUBLIC_STELLAR_RPC_URL`, and equal to it when both are set.                                             |
+| `NEXT_PUBLIC_NETWORK_PASSPHRASE`, `NETWORK_PASSPHRASE` | client, Convex, scripts        | TESTNET: `Test SDF Network ; September 2015`. LOCAL: `Standalone Network ; February 2017`. All set values must agree. |
+| `NEXT_PUBLIC_HORIZON_URL`, `HORIZON_URL`               | client, Convex, scripts        | Same host rules as the RPC URL.                                                                                       |
+
+The client and Convex accept a custom TESTNET RPC or Horizon provider that is not
+on the list (mainnet hosts are still refused); scripts accept only the listed
+hosts. Scripts resolve the RPC URL from `STELLAR_RPC_URL`, then
+`NEXT_PUBLIC_STELLAR_RPC_URL`, then `NEXT_PUBLIC_SOROBAN_RPC_URL`, then the
+network default.
+
+### LOCAL mode
+
+LOCAL mode runs integration tests and CI against a Stellar Quickstart standalone
+network (`stellar/quickstart --local`) and a local Convex backend (set
+`CONVEX_DEPLOYMENT` to a `local:` or `anonymous:` deployment, then run
+`bun run dev:backend`). It requires all of:
+
+- `QUILLTIP_NETWORK_GUARD_OPT_IN=local`;
+- the network setting `LOCAL`;
+- the passphrase `Standalone Network ; February 2017` (the default for LOCAL);
+- RPC and Horizon URLs on `localhost` or `127.0.0.1` (defaults:
+  `http://localhost:8000/soroban/rpc` and `http://localhost:8000`);
+- a local Convex target (`CONVEX_DEPLOYMENT=local:...` or `anonymous:...`, or a
+  `127.0.0.1`/`localhost` URL). The browser app also needs
+  `NEXT_PUBLIC_CONVEX_URL` on a local host.
+
+LOCAL mode is never valid for a Convex cloud deployment, including allowlisted
+ones, and it refuses `QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL`. Convex
+`assertBackendTestnet()` refuses LOCAL, so existing tip flows stay TESTNET-only;
+the backend checks `CONVEX_CLOUD_URL` and needs the `local` opt-in in its own
+environment.
+
+The guard has no bypass: change the configuration instead.
+
+Production releases follow [deployment](DEPLOYMENT.md) and are outside the guard.
+
 ## Environment
 
 [.env.example](../.env.example) contains local placeholders. Convex setup writes
@@ -42,24 +181,205 @@ Avoid launching a duplicate backend or stopping another chat's server.
 `SITE_URL` is the app/auth redirect origin on Convex; `CONVEX_SITE_URL` is Convex's
 own HTTP-action origin, provided by Convex and used in `convex/auth.config.ts`.
 
-| Feature                | Local Next.js environment                                              | Convex deployment environment                                      |
-| ---------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| App/auth               | Generated Convex URL                                                   | `SITE_URL`; Auth signing configuration                             |
-| Article/highlight tips | `NEXT_PUBLIC_TIPPING_CONTRACT_ID`, `NEXT_PUBLIC_PLATFORM_ADDRESS`      | `TIPPING_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`                   |
-| NFT                    | `NEXT_PUBLIC_NFT_CONTRACT_ID`; optional `NEXT_PUBLIC_NFT_METADATA_URL` | Check the affected backend function's requirements                 |
-| Permanent publishing   | `ARWEAVE_ENABLED=false` by default                                     | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY` when intentionally enabled |
+| Feature                | Local Next.js environment                                                                                                | Convex deployment environment                                      |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| App/auth               | Generated Convex URL                                                                                                     | `SITE_URL`; Auth signing configuration                             |
+| Article/highlight tips | `NEXT_PUBLIC_CORE_CONTRACT_ID`, `NEXT_PUBLIC_TOKEN_CONTRACT_ID`                                                          | `CHAIN_V2_ENABLED`, `CORE_CONTRACT_ID`, `STELLAR_NETWORK=TESTNET`  |
+| Article NFT            | `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID`                                                                                    | `NFT_CONTRACT_ID`; `SITE_URL` sets each token's metadata URL       |
+| Permanent publishing   | `ARWEAVE_ENABLED=false` by default                                                                                       | `ARWEAVE_ENABLED`, `ARWEAVE_WALLET_KEY` when intentionally enabled |
+| Product analytics      | `NEXT_PUBLIC_ANALYTICS_ENABLED=false` by default; server-only `ANALYTICS_POSTHOG_KEY`, optional `ANALYTICS_POSTHOG_HOST` | None                                                               |
+| Password reset         | None                                                                                                                     | `AUTH_RESEND_KEY`, `AUTH_EMAIL_FROM`; uses `SITE_URL` for the link |
 
-Frontend/backend tipping IDs and network must match. The browser's Stellar
-endpoints/passphrase default to testnet in `lib/stellar/config.ts`; backend
-verification configuration lives in `convex/lib/constants.ts`. Missing backend
-contract configuration blocks quote preparation before wallet approval.
+Frontend/backend tipping IDs and network must match. `NEXT_PUBLIC_STELLAR_NETWORK`
+and `STELLAR_NETWORK` take `TESTNET`, `MAINNET`, or `LOCAL`; the guard refuses
+`MAINNET`. Network settings (wallet network, passphrase, Horizon and RPC defaults,
+Stellar CLI network name) come from one module, `convex/lib/stellarNetwork.ts`,
+used by the browser config, the wallet adapter, the backend, and scripts. Tip
+flows on the backend accept only `TESTNET`. Missing backend contract
+configuration blocks quote preparation before wallet approval.
 Arweave wallet configuration is required by `convex/arweave.ts` when enabled,
-including for small uploads; keep it only on the backend.
+including for small uploads; keep it only on the backend. The public query
+`permanentStorage:isEnabled` returns `true` only when both `ARWEAVE_ENABLED`
+and the wallet are set; the publish dialog uses it to tell the writer whether
+the article will be stored permanently.
+
+### Beta programme
+
+- **Waitlist:** `/waitlist` stores one row per email in the `waitlist` table
+  with status `pending`. Spam protection is a honeypot field, a minimum fill
+  time, and a global limit of 30 new rows per minute; responses are the same
+  for new and existing emails. Mark entries invited with
+  `waitlist:invite` (dry run unless `"apply": true`) and send the invitation
+  yourself. A new account with the same email marks the entry `joined`.
+- **Feedback:** signed-in people send feedback from `/dashboard/feedback`
+  (5 per person per hour). Read it with `feedback:listRecent`.
+- **Usage metrics:** `betaMetrics:getUsageMetrics` is an internal action for
+  people with deployment access. It reads each table in pages and excludes
+  test accounts unless called with `{"excludeTestAccounts": false}`.
+- **Test accounts:** flag QA and demo accounts with
+  `testAccounts:setTestAccount '{"email":"…","isTestAccount":true}'`. Only
+  internal functions can set the flag, and only the account itself sees it.
+- **Internal accounts:** set `INTERNAL_ACCOUNT_EMAIL_DOMAINS` on Convex to a
+  comma-separated list of staff email domains (for example `example.com`).
+  A new account whose email domain equals one of them, ignoring case, is
+  flagged at sign-up; subdomains do not match. Empty or unset flags nothing.
+  For existing accounts, run
+  `testAccounts:backfillInternalAccountsByDomain '{"domain":"example.com"}'`
+  (dry run unless `"apply": true`; pass `continueCursor` back as `cursor`
+  until `isDone`). It only sets the flag and never runs on its own.
+- **Product analytics:** PostHog (EU cloud), off by default. Set
+  `NEXT_PUBLIC_ANALYTICS_ENABLED=true` and the server-only
+  `ANALYTICS_POSTHOG_KEY` (the project API key) on the Next.js deployment.
+  Visitors see a consent prompt; nothing is sent until they allow it, and Do
+  Not Track or Global Privacy Control count as a refusal. Events go through
+  `/api/analytics`, so visitor IP addresses are not shared with PostHog, and
+  only `$pageview`, `waitlist_joined` and `feedback_sent` are accepted, with
+  no free-text properties. The prompt and relay stay off until both variables
+  are set.
+
+### Password reset
+
+`/forgot-password` asks for an email and `/reset-password` takes the emailed
+8-digit code and a new password. Codes come from Convex Auth's reset flow,
+expire after 15 minutes, and work once. Email goes through
+[Resend](https://resend.com) over HTTPS, so no SDK is installed:
+
+- `AUTH_RESEND_KEY`: Resend API key, set on the Convex deployment.
+- `AUTH_EMAIL_FROM`: sender such as `Quilltip <no-reply@your-domain>`, on a
+  domain verified in Resend. Without it, Resend's shared test sender is used,
+  which delivers only to the Resend account owner.
+
+Without `AUTH_RESEND_KEY` the request step says reset email is unavailable and
+sends nothing. The response is the same for known and unknown emails; requests
+are limited to 3 per email per hour and 50 per 10 minutes overall, and wrong
+codes count toward Convex Auth's failed sign-in limit. A completed reset signs
+out other sessions and returns the person to log in.
+
+### Payments v2
+
+The v2 chain layer (`convex/chain/`, `convex/lib/chain/`) is off until
+cutover. Its Convex variables, all testnet:
+
+- `CHAIN_V2_ENABLED`: `true` lets v2 prepare functions create records. Leave
+  it `false` (or unset) until cutover. Verification and recheck run either
+  way, so records created before a rollback still resolve.
+- `CHAIN_EPOCH`: names this deployment's v2 contract set, for example
+  `testnet-2026-12-01`. Every new chain row carries it.
+- `CORE_CONTRACT_ID`, `TAB_CONTRACT_ID`, `NFT_CONTRACT_ID`,
+  `TOKEN_CONTRACT_ID`: this deployment's own contract set; the token is the
+  native XLM SAC.
+- `STELLAR_RPC_URL`: optional; defaults to the public testnet RPC.
+- `INDEXER_START_LEDGER`: the ledger of this contract set's Core deploy
+  transaction. The event indexer does nothing until it and `CORE_CONTRACT_ID`
+  are set.
+- `OPS_USER_IDS`: comma-separated Convex user IDs that may read the indexer
+  status at `/ops/chain`.
+- `CHAIN_V1_PREPARES_ENABLED`: unset (or `true`) keeps v1 tip and NFT
+  preparation running. `false` pauses it for the cutover: the v1 prepare
+  functions refuse new records, while v1 submit, verification, recovery and
+  reads continue, so v1 tips already in flight complete. Any other value also
+  pauses. With v2 off and v1 paused, articles show "Tips are paused for a short
+  time while payments are updated."
+
+The Next.js side reads `NEXT_PUBLIC_CORE_CONTRACT_ID`,
+`NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` and
+`NEXT_PUBLIC_TOKEN_CONTRACT_ID`. `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` must name the same contract as
+the backend's `NFT_CONTRACT_ID`; while it is unset or different, the article
+NFT panel says minting and transfers are not available on this site instead
+of offering them. The cutover order is in
+[payments-v2-cutover.md](operations/payments-v2-cutover.md).
+
+Every function that reads the chain calls `assertBackendTestnet()` first. The
+`recheck pending chain submissions` cron (2 minutes) and the
+`refresh chain config` cron (1 hour) do nothing while no v2 submission is open
+or no contract is configured. The one-time backfill
+`chain/backfill:setContractVersionV1` is a dry run unless `apply` is `true`.
+
+**Event indexer.** The `poll chain events` cron runs every minute under the
+`indexer` lease. It stores each contract event once (keyed by its RPC id),
+dispatches it, and saves the cursor in the same mutation. Statuses:
+
+- `LAGGING`: more than 720 ledgers (about 1 hour) behind; logs
+  `CHAIN_INDEXER_LAGGING`. `CHAIN_INDEXER_RETENTION_RISK` fires when the cursor
+  is within about one day of the oldest ledger RPC keeps.
+- `BEHIND_RETENTION`: events were missed. The indexer stops; nothing expires.
+  Load the missed range with `chain/indexer:ingestBackfill`, then run
+  `chain/indexer:replayFrom` with a ledger RPC still keeps and
+  `gapBackfilled: true`. Without that flag, a replay that starts after the
+  covered ledger is refused.
+- `RESET_DETECTED`: the ledger sequence dropped or the Core instance is gone.
+  The indexer stops. Follow the testnet reset steps in
+  `docs/architecture/v2/07-security-and-recovery.md` (section 7.4), set a new
+  `CHAIN_EPOCH` and `INDEXER_START_LEDGER`; a new epoch starts a new cursor.
+
+`chain/indexer:redispatch` dispatches stored events that had no handler yet.
+
+**Payments flagged for review.** When a successful transaction paid something
+other than the prepared values, had no `Tipped` event, or an event contradicts
+the recorded state, the row is flagged (`needsReview`) and keeps the decoded
+on-chain payer, payee, token and amounts (`onChain*`, `feeBaseUnits`,
+`netBaseUnits`) next to the expected values. `/ops/chain` lists them side by
+side. Flagged rows stay out of tip counts and earnings until an operator runs
+`chain/review:resolveFlaggedTip` with `credit_decoded` (counts and credits the
+decoded token and amounts; only for `field:gross`, `field:token`, `field:fee`,
+`field:tipper`, `field:highlight_id` and `field:ledger`) or `no_credit`, and a
+note.
+
+**Tab ledger.** `convex/tabs.ts` accepts tab tips (`prepareTip`, `submitTip`)
+and mirrors Tab events through the indexer. Its Convex variables, all testnet:
+
+- `SETTLEMENT_ENABLED`: `true` lets Convex countersign tab vouchers and runs
+  the settler. Without it, `submitTip` refuses with `TAB_ACCEPTOR_UNAVAILABLE`
+  and the settler does nothing.
+- `TAB_ACCEPTOR_SECRET`: the acceptor ed25519 seed (a Stellar `S…` secret or 64
+  hex characters). Read only after `assertBackendTestnet()`. Never put it in
+  `.env.example` or a committed file.
+- `TAB_DAILY_LIMIT` and `TAB_TIP_MAX`: base units; defaults `200000000` and
+  `50000000`.
+- `TAB_SETTLER_SECRET`: the Stellar secret of the account that holds the Tab
+  `settler` role. Read only after `assertBackendTestnet()`,
+  `SETTLEMENT_ENABLED=true` and `TAB_CONTRACT_ID` pass. Never committed.
+
+Acceptance needs a running indexer cursor for the current `CHAIN_EPOCH`, a
+cached XLM price no older than 30 minutes, and the acceptor public key in the
+Tab's `acceptor_keys` (read by the hourly `refresh chain config` cron; a
+mismatch logs `TAB_ACCEPTOR_MISMATCH` and refuses acceptance).
+
+**Tab settler.** The `settle due tab vouchers` cron (`tabSettler:settleDue`,
+every 10 minutes) holds the `settler` lease and submits at most one
+`Tab.settle` of up to 32 vouchers at a time: closing tabs first, then the
+soonest key window end, then the oldest receipt. It verifies each voucher with
+the shared encoder, simulates, and splits a failing batch until the failing
+voucher is isolated; that voucher becomes `REJECTED` for review. The signed
+envelope is recorded before it is sent, so a run that stops halfway is resumed
+by the next one. Receipts of a pair whose key window
+(`valid_until + 7 days`) ended unsettled become `UNPAID`, for open and closed
+tabs alike, and the reader's reservation is released. Log codes:
+`TAB_SETTLER_LAG` (oldest due receipt over 6 h, again over 24 h),
+`TAB_SETTLER_KEY_EXPIRING` (unsettled value within 2 days of a window end),
+`TAB_SETTLER_BALANCE_LOW` (settler account under 50 XLM),
+`TAB_SETTLER_REJECTED` and `TAB_SETTLER_RUN_FAILED`.
+
+Operator functions: `tabs:sweepUnpaid` runs the `UNPAID` sweep on its own, and
+`tabs:voidResetEpoch` marks a closed epoch's unsettled receipts `VOID_RESET`
+after a testnet reset.
 
 ## Checks and browser tests
 
 Run `bun run check` for the local code/tooling gate; `package.json` lists individual
-checks. Live-route Playwright suites use an existing server rather than launching
+checks. Its build step uses a placeholder `NEXT_PUBLIC_CONVEX_URL` when none is set.
+`bun run test:unit` covers the network module, guard, health report, and profile
+helpers. `bun run test:e2e:fixtures` starts the NFT, recovery, and avatar fixture
+servers and runs their Playwright suites; they need no backend or credentials.
+`bun run test:e2e:auth` runs the sign-in suite (`e2e/auth-return.spec.ts`) with
+real Convex Auth on the anonymous local backend `anonymous-agent`: it starts the
+backend, sets a new signing key, builds and serves the app, and creates its own
+account. It refuses a checkout whose `.env.local` selects another deployment,
+because `convex dev` rewrites that file. CI runs it as `Playwright (local auth)`.
+`bun run test:contracts` runs `cargo test` for the contract workspace. Each crate pins its
+Rust toolchain (1.94.1) and the `wasm32v1-none` target in `rust-toolchain.toml`;
+build a contract with `cargo build --locked --target wasm32v1-none --release`
+inside its directory. Live-route Playwright suites use an existing server rather than launching
 one. For example:
 
 ```bash
@@ -96,7 +416,11 @@ your local environment or secret manager, then run:
 PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 bunx playwright test e2e/account-navigation.spec.ts
 ```
 
-Without both variables the spec skips explicitly. Each test uses a fresh browser
+Without both variables the spec skips explicitly. The new-writer journey in
+`e2e/profile-setup.spec.ts` (setup screen, handle, profile settings) creates
+its own throwaway `example.test` accounts instead, so it needs no credentials;
+it runs only with `PLAYWRIGHT_TEST_SIGNUP=1` against a local or development
+backend. Each test uses a fresh browser
 context and signs in through `/login`; sign-out tests have independent sessions.
 The spec disables traces, screenshots, and video to avoid capturing credentials.
 Do not commit credentials or saved browser state. It follows desktop/mobile

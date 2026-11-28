@@ -16,7 +16,7 @@
   --ui-accent: #f9f0e2;
   --ui-muted: #e9dac1;
   --ui-border: #ad8690;
-  --ui-input: #ad8690;
+  --ui-input: #8f6672; /* 3.5:1 on the dialog surface (WCAG 1.4.11) */
   --ui-ring: #660033;
   --ui-danger: #a52e36;
   --destructive: var(--ui-danger);
@@ -95,8 +95,7 @@
   letter-spacing: -0.025em;
   color: var(--ui-primary);
 }
-.tip-dialog-description,
-.tip-step-copy {
+.tip-dialog-description {
   color: var(--ui-muted-foreground);
   line-height: 1.6;
 }
@@ -147,11 +146,17 @@
   cursor: pointer;
   transition: background-color 150ms;
 }
-.tip-preset:hover,
 .tip-preset[aria-pressed='true'] {
   background: var(--ui-primary);
   color: var(--ui-primary-foreground);
   border-color: var(--ui-primary);
+}
+/* Hover is a lighter step than selected, so the choice stays readable. */
+@media (hover: hover) and (pointer: fine) {
+  .tip-preset:not([aria-pressed='true']):hover {
+    background: var(--ui-muted);
+    border-color: var(--ui-primary);
+  }
 }
 .tip-field-label {
   display: block;
@@ -169,9 +174,6 @@
   font: inherit;
   font-size: 16px;
   padding: 12px;
-}
-.tip-custom-input {
-  padding-left: 32px;
 }
 .tip-input::placeholder {
   color: var(--ui-muted-foreground);
@@ -198,69 +200,11 @@
   border-radius: 999px;
   width: 100%;
 }
-.tip-dialog .tip-choose-wallet {
-  justify-content: space-between;
-  padding: 7px 7px 7px 18px;
-  border: 1px solid var(--ui-border);
-  background: var(--ui-accent);
-  color: var(--ui-primary);
-}
-.tip-dialog .tip-choose-wallet:hover {
-  background: var(--ui-surface);
-}
-.tip-action-disc {
-  display: grid;
-  place-items: center;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: var(--ui-primary);
-  color: var(--ui-primary-foreground);
-}
 .tip-dialog button:disabled,
 .tip-dialog input:disabled,
 .tip-dialog textarea:disabled {
   cursor: not-allowed;
   opacity: 0.5;
-}
-.tip-summary {
-  border-block: 1px solid var(--ui-border);
-  padding-block: 20px;
-}
-.tip-summary-total {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 16px;
-}
-.tip-summary-total strong {
-  font:
-    400 36px/1.2 'Tip Alegreya',
-    Georgia,
-    serif;
-  font-variant-numeric: tabular-nums;
-}
-.tip-breakdown {
-  margin: 16px 0 0;
-  display: grid;
-  gap: 8px;
-  color: var(--ui-muted-foreground);
-  font-size: 13px;
-}
-.tip-breakdown > div {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-}
-.tip-breakdown dd {
-  flex-shrink: 0;
-  font-variant-numeric: tabular-nums;
-  color: var(--ui-foreground);
-}
-.tip-message {
-  margin-top: 16px;
-  color: var(--ui-muted-foreground);
-  white-space: pre-wrap;
 }
 .tip-help-trigger {
   display: flex;
@@ -284,57 +228,9 @@
 .tip-help-content > * + * {
   margin-top: 12px;
 }
-.tip-notice {
-  border-left: 3px solid var(--ui-border);
-  padding: 12px 16px;
-  background: var(--ui-muted);
-  color: var(--ui-foreground);
-  font-size: 14px;
-}
-.tip-notice-error {
-  border-color: var(--ui-danger);
-  color: var(--ui-danger);
-}
 .tip-dialog .wallet-setup-help {
   font-family: var(--ui-font);
   margin-block: 8px 0;
-}
-.tip-wallet-state,
-.tip-network-note {
-  color: var(--ui-muted-foreground);
-  font-size: 12px;
-  text-align: center;
-}
-.tip-network-note {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 4px;
-}
-.tip-feedback {
-  border-radius: 4px;
-  border-color: var(--ui-danger);
-  background: var(--ui-surface);
-  color: var(--ui-danger);
-}
-.tip-dialog .tip-feedback > svg {
-  color: inherit;
-}
-.tip-feedback-success {
-  border-color: var(--ui-success-foreground);
-  background: var(--ui-success);
-  color: var(--ui-success-foreground);
-}
-.tip-feedback-pending {
-  border-color: var(--ui-info-foreground);
-  background: var(--ui-info);
-  color: var(--ui-info-foreground);
-}
-.tip-feedback-warning {
-  border-color: var(--ui-warning-foreground);
-  background: var(--ui-warning);
-  color: var(--ui-warning-foreground);
 }
 @media (max-width: 480px) {
   .tip-dialog {

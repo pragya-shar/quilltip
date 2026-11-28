@@ -1,0 +1,620 @@
+/* Shared payment kit (docs/design-system/payment-states.md).
+   Every colour comes from the --ui-* tokens, so the kit follows the surface
+   it sits on: the cream tip dialog, the dashboard, and dark mode. */
+
+@font-face {
+  font-family: 'Tip Alegreya';
+  src: url('/landing/fonts/alegreya-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+  font-display: swap;
+}
+
+:where(
+  .pay-panel,
+  .pay-progress,
+  .pay-amount,
+  .pay-gate,
+  .pay-note,
+  .pay-notice,
+  .pay-key
+) {
+  --pay-amount-font: 'Tip Alegreya', Georgia, serif;
+  --pay-ease-out: cubic-bezier(0.32, 0.72, 0, 1);
+  font-family: var(--ui-font);
+  color: var(--ui-foreground);
+  overflow-wrap: anywhere;
+}
+
+/* The tip dialog is always light (its own cream palette in tipping.css), but
+   it does not set the status tokens, so in dark mode it would inherit dark
+   tints under light text. Pin the light values there. */
+.tip-dialog {
+  --ui-success: #e5ebdf;
+  --ui-success-foreground: #35513c;
+  --ui-warning: #f3e6c8;
+  --ui-warning-foreground: #705019;
+  --ui-info: #eee2e8;
+  --ui-info-foreground: #66334c;
+  --ui-danger-foreground: #fff8f1;
+}
+
+/* Panel: gate prompts, notices and results ------------------------------- */
+
+.pay-panel {
+  --pay-bg: color-mix(in oklab, var(--ui-muted) 55%, transparent);
+  --pay-line: var(--ui-border);
+  --pay-ink: var(--ui-muted-foreground);
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px solid var(--pay-line);
+  border-radius: var(--ui-radius);
+  background: var(--pay-bg);
+}
+.pay-panel[data-tone='info'] {
+  --pay-bg: var(--ui-info);
+  --pay-line: color-mix(in oklab, var(--ui-info-foreground) 24%, transparent);
+  --pay-ink: var(--ui-info-foreground);
+}
+.pay-panel[data-tone='success'] {
+  --pay-bg: var(--ui-success);
+  --pay-line: color-mix(
+    in oklab,
+    var(--ui-success-foreground) 24%,
+    transparent
+  );
+  --pay-ink: var(--ui-success-foreground);
+}
+.pay-panel[data-tone='warning'] {
+  --pay-bg: var(--ui-warning);
+  --pay-line: color-mix(
+    in oklab,
+    var(--ui-warning-foreground) 26%,
+    transparent
+  );
+  --pay-ink: var(--ui-warning-foreground);
+}
+.pay-panel[data-tone='danger'] {
+  --pay-bg: color-mix(in oklab, var(--ui-danger) 7%, var(--ui-surface));
+  --pay-line: color-mix(in oklab, var(--ui-danger) 32%, transparent);
+  --pay-ink: var(--ui-danger);
+}
+.pay-panel-icon {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 22px;
+  color: var(--pay-ink);
+}
+.pay-panel-icon svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.75;
+}
+.pay-panel-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.pay-panel-title {
+  margin: 0;
+  font: 600 15px/1.45 var(--ui-font);
+  text-wrap: pretty;
+}
+.pay-panel[data-tone='danger'] .pay-panel-title {
+  color: var(--ui-danger);
+}
+.pay-panel-title:focus {
+  outline: none;
+}
+.pay-panel-title:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 3px;
+}
+.pay-panel-detail {
+  margin-top: 4px;
+  max-width: 62ch;
+  color: color-mix(in oklab, var(--ui-foreground) 80%, var(--pay-bg));
+  font-size: 14px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.pay-panel-detail > * + * {
+  margin-top: 8px;
+}
+.pay-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+
+/* Actions and links -------------------------------------------------------- */
+
+.pay-action {
+  min-height: 44px;
+  height: auto;
+  padding: 10px 18px;
+  white-space: normal;
+  text-align: center;
+  touch-action: manipulation;
+  transition:
+    scale 150ms ease-out,
+    background-color 150ms ease-out;
+}
+.pay-action:active:not([aria-disabled='true']) {
+  scale: 0.97;
+}
+.pay-action[aria-disabled='true'] {
+  cursor: progress;
+  opacity: 0.75;
+}
+.pay-action:focus-visible,
+.pay-link:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 3px;
+}
+/* Inside the tip dialog, actions take its pill shape. */
+.tip-dialog .pay-action {
+  border-radius: 999px;
+}
+.pay-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+  color: var(--ui-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+  touch-action: manipulation;
+}
+.pay-link svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+@media (hover: hover) and (pointer: fine) {
+  .pay-link:hover {
+    text-decoration-thickness: 2px;
+  }
+}
+
+/* Spinner and inline status ----------------------------------------------- */
+
+.pay-spinner {
+  flex: none;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid color-mix(in oklab, var(--ui-primary) 22%, transparent);
+  border-top-color: var(--ui-primary);
+  border-radius: 50%;
+  animation: pay-spin 0.9s linear infinite;
+}
+/* Inside a button the ring takes the button's text colour (S7). */
+.pay-action .pay-spinner {
+  border-color: color-mix(in oklab, currentColor 30%, transparent);
+  border-top-color: currentColor;
+}
+@keyframes pay-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.pay-inline-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* Transaction progress ----------------------------------------------------- */
+
+.pay-progress {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+/* The progress heading is visually hidden; show where focus is. */
+.pay-progress:has(.pay-progress-heading:focus-visible) {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 6px;
+  border-radius: var(--ui-radius);
+}
+.pay-progress > .pay-link {
+  align-self: flex-start;
+}
+.pay-steps {
+  display: grid;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pay-steps li {
+  position: relative;
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  align-items: center;
+  gap: 12px;
+  min-height: 32px;
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+}
+/* The thread between markers. */
+.pay-steps li:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 9.5px;
+  top: 26px;
+  width: 1px;
+  height: 12px;
+  background: var(--ui-border);
+}
+.pay-steps li[data-step='done']::after {
+  background: color-mix(in oklab, var(--ui-primary) 55%, transparent);
+}
+.pay-step-marker {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+}
+.pay-steps li[data-step='upcoming'] .pay-step-marker::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--ui-input);
+  border-radius: 50%;
+}
+.pay-steps li[data-step='done'] .pay-step-marker {
+  background: var(--ui-primary);
+  color: var(--ui-primary-foreground);
+}
+.pay-steps li[data-step='done'] .pay-step-marker svg {
+  width: 12px;
+  height: 12px;
+  stroke-width: 3;
+}
+.pay-steps li[data-step='current'] {
+  color: var(--ui-foreground);
+  font-weight: 600;
+}
+.pay-progress-sentence {
+  margin: 4px 0 0;
+  max-width: 60ch;
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+.pay-progress-sentence strong {
+  color: var(--ui-foreground);
+  font-weight: 600;
+}
+
+/* Amount and split --------------------------------------------------------- */
+
+.pay-amount {
+  display: grid;
+  gap: 10px;
+  padding-block: 18px;
+  border-block: 1px solid var(--ui-border);
+}
+.pay-amount p {
+  margin: 0;
+}
+.pay-amount-figure {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pay-amount-items {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 4px;
+  padding: 0 0 12px;
+  list-style: none;
+  border-bottom: 1px dashed var(--ui-border);
+  font-size: 14px;
+}
+/* Label and amount share a row; a long label wraps in its own column and
+   the amount stays on the right of the first line. */
+.pay-amount-items li,
+.pay-amount-breakdown > div {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 16px;
+}
+.pay-amount-total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 2px 16px;
+  font-size: 14px;
+}
+.pay-amount-total strong {
+  font: 400 32px/1.15 var(--pay-amount-font);
+  letter-spacing: -0.01em;
+  white-space: normal;
+  min-width: 0;
+}
+.pay-amount-caption {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 2px 10px;
+  margin-top: -6px;
+  text-align: right;
+  color: var(--ui-muted-foreground);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.pay-amount-breakdown {
+  display: grid;
+  gap: 6px;
+  margin: 4px 0 0;
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+}
+.pay-amount-breakdown dt {
+  min-width: 0;
+}
+.pay-amount-breakdown dd {
+  margin: 0;
+  text-align: right;
+  color: var(--ui-foreground);
+}
+
+/* Basket rows with their own state. */
+.pay-amount-item-state {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 10px;
+  margin-top: -2px;
+}
+.pay-amount-item-note {
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+/* Inline amounts and addresses ------------------------------------------- */
+
+.pay-xlm {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.pay-address {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Result meta: amount, recipient and the testnet label ------------------- */
+
+.pay-result-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+}
+.pay-result-summary {
+  color: var(--ui-foreground);
+  font-weight: 600;
+}
+.pay-result-reference {
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+}
+.pay-result-reference code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+/* Wallet prompt help --------------------------------------------------------- */
+
+.pay-signing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.pay-signing-help {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* Testnet label ------------------------------------------------------------ */
+
+.pay-network {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  color: var(--ui-muted-foreground);
+}
+.pay-network-name {
+  font: 600 11px/1.4 var(--ui-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pay-network-detail {
+  font: 400 12px/1.4 var(--ui-font);
+}
+
+/* One-line note (tips unavailable) ---------------------------------------- */
+
+.pay-note {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+.pay-note p {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.pay-note p svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.pay-note .reader-tips-unavailable {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--ui-muted-foreground);
+  font-size: 14px;
+  line-height: 1.5;
+}
+/* Announced, the note is a heading that can take focus (#610). */
+.pay-note-title:focus {
+  outline: none;
+}
+.pay-note-title:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 3px;
+}
+
+/* Quick-tip key row --------------------------------------------------------- */
+
+.pay-key {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 4px 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--ui-border);
+}
+.pay-key-icon {
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  color: var(--ui-muted-foreground);
+  stroke-width: 1.75;
+}
+.pay-key-body {
+  min-width: 0;
+}
+.pay-key-body p {
+  margin: 0;
+}
+.pay-key-label {
+  font: 600 14px/1.45 var(--ui-font);
+}
+.pay-key-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+  color: var(--ui-muted-foreground);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.pay-key-spend {
+  font-variant-numeric: tabular-nums;
+}
+.pay-key-actions {
+  grid-column: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.pay-key-actions:empty {
+  display: none;
+}
+.pay-key[data-state='revoked'] .pay-key-label {
+  color: var(--ui-muted-foreground);
+}
+
+/* History status ----------------------------------------------------------- */
+
+.pay-status {
+  --pay-dot: var(--ui-muted-foreground);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  white-space: nowrap;
+  font: 500 13px/1.4 var(--ui-font);
+  color: var(--ui-foreground);
+}
+.pay-status[data-tone='info'] {
+  --pay-dot: var(--ui-info-foreground);
+}
+.pay-status[data-tone='success'] {
+  --pay-dot: var(--ui-success-foreground);
+}
+.pay-status[data-tone='warning'] {
+  --pay-dot: var(--ui-warning-foreground);
+}
+.pay-status[data-tone='danger'] {
+  --pay-dot: var(--ui-danger);
+}
+.pay-status-dot {
+  flex: none;
+  align-self: center;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--pay-dot);
+}
+
+/* Motion: a result reached after mount rises in once, and a confirmation
+   draws its tick. Nothing else moves except the spinner. */
+
+.pay-panel[data-enter] {
+  animation: pay-rise 220ms var(--pay-ease-out) both;
+}
+@keyframes pay-rise {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.pay-panel[data-enter] .pay-check path {
+  stroke-dasharray: 12;
+  animation: pay-draw 200ms 80ms ease-out both;
+}
+@keyframes pay-draw {
+  from {
+    stroke-dashoffset: 12;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pay-panel[data-enter],
+  .pay-panel[data-enter] .pay-check path {
+    animation: none;
+  }
+  .pay-spinner {
+    animation: none;
+    border-right-color: transparent;
+  }
+  .pay-action {
+    transition: none;
+  }
+  .pay-action:active:not([aria-disabled='true']) {
+    scale: none;
+  }
+}

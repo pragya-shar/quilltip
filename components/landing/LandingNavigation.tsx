@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useAuth } from '@/components/providers/AuthContext'
 import { ArrowUpRight } from './LandingIcons'
 import { LandingWordmark } from './LandingWordmark'
+import { SignedInAccountMenu } from '@/components/layout/SignedInAccountMenu'
 
 export function LandingNavigation() {
   const { isAuthenticated } = useAuth()
@@ -21,9 +22,7 @@ export function LandingNavigation() {
           Writing desk
         </Link>
         {isAuthenticated ? (
-          <Link className="nav-signup" href="/profile">
-            Account <ArrowUpRight size={16} aria-hidden />
-          </Link>
+          <SignedInAccountMenu />
         ) : (
           <>
             <Link className="nav-link login-link" href="/login">

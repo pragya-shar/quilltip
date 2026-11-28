@@ -1,7 +1,7 @@
 # Agent workflow sources
 
 Reviewed 2026-10-23. These are first-party engineering accounts and live product
-documentation, selected for applicability to QuillTip. They represent practices
+documentation, selected for applicability to Quilltip. They represent practices
 from these teams, not a ranking or an identical setup used by every engineer.
 Project choices below are adaptations; model-specific recipes and large-team
 infrastructure are not prerequisites.

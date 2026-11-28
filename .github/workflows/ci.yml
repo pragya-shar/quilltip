@@ -2,9 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, overhaul/v2]
   pull_request:
-    branches: [main]
+    branches: [main, overhaul/v2]
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
@@ -35,17 +35,35 @@ jobs:
       - name: Format check
         run: bun run format:check
 
+      - name: Brand spelling
+        run: bun run brand:check
+
       - name: Lint
         run: bun run lint
 
+      - name: Bun version guard
+        run: bun scripts/check-bun-version.ts
+
       - name: Component convention fixtures
         run: bun run test:component-organization
+
+      - name: Unit tests (network, guard, health, profile)
+        run: bun run test:unit
 
       - name: Highlight behavior regressions
         run: bun run test:highlights
 
       - name: Reader end-matter regressions
         run: bun run test:reader
+
+      - name: Waitlist, feedback and analytics regressions
+        run: bun run test:beta
+
+      - name: Payments v2 chain layer regressions
+        run: bun run test:chain
+
+      - name: Tip read queries and earnings regressions
+        run: bun run test:tips
 
       - name: Dependency compatibility regressions
         run: bun run test:dependency-compatibility
@@ -83,6 +101,202 @@ jobs:
           NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
           NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
 
+  perf-budget:
+    name: Page-load Budget
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # WebKit for the no-script reading check.
+      - name: Install Chromium and WebKit
+        run: bunx playwright install --with-deps chromium webkit
+
+      # Fixture data from a local stand-in (scripts/perf/convex-fixture.ts);
+      # no backend or secrets.
+      - name: Build against the fixture backend
+        run: bun run build
+        env:
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      # First-load JavaScript of /, /login, /articles and the article page:
+      # gzip budget per route, and no wallet, SDK, contract-binding,
+      # IndexedDB or editor code (scripts/perf/first-load.ts).
+      - name: Check first-load JavaScript
+        run: bun run perf:first-load
+        # The analyzer compiles the app again, with the build's settings.
+        env:
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Check page-load budget
+        run: bun run perf:budget
+
+      # Public reading works when scripts never run: JavaScript off and
+      # scripts blocked, in Chromium and WebKit (scripts/perf/no-script-reading.ts).
+      - name: Check reading without scripts
+        run: bun run perf:no-script-reading
+
+      - name: Check reading with a slow backend
+        run: bun run perf:slow-backend-reading
+
+      # An unpublished, replaced or moved article leaves the page at once
+      # (scripts/perf/unpublish-refresh.ts).
+      - name: Check that an unpublished article leaves the page
+        run: bun run perf:unpublish-refresh
+
+  # Text keeps its lines when the web fonts replace the metric-matched
+  # fallback faces (app/font-fallbacks.css), in Chromium and WebKit. It runs
+  # on macOS, which has Arial and Times New Roman, as Safari readers do. On
+  # Linux, WebKit does not resolve the bold faces' local() names and Chromium
+  # wrapped two blocks differently, so the result there says little about the
+  # browsers readers use (docs/performance/page-load.md).
+  font-fallbacks:
+    name: Font Fallbacks
+    runs-on: macos-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium and WebKit
+        run: bunx playwright install chromium webkit
+
+      - name: Build against the fixture backend
+        run: bun run build
+        env:
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Check font fallbacks
+        run: bun run perf:font-fallbacks
+
+  csp:
+    name: Content Security Policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      # Production build against the local fixture backend
+      # (scripts/perf/fixture-backend.ts); no backend or secrets.
+      - name: Build against the fixture backend
+        run: bun run build
+        env:
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Load the main routes with no CSP violations
+        run: bun run test:e2e:csp
+        env:
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+  # Presses made before the page scripts run: a held sign-in submit and the
+  # mobile menu opened from the first paint (#554), in Chromium and WebKit,
+  # against a production build and the fixture backend; no secrets.
+  early-taps:
+    name: Early Taps
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium and WebKit
+        run: bunx playwright install --with-deps chromium webkit
+
+      # Vercel's chunk paths (/_next/static/immutable/), so the first-flush
+      # check in e2e/server-forms.spec.ts counts the bytes the site sends.
+      - name: Build against the fixture backend
+        run: bun run build
+        env:
+          QUILLTIP_IMMUTABLE_ASSETS: '1'
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Answer presses made before the page scripts run
+        run: bun run test:e2e:early-taps
+        env:
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
   audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
@@ -100,18 +314,312 @@ jobs:
       - run: bun run test:security
       - run: bun run security:audit
 
+  contracts:
+    name: Contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    env:
+      CARGO_TERM_COLOR: always
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      # rustup selects the pinned toolchain from contracts/rust-toolchain.toml.
+      - name: Install the pinned toolchain
+        run: |
+          rustup toolchain install
+          rustc --version
+          cargo --version
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace --locked
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
+        with:
+          tool: cargo-audit@0.23.0
+
+      - name: Dependency audit
+        run: cargo audit --deny warnings
+
+      # Prebuilt release binary, checksum-verified by the pinned action. No
+      # cache: the advisory database is fetched on every run.
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@893d6ee8d714b6c7dfe2bcd94e5759e9a7958a7e # v2.90.10
+        with:
+          tool: cargo-deny@0.20.2
+
+      # Policy in contracts/deny.toml. Any error fails the job.
+      - name: Dependency policy
+        run: |
+          cargo deny --locked check
+          cargo deny --locked --manifest-path tab/fuzz/Cargo.toml --config deny.toml check
+
+      - name: Check test snapshots are committed
+        working-directory: .
+        run: |
+          changes="$(git status --porcelain -- contracts)"
+          if [ -n "$changes" ]; then
+            echo "$changes"
+            git --no-pager diff --stat -- contracts
+            echo "::error::Contract tests changed or added files under contracts/. Run the tests in contracts/ and commit the result."
+            exit 1
+          fi
+
+      # Optimized build with the Stellar CLI in a digest-pinned container.
+      # The script fails when a Wasm exceeds 120,000 bytes.
+      - name: Reproducible optimized build and size gate
+        working-directory: .
+        run: scripts/contracts/build-reproducible.sh --out "$RUNNER_TEMP/wasm"
+
+      - name: Rebuild and compare Wasm hashes
+        working-directory: .
+        run: |
+          scripts/contracts/build-reproducible.sh --out "$RUNNER_TEMP/wasm-rebuild"
+          diff "$RUNNER_TEMP/wasm/SHA256SUMS" "$RUNNER_TEMP/wasm-rebuild/SHA256SUMS"
+
+      # Tests marked #[ignore] run the CLI-built Wasm: resource tests under
+      # the mainnet limits, and the Core upgrade test (v1 Wasm to a test v2).
+      - name: Build the Core upgrade-test Wasm
+        working-directory: .
+        run: |
+          scripts/contracts/build-reproducible.sh --package quilltip-core \
+            --features upgrade-test --out "$RUNNER_TEMP/wasm-upgrade-test"
+
+      - name: Wasm-mode contract tests
+        run: |
+          dir="$RUNNER_TEMP/wasm-tests"
+          mkdir -p "$dir"
+          cp "$RUNNER_TEMP/wasm/"*.wasm "$dir/"
+          cp "$RUNNER_TEMP/wasm-upgrade-test/quilltip_core.wasm" "$dir/quilltip_core_upgrade_test.wasm"
+          QUILLTIP_WASM_DIR="$dir" cargo test --workspace --locked -- --ignored --nocapture
+
+      - name: Record Wasm sizes and hashes
+        working-directory: .
+        run: |
+          {
+            echo "### Contract Wasm"
+            echo
+            echo '| Wasm | Bytes | SHA-256 |'
+            echo '| ---- | ----: | ------- |'
+            tail -n +2 "$RUNNER_TEMP/wasm/sizes.tsv" | awk -F '\t' '{ printf "| %s | %s | `%s` |\n", $1, $2, $3 }'
+          } >>"$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: contracts-wasm
+          path: |
+            ${{ runner.temp }}/wasm/*.wasm
+            ${{ runner.temp }}/wasm/SHA256SUMS
+            ${{ runner.temp }}/wasm/sizes.tsv
+          if-no-files-found: error
+
+  # One shard per fixture suite, in parallel. Required reads the combined
+  # result: it fails when any shard fails or is cancelled. Every suite in
+  # scripts/fixture-suites.ts must appear in exactly one shard
+  # (scripts/ci/fixture-shards.test.ts).
+  e2e-fixtures:
+    name: Playwright (fixtures, ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    # Per shard; the longest shard took about 6 minutes on 8f7cc45.
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    needs: quality
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: presentation
+            suites: nft,recovery,avatar
+            browsers: chromium
+          - shard: payments
+            suites: payments
+            browsers: chromium
+          - shard: wallet
+            suites: wallet
+            browsers: chromium
+          - shard: article-tips
+            suites: article-tips
+            browsers: chromium
+          # Every state in Chromium; keyboard, focus and results in WebKit.
+          - shard: tips-v2
+            suites: tips-v2,article-images
+            browsers: chromium webkit
+          - shard: nft-v2
+            suites: nft-v2
+            browsers: chromium
+          # The tab session-key suite runs in all three engines.
+          - shard: tab
+            suites: tab
+            browsers: chromium firefox webkit
+          # The tab screens: every state in Chromium, key paths in all three.
+          - shard: tab-ui
+            suites: tab-ui
+            browsers: chromium firefox webkit
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        env:
+          SHARD_BROWSERS: ${{ matrix.browsers }}
+        run: |
+          read -r -a engines <<<"$SHARD_BROWSERS"
+          bunx playwright install --with-deps "${engines[@]}"
+
+      - name: Run fixture suites (no secrets, no backend)
+        env:
+          SUITES: ${{ matrix.suites }}
+        run: bun run test:e2e:fixtures --suite "$SUITES"
+
+  contracts-integration:
+    name: Contracts (local network)
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Same release and checksum as scripts/contracts/build-reproducible.sh.
+      - name: Install Stellar CLI 30.0.1
+        run: |
+          asset="stellar-cli-30.0.1-x86_64-unknown-linux-gnu.tar.gz"
+          curl -fsSL --retry 3 -o "$RUNNER_TEMP/$asset" \
+            "https://github.com/stellar/stellar-cli/releases/download/v30.0.1/$asset"
+          echo "48c70074020e09af0a3ebbd2bf62d53c9aec47935e49a112d3cd90fb4e37658f  $RUNNER_TEMP/$asset" | sha256sum -c -
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$RUNNER_TEMP/$asset" -C "$HOME/.local/bin" stellar
+          echo "$HOME/.local/bin" >>"$GITHUB_PATH"
+
+      - name: Build the contracts
+        run: |
+          scripts/contracts/build-reproducible.sh --out "$RUNNER_TEMP/wasm"
+          scripts/contracts/build-reproducible.sh --package quilltip-core \
+            --features upgrade-test --out "$RUNNER_TEMP/wasm-upgrade-test"
+
+      - name: Bindings match the built Wasm
+        run: bun scripts/contracts/bindings.ts --wasm-dir "$RUNNER_TEMP/wasm" --check
+
+      # Quickstart in local mode only; the network guard runs in LOCAL mode.
+      - name: Integration flows on a local network
+        env:
+          QUILLTIP_WASM_DIR: ${{ runner.temp }}/wasm
+          QUILLTIP_CORE_UPGRADE_WASM: ${{ runner.temp }}/wasm-upgrade-test/quilltip_core.wasm
+        run: bun scripts/integration/run.ts --start --stop --out "$RUNNER_TEMP/integration"
+
+      - name: Record fees and resources
+        if: always()
+        run: |
+          if [ -f "$RUNNER_TEMP/integration/measurements.json" ]; then
+            {
+              echo "### Local network fees and resources"
+              echo
+              bun scripts/integration/summary.ts "$RUNNER_TEMP/integration"
+            } >>"$GITHUB_STEP_SUMMARY"
+          fi
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: contracts-integration
+          path: |
+            ${{ runner.temp }}/integration/measurements.json
+            ${{ runner.temp }}/integration/events.json
+            ${{ runner.temp }}/integration/event-fixtures.json
+          if-no-files-found: warn
+
+  # Sign-in from protected routes (issue #575) with real Convex Auth on a
+  # local anonymous Convex backend. No secrets: the run makes its own key and
+  # account.
+  e2e-auth:
+    name: Playwright (local auth)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    needs: quality
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium webkit
+
+      - name: Sign in from protected routes (WebKit and Chromium, phone)
+        run: bun run test:e2e:auth
+
   required:
     name: Required
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [quality, build, audit]
+    needs:
+      [
+        quality,
+        build,
+        perf-budget,
+        font-fallbacks,
+        csp,
+        early-taps,
+        audit,
+        contracts,
+        contracts-integration,
+        e2e-fixtures,
+        e2e-auth,
+      ]
     if: always()
     steps:
       - name: Check required CI jobs
         env:
           QUALITY_RESULT: ${{ needs.quality.result }}
           BUILD_RESULT: ${{ needs.build.result }}
+          PERF_BUDGET_RESULT: ${{ needs.perf-budget.result }}
+          FONT_FALLBACKS_RESULT: ${{ needs.font-fallbacks.result }}
+          CSP_RESULT: ${{ needs.csp.result }}
+          EARLY_TAPS_RESULT: ${{ needs.early-taps.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
+          CONTRACTS_RESULT: ${{ needs.contracts.result }}
+          CONTRACTS_INTEGRATION_RESULT: ${{ needs.contracts-integration.result }}
+          E2E_FIXTURES_RESULT: ${{ needs.e2e-fixtures.result }}
+          E2E_AUTH_RESULT: ${{ needs.e2e-auth.result }}
         run: |
           failed=0
 
@@ -127,6 +635,14 @@ jobs:
 
           check_result "Lint & Typecheck" "$QUALITY_RESULT"
           check_result "Build" "$BUILD_RESULT"
+          check_result "Page-load Budget" "$PERF_BUDGET_RESULT"
+          check_result "Font Fallbacks" "$FONT_FALLBACKS_RESULT"
+          check_result "Content Security Policy" "$CSP_RESULT"
+          check_result "Early Taps" "$EARLY_TAPS_RESULT"
           check_result "Dependency Audit" "$AUDIT_RESULT"
+          check_result "Contracts" "$CONTRACTS_RESULT"
+          check_result "Contracts (local network)" "$CONTRACTS_INTEGRATION_RESULT"
+          check_result "Playwright (fixtures)" "$E2E_FIXTURES_RESULT"
+          check_result "Playwright (local auth)" "$E2E_AUTH_RESULT"
 
           exit "$failed"

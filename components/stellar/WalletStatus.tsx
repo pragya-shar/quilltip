@@ -15,10 +15,7 @@ import {
   Power,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  NO_WALLET_AVAILABLE_ERROR_CODE,
-  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
-} from '@/lib/stellar/wallet-adapter'
+import { describeConnectFailure } from '@/lib/stellar/v2/wallet-errors'
 import { networkLabelLowercase } from '@/lib/copy/network-status'
 
 interface WalletStatusProps {
@@ -43,24 +40,21 @@ export function WalletStatus({ className }: WalletStatusProps) {
   const connectButtonRef = useRef<HTMLButtonElement>(null)
 
   const handleConnect = async () => {
+    if (isConnecting) return
     setIsConnecting(true)
     try {
       await connect()
       toast.success('Wallet connected successfully!')
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to connect wallet'
-
-      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+      const failure = describeConnectFailure(error)
+      if (failure.action === 'install') {
         setInstallDialogOpen(true)
         return
       }
+      if (failure.action === 'ignore') return
+      const { title, detail } = failure.message
 
-      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
-        return
-      }
-
-      toast.error(message)
+      toast.error(title, { description: detail })
     } finally {
       setIsConnecting(false)
     }
@@ -80,9 +74,12 @@ export function WalletStatus({ className }: WalletStatusProps) {
     }
   }
 
+  // A wallet that cannot report its network signs for Quilltip's, so show
+  // that one.
+  const shownNetwork = (network || networkLabelLowercase()).toUpperCase()
   const openInExplorer = (address: string) => {
     const explorerUrl =
-      network === 'TESTNET'
+      shownNetwork === 'TESTNET'
         ? `https://stellar.expert/explorer/testnet/account/${address}`
         : `https://stellar.expert/explorer/public/account/${address}`
     window.open(explorerUrl, '_blank')
@@ -128,13 +125,14 @@ export function WalletStatus({ className }: WalletStatusProps) {
                   tipping authors
                 </p>
                 <p className="text-xs text-muted-foreground mt-2">
-                  Supports Freighter, xBull, Albedo, Rabet, and more
+                  Supports Varial (formerly Freighter), xBull, Albedo, Rabet,
+                  and more
                 </p>
               </div>
               <Button
                 ref={connectButtonRef}
                 onClick={handleConnect}
-                disabled={isConnecting || isLoading}
+                aria-disabled={isConnecting || isLoading || undefined}
                 className="w-full max-w-xs"
               >
                 {isConnecting || isLoading ? (
@@ -207,19 +205,21 @@ export function WalletStatus({ className }: WalletStatusProps) {
               </div>
             </div>
 
-            {network && (
+            {shownNetwork && (
               <div>
                 <span className="text-sm font-medium text-muted-foreground">
                   Network
                 </span>
                 <div className="mt-1 space-y-1">
                   <Badge
-                    variant={network === 'TESTNET' ? 'secondary' : 'default'}
+                    variant={
+                      shownNetwork === 'TESTNET' ? 'secondary' : 'default'
+                    }
                     className="capitalize"
                   >
-                    {network.toLowerCase()}
+                    {shownNetwork.toLowerCase()}
                   </Badge>
-                  {network === 'TESTNET' && (
+                  {shownNetwork === 'TESTNET' && (
                     <p className="text-xs text-muted-foreground">
                       Practice network — not real money
                     </p>

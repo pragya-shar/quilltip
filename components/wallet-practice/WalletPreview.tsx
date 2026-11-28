@@ -92,8 +92,8 @@ export function WalletPreview({
   }, [sheet])
   const recovery = {
     missing: [
-      'Freighter isn’t available.',
-      'In the app, install and unlock Freighter in this browser. You can continue here with a demo wallet.',
+      'Varial isn’t available.',
+      'In the app, install and unlock Varial in this browser. You can continue here with a demo wallet.',
       'Use demo wallet',
     ],
     declined: [
@@ -103,7 +103,7 @@ export function WalletPreview({
     ],
     network: [
       'Switch to Stellar testnet.',
-      'This demo uses test XLM. In Freighter, check the network before approving.',
+      'This demo uses test XLM. In Varial, check the network before approving.',
       'Use demo testnet',
     ],
     funds: [
@@ -417,7 +417,7 @@ export function WalletPreview({
                     <h4>Your approval comes first.</h4>
                     <p>{amount} test XLM to sample writer Maya Sen.</p>
                     <small>
-                      In Freighter, this is a separate transaction approval.
+                      In Varial, this is a separate transaction approval.
                       Connecting alone never sends a tip.
                     </small>
                     <button className="button primary" onClick={approve}>
@@ -490,7 +490,7 @@ export function WalletPreview({
                 }}
               >
                 <option value="normal">Normal connection</option>
-                <option value="missing">Freighter missing</option>
+                <option value="missing">Varial missing</option>
                 <option value="declined">Connection declined</option>
                 <option value="network">Wrong network</option>
                 <option value="funds">Insufficient test funds</option>
@@ -504,26 +504,27 @@ export function WalletPreview({
             <details className="wallet-desk-help">
               <summary>First wallet? Start here</summary>
               <p>
-                Freighter holds your Stellar account and lets you approve
-                transactions. No installation is needed for this demo.
+                Varial (formerly Freighter) holds your Stellar account and lets
+                you approve transactions. No installation is needed for this
+                demo.
               </p>
               <ol>
                 <li>
                   <a
-                    href="https://freighter.app/#download"
+                    href="https://varialwallet.com"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Get Freighter from the official site ↗
+                    Get Varial from the official site ↗
                   </a>{' '}
                   and follow its create-wallet flow.
                 </li>
                 <li>
                   Back up your recovery phrase securely. Never share it;
-                  QuillTip will never ask for it.
+                  Quilltip will never ask for it.
                 </li>
                 <li>
-                  QuillTip currently uses Stellar testnet. Use free test XLM,
+                  Quilltip currently uses Stellar testnet. Use free test XLM,
                   not purchased funds.
                 </li>
                 <li>
@@ -532,11 +533,11 @@ export function WalletPreview({
                 </li>
               </ol>
               <a
-                href="https://help.freighter.app/"
+                href="https://help.varialwallet.com/"
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Can’t connect? Freighter help ↗
+                Can’t connect? Varial help ↗
               </a>
             </details>
             <p className="wallet-demo-disclaimer">

@@ -1,6 +1,6 @@
 'use client'
 
-import type { TipXlmPreset } from '@/lib/constants'
+import '@/components/highlights/highlights.css'
 
 import { focusLibraryHighlight } from '@/lib/library/focusHighlight'
 
@@ -15,13 +15,13 @@ import {
 } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import HighlightExtension from '@/components/editor/extensions/HighlightExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
-import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
+import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
+import { createReaderYoutubeNode } from '@/lib/tiptap/youtubeEmbed'
 import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
 import { TextSelection } from '@tiptap/pm/state'
 import { useMutation } from 'convex/react'
@@ -52,10 +52,6 @@ import {
   readPendingHighlightSelection,
   writePendingHighlightSelection,
 } from '@/lib/highlight/pendingHighlightSelection'
-import {
-  matchesHighlightPendingIntent,
-  readPendingTipIntent,
-} from '@/lib/tip/pendingTipIntent'
 
 interface HighlightData {
   _id: Id<'highlights'>
@@ -83,6 +79,10 @@ interface HighlightableArticleProps {
   className?: string
   tocHeadings?: TocHeading[]
   passageRailTarget?: HTMLElement | null
+  /** Keeps the editor out of layout while a static copy is still shown. */
+  hidden?: boolean
+  /** Called once the editor has rendered the article into the page. */
+  onReady?: () => void
 }
 
 export function HighlightableArticle({
@@ -94,6 +94,8 @@ export function HighlightableArticle({
   className,
   tocHeadings = [],
   passageRailTarget,
+  hidden,
+  onReady,
 }: HighlightableArticleProps) {
   const [selectedText, setSelectedText] = useState<{
     text: string
@@ -121,11 +123,6 @@ export function HighlightableArticle({
   const editorRef = useRef<HTMLDivElement>(null)
   const isApplyingHighlightsRef = useRef(false)
   const selectionRestoredEditorRef = useRef<Editor | null>(null)
-  const [resumeHighlightTip, setResumeHighlightTip] = useState<{
-    amountCents?: number
-    amountXlm?: TipXlmPreset
-    customAmount?: string
-  } | null>(null)
   const pendingSelectionNeedsClearRef = useRef(false)
   // During a drag, onSelectionUpdate fires on every move; if we mount the
   // popover at 3 chars, HighlightPopover's FocusScope trap steals focus from
@@ -226,14 +223,12 @@ export function HighlightableArticle({
           underline: false,
         }),
         Underline,
-        Link.configure({
-          openOnClick: false,
-        }),
+        createArticleLinkExtension({ openOnClick: false }),
         CodeBlockLowlight.configure({
           lowlight,
         }),
         ResizableImage,
-        createYoutubeExtension(),
+        createReaderYoutubeNode(),
         ...(editable ? [EditorKeymap] : []),
         ...(highlightsActive
           ? [
@@ -455,15 +450,6 @@ export function HighlightableArticle({
       setPopoverPosition(anchor)
       setSignInSelection(null)
       setSignInPromptPosition(null)
-
-      const tipIntent = readPendingTipIntent()
-      if (matchesHighlightPendingIntent(tipIntent, articleId)) {
-        setResumeHighlightTip({
-          amountCents: tipIntent.amountCents,
-          amountXlm: tipIntent.amountXlm,
-          customAmount: tipIntent.customAmount,
-        })
-      }
 
       return true
     }
@@ -742,10 +728,17 @@ export function HighlightableArticle({
     highlightTooltip &&
     highlights?.find((h) => h._id === highlightTooltip.highlight._id)
 
+  // EditorContent mounts the editor DOM during commit, so by this effect the
+  // article is rendered and the parent can swap it in for the static copy.
+  useEffect(() => {
+    if (editor) onReady?.()
+  }, [editor, onReady])
+
   return (
     <div
       className={cn('highlightable-article relative', className)}
       ref={editorRef}
+      hidden={hidden}
     >
       <EditorContent editor={editor} />
 
@@ -782,6 +775,7 @@ export function HighlightableArticle({
               selectedText={selectedText.text}
               articleId={articleId}
               articleSlug={article.slug}
+              articleTitle={article.title}
               authorName={
                 article.author?.name || article.authorName || 'Author'
               }
@@ -796,12 +790,6 @@ export function HighlightableArticle({
               )}
               startContainerPath={`text.${selectedText.from}`}
               endContainerPath={`text.${selectedText.to}`}
-              selectionStartPosition={selectedText.from}
-              selectionEndPosition={selectedText.to}
-              resumeHighlightTip={resumeHighlightTip}
-              onHighlightTipResumeOpened={() => {
-                setResumeHighlightTip(null)
-              }}
             />
           )}
       </AnimatePresence>
@@ -835,6 +823,7 @@ export function HighlightableArticle({
               currentUserId={user?._id as Id<'users'> | undefined}
               articleId={articleId}
               articleSlug={article.slug}
+              articleTitle={article.title}
               authorName={
                 article.author?.name || article.authorName || 'Author'
               }

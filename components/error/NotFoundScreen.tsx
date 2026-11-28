@@ -1,8 +1,15 @@
 'use client'
 
-import { useSyncExternalStore, type ReactNode } from 'react'
-import { AuthorNotFoundPage } from '@/components/profile/AuthorNotFoundPage'
+import { lazy, Suspense, useSyncExternalStore, type ReactNode } from 'react'
 import { writerPathUsername } from '@/lib/routing/publicContentPath'
+
+// The root 404 ships with every page, so load the writer screen (and the
+// site header it carries) only when a writer URL is actually missing.
+const AuthorNotFoundPage = lazy(() =>
+  import('@/components/profile/AuthorNotFoundPage').then((mod) => ({
+    default: mod.AuthorNotFoundPage,
+  }))
+)
 
 const subscribe = () => () => {}
 const getBrowserPath = () => window.location.pathname
@@ -16,5 +23,11 @@ const getServerPath = () => null
 export function NotFoundScreen({ fallback }: { fallback: ReactNode }) {
   const path = useSyncExternalStore(subscribe, getBrowserPath, getServerPath)
   const username = path ? writerPathUsername(path) : null
-  return username ? <AuthorNotFoundPage username={username} /> : fallback
+  return username ? (
+    <Suspense fallback={fallback}>
+      <AuthorNotFoundPage username={username} />
+    </Suspense>
+  ) : (
+    fallback
+  )
 }

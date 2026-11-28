@@ -1,12 +1,12 @@
 'use client'
 
-import type { TipXlmPreset } from '@/lib/constants'
-
+import '@/components/highlights/highlights.css'
 import { useState } from 'react'
 import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Highlighter, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { HighlightTipButton } from './HighlightTipButton'
+import { HighlightTipGate } from './HighlightTipGate'
 import { Id } from '@/convex/_generated/dataModel'
 import { HighlightPaperSlip } from './HighlightPaperSlip'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -34,14 +34,6 @@ interface HighlightPopoverProps {
   endOffset?: number
   startContainerPath?: string
   endContainerPath?: string
-  selectionStartPosition?: number
-  selectionEndPosition?: number
-  resumeHighlightTip?: {
-    amountCents?: number
-    amountXlm?: TipXlmPreset
-    customAmount?: string
-  } | null
-  onHighlightTipResumeOpened?: () => void
   onSignInToSave: () => void
 }
 
@@ -52,16 +44,13 @@ export function HighlightPopover({
   selectedText,
   articleId,
   articleSlug,
+  articleTitle,
   authorName,
   authorStellarAddress,
   startOffset,
   endOffset,
   startContainerPath,
   endContainerPath,
-  selectionStartPosition,
-  selectionEndPosition,
-  resumeHighlightTip,
-  onHighlightTipResumeOpened,
   onSignInToSave,
 }: HighlightPopoverProps) {
   const { isAuthenticated } = useAuth()
@@ -129,7 +118,7 @@ export function HighlightPopover({
           >
             <X aria-hidden className="h-5 w-5" />
           </button>
-          <p className="slip-meta">QuillTip · Your reading notes</p>
+          <p className="slip-meta">Quilltip · Your reading notes</p>
           <p className="slip-label">A passage you picked</p>
           <h2 className="slip-title">Keep these words.</h2>
           {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Scrollable quotes need keyboard access. */}
@@ -151,36 +140,29 @@ export function HighlightPopover({
               authorStellarAddress &&
               startOffset !== undefined &&
               endOffset !== undefined && (
-                <HighlightTipButton
-                  articleId={articleId}
-                  articleSlug={articleSlug}
-                  authorName={authorName || 'Author'}
-                  authorStellarAddress={authorStellarAddress}
-                  highlightText={selectedText}
-                  startOffset={startOffset}
-                  endOffset={endOffset}
-                  startContainerPath={startContainerPath}
-                  endContainerPath={endContainerPath}
-                  selectionStartPosition={selectionStartPosition}
-                  selectionEndPosition={selectionEndPosition}
-                  className="slip-action"
-                  label="Highlight & tip"
-                  disabled={isSaving}
-                  onBeforeOpen={
-                    isAuthenticated
-                      ? () => handleSaveHighlight(true)
-                      : undefined
-                  }
-                  resumeOpen={Boolean(resumeHighlightTip)}
-                  resumeAmountCents={resumeHighlightTip?.amountCents}
-                  resumeAmountXlm={resumeHighlightTip?.amountXlm}
-                  resumeCustomAmount={resumeHighlightTip?.customAmount}
-                  onResumeDialogVisible={() => {
-                    if (resumeHighlightTip) {
-                      onHighlightTipResumeOpened?.()
+                <HighlightTipGate articleId={articleId}>
+                  <HighlightTipButton
+                    articleId={articleId}
+                    articleSlug={articleSlug}
+                    articleTitle={articleTitle}
+                    authorName={authorName || 'Author'}
+                    highlightText={selectedText}
+                    startOffset={startOffset}
+                    endOffset={endOffset}
+                    startContainerPath={startContainerPath}
+                    endContainerPath={endContainerPath}
+                    className="slip-action"
+                    label="Highlight & tip"
+                    disabled={isSaving}
+                    // After a result, Done closes this passage slip too.
+                    onDone={onClose}
+                    onBeforeOpen={
+                      isAuthenticated
+                        ? () => handleSaveHighlight(true)
+                        : undefined
                     }
-                  }}
-                />
+                  />
+                </HighlightTipGate>
               )}
           </div>
           {error && (

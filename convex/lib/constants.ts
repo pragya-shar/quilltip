@@ -3,6 +3,9 @@
  * so we define values here to avoid importing from outside the convex folder.
  * Keep in sync with lib/constants.ts.
  */
+import { parseStellarNetwork, type StellarNetwork } from './stellarNetwork'
+import { assertBackendTestnet } from './networkGuard'
+
 export const TIP_MIN_CENTS = 1
 export const TIP_MIN_USD = 0.01
 export const TIP_MAX_CENTS = 10_000
@@ -14,21 +17,19 @@ export const TIP_MIN_STROOPS = 420_000
 // basic spam during beta.
 export const TIP_COOLDOWN_MS = 10_000
 
-// Horizon endpoints for transaction verification. Can be overridden with the
-// HORIZON_URL environment variable at deploy time; otherwise the per-network
-// default is used based on the tip's stellarNetwork field.
-export const HORIZON_URLS = {
-  TESTNET: 'https://horizon-testnet.stellar.org',
-  MAINNET: 'https://horizon.stellar.org',
-} as const
+// Network settings live in ./stellarNetwork so the client, wallet adapter,
+// backend, and scripts share one definition. HORIZON_URL can override the
+// Horizon endpoint at deploy time; otherwise the per-network default is used.
+export { HORIZON_URLS, type StellarNetwork } from './stellarNetwork'
 
-export type StellarNetwork = keyof typeof HORIZON_URLS
-
+/**
+ * Network the backend verifies and records. Payment flows are TESTNET-only:
+ * LOCAL, any other value, a mainnet passphrase, or a mainnet Horizon or RPC
+ * override fails closed.
+ */
 export function getStellarNetwork(): StellarNetwork {
-  const network = process.env.STELLAR_NETWORK ?? 'TESTNET'
-  if (network !== 'TESTNET' && network !== 'MAINNET') {
-    throw new Error('STELLAR_NETWORK must be TESTNET or MAINNET')
-  }
+  const network = assertBackendTestnet()
+  parseStellarNetwork(process.env.STELLAR_NETWORK)
   return network
 }
 

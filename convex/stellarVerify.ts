@@ -1,3 +1,4 @@
+import { confirmedTipPatch } from './lib/verifiedTips'
 import { syncReadingRoomEngagement } from './lib/readingRoomIndex'
 import { v } from 'convex/values'
 import {
@@ -9,12 +10,13 @@ import { internal } from './_generated/api'
 import type { Doc } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
 import { creditAuthorEarnings, writerShareCents } from './lib/authorEarnings'
+import { creditV1TipTotals } from './lib/lifetimeEarnings'
 import {
   normalizeStellarTransactionHash,
   stellarTransactionHashLookupValues,
 } from './lib/stellarTransactionHash'
+import { backendVerificationHorizonUrl } from './lib/networkGuard'
 import {
-  HORIZON_URLS,
   ARTICLE_TIP_TX_EARLY_GRACE_MS,
   ARTICLE_TIP_TX_LATE_GRACE_MS,
   HORIZON_VERIFY_MAX_ATTEMPTS,
@@ -48,16 +50,15 @@ export const getHighlightTipForVerify = internalQuery({
   },
 })
 
+// Both resolvers go through the testnet guard: a row recorded on any other
+// network, or a mainnet HORIZON_URL override, throws instead of reaching a
+// mainnet endpoint.
 export function resolveHorizonUrl(network: string | undefined): string {
-  const override = process.env.HORIZON_URL
-  if (override) return override
-  if (network === 'MAINNET') return HORIZON_URLS.MAINNET
-  return HORIZON_URLS.TESTNET
+  return backendVerificationHorizonUrl(network, { allowOverride: true })
 }
 
-export function resolveIntentHorizonUrl(network: string): string {
-  if (network === 'MAINNET') return HORIZON_URLS.MAINNET
-  return HORIZON_URLS.TESTNET
+export function resolveIntentHorizonUrl(network: string | undefined): string {
+  return backendVerificationHorizonUrl(network, { allowOverride: false })
 }
 
 /**
@@ -212,7 +213,7 @@ export const verifyHighlightTip = internalAction({
 
     const isLegacyCompatibility = intent.legacyCompatibility === true
     const exactResult = await verifyTipTransaction(fetch, {
-      txId: tip.stellarTxId,
+      txId: tip.stellarTxId ?? '',
       expectedSource: tip.expectedSourceAccount,
       horizonUrl: resolveIntentHorizonUrl(tip.stellarNetwork),
       minCreatedAtMs:
@@ -378,7 +379,9 @@ export const confirmVerifiedHighlightTip = internalMutation({
       return
     }
 
-    const normalizedTxId = normalizeStellarTransactionHash(tip.stellarTxId)
+    const normalizedTxId = normalizeStellarTransactionHash(
+      tip.stellarTxId ?? ''
+    )
     if (!normalizedTxId) {
       await ctx.db.patch(args.id, {
         status: 'FAILED',
@@ -450,15 +453,17 @@ export const confirmVerifiedHighlightTip = internalMutation({
       updatedAt: now,
     })
     await ctx.db.patch(args.id, {
-      status: 'CONFIRMED',
+      ...confirmedTipPatch(now),
       stellarLedger: args.stellarLedger,
       failureReason: undefined,
       amountUsdSuspicious: undefined,
       amountUsdSuspicionReason: undefined,
-      verifiedAt: now,
-      processedAt: now,
-      updatedAt: now,
     })
+    // The verified row, by the lifetime totals' rule (#552).
+    const verified = await ctx.db.get(args.id)
+    if (verified) {
+      await creditV1TipTotals(ctx, intent.authorId, 'highlightTips', verified)
+    }
   },
 })
 

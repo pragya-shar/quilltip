@@ -40,6 +40,13 @@ crons.interval(
   internal.reconcileTips.cleanupExpiredTipIntents
 )
 
+// Remove wallet-link challenges a day after they expire.
+crons.interval(
+  'prune wallet link challenges',
+  { hours: 6 },
+  internal.walletLink.pruneWalletChallenges
+)
+
 // Refresh the XLM/USD price cache. The browser reads the cached value via
 // xlmPrice.getCachedXlmPrice rather than calling Coingecko/Coincap/Binance/
 // Kraken directly, which collapses the CSP allowlist and amortises oracle
@@ -55,6 +62,57 @@ crons.interval(
   'backfill reading room search',
   { minutes: 5 },
   internal.readingRoomIndex.backfill
+)
+
+// Payments v2: resolve submissions whose verification window has passed
+// (rule (a) through RPC, rule (b) from indexed events, then the expiry rule).
+// Does nothing while no v2 submission is open.
+crons.interval(
+  'recheck pending chain submissions',
+  { minutes: 2 },
+  internal.chain.submissions.recheckPending
+)
+
+// Payments v2: index contract events (section 6.5). Does nothing until the
+// contract IDs and INDEXER_START_LEDGER are set; runs under the indexer lease.
+crons.interval(
+  'poll chain events',
+  { minutes: 1 },
+  internal.chain.indexer.pollEvents,
+  {}
+)
+
+// Payments v2: cache Core, Tab and NFT views. Does nothing until
+// CORE_CONTRACT_ID is set.
+crons.interval(
+  'refresh chain config',
+  { hours: 1 },
+  internal.chain.config.refreshChainConfig
+)
+
+// Payments v2: settle due tab vouchers (section 3.8) under the settler lease.
+// Does nothing unless SETTLEMENT_ENABLED=true and TAB_CONTRACT_ID is set.
+crons.interval(
+  'settle due tab vouchers',
+  { minutes: 10 },
+  internal.tabSettler.settleDue
+)
+
+// Payments v2: credit CONFIRMED and MISMATCH direct and batch tips to
+// authorEarnings (section 6.2). Each row is credited once.
+crons.interval(
+  'sync v2 tip earnings',
+  { minutes: 1 },
+  internal.tipEarnings.syncV2TipEarnings
+)
+
+// Rebuild earnings rows' lifetime totals from their history (#552). Each run
+// advances the rows that waited longest by bounded steps; it does nothing once
+// every row is rebuilt.
+crons.interval(
+  'rebuild lifetime earnings totals',
+  { minutes: 1 },
+  internal.earningsTotalsBackfill.run
 )
 
 export default crons

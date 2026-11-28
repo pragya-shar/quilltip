@@ -1,12 +1,12 @@
 @font-face {
   font-family: 'Reading Room Syne';
-  src: url('/prototype/fonts/library-syne.woff2');
+  src: url('/landing/fonts/syne-latin-600-normal.woff2');
   font-weight: 400 800;
   font-display: swap;
 }
 @font-face {
   font-family: 'Reading Room Alegreya';
-  src: url('/prototype/fonts/library-alegreya.woff');
+  src: url('/prototype/fonts/library-alegreya.woff2') format('woff2');
   font-display: swap;
 }
 .reading-room {
@@ -27,6 +27,7 @@
   color-scheme: light;
   font:
     15px/1.5 'Reading Room Syne',
+    'Syne 600 Fallback',
     sans-serif;
   font-synthesis: none;
 }
@@ -68,52 +69,6 @@
   opacity: 0.45;
   cursor: not-allowed;
 }
-.reading-room-header {
-  max-width: 1500px;
-  margin: auto;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 18px;
-  padding: 24px 5%;
-  border-bottom: 1px solid var(--line);
-}
-.reading-room .wordmark {
-  display: flex;
-  flex-shrink: 0;
-  color: var(--accent);
-}
-.reading-room .logo-study {
-  display: inline-flex;
-  align-items: center;
-  min-height: 60px;
-  font:
-    600 37px/1 'Reading Room Syne',
-    sans-serif;
-  letter-spacing: -0.055em;
-}
-.reading-room .logo-study svg {
-  width: 64px;
-  height: 70px;
-  margin-right: -3px;
-  flex: none;
-}
-.reading-room-header nav {
-  display: flex;
-  gap: 30px;
-}
-.reading-room-header nav a {
-  display: inline-flex;
-  align-items: center;
-  min-height: 44px;
-  border-bottom: 1px solid transparent;
-}
-.reading-room-header nav a[aria-current='page'] {
-  border-bottom-color: currentColor;
-}
-.reading-room-header nav a:hover {
-  color: var(--accent);
-}
 .reading-room-main {
   max-width: 1500px;
   margin: auto;
@@ -131,6 +86,7 @@
 .reading-room .intro h1 {
   font:
     600 clamp(48px, 5.5vw, 76px)/1.08 'Reading Room Syne',
+    'Syne 600 Fallback',
     sans-serif;
   letter-spacing: -0.04em;
   margin: 8px auto 10px;
@@ -139,6 +95,7 @@
 .reading-room .intro p {
   font:
     21px/normal 'Reading Room Alegreya',
+    'Alegreya Fallback',
     serif;
   margin: 0 auto;
 }
@@ -318,8 +275,10 @@
 .reading-room-card-entry:nth-child(3n + 3) {
   transition-delay: 100ms;
 }
+/* Only cards that arrive after load (filter, page, load more) enter; cards in
+   the first HTML are already at rest. */
 @starting-style {
-  .reading-room-card-entry {
+  .shelf[data-entries-animate] .reading-room-card-entry {
     opacity: 0;
     transform: translateY(8px);
   }
@@ -355,6 +314,47 @@
   height: 100%;
   aspect-ratio: 1.5;
   object-fit: cover;
+  /* Spring with a light bounce (was Motion spring 0.5s, bounce 0.2). CSS
+     transitions retarget mid-flight, so hover in and out stays smooth. */
+  --cover-spring: linear(
+    0 0%,
+    0.051 4%,
+    0.168 8%,
+    0.312 12%,
+    0.458 16%,
+    0.592 20%,
+    0.732 25%,
+    0.837 30%,
+    0.923 36%,
+    0.975 42%,
+    1.006 50%,
+    1.015 60%,
+    1.011 70%,
+    1.004 85%,
+    1 100%
+  );
+  transform: scale(1) rotate(0deg);
+  transition:
+    opacity 500ms var(--cover-spring),
+    transform 500ms var(--cover-spring);
+}
+/* Covers below the first row fade in once loaded. */
+.reading-room-card .cover img[data-shown='false'] {
+  opacity: 0;
+  transform: scale(1.1) rotate(-3deg);
+}
+@media (hover: hover) and (pointer: fine) {
+  .reading-room-card .cover:hover img[data-shown='true'] {
+    transform: scale(1.07) rotate(1.5deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .reading-room-card .cover img,
+  .reading-room-card .cover img[data-shown='false'],
+  .reading-room-card .cover:hover img[data-shown='true'] {
+    /* Transitions are off page-wide below; covers simply appear. */
+    transform: none;
+  }
 }
 .cover-doodles {
   position: absolute;
@@ -392,6 +392,7 @@
 .reading-room-card h2 {
   font:
     600 25px/1.25 'Reading Room Syne',
+    'Syne 600 Fallback',
     sans-serif;
   letter-spacing: -0.025em;
   margin: 14px 0 12px;
@@ -402,6 +403,7 @@
   color: #f0dad5;
   font:
     18px/1.5 'Reading Room Alegreya',
+    'Alegreya Fallback',
     serif;
   margin: 0 0 22px;
   overflow-wrap: anywhere;
@@ -632,23 +634,6 @@
   }
 }
 @media (max-width: 600px) {
-  .reading-room-header {
-    padding: 16px 5%;
-    gap: 14px;
-  }
-  .reading-room .logo-study {
-    font-size: 29px;
-  }
-  .reading-room .logo-study svg {
-    width: 49px;
-    height: 55px;
-  }
-  .reading-room-header nav {
-    gap: 10px;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    font-size: 12px;
-  }
   .reading-room-main {
     padding: 16px 6% 28px;
   }

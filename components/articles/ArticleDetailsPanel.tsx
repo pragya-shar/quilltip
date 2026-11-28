@@ -1,6 +1,7 @@
 'use client'
 
 import nextDynamic from 'next/dynamic'
+import { earningsLabel } from '@/lib/copy/network-status'
 import { useEffect, useState } from 'react'
 import ShareButtons from './ShareButtons'
 import {
@@ -12,9 +13,9 @@ import {
 import { ArticleTableOfContents } from '@/components/articles/ArticleTableOfContents'
 import { HighlightHeatmap } from '@/components/highlights/HighlightHeatmap'
 import { HighlightNotes } from '@/components/highlights/HighlightNotes'
-import { ArweaveStatus } from '@/components/articles/ArweaveStatus'
+import { ArticleStorageSection } from '@/components/articles/ArticleStorageSection'
 import { NftSidebarSkeleton } from '@/components/articles/ArticleEngagementSkeleton'
-import { Archive, DollarSign, MessageSquare, Trophy } from 'lucide-react'
+import { DollarSign, MessageSquare, Trophy } from 'lucide-react'
 import type { Id } from '@/types/convex'
 import type { TocHeading } from '@/lib/tiptap/headings'
 import type { Doc } from '@/convex/_generated/dataModel'
@@ -156,7 +157,9 @@ export function ArticleDetailsPanel({
                     <span className="font-semibold">{tipStats.count || 0}</span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Total Earned</span>
+                    <span className="text-muted-foreground">
+                      {earningsLabel('Total earned')}
+                    </span>
                     <span className="font-semibold">
                       ${(tipStats.total || 0).toFixed(2)}
                     </span>
@@ -165,20 +168,12 @@ export function ArticleDetailsPanel({
               </DetailsSection>
             )}
 
-            {arweaveStatus && (
-              <DetailsSection>
-                <h4 className="reader-section-title">
-                  <Archive className="w-4 h-4 text-muted-foreground" />
-                  Permanent Storage
-                </h4>
-                <ArweaveStatus
-                  status={arweaveStatus}
-                  txId={arweaveTxId ?? undefined}
-                  url={arweaveUrl ?? undefined}
-                  timestamp={arweaveTimestamp ?? undefined}
-                />
-              </DetailsSection>
-            )}
+            <ArticleStorageSection
+              status={arweaveStatus}
+              txId={arweaveTxId}
+              url={arweaveUrl}
+              timestamp={arweaveTimestamp}
+            />
           </div>
         </AccordionContent>
       </AccordionItem>

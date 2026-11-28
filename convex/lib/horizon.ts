@@ -201,7 +201,7 @@ function verifyInvocation(
 ): InvocationOk | InvocationFail {
   let tx: xdr.Transaction
   try {
-    const envelope = xdr.TransactionEnvelope.fromXDR(envelopeXdr, 'base64')
+    const envelope = xdr.TransactionEnvelope.fromXdr(envelopeXdr, 'base64')
     const inner = extractInnerTransaction(envelope)
     if (!inner) return { kind: 'fail', reason: 'malformed_response' }
     tx = inner
@@ -210,39 +210,39 @@ function verifyInvocation(
   }
 
   if (args.invocation.expectedTimeBounds !== undefined) {
-    const condition = tx.cond()
-    if (condition.switch() !== xdr.PreconditionType.precondTime()) {
+    const condition = tx.cond
+    if (condition.type !== 'precondTime') {
       return { kind: 'fail', reason: 'timebounds_mismatch' }
     }
-    const timeBounds = condition.timeBounds()
+    const timeBounds = condition.timeBounds
     if (
-      timeBounds.minTime().toString() !==
+      timeBounds.minTime.toString() !==
         args.invocation.expectedTimeBounds.minTime ||
-      timeBounds.maxTime().toString() !==
+      timeBounds.maxTime.toString() !==
         args.invocation.expectedTimeBounds.maxTime
     ) {
       return { kind: 'fail', reason: 'timebounds_mismatch' }
     }
   }
 
-  const ops = tx.operations()
+  const ops = tx.operations
   if (ops.length === 0) return { kind: 'fail', reason: 'not_soroban' }
 
   const op = ops[0]
   if (!op) return { kind: 'fail', reason: 'not_soroban' }
-  const opBody = op.body()
-  if (opBody.switch() !== xdr.OperationType.invokeHostFunction()) {
+  const opBody = op.body
+  if (opBody.type !== 'invokeHostFunction') {
     return { kind: 'fail', reason: 'not_soroban' }
   }
 
-  const hf = opBody.invokeHostFunctionOp().hostFunction()
-  if (hf.switch() !== xdr.HostFunctionType.hostFunctionTypeInvokeContract()) {
+  const hf = opBody.invokeHostFunctionOp.hostFunction
+  if (hf.type !== 'hostFunctionTypeInvokeContract') {
     return { kind: 'fail', reason: 'not_soroban' }
   }
 
-  const ic = hf.invokeContract()
-  const addr = ic.contractAddress()
-  if (addr.switch() !== xdr.ScAddressType.scAddressTypeContract()) {
+  const ic = hf.invokeContract
+  const addr = ic.contractAddress
+  if (addr.type !== 'scAddressTypeContract') {
     return { kind: 'fail', reason: 'contract_mismatch' }
   }
 
@@ -256,7 +256,7 @@ function verifyInvocation(
     return { kind: 'fail', reason: 'contract_mismatch' }
   }
 
-  const fnName = ic.functionName().toString()
+  const fnName = ic.functionName.toString()
   if (
     !args.invocation.allowedFunctions.includes(fnName) ||
     (args.invocation.expectedFunction !== undefined &&
@@ -265,7 +265,7 @@ function verifyInvocation(
     return { kind: 'fail', reason: 'function_mismatch' }
   }
 
-  const fnArgs = ic.args()
+  const fnArgs = ic.args
   if (fnName === 'batch_tip' || fnName === 'batch_tip_highlights') {
     return verifyBatchInvocation(fnName, fnArgs, {
       expectedSource: args.expectedSource,
@@ -474,14 +474,13 @@ function isNativeBatchTip(
 function extractInnerTransaction(
   envelope: xdr.TransactionEnvelope
 ): xdr.Transaction | null {
-  const kind = envelope.switch()
-  if (kind === xdr.EnvelopeType.envelopeTypeTx()) {
-    return envelope.v1().tx()
+  if (envelope.type === 'envelopeTypeTx') {
+    return envelope.v1.tx
   }
-  if (kind === xdr.EnvelopeType.envelopeTypeTxFeeBump()) {
-    const inner = envelope.feeBump().tx().innerTx()
-    if (inner.switch() === xdr.EnvelopeType.envelopeTypeTx()) {
-      return inner.v1().tx()
+  if (envelope.type === 'envelopeTypeTxFeeBump') {
+    const inner = envelope.feeBump.tx.innerTx
+    if (inner.type === 'envelopeTypeTx') {
+      return inner.v1.tx
     }
   }
   return null

@@ -12,13 +12,13 @@ The new [decoder advisory GHSA-qr28-fpjm-wq7f](https://github.com/advisories/GHS
 
 Override `follow-redirects` to upstream **1.16.2** for [GHSA-mrwp-f3q8-3g9p](https://github.com/advisories/GHSA-mrwp-f3q8-3g9p). This preserves Axios's 1.x dependency API while correctly handling cross-realm `sensitiveHeaders` arrays.
 
-`url-dependencies.test.ts` exercises the CommonJS query-string API, the 32,000-distinct-run denial-of-service payload in a time-bounded subprocess, and real loopback cross-origin redirects with cross-realm sensitive headers in both object and array header forms. Existing wallet, Arweave and rendering compatibility tests remain part of the same suite.
+`url-dependencies.test.ts` exercises real loopback cross-origin redirects with cross-realm sensitive headers in both object and array header forms. Existing wallet, Arweave and rendering compatibility tests remain part of the same suite.
 
 The live registry gate now reports **0 critical, 6 high, 5 moderate and 1 low** records. Neither new advisory remains. No audit code, thresholds or exceptions changed; the six existing exact exceptions were scheduled to expire on 2026-11-06. Earlier counts and decoder patch descriptions in this document are historical.
 
 ## 2026-11-10 remediation
 
-- Both Stellar SDK versions resolve `toml@^3.0.0` to `5.0.1`, outside all five high-severity advisory ranges. The override preserves the CommonJS `parse` entry used by the SDK. The compatibility suite exercises the real Stellar TOML resolver against a loopback server. The SDK’s prebuilt browser bundles still include the older parser. QuillTip does not call the browser TOML or federation APIs, and this remediation does not rebuild those bundles.
+- Both Stellar SDK versions resolve `toml@^3.0.0` to `5.0.1`, outside all five high-severity advisory ranges. The override preserves the CommonJS `parse` entry used by the SDK. The compatibility suite exercises the real Stellar TOML resolver against a loopback server. The SDK’s prebuilt browser bundles still include the older parser. Quilltip does not call the browser TOML or federation APIs, and this remediation does not rebuild those bundles.
 - Turbo's Solana buffer-layout dependency resolves `bigint-buffer@^1.1.5` to the checked-in JavaScript converter in `patches/portable-bigint-buffer`. It retains the four conversions from the upstream fallback and ships no native binding, build script, or registry dependency. The compatibility suite checks byte order through the installed Solana layout and verifies Turbo's existing RSA signing and bundling paths.
 - The live lockfile scan reports **0 critical, 0 high, 5 moderate and 1 low** records. All six expired entries were removed after their affected packages disappeared from the lockfile. The existing audit threshold and CI gate still apply.
 
@@ -29,6 +29,8 @@ Use Bun 1.4.4, pinned in `packageManager` and CI. A local global upgrade is unne
 `bun run security:audit` scans the canonical lockfile, validates the registry report, and matches every high/critical advisory against actual installed versions. It rejects unreviewed findings, expired or incomplete exceptions, invalid ranges, unknown schemas, contradictory command status, and registry/command failures. Exceptions bind GHSA ID, package, exact installed version, exact vulnerable range and severity. Low/moderate counts remain visible and do not block under this issue's policy. This is intentionally stricter than a package-wide ignore list.
 
 CI's Dependency Audit job is now a dependency of the existing Required job and no longer uses `|| true`. Required fails when audit fails or is cancelled/skipped. Branch protection must already require the existing Required check for this to block merging; this change does not mutate repository settings. Audit reports can be saved with `--output /tmp/audit.json`; an existing report can be evaluated offline with `--report /tmp/audit.json`.
+
+Stellar Wallets Kit 2.8 no longer installs `query-string`, so its patch and the query-string compatibility tests were removed. The `decode-uri-component` override stays for any future consumer.
 
 ## Compatibility review of overrides
 
@@ -183,7 +185,7 @@ Resolved after: `6.1.7`
 
 ### elliptic
 
-Affected function(s): ECDSA sign. Crypto dependencies under ArDrive/Ethers, Trezor and NEAR. QuillTip uses RSA ArweaveSigner and delegates Stellar Ed25519 signing to wallets. No app ECDSA secret signs attacker messages through elliptic. Same-major 6.6.1 override removes the critical record; a moderate upstream nonce advisory remains outside the blocking threshold.
+Affected function(s): ECDSA sign. Crypto dependencies under ArDrive/Ethers, Trezor and NEAR. Quilltip uses RSA ArweaveSigner and delegates Stellar Ed25519 signing to wallets. No app ECDSA secret signs attacker messages through elliptic. Same-major 6.6.1 override removes the critical record; a moderate upstream nonce advisory remains outside the blocking threshold.
 
 - Runtime manifest, installed `6.5.4` (`@dha-team/arbundles/@ethersproject/signing-key/elliptic`): `@ardrive/turbo-sdk@1.41.0` → `@dha-team/arbundles@1.0.4` → `@ethersproject/signing-key@5.7.0` → `elliptic@6.5.4`
 
@@ -415,7 +417,7 @@ Resolved after: `1.42.7`
 
 ### protobufjs
 
-Affected function(s): reflection/codegen, option paths, recursive decoding and Any JSON conversion. Trezor wallet-kit dependency pinned to 7.4.0. QuillTip never loads caller-supplied protobuf schemas or calls protobuf reflection/codegen directly. Same-major 7.6.6 override removes the critical and high records; no code-execution proof was produced.
+Affected function(s): reflection/codegen, option paths, recursive decoding and Any JSON conversion. Trezor wallet-kit dependency pinned to 7.4.0. Quilltip never loads caller-supplied protobuf schemas or calls protobuf reflection/codegen directly. Same-major 7.6.6 override removes the critical and high records; no code-execution proof was produced.
 
 - Runtime manifest, installed `7.4.0` (`protobufjs`): `@creit.tech/stellar-wallets-kit@1.9.5` → `@trezor/connect-plugin-stellar@9.2.1` → `@trezor/connect@9.6.2` → `@trezor/protobuf@1.4.2` → `protobufjs@7.4.0`
 

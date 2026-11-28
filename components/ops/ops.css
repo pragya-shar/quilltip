@@ -1,0 +1,122 @@
+.ops-chain {
+  max-width: 1120px;
+}
+.ops-chain-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-bottom: 1px solid var(--account-rule);
+}
+.ops-chain-item {
+  min-width: 0;
+  padding: 24px 24px 28px 0;
+  border-top: 1px solid var(--account-rule);
+  color: var(--account-muted);
+}
+.ops-chain-item dd {
+  margin: 12px 0 0;
+  color: var(--account-ink);
+  font:
+    400 30px/1.2 'Account Alegreya',
+    'Alegreya Fallback',
+    Georgia,
+    serif;
+  font-variant-numeric: tabular-nums;
+}
+.ops-chain-item dd[data-status='LAGGING'],
+.ops-chain-item dd[data-status='BEHIND_RETENTION'],
+.ops-chain-item dd[data-status='RESET_DETECTED'] {
+  color: var(--account-wine);
+}
+.ops-chain-item dd.ops-chain-note {
+  margin: 6px 0 0;
+  color: var(--account-muted);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+.ops-chain-details {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 10px 24px;
+  margin: 32px 0 48px;
+}
+.ops-chain-details dt {
+  color: var(--account-muted);
+}
+.ops-chain-details dd {
+  margin: 0;
+  color: var(--account-ink);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+@media (max-width: 900px) {
+  .ops-chain-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 560px) {
+  .ops-chain-grid,
+  .ops-chain-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ops-chain-details dd {
+    margin-bottom: 8px;
+  }
+}
+.ops-review {
+  margin: 8px 0 56px;
+}
+.ops-review h2 {
+  margin: 0 0 16px;
+}
+.ops-review-item {
+  padding: 20px 0;
+  border-top: 1px solid var(--account-rule);
+}
+.ops-review-item h3 {
+  margin: 0;
+  color: var(--account-ink);
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+.ops-review-scroll {
+  overflow-x: auto;
+}
+.ops-review-table {
+  width: 100%;
+  margin-top: 12px;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+.ops-review-table th,
+.ops-review-table td {
+  padding: 8px 16px 8px 0;
+  border-bottom: 1px solid var(--account-rule);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.ops-review-table thead th,
+.ops-review-table tbody th {
+  color: var(--account-muted);
+  font-weight: 400;
+}
+.ops-review-table tr[data-differs] td {
+  color: var(--account-wine);
+}
+.ops-review-flag {
+  color: var(--account-wine);
+}
+/* Amounts and ledgers stay on one line; the table scrolls inside its box. */
+.ops-reserves-table {
+  min-width: 36rem;
+}
+.ops-reserves-table th,
+.ops-reserves-table td {
+  white-space: nowrap;
+}
+.ops-reserves-table td:nth-child(2) {
+  white-space: normal;
+}

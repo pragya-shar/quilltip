@@ -1,5 +1,6 @@
 'use client'
 
+import '@/components/highlights/highlights.css'
 import { useRef, useState } from 'react'
 import { useMutation, useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
@@ -8,6 +9,7 @@ import { FocusScope } from '@radix-ui/react-focus-scope'
 import { Heart, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { HighlightTipButton } from './HighlightTipButton'
+import { HighlightTipGate } from './HighlightTipGate'
 import { toast } from 'sonner'
 import { useHighlightPanelDismiss } from '@/hooks/useHighlightPanelDismiss'
 import { useSuspendDialogModalForWallet } from '@/hooks/useSuspendDialogModalForWallet'
@@ -38,6 +40,7 @@ interface HighlightDetailsPanelProps {
   // Article data for tipping
   articleId?: Id<'articles'>
   articleSlug?: string
+  articleTitle?: string
   authorName?: string
   authorStellarAddress?: string | null
 }
@@ -50,6 +53,7 @@ export function HighlightDetailsPanel({
   currentUserId,
   articleId,
   articleSlug,
+  articleTitle,
   authorName,
   authorStellarAddress,
 }: HighlightDetailsPanelProps) {
@@ -147,7 +151,7 @@ export function HighlightDetailsPanel({
           >
             <X aria-hidden className="h-5 w-5" />
           </button>
-          <p className="slip-meta">QuillTip · Your reading notes</p>
+          <p className="slip-meta">Quilltip · Your reading notes</p>
           <p className="slip-label">
             {context?.personalId || isOwner
               ? 'In your highlights'
@@ -225,20 +229,22 @@ export function HighlightDetailsPanel({
               )
             )}
             {articleId && articleSlug && authorStellarAddress && (
-              <HighlightTipButton
-                articleId={articleId}
-                articleSlug={articleSlug}
-                authorName={authorName || 'Author'}
-                authorStellarAddress={authorStellarAddress}
-                highlightText={highlight.text}
-                startOffset={highlight.startOffset}
-                endOffset={highlight.endOffset}
-                startContainerPath={highlight.startContainerPath}
-                endContainerPath={highlight.endContainerPath}
-                className="slip-action"
-                label="Tip this passage"
-                disabled={busy}
-              />
+              <HighlightTipGate articleId={articleId}>
+                <HighlightTipButton
+                  articleId={articleId}
+                  articleSlug={articleSlug}
+                  articleTitle={articleTitle}
+                  authorName={authorName || 'Author'}
+                  highlightText={highlight.text}
+                  startOffset={highlight.startOffset}
+                  endOffset={highlight.endOffset}
+                  startContainerPath={highlight.startContainerPath}
+                  endContainerPath={highlight.endContainerPath}
+                  className="slip-action"
+                  label="Tip this passage"
+                  disabled={busy}
+                />
+              </HighlightTipGate>
             )}
           </div>
           {error && (

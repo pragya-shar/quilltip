@@ -23,7 +23,17 @@ import { HANDLE_MAX_LENGTH, handleFormatError } from '@/lib/profile/handleRules'
 
 const CHECK_DELAY_MS = 300
 
-export function ProfileHandleEditor({ username }: { username: string }) {
+/**
+ * "Change handle" button and dialog. On a writer page the page moves to the
+ * new handle; elsewhere pass `onChanged` to stay put.
+ */
+export function ProfileHandleEditor({
+  username,
+  onChanged,
+}: {
+  username: string
+  onChanged?: (username: string) => void
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const searchParams = useSearchParams()
@@ -70,6 +80,10 @@ export function ProfileHandleEditor({ username }: { username: string }) {
       const result = await changeHandle({ handle })
       toast.success(`Your handle is now @${result.username}`)
       setOpen(false)
+      if (onChanged) {
+        onChanged(result.username)
+        return
+      }
       // Same page under the new handle; the old URL now redirects here.
       const segments = (pathname ?? '').split('/')
       segments[1] = encodeURIComponent(result.username)

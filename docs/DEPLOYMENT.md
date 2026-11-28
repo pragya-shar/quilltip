@@ -8,9 +8,13 @@ backend are separate results.
 ## Frontend
 
 [Vercel configuration](../vercel.json) defines the build/install commands, region,
-function limits, headers, and rewrites. Inspect it and the linked Vercel project
+and headers. Inspect it and the linked Vercel project
 rather than relying on a copied settings list. A Git push may trigger Vercel's
 connected deployment; inspect the resulting deployment and real app flow.
+
+`GET /api/health` reports the build commit, deployment environment, Stellar
+network, and Convex reachability. It returns 200 when the backend answers and 503
+otherwise. Use it to confirm which commit a deployment serves.
 
 For an authorized manual deployment, use the Vercel integration or current CLI
 and confirm whether the target is preview or production. Keep the CLI current
@@ -46,6 +50,17 @@ bunx convex env set SITE_URL https://quilltip.me --prod
 
 Use [setup](SETUP.md) for configuration responsibilities. Verify the frontend
 points to the intended backend; align tipping contract IDs and Stellar networks.
+
+Article images, uploads, avatars and covers load only from the backend's own
+file storage (`<CONVEX_CLOUD_URL>/api/storage/…`) and the listed hosts in
+`lib/security/imageSources.ts`. The frontend reads that origin from
+`NEXT_PUBLIC_CONVEX_URL`, so the two must name the same deployment origin; a
+custom domain on one side hides every uploaded image. For each release, run
+`bunx convex run articleImageHosts:countImageHosts` against the target backend
+and check that its `storageOrigin` equals the origin of the frontend's
+`NEXT_PUBLIC_CONVEX_URL`. The same report counts, per host, the images readers
+no longer see (`publishedRefused`) and the profile photos shown as initials
+(`avatars`, `refused`).
 
 ## Soroban contracts
 

@@ -1,16 +1,22 @@
 'use client'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import { useState } from 'react'
-import { useMutation } from 'convex/react'
-import { api } from '@/convex/_generated/api'
 import { useWallet } from '@/components/providers/WalletProvider'
+import { describeConnectFailure } from '@/lib/stellar/v2/wallet-errors'
+import { useWalletOwnership } from '@/hooks/useWalletOwnership'
+
+const STEP_COPY = {
+  challenge: 'Preparing the request…',
+  sign: 'Approve the request in your wallet…',
+  verify: 'Checking the signature…',
+} as const
 export function WritingWallet({
   onSaved,
 }: {
   onSaved: (address: string) => void
 }) {
   const { connect, isLoading } = useWallet({ activateOnMount: true })
-  const updateProfile = useMutation(api.users.updateProfile)
+  const ownership = useWalletOwnership()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   async function connectReceivingWallet() {
@@ -18,16 +24,17 @@ export function WritingWallet({
     setBusy(true)
     setError('')
     try {
-      if (!(await connect())) throw new Error('Choose a wallet and try again.')
-      const { walletAdapter } = await import('@/lib/stellar/wallet-adapter')
-      const address = await walletAdapter.getPublicKey()
-      if (!address)
-        throw new Error('Your wallet did not return an address. Try again.')
-      await updateProfile({ stellarAddress: address })
-      onSaved(address)
+      if (!(await connect())) return
+      // Linking needs proof that this wallet holds the address.
+      const result = await ownership.verify()
+      if (result) onSaved(result.address)
     } catch (e) {
+      const failure = describeConnectFailure(e)
+      if (failure.action === 'ignore') return
       setError(
-        e instanceof Error ? e.message : 'Could not connect your wallet.'
+        failure.action === 'install'
+          ? 'No Stellar wallet found. Install Varial (formerly Freighter) or xBull in this browser, then try again.'
+          : `${failure.message.title}. ${failure.message.detail}`
       )
     } finally {
       setBusy(false)
@@ -37,16 +44,28 @@ export function WritingWallet({
     <section className="drawer-note">
       <strong>Set up your receiving wallet</strong>
       <p>
-        Save a Stellar testnet wallet so readers can send tips when you publish.
+        Connect the Stellar testnet wallet that should receive tips, then
+        approve a short message in it to prove it is yours. Signing does not
+        move funds.
       </p>
       {error && <p role="alert">{error}</p>}
+      {ownership.status === 'error' && ownership.error && (
+        <p role="alert">
+          {ownership.error.title}. {ownership.error.detail}
+        </p>
+      )}
+      <p role="status" aria-live="polite" className="drawer-status">
+        {ownership.status in STEP_COPY
+          ? STEP_COPY[ownership.status as keyof typeof STEP_COPY]
+          : ''}
+      </p>
       <button
         type="button"
         className="wide"
         disabled={busy || isLoading}
         onClick={() => void connectReceivingWallet()}
       >
-        {busy || isLoading ? 'Connecting wallet…' : 'Connect wallet'}
+        {busy || isLoading ? 'Verifying wallet…' : 'Connect and verify wallet'}
       </button>
       <WalletSetupHelp receiving />
     </section>

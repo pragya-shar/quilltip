@@ -2,6 +2,7 @@ import { syncReadingRoomEngagement } from './lib/readingRoomIndex'
 import { getTipArticleSummary } from './lib/tipArticleSummary'
 import { ConvexError, v } from 'convex/values'
 import { query, mutation, internalMutation } from './_generated/server'
+import { paginationOptsValidator } from 'convex/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import { enrichWithUser } from './lib/enrich'
@@ -22,69 +23,132 @@ import {
   shortArticleIdServer,
 } from './lib/articleTipExpectation'
 import { MAX_PRICE_AGE_MS } from './xlmPrice'
+import { verifiedStellarAddress } from './lib/walletVerification'
+import { readChainEnv } from './lib/chain/env'
+import { requireV1PreparesEnabled } from './lib/v1Prepares'
+import { getMonthKey, roundCents, writerShareCents } from './lib/authorEarnings'
 import {
-  creditAuthorEarnings,
-  getMonthKey,
-  roundCents,
-  writerShareCents,
-} from './lib/authorEarnings'
+  lifetimeFigures,
+  previousFigures,
+  readLifetimeTotals,
+  reverseV1TipTotals,
+} from './lib/lifetimeEarnings'
+import {
+  AGGREGATE_LIMIT,
+  LIST_LIMIT,
+  chainArticleFor,
+  clampPageSize,
+  contractVersionOf,
+  countsAsPaid,
+  ownTipFields,
+  paidToExpectedAuthor,
+  publicTipFields,
+  registeredTotals,
+  withTipper,
+} from './lib/tipReads'
 
 const MAX_OUTSTANDING_ARTICLE_TIP_INTENTS = 5
 
-// Get tips for an article
+/**
+ * Public list of an article's paid tips, newest first: v1 and v2 rows,
+ * labelled by `contractVersion`, with public fields only. Reads at most
+ * `LIST_LIMIT` rows; use `listArticleTips` to page.
+ */
 export const getArticleTips = query({
   args: {
     articleId: v.id('articles'),
   },
   handler: async (ctx, args) => {
-    const tips = await ctx.db
+    const rows = await ctx.db
       .query('tips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .order('desc')
-      .collect()
-
-    // Enrich with tipper data
-    const enrichedTips = await Promise.all(
-      tips.map(async (tip) => ({
-        ...tip,
-        tipper: await enrichWithUser(ctx, tip.tipperId),
+      .take(AGGREGATE_LIMIT)
+    const paid = rows.filter(countsAsPaid).slice(0, LIST_LIMIT)
+    return await Promise.all(
+      paid.map(async (tip) => ({
+        ...publicTipFields(tip),
+        tipper: await withTipper(ctx.db, tip),
       }))
     )
-
-    return enrichedTips
   },
 })
 
-// Get tip statistics for an article
+/** Paginated public list of an article's paid tips, newest first. */
+export const listArticleTips = query({
+  args: {
+    articleId: v.id('articles'),
+    paginationOpts: paginationOptsValidator,
+  },
+  handler: async (ctx, args) => {
+    const result = await ctx.db
+      .query('tips')
+      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
+      .order('desc')
+      .paginate({
+        ...args.paginationOpts,
+        numItems: clampPageSize(args.paginationOpts.numItems),
+      })
+    const page = await Promise.all(
+      result.page.filter(countsAsPaid).map(async (tip) => ({
+        ...publicTipFields(tip),
+        tipper: await withTipper(ctx.db, tip),
+      }))
+    )
+    return { ...result, page }
+  },
+})
+
+/**
+ * Public tip statistics for an article.
+ *
+ * - `totalsBaseUnits`: gross per token from `chainArticles.totals`, which
+ *   includes v2 tips made outside the app. Empty until the article is
+ *   registered.
+ * - `totalTips`, `totalAmountUsd`, `uniqueTippers`, `byVersion`: from the
+ *   paid tip rows (v1 and v2), at most `AGGREGATE_LIMIT` rows; `complete` is
+ *   false when there are more.
+ */
 export const getArticleTipStats = query({
   args: {
     articleId: v.id('articles'),
   },
   handler: async (ctx, args) => {
-    const tips = await ctx.db
-      .query('tips')
-      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
-      .collect()
+    const [rows, chainArticle] = await Promise.all([
+      ctx.db
+        .query('tips')
+        .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
+        .take(AGGREGATE_LIMIT + 1),
+      chainArticleFor(ctx.db, args.articleId),
+    ])
+    const complete = rows.length <= AGGREGATE_LIMIT
+    const tips = rows.slice(0, AGGREGATE_LIMIT).filter(countsAsPaid)
 
-    const totalTips = tips.length
-    const totalAmountUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
-    const uniqueTippers = new Set(tips.map((tip) => tip.tipperId)).size
-
+    const byVersion = { v1: 0, v2: 0 }
+    let totalAmountCents = 0
+    for (const tip of tips) {
+      byVersion[contractVersionOf(tip)] += 1
+      totalAmountCents += tip.amountCents
+    }
     return {
-      totalTips,
-      totalAmountUsd,
-      uniqueTippers,
+      totalTips: tips.length,
+      totalAmountUsd: roundCents(totalAmountCents) / 100,
+      uniqueTippers: new Set(tips.map((tip) => tip.tipperId)).size,
+      byVersion,
+      totalsBaseUnits: registeredTotals(chainArticle),
+      registered: chainArticle?.status === 'REGISTERED',
+      network: getStellarNetwork(),
+      complete,
     }
   },
 })
 
-// Get the caller's full tip history. Intentionally returns rows in every status
-// (PENDING / CONFIRMED / FAILED / FRAUDULENT) so the tipper sees in-flight and
-// rejected tips in their own history — do NOT add a `status === 'CONFIRMED'`
-// filter here. Public-facing aggregations (article counters, leaderboards)
-// have their own CONFIRMED-only filters.
+// Get the caller's tip history. Intentionally returns rows in every status
+// (PREPARED / SUBMITTED / CONFIRMED / MISMATCH / FAILED / EXPIRED for v2, and
+// PENDING / CONFIRMED / FAILED / FRAUDULENT for v1) so the tipper sees
+// in-flight and rejected tips in their own history — do NOT add a status
+// filter here. Every row is labelled by `contractVersion`. At most
+// `LIST_LIMIT` rows; use `listMySentTips` to page.
 export const getUserSentTips = query({
   args: {},
   handler: async (ctx) => {
@@ -95,14 +159,14 @@ export const getUserSentTips = query({
       .query('tips')
       .withIndex('by_tipper', (q) => q.eq('tipperId', userId))
       .order('desc')
-      .collect()
+      .take(LIST_LIMIT)
 
-    // Enrich with article data
-    const enrichedTips = await Promise.all(
+    return await Promise.all(
       tips.map(async (tip) => {
         const article = await ctx.db.get(tip.articleId)
         return {
           ...tip,
+          contractVersion: contractVersionOf(tip),
           sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
           article: article
             ? {
@@ -115,35 +179,63 @@ export const getUserSentTips = query({
         }
       })
     )
-
-    return enrichedTips
   },
 })
 
-// Get user's received tips
+/** Paginated tip history of the caller (every status), newest first. */
+export const listMySentTips = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return { page: [], isDone: true, continueCursor: '' }
+    const result = await ctx.db
+      .query('tips')
+      .withIndex('by_tipper', (q) => q.eq('tipperId', userId))
+      .order('desc')
+      .paginate({
+        ...args.paginationOpts,
+        numItems: clampPageSize(args.paginationOpts.numItems),
+      })
+    const page = await Promise.all(
+      result.page.map(async (tip) => ({
+        ...ownTipFields(tip),
+        sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
+      }))
+    )
+    return { ...result, page }
+  },
+})
+
+/**
+ * The caller's received tips, newest first: paid v1 and v2 rows whose payment
+ * reached the caller. A v2 `MISMATCH` row counts only when the on-chain author
+ * address is the caller's linked address. At most `LIST_LIMIT` rows.
+ */
 export const getUserReceivedTips = query({
   args: {},
   handler: async (ctx) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) return []
+    const user = await ctx.db.get(userId)
 
-    const tips = await ctx.db
+    const rows = await ctx.db
       .query('tips')
       .withIndex('by_author', (q) => q.eq('authorId', userId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .order('desc')
-      .collect()
+      .take(AGGREGATE_LIMIT)
+    const tips = rows
+      .filter((tip) => paidToExpectedAuthor(tip, verifiedStellarAddress(user)))
+      .slice(0, LIST_LIMIT)
 
-    // Enrich with tipper and article data
-    const enrichedTips = await Promise.all(
+    return await Promise.all(
       tips.map(async (tip) => {
         const [tipper, article] = await Promise.all([
           enrichWithUser(ctx, tip.tipperId),
           ctx.db.get(tip.articleId),
         ])
-
         return {
           ...tip,
+          contractVersion: contractVersionOf(tip),
           sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
           tipper,
           article: article
@@ -156,18 +248,65 @@ export const getUserReceivedTips = query({
         }
       })
     )
-
-    return enrichedTips
   },
 })
 
-// Pre-flight cooldown check used by the UI before starting the Stellar signing
-// flow. Returning { allowed: true } for unauthenticated callers keeps anonymous
-// page views from ever seeing a false rate-limit signal; the sendTip mutation
-// still requires authentication as usual.
+/** Paginated received tips of the caller, newest first (paid rows only). */
+export const listMyReceivedTips = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return { page: [], isDone: true, continueCursor: '' }
+    const user = await ctx.db.get(userId)
+    const result = await ctx.db
+      .query('tips')
+      .withIndex('by_author', (q) => q.eq('authorId', userId))
+      .order('desc')
+      .paginate({
+        ...args.paginationOpts,
+        numItems: clampPageSize(args.paginationOpts.numItems),
+      })
+    const page = await Promise.all(
+      result.page
+        .filter((tip) =>
+          paidToExpectedAuthor(tip, verifiedStellarAddress(user))
+        )
+        .map(async (tip) => ({
+          ...ownTipFields(tip),
+          tipper: await withTipper(ctx.db, tip),
+          sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
+        }))
+    )
+    return { ...result, page }
+  },
+})
+
+/**
+ * Pre-flight check used by the UI before starting the Stellar signing flow.
+ *
+ * - With `articleId`, the article must be registered on the v2 Core contract
+ *   (`chainArticles.status === 'REGISTERED'`); otherwise the result is
+ *   `{ allowed: false, waitSec: 0, reason: 'NOT_REGISTERED' }`, also for
+ *   anonymous callers.
+ * - Without `articleId`, only the cooldown applies (v1 callers).
+ * - Unauthenticated callers never see a false rate-limit signal; the tip
+ *   mutations still require authentication.
+ */
 export const canTip = query({
-  args: {},
-  handler: async (ctx) => {
+  args: { articleId: v.optional(v.id('articles')) },
+  handler: async (ctx, args) => {
+    if (args.articleId) {
+      const chainArticle = await chainArticleFor(ctx.db, args.articleId)
+      if (chainArticle?.status !== 'REGISTERED') {
+        // `waitSec: 0` keeps the shape of the cooldown result, which v1
+        // callers read; `reason` tells the two apart.
+        return {
+          allowed: false as const,
+          waitSec: 0,
+          reason: 'NOT_REGISTERED' as const,
+        }
+      }
+    }
     const userId = await getAuthUserId(ctx)
     if (!userId) return { allowed: true as const }
     return await checkTipCooldown(ctx, userId)
@@ -196,6 +335,8 @@ export const prepareArticleTip = mutation({
     }),
   }),
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
@@ -217,8 +358,10 @@ export const prepareArticleTip = mutation({
 
     const author = await ctx.db.get(article.authorId)
     if (!author) throw new Error('Author not found')
-    if (!author.stellarAddress || typeof author.stellarAddress !== 'string') {
-      throw new Error('Author has not configured a receiving wallet')
+    // New tips go only to an address the author proved control of.
+    const authorAddress = verifiedStellarAddress(author)
+    if (!authorAddress) {
+      throw new Error('Author has not verified a receiving wallet')
     }
 
     const now = Date.now()
@@ -244,7 +387,7 @@ export const prepareArticleTip = mutation({
         (amountXlm !== undefined || intent.amountCents === usdCents) &&
         intent.message === args.message &&
         intent.expectedSourceAccount === args.stellarSourceAccount &&
-        intent.expectedDestinationAccount === author.stellarAddress &&
+        intent.expectedDestinationAccount === authorAddress &&
         intent.expectedArticleSymbol === expectedArticleSymbol &&
         intent.expectedStellarNetwork === expectedStellarNetwork &&
         intent.expectedContractId === expectedContractId &&
@@ -299,7 +442,7 @@ export const prepareArticleTip = mutation({
       amountXlm,
       message: args.message,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedArticleSymbol,
       expectedAmountStroops: expectedAmountStroops.toString(),
       expectedStellarNetwork,
@@ -323,7 +466,7 @@ export const prepareArticleTip = mutation({
     return {
       intentId,
       articleSymbol: expectedArticleSymbol,
-      authorAddress: author.stellarAddress,
+      authorAddress: authorAddress,
       amountStroops: expectedAmountStroops,
       amountCents,
       stellarNetwork: expectedStellarNetwork,
@@ -526,69 +669,8 @@ export const sendTip = mutation({
   },
 })
 
-// Internal mutation to confirm tip
-export const confirmTip = internalMutation({
-  args: {
-    tipId: v.id('tips'),
-  },
-  handler: async (ctx, args) => {
-    const tip = await ctx.db.get(args.tipId)
-    if (!tip) throw new Error('Tip not found')
-    if (tip.status !== 'PENDING') return
-
-    const now = Date.now()
-
-    // Flip status to CONFIRMED. stellarTxId was stored at insert time by
-    // sendTip, so there's nothing to stamp here.
-    await ctx.db.patch(args.tipId, {
-      status: 'CONFIRMED',
-      updatedAt: now,
-    })
-
-    // Update article stats
-    const article = await ctx.db.get(tip.articleId)
-    if (article) {
-      const tipCount = (article.tipCount || 0) + 1
-      await ctx.db.patch(tip.articleId, {
-        tipCount,
-        totalTipsUsd: (article.totalTipsUsd || 0) + tip.amountUsd,
-      })
-      await syncReadingRoomEngagement(ctx, tip.articleId, { tipCount })
-    }
-
-    // Update author earnings with the writer's share of the tip
-    await creditAuthorEarnings(ctx, {
-      authorId: tip.authorId,
-      articleId: tip.articleId,
-      articleTitle: tip.articleTitle,
-      shareCents: writerShareCents(tip.amountCents, tip.expectedAmountStroops),
-      now,
-    })
-
-    // Update user stats
-    const [tipper, author] = await Promise.all([
-      ctx.db.get(tip.tipperId),
-      ctx.db.get(tip.authorId),
-    ])
-
-    if (tipper) {
-      await ctx.db.patch(tip.tipperId, {
-        tipsSentCount: (tipper.tipsSentCount || 0) + 1,
-      })
-    }
-
-    if (author) {
-      await ctx.db.patch(tip.authorId, {
-        tipsReceivedCount: (author.tipsReceivedCount || 0) + 1,
-      })
-    }
-
-    return { success: true }
-  },
-})
-
 // Internal mutation: mark a previously-CONFIRMED tip as FRAUDULENT and reverse
-// every counter/earnings increment that confirmTip applied. Called exclusively
+// every counter/earnings increment that confirmation applied. Called exclusively
 // by the reconciliation action when on-chain verification proves the tip was
 // faked (e.g., no matching Stellar tx, wrong contract, wrong recipient).
 //
@@ -621,6 +703,8 @@ export const markArticleTipFraudulent = internalMutation({
       processedAt: now,
       updatedAt: now,
     })
+    // The lifetime totals (#552) lose the tip as they gained it.
+    await reverseV1TipTotals(ctx, tip.authorId, 'tips', tip)
 
     // Reverse article counters
     const article = await ctx.db.get(tip.articleId)
@@ -748,5 +832,105 @@ export const getAuthorEarnings = query({
       .first()
 
     return earnings
+  },
+})
+
+// The caller's earnings as a writer. Owner only.
+//
+// The fields of `overhaul/v2` keep their meaning for every row, rebuilt or
+// not, so a client built before #552 shows the same figures:
+// - `tipCount`, `earnedStroops`, `estimatedUsd`, `writerShareStroops`,
+//   `complete`: the verified v1 rows read (at most AGGREGATE_LIMIT per table;
+//   `complete` is false beyond) plus `v2TipCount`, `v2EarnedCents` and
+//   `earnedBaseUnits` in native XLM as stored (`previousFigures`).
+// - `earnedBaseUnits`, `v2TipCount`: as stored (section 6.2).
+// New fields (#552):
+// - `lifetime`: once the row is rebuilt from its history (`lifetimeTotalsAt`)
+//   and no rebuild is in progress, the lifetime totals, credited with each tip
+//   (convex/lib/lifetimeEarnings.ts). They cover the same tips in all three
+//   figures: verified v1 tips, confirmed v2 wallet tips (the caller's share)
+//   and the net paid on chain for tab tips. XLM = `v1ShareStroops` +
+//   `walletEarnedBaseUnits` + `tabSettledBaseUnits`; USD = `v1EarnedCents` +
+//   `v2EarnedCents` + `tabEarnedCents`; count = `v1TipCount` + `v2TipCount` +
+//   `tabTipCount`. Null until then.
+// - `updating`: the row's rebuild is in progress.
+// - `unpricedTipCount`: legacy v1 tips without a trusted USD amount among the
+//   previous figures' rows; they are in the XLM and the count, so the USD is a
+//   lower bound. `lifetime.unpricedTipCount` is the same for the lifetime
+//   totals.
+// The network is returned so the UI can label testnet amounts as having no
+// real value.
+const earningsFiguresValidator = v.object({
+  tipCount: v.number(),
+  writerShareStroops: v.string(),
+  earnedStroops: v.string(),
+  estimatedUsd: v.number(),
+  unpricedTipCount: v.number(),
+})
+
+export const getMyEarningsSummary = query({
+  args: {},
+  returns: v.union(
+    v.null(),
+    v.object({
+      network: v.union(v.literal('TESTNET'), v.literal('MAINNET')),
+      tipCount: v.number(),
+      writerShareStroops: v.string(),
+      earnedStroops: v.string(),
+      estimatedUsd: v.number(),
+      earnedBaseUnits: v.record(v.string(), v.string()),
+      v2TipCount: v.number(),
+      complete: v.boolean(),
+      unpricedTipCount: v.number(),
+      lifetime: v.union(v.null(), earningsFiguresValidator),
+      updating: v.boolean(),
+    })
+  ),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return null
+    const earnings = await ctx.db
+      .query('authorEarnings')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .first()
+    let xlmToken: string | null = null
+    try {
+      xlmToken = readChainEnv().tokenContractId
+    } catch {
+      // Not a v2 deployment: v1 rows only.
+    }
+    const previous = await previousFigures(ctx.db, userId, earnings, xlmToken)
+    const rebuilt =
+      earnings?.lifetimeTotalsAt !== undefined && !earnings.lifetimeRebuild
+    let lifetime = null
+    if (rebuilt) {
+      const totals = lifetimeFigures(
+        readLifetimeTotals(earnings),
+        earnings,
+        xlmToken
+      )
+      lifetime = {
+        tipCount: totals.tipCount,
+        writerShareStroops: totals.v1Stroops,
+        earnedStroops: totals.stroops.toString(),
+        // Cents carry four decimals; dollars six, without float noise.
+        estimatedUsd: Math.round(totals.cents * 10_000) / 1_000_000,
+        unpricedTipCount: totals.unpriced,
+      }
+    }
+    return {
+      network: getStellarNetwork(),
+      tipCount: previous.tipCount,
+      writerShareStroops: previous.v1Stroops,
+      earnedStroops: previous.stroops.toString(),
+      // As `overhaul/v2` computes it.
+      estimatedUsd: previous.cents / 100,
+      earnedBaseUnits: earnings?.earnedBaseUnits ?? {},
+      v2TipCount: earnings?.v2TipCount ?? 0,
+      complete: previous.complete,
+      unpricedTipCount: previous.unpriced,
+      lifetime,
+      updating: !!earnings?.lifetimeRebuild,
+    }
   },
 })

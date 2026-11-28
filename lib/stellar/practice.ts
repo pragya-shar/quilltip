@@ -6,10 +6,10 @@ import {
   Operation,
   StrKey,
   TransactionBuilder,
-  type Account,
   type Transaction,
+  type TransactionSource,
 } from '@stellar/stellar-sdk'
-import { loadWalletKit } from './wallet-kit-loader'
+import { bytesToHex } from './bytes'
 export const RECIPIENT =
   'GCS5XCIKIBZ3L5CUKJMMAG6IUBBNCCPT5SFTXFW5I4DZOMT4RJ43DUAR'
 export const AMOUNT = '1'
@@ -22,7 +22,7 @@ export type PracticeRecord = {
   status: PracticeStatus
 }
 export const server = new Horizon.Server('https://horizon-testnet.stellar.org')
-export function buildPractice(account: Account) {
+export function buildPractice(account: TransactionSource) {
   if (account.accountId() === RECIPIENT)
     throw new Error(
       'Use a different wallet for practice; this is the receiving account.'
@@ -43,9 +43,9 @@ export function buildPractice(account: Account) {
     .build()
 }
 export function validateSigned(xdr: string, original: Transaction) {
-  const signed = TransactionBuilder.fromXDR(xdr, Networks.TESTNET)
+  const signed = TransactionBuilder.fromXdr(xdr, Networks.TESTNET)
   if (
-    signed.hash().toString('hex') !== original.hash().toString('hex') ||
+    bytesToHex(signed.hash()) !== bytesToHex(original.hash()) ||
     !signed.signatures.length
   )
     throw new Error(
@@ -104,28 +104,5 @@ export async function checkPractice(
       throw error
     return closed > record.expires ? 'expired' : 'unknown'
   }
-}
-export async function makeKit() {
-  const {
-    StellarWalletsKit,
-    FreighterModule,
-    xBullModule,
-    AlbedoModule,
-    WalletNetwork,
-  } = await loadWalletKit()
-  return new StellarWalletsKit({
-    network: WalletNetwork.TESTNET,
-    modules: [new FreighterModule(), new xBullModule(), new AlbedoModule()],
-  })
-}
-export type PracticeKit = Awaited<ReturnType<typeof makeKit>>
-export async function ensureNetwork(kit: PracticeKit, id: string) {
-  if (
-    id === 'freighter' &&
-    (await kit.getNetwork()).networkPassphrase !== Networks.TESTNET
-  )
-    throw new Error(
-      'Switch Freighter to Testnet, then try again. No transaction was sent.'
-    )
 }
 export { Networks }

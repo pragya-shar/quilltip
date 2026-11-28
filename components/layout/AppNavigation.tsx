@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useEffect, useId, useRef, useState, useSyncExternalStore } from 'react'
 import { Menu } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -9,30 +9,71 @@ import { LandingWordmark } from '@/components/landing/LandingWordmark'
 import { ThemeToggle } from '@/components/theme/ThemeToggle'
 import { AuthActionsSkeleton } from './AuthActionsSkeleton'
 import { AccountNavigationMenu } from './AccountNavigationMenu'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetTitle,
-  SheetTrigger,
-} from '@/components/ui/sheet'
+import { AppMobileMenu } from './AppMobileMenu'
+import { useEarlyScripts } from '@/components/providers/Providers'
 import { isProtectedPath } from '@/lib/navigation/protectedRoutes'
+import { takeEarlyMenuOpen } from '@/lib/navigation/earlyMenu'
 import {
   getAccountNavigationLinks,
   PRIMARY_NAVIGATION_LINKS,
 } from '@/lib/navigation/siteNavigation'
 
+const noSubscription = () => () => {}
+
 export default function AppNavigation() {
   const { user, isAuthenticated, isLoading, signOut } = useAuth()
   const pathname = usePathname()
+  const menuId = useId()
+  const earlyScripts = useEarlyScripts()
+  const menuRef = useRef<HTMLDialogElement>(null)
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [menuPath, setMenuPath] = useState(pathname)
+  const menuPath = useRef(pathname)
+  // False in the server HTML and while hydrating, true after. Until then the
+  // browser derives the button's expanded state from `popovertarget`.
+  const scriptsActive = useSyncExternalStore(
+    noSubscription,
+    () => true,
+    () => false
+  )
+
+  const openMenu = () => {
+    const dialog = menuRef.current
+    if (!dialog || dialog.open) return
+    // A popover opened before the scripts ran becomes the modal dialog in
+    // the same frame, keeping the reader's place in it.
+    const focused = document.activeElement
+    const wasPopover = dialog.matches(':popover-open')
+    if (wasPopover) dialog.hidePopover()
+    dialog.showModal()
+    if (
+      wasPopover &&
+      focused instanceof HTMLElement &&
+      dialog.contains(focused)
+    )
+      focused.focus()
+    setMenuOpen(true)
+  }
+
+  useEffect(() => {
+    // Runs once, when the scripts take over. A menu the reader opened before
+    // then stays open, also when React rendered the page again.
+    const openedEarly = takeEarlyMenuOpen()
+    if (openedEarly || menuRef.current?.matches(':popover-open')) openMenu()
+  }, [])
+
+  useEffect(() => {
+    // Leaving the page closes the menu, as every link in it does.
+    if (menuPath.current === pathname) return
+    menuPath.current = pathname
+    menuRef.current?.close()
+  }, [pathname])
+
   const authPending =
     isLoading || (!isAuthenticated && isProtectedPath(pathname))
   const accountLinks = getAccountNavigationLinks(user?.username)
   const currentPage = (href: string) =>
     pathname === href ? ('page' as const) : undefined
-  const closeMenu = () => setMenuOpen(false)
 
   return (
     <header className="app-site-header site-chrome">
@@ -51,6 +92,7 @@ export default function AppNavigation() {
               links={accountLinks}
               pathname={pathname}
               signOut={signOut}
+              user={user}
             />
           ) : (
             <>
@@ -62,88 +104,43 @@ export default function AppNavigation() {
           )}
           <ThemeToggle />
         </nav>
-        <Sheet
-          open={menuOpen && menuPath === pathname}
-          onOpenChange={(open) => {
-            setMenuPath(pathname)
-            setMenuOpen(open)
+        {/* Before the scripts run only (lib/navigation/earlyMenu.ts): written
+            just before the menu button, so it runs before the button is
+            parsed. The text comes from the root layout, not this bundle. */}
+        {!scriptsActive && earlyScripts.menu && (
+          <script
+            nonce={earlyScripts.nonce}
+            dangerouslySetInnerHTML={{ __html: earlyScripts.menu }}
+          />
+        )}
+        <button
+          ref={menuTriggerRef}
+          type="button"
+          className="app-menu-trigger"
+          aria-label="Open navigation menu"
+          aria-haspopup="dialog"
+          aria-expanded={scriptsActive ? menuOpen : undefined}
+          data-state={menuOpen ? 'open' : 'closed'}
+          popoverTarget={menuId}
+          popoverTargetAction="show"
+          onClick={(event) => {
+            // The scripts open the modal dialog instead of the popover.
+            event.preventDefault()
+            openMenu()
           }}
         >
-          <SheetTrigger asChild>
-            <button
-              type="button"
-              className="app-menu-trigger"
-              aria-label="Open navigation menu"
-            >
-              <Menu size={22} aria-hidden />
-              <span>Menu</span>
-            </button>
-          </SheetTrigger>
-          <SheetContent side="right" className="app-mobile-menu site-chrome">
-            <SheetTitle>Find your way</SheetTitle>
-            <SheetDescription>
-              Reading, writing, and your account.
-            </SheetDescription>
-            <LandingWordmark onClick={closeMenu} />
-            <nav aria-label="Mobile navigation">
-              {PRIMARY_NAVIGATION_LINKS.map(({ href, label }) => (
-                <Link
-                  key={href}
-                  href={href}
-                  aria-current={currentPage(href)}
-                  onClick={closeMenu}
-                >
-                  {label}
-                </Link>
-              ))}
-              {authPending ? (
-                <AuthActionsSkeleton />
-              ) : isAuthenticated ? (
-                <div className="app-mobile-account">
-                  {accountLinks.map(({ href, label }) => (
-                    <Link
-                      key={href}
-                      href={href}
-                      aria-current={currentPage(href)}
-                      onClick={closeMenu}
-                    >
-                      {label}
-                    </Link>
-                  ))}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      closeMenu()
-                      void signOut()
-                    }}
-                  >
-                    Sign out
-                  </button>
-                </div>
-              ) : (
-                <div className="app-mobile-account">
-                  <Link href="/login" onClick={closeMenu}>
-                    Log in
-                  </Link>
-                  <Link
-                    href="/register"
-                    className="app-nav-action"
-                    onClick={closeMenu}
-                  >
-                    Sign up <span aria-hidden>↗</span>
-                  </Link>
-                </div>
-              )}
-              <Link href="/support" onClick={closeMenu}>
-                Help &amp; support
-              </Link>
-            </nav>
-            <div className="app-menu-theme">
-              <span>Appearance</span>
-              <ThemeToggle />
-            </div>
-          </SheetContent>
-        </Sheet>
+          <Menu size={22} aria-hidden />
+          <span>Menu</span>
+        </button>
+        <AppMobileMenu
+          id={menuId}
+          dialogRef={menuRef}
+          pathname={pathname}
+          onClose={() => {
+            setMenuOpen(false)
+            menuTriggerRef.current?.focus()
+          }}
+        />
       </div>
     </header>
   )

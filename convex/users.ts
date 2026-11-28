@@ -1,17 +1,14 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
+import { verifiedTipFilter } from './lib/verifiedTips'
 import { query, mutation } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { syncReadingRoomWriter } from './lib/readingRoomIndex'
 import { isArticleListingReady } from './lib/articleListingReady'
 import { syncAvatarUploadReference } from './lib/uploadReferences'
-
-/**
- * Validate Stellar address format
- * Stellar addresses start with G and are 56 characters (base32)
- */
-function isValidStellarAddress(address: string): boolean {
-  return /^G[A-Z2-7]{55}$/.test(address)
-}
+import { verifiedStellarAddress } from './lib/walletVerification'
+import { profileBioError, profileNameError } from '../lib/profile/profileRules'
+import { isOwnStorageAddress } from '../lib/security/imageSources'
+import { AVATAR_SOURCE_REFUSAL } from '../lib/security/imageSourceRefusal'
 
 // Get the current authenticated user
 export const getCurrentUser = query({
@@ -44,7 +41,8 @@ export const getUserByUsername = query({
       username: user.username,
       bio: user.bio,
       avatar: user.avatar,
-      stellarAddress: user.stellarAddress,
+      // Only a verified address is public: tips go to it.
+      stellarAddress: verifiedStellarAddress(user),
       articleCount: user.articleCount,
       highlightCount: user.highlightCount,
       nftsCreated: user.nftsCreated,
@@ -66,11 +64,33 @@ export const updateProfile = mutation({
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
-    // Validate Stellar address format if provided
-    if (args.stellarAddress && !isValidStellarAddress(args.stellarAddress)) {
-      throw new Error(
-        "Invalid Stellar address format. Address must start with 'G' and be 56 characters."
+    // An address is linked only through proof of control
+    // (walletLink.verifyWalletChallenge). Here it can only be removed.
+    if (args.stellarAddress) {
+      throw new ConvexError(
+        'Verify the wallet to link it: connect it and approve the request in your wallet.'
       )
+    }
+
+    // The same rules as the profile forms, so a direct call cannot skip them.
+    const name = args.name === undefined ? undefined : args.name.trim()
+    const bio = args.bio === undefined ? undefined : args.bio.trim()
+    if (name !== undefined) {
+      const message = profileNameError(name)
+      if (message) throw new ConvexError(message)
+    }
+    if (bio !== undefined) {
+      const message = profileBioError(bio)
+      if (message) throw new ConvexError(message)
+    }
+    // A profile photo is an upload: only an address in this deployment's own
+    // storage (lib/security/imageSources.ts, #633). The mutation is public, so
+    // a direct call is held to the same rule. An empty address removes it.
+    if (
+      args.avatar?.trim() &&
+      !isOwnStorageAddress(args.avatar.trim(), process.env.CONVEX_CLOUD_URL)
+    ) {
+      throw new ConvexError(AVATAR_SOURCE_REFUSAL)
     }
 
     const updates: {
@@ -78,14 +98,21 @@ export const updateProfile = mutation({
       bio?: string
       avatar?: string
       stellarAddress?: string | null
+      stellarAddressVerifiedAt?: undefined
+      stellarAddressVerifiedNetwork?: undefined
       updatedAt?: number
     } = {}
     // Use 'in' operator to check if property exists in args
     // This allows setting fields to null (needed for wallet disconnect)
-    if ('name' in args) updates.name = args.name
-    if ('bio' in args) updates.bio = args.bio
+    if ('name' in args) updates.name = name
+    // An empty bio removes it (patching a field to undefined clears it).
+    if ('bio' in args) updates.bio = bio || undefined
     if ('avatar' in args) updates.avatar = args.avatar
-    if ('stellarAddress' in args) updates.stellarAddress = args.stellarAddress
+    if ('stellarAddress' in args) {
+      updates.stellarAddress = null
+      updates.stellarAddressVerifiedAt = undefined
+      updates.stellarAddressVerifiedNetwork = undefined
+    }
 
     updates.updatedAt = Date.now()
 
@@ -171,7 +198,7 @@ export const getUserStats = query({
     const tipsReceived = await ctx.db
       .query('tips')
       .withIndex('by_author', (q) => q.eq('authorId', userId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
+      .filter(verifiedTipFilter)
       .collect()
 
     const totalEarnings = tipsReceived.reduce(

@@ -2,10 +2,14 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
-import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
+import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
+import { createReaderYoutubeNode } from '@/lib/tiptap/youtubeEmbed'
+import {
+  HIDDEN_ARTICLE_IMAGE,
+  isArticleImageShown,
+} from '@/lib/tiptap/articleImage'
 
 /** Read-only image node matching editor `resizableImage` output (no React node view). */
 const ReadOnlyResizableImage = Node.create({
@@ -19,13 +23,25 @@ const ReadOnlyResizableImage = Node.create({
       title: { default: null },
       width: { default: null },
       height: { default: null },
+      // Set by markBodyImagesLazy for images below the opening blocks.
+      loading: { default: null },
     }
   },
   parseHTML() {
     return [{ tag: 'img[src]:not([src^="data:"])' }]
   },
   renderHTML({ HTMLAttributes }) {
-    const image: DOMOutputSpec = ['img', mergeAttributes(HTMLAttributes)]
+    // Only this deployment's storage and the listed hosts (#615).
+    if (!isArticleImageShown(HTMLAttributes.src)) {
+      return [...HIDDEN_ARTICLE_IMAGE] as DOMOutputSpec
+    }
+    const image: DOMOutputSpec = [
+      'img',
+      mergeAttributes(
+        HTMLAttributes,
+        HTMLAttributes.loading === 'lazy' ? { decoding: 'async' } : {}
+      ),
+    ]
     return HTMLAttributes.title
       ? [
           'figure',
@@ -49,14 +65,11 @@ export function getReadOnlyExtensions() {
       underline: false,
     }),
     Underline,
-    Link.configure({
-      openOnClick: true,
-      HTMLAttributes: { rel: 'noopener noreferrer', target: '_blank' },
-    }),
+    createArticleLinkExtension({ openOnClick: true }),
     CodeBlockLowlight.configure({
       lowlight,
     }),
     ReadOnlyResizableImage,
-    createYoutubeExtension(),
+    createReaderYoutubeNode(),
   ]
 }

@@ -1,5 +1,20 @@
 import { getTipArticleSummary } from './lib/tipArticleSummary'
 import { mutation, query } from './_generated/server'
+import { paginationOptsValidator } from 'convex/server'
+import type { Doc } from './_generated/dataModel'
+import { enrichWithUser } from './lib/enrich'
+import { roundCents } from './lib/authorEarnings'
+import {
+  AGGREGATE_LIMIT,
+  LIST_LIMIT,
+  clampPageSize,
+  contractVersionOf,
+  countByVersion,
+  countsAsPaid,
+  ownTipFields,
+  paidToExpectedAuthor,
+  sumBaseUnitsByToken,
+} from './lib/tipReads'
 import { ConvexError, v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { StrKey } from '@stellar/stellar-sdk'
@@ -33,6 +48,8 @@ import {
   stellarTransactionHashLookupValues,
 } from './lib/stellarTransactionHash'
 import { xlmStringToStroops } from './stellarVerify'
+import { verifiedStellarAddress } from './lib/walletVerification'
+import { requireV1PreparesEnabled } from './lib/v1Prepares'
 
 const MAX_OUTSTANDING_HIGHLIGHT_TIP_INTENTS = 5
 const MAX_HIGHLIGHT_CONTAINER_PATH_LENGTH = 256
@@ -80,6 +97,8 @@ export const prepareHighlightTip = mutation({
     }),
   }),
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
@@ -123,12 +142,10 @@ export const prepareHighlightTip = mutation({
 
     const author = await ctx.db.get(article.authorId)
     if (!author) throw new Error('Author not found')
-    if (
-      !author.stellarAddress ||
-      typeof author.stellarAddress !== 'string' ||
-      !StrKey.isValidEd25519PublicKey(author.stellarAddress)
-    ) {
-      throw new Error('Author has not configured a valid receiving wallet')
+    // New tips go only to an address the author proved control of.
+    const authorAddress = verifiedStellarAddress(author)
+    if (!authorAddress || !StrKey.isValidEd25519PublicKey(authorAddress)) {
+      throw new Error('Author has not verified a receiving wallet')
     }
 
     const now = Date.now()
@@ -165,7 +182,7 @@ export const prepareHighlightTip = mutation({
         (amountXlm !== undefined || intent.amountCents === usdCents) &&
         intent.message === args.message &&
         intent.expectedSourceAccount === args.stellarSourceAccount &&
-        intent.expectedDestinationAccount === author.stellarAddress &&
+        intent.expectedDestinationAccount === authorAddress &&
         intent.expectedHighlightId === expectedHighlightId &&
         intent.expectedArticleSymbol === expectedArticleSymbol &&
         intent.expectedFunction === TIP_HIGHLIGHT_DIRECT_FUNCTION &&
@@ -225,7 +242,7 @@ export const prepareHighlightTip = mutation({
       amountXlm,
       message: args.message,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedHighlightId,
       expectedArticleSymbol,
       expectedAmountStroops: expectedAmountStroops.toString(),
@@ -254,7 +271,7 @@ export const prepareHighlightTip = mutation({
       intentId,
       highlightId: expectedHighlightId,
       articleSymbol: expectedArticleSymbol,
-      authorAddress: author.stellarAddress,
+      authorAddress: authorAddress,
       amountStroops: expectedAmountStroops,
       amountCents,
       stellarNetwork: expectedStellarNetwork,
@@ -289,7 +306,7 @@ export const submitHighlightTip = mutation({
       const existingForIntent = await ctx.db.get(intent.tipId)
       if (
         existingForIntent &&
-        normalizeStellarTransactionHash(existingForIntent.stellarTxId) ===
+        normalizeStellarTransactionHash(existingForIntent.stellarTxId ?? '') ===
           stellarTxId
       ) {
         return existingForIntent._id
@@ -503,6 +520,8 @@ export const create = mutation({
     authorShare: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
+    requireV1PreparesEnabled()
     const userId = await getAuthUserId(ctx)
     if (!userId) throw new Error('Not authenticated')
 
@@ -555,12 +574,14 @@ export const create = mutation({
       args
     )
     const author = await ctx.db.get(article.authorId)
+    // Tips are recorded only against an address the author proved control of.
+    const authorAddress = verifiedStellarAddress(author)
     if (
-      !author?.stellarAddress ||
-      typeof author.stellarAddress !== 'string' ||
-      !StrKey.isValidEd25519PublicKey(author.stellarAddress)
+      !author ||
+      !authorAddress ||
+      !StrKey.isValidEd25519PublicKey(authorAddress)
     ) {
-      throw new Error('Author has not configured a valid receiving wallet')
+      throw new Error('Author has not verified a receiving wallet')
     }
 
     const expectedHighlightId = await generateHighlightIdServer(
@@ -581,7 +602,7 @@ export const create = mutation({
     }
     if (
       args.stellarDestinationAccount !== undefined &&
-      args.stellarDestinationAccount !== author.stellarAddress
+      args.stellarDestinationAccount !== authorAddress
     ) {
       throw new Error('Highlight receipt does not match the article author')
     }
@@ -654,7 +675,7 @@ export const create = mutation({
       amountUsd: amountCents / 100,
       amountCents,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedHighlightId,
       expectedArticleSymbol,
       expectedAmountStroops: paidStroops.toString(),
@@ -691,12 +712,12 @@ export const create = mutation({
       stellarLedger: args.stellarLedger,
       stellarFeeCharged: args.stellarFeeCharged,
       stellarSourceAccount: args.stellarSourceAccount,
-      stellarDestinationAccount: author.stellarAddress,
+      stellarDestinationAccount: authorAddress,
       stellarAmountXlm: stroopsToXlm(paidStroops.toString()),
       contractTipId: args.contractTipId,
       highlightTipIntentId: intentId,
       expectedSourceAccount: args.stellarSourceAccount,
-      expectedDestinationAccount: author.stellarAddress,
+      expectedDestinationAccount: authorAddress,
       expectedHighlightId,
       expectedArticleSymbol,
       expectedAmountStroops: paidStroops.toString(),
@@ -728,83 +749,67 @@ export const create = mutation({
 })
 
 /**
- * Get public aggregate stats for a specific highlight. Raw tipper and Stellar
- * data stays in the authenticated history queries below.
+ * Public aggregate stats for one highlight: paid v1 and v2 tips. Raw tipper
+ * and Stellar data stays in the authenticated history queries below. Reads at
+ * most `AGGREGATE_LIMIT` rows; `complete` is false beyond that.
  */
 export const getByHighlight = query({
   args: {
     highlightId: v.string(),
   },
   handler: async (ctx, args) => {
-    const tips = await ctx.db
+    const rows = await ctx.db
       .query('highlightTips')
       .withIndex('by_highlight', (q) => q.eq('highlightId', args.highlightId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
-      .collect()
-
-    const totalAmountCents = tips.reduce((sum, tip) => sum + tip.amountCents, 0)
+      .take(AGGREGATE_LIMIT + 1)
+    const tips = rows.slice(0, AGGREGATE_LIMIT).filter(countsAsPaid)
+    const totalAmountCents = roundCents(
+      tips.reduce((sum, tip) => sum + tip.amountCents, 0)
+    )
     return {
       tipCount: tips.length,
       totalAmountCents,
       totalAmountUsd: totalAmountCents / 100,
+      byVersion: countByVersion(tips),
+      grossBaseUnits: sumBaseUnitsByToken(tips),
+      complete: rows.length <= AGGREGATE_LIMIT,
     }
   },
 })
 
 /**
- * Get aggregate highlight groups for an article heatmap. Only CONFIRMED tips
- * contribute, and raw tipper or Stellar data is never returned publicly.
+ * Aggregate highlight groups for an article heatmap: paid v1 and v2 tips,
+ * grouped by highlight. Raw tipper or Stellar data is never returned. Reads at
+ * most `AGGREGATE_LIMIT` rows (newest first).
  */
 export const getByArticle = query({
   args: {
     articleId: v.id('articles'),
   },
   handler: async (ctx, args) => {
-    const tips = await ctx.db
+    const rows = await ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
-      .collect()
-
-    const groups = new Map<
-      string,
-      {
-        highlightId: string
-        highlightText: string
-        startOffset: number
-        endOffset: number
-        totalAmountCents: number
-        tipCount: number
-      }
-    >()
-
-    for (const tip of tips) {
-      const group = groups.get(tip.highlightId)
-      if (group) {
-        group.totalAmountCents += tip.amountCents
-        group.tipCount += 1
-      } else {
-        groups.set(tip.highlightId, {
-          highlightId: tip.highlightId,
-          highlightText: tip.highlightText,
-          startOffset: tip.startOffset,
-          endOffset: tip.endOffset,
-          totalAmountCents: tip.amountCents,
-          tipCount: 1,
-        })
-      }
-    }
-
-    return [...groups.values()]
+      .order('desc')
+      .take(AGGREGATE_LIMIT)
+    return groupByHighlight(rows.filter(countsAsPaid)).map((group) => ({
+      highlightId: group.highlightId,
+      highlightText: group.text,
+      startOffset: group.startOffset,
+      endOffset: group.endOffset,
+      totalAmountCents: group.totalAmountCents,
+      tipCount: group.tipCount,
+      grossBaseUnits: group.grossBaseUnits,
+    }))
   },
 })
 
 /**
- * Get highlight tips by tipper (the caller's tipping history). Intentionally
- * returns rows in every status (PENDING / CONFIRMED / FAILED) so the tipper
- * sees in-flight and rejected tips in their own history — do NOT add a
- * `status === 'CONFIRMED'` filter here. Public-facing aggregations (heatmap,
- * author earnings) have their own CONFIRMED-only filters.
+ * The caller's highlight tipping history. Intentionally returns rows in every
+ * status (v1 PENDING / CONFIRMED / FAILED, v2 PREPARED to EXPIRED) so the
+ * tipper sees in-flight and rejected tips — do NOT add a status filter here.
+ * Rows are labelled by `contractVersion`. At most `LIST_LIMIT` rows; use
+ * `listMySent` to page.
  */
 export const getByTipper = query({
   args: {},
@@ -816,44 +821,110 @@ export const getByTipper = query({
       .query('highlightTips')
       .withIndex('by_tipper', (q) => q.eq('tipperId', tipperId))
       .order('desc')
-      .collect()
+      .take(LIST_LIMIT)
     return await Promise.all(
       tips.map(async (tip) => ({
         ...tip,
+        contractVersion: contractVersionOf(tip),
         sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
       }))
     )
   },
 })
 
+/** Paginated highlight tipping history of the caller (every status). */
+export const listMySent = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const tipperId = await getAuthUserId(ctx)
+    if (!tipperId) return { page: [], isDone: true, continueCursor: '' }
+    const result = await ctx.db
+      .query('highlightTips')
+      .withIndex('by_tipper', (q) => q.eq('tipperId', tipperId))
+      .order('desc')
+      .paginate({
+        ...args.paginationOpts,
+        numItems: clampPageSize(args.paginationOpts.numItems),
+      })
+    const page = await Promise.all(
+      result.page.map(async (tip) => ({
+        ...ownTipFields(tip),
+        highlightId: tip.highlightId,
+        highlightText: tip.highlightText,
+        sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
+      }))
+    )
+    return { ...result, page }
+  },
+})
+
 /**
- * Get highlight tips received by author. PENDING/FAILED tips are excluded —
- * mirrors tips.getUserReceivedTips so authors only see verified earnings.
+ * Highlight tips received by the caller: paid v1 and v2 rows whose payment
+ * reached the caller (a v2 `MISMATCH` only when the on-chain author address is
+ * the caller's linked address). Mirrors tips.getUserReceivedTips. At most
+ * `LIST_LIMIT` rows; use `listMyReceived` to page.
  */
 export const getByAuthor = query({
   args: {},
   handler: async (ctx) => {
     const authorId = await getAuthUserId(ctx)
     if (!authorId) return []
+    const user = await ctx.db.get(authorId)
 
-    const tips = await ctx.db
+    const rows = await ctx.db
       .query('highlightTips')
       .withIndex('by_author', (q) => q.eq('authorId', authorId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
       .order('desc')
-      .collect()
+      .take(AGGREGATE_LIMIT)
+    const tips = rows
+      .filter((tip) => paidToExpectedAuthor(tip, verifiedStellarAddress(user)))
+      .slice(0, LIST_LIMIT)
     return await Promise.all(
       tips.map(async (tip) => ({
         ...tip,
+        contractVersion: contractVersionOf(tip),
         sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
       }))
     )
   },
 })
 
+/** Paginated highlight tips received by the caller (paid rows only). */
+export const listMyReceived = query({
+  args: { paginationOpts: paginationOptsValidator },
+  handler: async (ctx, args) => {
+    const authorId = await getAuthUserId(ctx)
+    if (!authorId) return { page: [], isDone: true, continueCursor: '' }
+    const user = await ctx.db.get(authorId)
+    const result = await ctx.db
+      .query('highlightTips')
+      .withIndex('by_author', (q) => q.eq('authorId', authorId))
+      .order('desc')
+      .paginate({
+        ...args.paginationOpts,
+        numItems: clampPageSize(args.paginationOpts.numItems),
+      })
+    const page = await Promise.all(
+      result.page
+        .filter((tip) =>
+          paidToExpectedAuthor(tip, verifiedStellarAddress(user))
+        )
+        .map(async (tip) => ({
+          ...ownTipFields(tip),
+          highlightId: tip.highlightId,
+          highlightText: tip.highlightText,
+          tipper: await enrichWithUser(ctx, tip.tipperId),
+          sourceArticle: await getTipArticleSummary(ctx, tip.articleId),
+        }))
+    )
+    return { ...result, page }
+  },
+})
+
 /**
- * Get aggregate stats for an article's highlight tips. PENDING and FAILED
- * tips are excluded so the numbers match what the heatmap displays.
+ * Aggregate stats for an article's highlight tips: paid v1 and v2 rows, so the
+ * numbers match what the heatmap displays. Reads at most `AGGREGATE_LIMIT`
+ * rows; `complete` is false beyond that.
  */
 export const getArticleStats = query({
   args: {
@@ -861,63 +932,79 @@ export const getArticleStats = query({
     sinceMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    let tipsQuery = ctx.db
+    const rows = await ctx.db
       .query('highlightTips')
       .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter((q) => q.eq(q.field('status'), 'CONFIRMED'))
-
-    if (args.sinceMs !== undefined) {
-      tipsQuery = tipsQuery.filter((q) =>
-        q.gte(q.field('createdAt'), args.sinceMs!)
+      .order('desc')
+      .take(AGGREGATE_LIMIT + 1)
+    const complete = rows.length <= AGGREGATE_LIMIT
+    const tips = rows
+      .slice(0, AGGREGATE_LIMIT)
+      .filter(countsAsPaid)
+      .filter(
+        (tip) => args.sinceMs === undefined || tip.createdAt >= args.sinceMs
       )
-    }
 
-    const tips = await tipsQuery.collect()
-
-    const totalTips = tips.length
-    const totalAmountCents = tips.reduce((sum, tip) => sum + tip.amountCents, 0)
-    const uniqueTippers = new Set(tips.map((tip) => tip.tipperId)).size
-
-    // Group by highlight ID to find most tipped highlights
-    type HighlightGroup = {
-      highlightId: string
-      text: string
-      startOffset: number
-      endOffset: number
-      totalAmountCents: number
-      tipCount: number
-    }
-
-    const highlightGroups = tips.reduce(
-      (acc, tip) => {
-        if (!acc[tip.highlightId]) {
-          acc[tip.highlightId] = {
-            highlightId: tip.highlightId,
-            text: tip.highlightText,
-            startOffset: tip.startOffset,
-            endOffset: tip.endOffset,
-            totalAmountCents: 0,
-            tipCount: 0,
-          }
-        }
-        const group = acc[tip.highlightId]!
-        group.totalAmountCents += tip.amountCents
-        group.tipCount += 1
-        return acc
-      },
-      {} as Record<string, HighlightGroup>
+    const totalAmountCents = roundCents(
+      tips.reduce((sum, tip) => sum + tip.amountCents, 0)
     )
-
-    const topHighlights = Object.values(highlightGroups)
+    const topHighlights = groupByHighlight(tips)
       .sort((a, b) => b.totalAmountCents - a.totalAmountCents)
       .slice(0, 10)
 
     return {
-      totalTips,
+      totalTips: tips.length,
       totalAmountCents,
       totalAmountUsd: totalAmountCents / 100,
-      uniqueTippers,
+      uniqueTippers: new Set(tips.map((tip) => tip.tipperId)).size,
       topHighlights,
+      byVersion: countByVersion(tips),
+      grossBaseUnits: sumBaseUnitsByToken(tips),
+      complete,
     }
   },
 })
+
+type HighlightGroup = {
+  highlightId: string
+  text: string
+  startOffset: number
+  endOffset: number
+  totalAmountCents: number
+  tipCount: number
+  grossBaseUnits: Record<string, string>
+}
+
+function groupByHighlight(tips: Doc<'highlightTips'>[]): HighlightGroup[] {
+  const groups = new Map<
+    string,
+    { group: HighlightGroup; rows: Doc<'highlightTips'>[] }
+  >()
+  for (const tip of tips) {
+    let entry = groups.get(tip.highlightId)
+    if (!entry) {
+      entry = {
+        group: {
+          highlightId: tip.highlightId,
+          text: tip.highlightText,
+          startOffset: tip.startOffset,
+          endOffset: tip.endOffset,
+          totalAmountCents: 0,
+          tipCount: 0,
+          grossBaseUnits: {},
+        },
+        rows: [],
+      }
+      groups.set(tip.highlightId, entry)
+    }
+    entry.group.totalAmountCents = roundCents(
+      entry.group.totalAmountCents + tip.amountCents
+    )
+    entry.group.tipCount += 1
+    entry.rows.push(tip)
+  }
+  return [...groups.values()].map(({ group, rows }) => ({
+    ...group,
+    grossBaseUnits: sumBaseUnitsByToken(rows),
+  }))
+}

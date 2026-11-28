@@ -7,6 +7,7 @@ import {
   clearPracticeRecord,
 } from '@/lib/stellar/practice-storage'
 import { getSafeReturnPath } from '@/lib/auth/safeReturnPath'
+import { bytesToHex } from '@/lib/stellar/bytes'
 import {
   Wallet,
   Check,
@@ -22,22 +23,24 @@ import {
   buildPractice,
   validateSigned,
   checkPractice,
-  makeKit,
-  ensureNetwork,
-  Networks,
   parsePracticeRecord,
   type PracticeRecord,
-  type PracticeKit,
 } from '@/lib/stellar/practice'
+import { wallet as walletAdapter } from '@/lib/stellar/v2/wallet-kit'
+import {
+  isWalletError,
+  walletErrorMessage,
+} from '@/lib/stellar/v2/wallet-errors'
 
-const wallets: [string, string][] = [
-  ['freighter', 'Freighter'],
-  ['xbull', 'xBull'],
-  ['albedo', 'Albedo'],
+// [id, name in the chooser, name on the Connect button]. The former name is
+// given once, where the reader picks the wallet.
+const wallets: [string, string, string][] = [
+  ['varial', 'Varial (formerly Freighter)', 'Varial'],
+  ['xbull', 'xBull', 'xBull'],
+  ['albedo', 'Albedo', 'Albedo'],
 ]
 export default function WalletPractice({ active }: { active: boolean }) {
-  const kit = useRef<PracticeKit | null>(null),
-    lock = useRef(false)
+  const lock = useRef(false)
   const returnUrl = getSafeReturnPath(
     new URLSearchParams(location.search).get('returnTo'),
     '/#try-it'
@@ -45,7 +48,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
   const hasStory =
     /^\/[^/]+\/[^/]+$/.test(returnUrl.split('?')[0] || '') &&
     !returnUrl.startsWith('/wallet/')
-  const [wallet, setWallet] = useState('freighter'),
+  const [wallet, setWallet] = useState('varial'),
     [address, setAddress] = useState(''),
     [busy, setBusy] = useState(''),
     [error, setError] = useState(''),
@@ -77,12 +80,15 @@ export default function WalletPractice({ active }: { active: boolean }) {
         }
       }
       const code = e.response?.data?.extras?.result_codes
+      const walletMessage = isWalletError(caught)
+        ? walletErrorMessage(caught)
+        : null
       setError(
         code
           ? `Transaction failed (${code.operations?.join(', ') || code.transaction}). Check your test balance before trying again.`
-          : (e.message === 'Freighter is not connected'
-              ? 'Freighter is not available in this browser. Open this preview in the Chrome profile where Freighter is installed, unlock the extension, and try again.'
-              : e.message) ||
+          : walletMessage
+            ? `${walletMessage.title}. ${walletMessage.detail}`
+            : e.message ||
               'The wallet request was closed or could not finish. Try again when ready.'
       )
     } finally {
@@ -108,10 +114,8 @@ export default function WalletPractice({ active }: { active: boolean }) {
   }
   async function connect() {
     await run('Connecting…', async () => {
-      kit.current ??= await makeKit()
-      kit.current.setWallet(wallet)
-      const { address: a } = await kit.current.getAddress()
-      await ensureNetwork(kit.current, wallet)
+      // Checks the wallet's network before resolving.
+      const { address: a } = await walletAdapter.connect({ walletId: wallet })
       setAddress(a)
       await loadBalance(a)
     })
@@ -177,9 +181,8 @@ export default function WalletPractice({ active }: { active: boolean }) {
             'Check the existing practice transfer before starting another.'
           )
         }
-        if (!kit.current) throw new Error('Connect your wallet first.')
-        await ensureNetwork(kit.current, wallet)
-        const current = await kit.current.getAddress()
+        const current = walletAdapter.getConnection()
+        if (!current) throw new Error('Connect your wallet first.')
         if (current.address !== address)
           throw new Error(
             'Your wallet account changed. Reconnect to review the correct account.'
@@ -191,14 +194,13 @@ export default function WalletPractice({ active }: { active: boolean }) {
         })
         const account = await server.loadAccount(address),
           tx = buildPractice(account)
-        const { signedTxXdr } = await kit.current.signTransaction(tx.toXDR(), {
-          address,
-          networkPassphrase: Networks.TESTNET,
-          submit: false,
-        })
+        const { signedTxXdr } = await walletAdapter.signTransaction(
+          tx.toXdr(),
+          { address }
+        )
         const signed = validateSigned(signedTxXdr, tx)
         const r: PracticeRecord = {
-          hash: signed.hash().toString('hex'),
+          hash: bytesToHex(signed.hash()),
           status: 'unknown',
           expires: Number(tx.timeBounds!.maxTime) * 1000,
           address,
@@ -258,7 +260,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
         <p>
           {confirmed
             ? 'Now you know what happens between approving a transfer and receiving a confirmation.'
-            : 'Send 1 test XLM to QuillTip’s demo wallet. Practice only — this doesn’t tip an article.'}
+            : 'Send 1 test XLM to Quilltip’s demo wallet. Practice only — this doesn’t tip an article.'}
         </p>
         <div
           className={`practice-vignette ${confirmed ? 'is-delivered' : ''} ${busy ? 'is-working' : ''}`}
@@ -348,7 +350,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
             )}
             <p>
               {record.status === 'confirmed'
-                ? 'Delivered to QuillTip’s demo receiver. Your wallet did the signing; Stellar confirmed the transfer.'
+                ? 'Delivered to Quilltip’s demo receiver. Your wallet did the signing; Stellar confirmed the transfer.'
                 : record.status === 'failed'
                   ? 'The payment did not succeed. A network fee may still apply.'
                   : record.status === 'expired'
@@ -426,7 +428,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
                   disabled={Boolean(busy)}
                   onClick={connect}
                 >
-                  Connect {wallets.find((w) => w[0] === wallet)?.[1]}{' '}
+                  Connect {wallets.find((w) => w[0] === wallet)?.[2]}{' '}
                   <ArrowUpRight size={19} />
                 </button>
               </>
@@ -471,7 +473,7 @@ export default function WalletPractice({ active }: { active: boolean }) {
                   </div>
                 </dl>
                 <p className="practice-address">
-                  To QuillTip’s demo receiver<code>{RECIPIENT}</code>
+                  To Quilltip’s demo receiver<code>{RECIPIENT}</code>
                 </p>
                 <button
                   className="button primary"

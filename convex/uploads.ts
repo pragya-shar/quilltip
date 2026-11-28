@@ -1,4 +1,8 @@
-import { v } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
+import {
+  PUBLISHED_ARTICLE_LOCKED_MESSAGE,
+  isArticleLocked,
+} from '../lib/articles/publishedLock'
 import { mutation, query, type MutationCtx } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 
@@ -241,6 +245,9 @@ export const updateArticleCoverImage = mutation({
     const article = await ctx.db.get(args.articleId)
     if (!article) throw new Error('Article not found')
     if (article.authorId !== userId) throw new Error('Not authorized')
+    if (isArticleLocked(article)) {
+      throw new ConvexError(PUBLISHED_ARTICLE_LOCKED_MESSAGE)
+    }
 
     const image = await requireOwnedImage(ctx, args.storageId, userId)
 

@@ -1,21 +1,18 @@
-# NFT presentation fixtures
+# Profile NFT collection fixtures
 
-These fixtures bundle the production NFT components and Radix primitives with
-isolated wallet/Convex collaborators. They never upload metadata, sign a real
-transaction, or write to a backend. They test presentation and client interaction;
-they do not establish contract or backend correctness.
+These fixtures bundle the production profile NFT components with stand-ins for
+the paginated Convex queries. They never write to a backend. The article NFT
+section has its own fixture in `e2e/fixtures/nft-v2`.
 
 ```bash
 bun e2e/fixtures/nft/server.mjs
 NFT_FIXTURES=1 bunx playwright test e2e/nft-presentation.spec.ts
 ```
 
-Open `http://127.0.0.1:4174` for manual QA. `state` selects `owner`, `visitor`,
-`unminted-visitor`, `eligible`, `ineligible`, or `loading`. `mode` selects `success` (default),
-`disconnected`, `preparing`, `signing`, `confirming`, `busy` (pending transfer),
-or `failure`. Pending modes intentionally remain pending until navigation.
-The app server is independent; the fixtures never ship as a Next.js route.
+Open `http://127.0.0.1:4174` for manual QA. The app server is independent; the
+fixtures never ship as a Next.js route.
 
+`state=profile` renders the profile pagination and collection header.
 `state=profile-pagination` renders the production profile NFT tab with controlled
 query results. Use `total` (default `9`), `nftOwnedPage`, and `nftMintedPage` to
 exercise saved URLs, or the shrink button to reduce both collections to 9 items.

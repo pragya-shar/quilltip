@@ -3,6 +3,7 @@ import { convexTest } from 'convex-test'
 import { expect, test } from 'vitest'
 import schema from '../../convex/schema'
 import { api } from '../../convex/_generated/api'
+import type { Id } from '../../convex/_generated/dataModel'
 import {
   APP_ROUTE_SEGMENTS,
   publicContentPath,
@@ -55,6 +56,7 @@ test.each([
 
 test('resolvePublicRoute matches what the pages can show', async () => {
   const t = convexTest(schema, modules)
+  let live: Id<'articles'> | undefined
   await t.run(async (ctx) => {
     const writer = await ctx.db.insert('users', {
       email: 'writer@example.test',
@@ -76,7 +78,7 @@ test('resolvePublicRoute matches what the pages can show', async () => {
       createdAt: 1,
       updatedAt: 1,
     }
-    await ctx.db.insert('articles', {
+    live = await ctx.db.insert('articles', {
       ...base,
       title: 'Live',
       slug: 'live',
@@ -93,7 +95,12 @@ test('resolvePublicRoute matches what the pages can show', async () => {
     t.query(api.publicRoutes.resolvePublicRoute, { username, slug })
 
   expect(await resolve('Writer')).toEqual({ kind: 'found' })
-  expect(await resolve('Writer', 'live')).toEqual({ kind: 'found' })
+  // A found article names its stored copy, so the page can tell whether its
+  // cached copy is current.
+  expect(await resolve('Writer', 'live')).toEqual({
+    kind: 'found',
+    version: `${live}:1`,
+  })
   expect(await resolve('Writer', 'draft')).toEqual({ kind: 'missing' })
   expect(await resolve('nobody')).toEqual({ kind: 'missing' })
   // Different letter case and earlier handles redirect to the current one.
@@ -117,4 +124,60 @@ test.each([
   ['/', null],
 ])('writerPathUsername(%s)', (path, expected) => {
   expect(writerPathUsername(path)).toBe(expected)
+})
+
+test('an article version changes with every write and with its id', async () => {
+  const t = convexTest(schema, modules)
+  const { writer, first } = await t.run(async (ctx) => {
+    const writer = await ctx.db.insert('users', {
+      email: 'writer@example.test',
+      username: 'Writer',
+      usernameLower: 'writer',
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const first = await ctx.db.insert('articles', {
+      content: {},
+      authorId: writer,
+      authorUsername: 'Writer',
+      createdAt: 1,
+      updatedAt: 1,
+      title: 'Live',
+      slug: 'live',
+      published: true,
+    })
+    return { writer, first }
+  })
+  const version = async () => {
+    const route = await t.query(api.publicRoutes.resolvePublicRoute, {
+      username: 'Writer',
+      slug: 'live',
+    })
+    return route.kind === 'found' ? route.version : route.kind
+  }
+  const before = await version()
+  await t.run((ctx) => ctx.db.patch(first, { updatedAt: 2 }))
+  const edited = await version()
+  expect(edited).not.toEqual(before)
+  // Hidden: missing. Published again: found, under a new version.
+  await t.run((ctx) => ctx.db.patch(first, { published: false, updatedAt: 3 }))
+  expect(await version()).toBe('missing')
+  await t.run((ctx) => ctx.db.patch(first, { published: true, updatedAt: 4 }))
+  const republished = await version()
+  expect([before, edited]).not.toContain(republished)
+  // Deleted, and another article takes the slug with the same time stamp.
+  await t.run(async (ctx) => {
+    await ctx.db.delete(first)
+    await ctx.db.insert('articles', {
+      content: {},
+      authorId: writer,
+      authorUsername: 'Writer',
+      createdAt: 4,
+      updatedAt: 4,
+      title: 'Another',
+      slug: 'live',
+      published: true,
+    })
+  })
+  expect(await version()).not.toEqual(republished)
 })

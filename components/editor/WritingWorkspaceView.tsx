@@ -4,6 +4,7 @@
 /* User-selected cover URLs are displayed directly in article settings. */
 /* eslint-disable @next/next/no-img-element */
 import { useState, useRef, useEffect } from 'react'
+import { SignedInAccountMenu } from '@/components/layout/SignedInAccountMenu'
 import { EditorContent } from '@tiptap/react'
 import { ArticleReadOnlyBody } from '@/components/articles/ArticleReadOnlyBody'
 import { ArticleReaderHeader } from '@/components/articles/ArticleReaderHeader'
@@ -29,12 +30,17 @@ import { WritingToolbar } from './WritingToolbar'
 import { WritingDesk } from './WritingDesk'
 import { WritingMedia } from './WritingMedia'
 import { WritingWallet } from './WritingWallet'
+import { PublishedArticleLocked } from './PublishedArticleLocked'
+import type { Id } from '@/convex/_generated/dataModel'
+import { ArticleTipsPanel } from './ArticleTipsPanel'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
 import {
   countWords,
   estimateArticleReadingMinutes,
   estimateReadingMinutesFromWordCount,
 } from '@/lib/reading-time'
+import { shownCoverImage } from '@/lib/tiptap/articleImage'
+import { publishFeedbackPlace } from '@/lib/editor/publish-feedback'
 
 export function WritingWorkspaceView({
   workspace: w,
@@ -49,6 +55,11 @@ export function WritingWorkspaceView({
   const [link, setLink] = useState('')
   const [linkError, setLinkError] = useState('')
   const [leaving, setLeaving] = useState(false)
+  // A publish message shows in one place at a time, so it is read once.
+  const feedbackPlace = publishFeedbackPlace({
+    confirmOpen: w.publishConfirmOpen,
+    drawerOpen: panel === 'publish' && !w.publishSuccessVisible,
+  })
   const insertTrigger = useRef<HTMLButtonElement>(null)
   const formatTrigger = useRef<HTMLButtonElement>(null)
   const formatTools = useRef<HTMLDivElement>(null)
@@ -113,7 +124,7 @@ export function WritingWorkspaceView({
   }
   function download() {
     const doc = document.implementation.createHTMLDocument(
-      w.title || 'QuillTip draft'
+      w.title || 'Quilltip draft'
     )
     const charset = doc.createElement('meta')
     charset.setAttribute('charset', 'utf-8')
@@ -125,7 +136,7 @@ export function WritingWorkspaceView({
     const article = doc.createElement('article')
     article.innerHTML = w.editor?.getHTML() || ''
     doc.body.append(title, subtitle, article)
-    if (w.coverImage) {
+    if (shownCoverImage(w.coverImage)) {
       const cover = doc.createElement('img')
       cover.src = w.coverImage
       cover.alt = style.coverAlt
@@ -147,7 +158,7 @@ export function WritingWorkspaceView({
     )
     const a = document.createElement('a')
     a.href = url
-    a.download = `${(w.title || 'QuillTip draft').replace(/[^\p{L}\p{N} -]/gu, '').slice(0, 80)}.html`
+    a.download = `${(w.title || 'Quilltip draft').replace(/[^\p{L}\p{N} -]/gu, '').slice(0, 80)}.html`
     a.click()
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
@@ -264,6 +275,19 @@ export function WritingWorkspaceView({
     w.publishUsername && w.publishSlug
       ? `/${w.publishUsername}/${w.publishSlug}`
       : undefined
+  if (w.articleLocked && !w.publishSuccessVisible)
+    return (
+      <PublishedArticleLocked
+        className={articleAppearanceClasses(style)}
+        title={w.title}
+        excerpt={w.excerpt}
+        topic={w.articleTags[0]}
+        authorName={w.currentUser?.name || w.currentUser?.username}
+        content={w.editorContent}
+        articleHref={publicationHref}
+        articleId={w.articleId as Id<'articles'> | undefined}
+      />
+    )
   return (
     <div
       className={`writing-workspace ${articleAppearanceClasses(style)} ${focus ? 'focus-mode' : ''}`}
@@ -301,6 +325,7 @@ export function WritingWorkspaceView({
           >
             Preview <span aria-hidden="true">↗</span>
           </button>
+          <SignedInAccountMenu triggerClassName="editor-account-trigger" />
         </div>
       </header>
       <nav className="editor-destinations" aria-label="Main navigation">
@@ -371,7 +396,7 @@ export function WritingWorkspaceView({
           {w.bodyUploadAnnouncement.text}
         </div>
       )}
-      {w.publishFeedback && (
+      {w.publishFeedback && feedbackPlace === 'notice' && (
         <div className="writer-notice" role="alert">
           <strong>{w.publishFeedback.title}</strong>
           <p>{w.publishFeedback.detail}</p>
@@ -459,7 +484,7 @@ export function WritingWorkspaceView({
             </span>
             <span>
               {w.publishStatus.published
-                ? 'Changes save to your live article'
+                ? 'Published · can’t be changed'
                 : 'Only you can see this draft'}
             </span>
           </footer>
@@ -622,7 +647,7 @@ export function WritingWorkspaceView({
             </article>
             <p className="preview-note">
               {w.publishStatus.published
-                ? 'Preview of your published article. Changes save to the live article.'
+                ? 'Preview of your published article. It can’t be changed.'
                 : 'Preview only. Nothing has been published.'}
             </p>
           </EditorialSurface>
@@ -722,10 +747,7 @@ export function WritingWorkspaceView({
           id="publish-form"
           onSubmit={(e) => {
             e.preventDefault()
-            if (w.publishStatus.published) {
-              void w.saveNow()
-              return
-            }
+            if (w.publishStatus.published) return
             if (
               !w.tags
                 .split(',')
@@ -796,7 +818,16 @@ export function WritingWorkspaceView({
             }}
           />
           <div id="cover-preview">
-            {w.coverImage && <img src={w.coverImage} alt={style.coverAlt} />}
+            {shownCoverImage(w.coverImage) ? (
+              <img src={w.coverImage} alt={style.coverAlt} />
+            ) : (
+              w.coverImage && (
+                <p className="writing-image-hidden">
+                  This cover is not shown. Covers must be uploaded or come from
+                  an allowed host.
+                </p>
+              )
+            )}
           </div>
           <button
             type="button"
@@ -840,7 +871,7 @@ export function WritingWorkspaceView({
             <WritingWallet onSaved={w.setReceivingWalletAddress} />
           )}
           {w.titleError && <p role="alert">{w.titleError}</p>}
-          {w.publishFeedback && (
+          {w.publishFeedback && feedbackPlace === 'drawer' && (
             <p role="alert">
               {w.publishFeedback.title} {w.publishFeedback.detail}
             </p>
@@ -849,10 +880,11 @@ export function WritingWorkspaceView({
             className="wine wide"
             disabled={
               w.isSaving ||
-              (!w.publishStatus.published && !w.receivingWalletAddress)
+              w.publishStatus.published ||
+              !w.receivingWalletAddress
             }
           >
-            {w.publishStatus.published ? 'Save changes' : 'Review publication'}
+            {w.publishStatus.published ? 'Published' : 'Review publication'}
           </button>
         </form>
       </WritingDialog>
@@ -865,18 +897,28 @@ export function WritingWorkspaceView({
       >
         <h3>{w.title}</h3>
         <p>{w.excerpt}</p>
-        <p className="muted">
-          Publishing stores your content on Arweave (permanent storage). You
-          cannot undo this or remove that snapshot from Arweave.
+        <p id="publish-storage-note" className="muted" aria-live="polite">
+          {w.permanentStorageEnabled === undefined
+            ? 'Checking whether this article will be stored permanently.'
+            : w.permanentStorageEnabled
+              ? 'This article will be stored permanently on Arweave, where it can’t be changed or removed.'
+              : 'This article won’t be stored permanently. Permanent storage is off on this site.'}{' '}
+          {w.permanentStorageEnabled !== undefined &&
+            'You can’t edit the article after you publish it.'}
         </p>
-        {w.publishFeedback && (
+        {w.publishFeedback && feedbackPlace === 'confirm' && (
           <p role="alert">
             {w.publishFeedback.title} {w.publishFeedback.detail}
           </p>
         )}
         <button
           className="wine wide"
-          disabled={w.isPublishing || !w.receivingWalletAddress}
+          disabled={
+            w.isPublishing ||
+            !w.receivingWalletAddress ||
+            w.permanentStorageEnabled === undefined
+          }
+          aria-describedby="publish-storage-note"
           onClick={() => void w.handlePublish()}
         >
           {w.isPublishing ? 'Publishing…' : 'Publish article'}
@@ -905,6 +947,12 @@ export function WritingWorkspaceView({
           </a>
         ) : (
           <p role="status">Preparing your article link…</p>
+        )}
+        {w.articleId && (
+          <ArticleTipsPanel
+            articleId={w.articleId as Id<'articles'>}
+            variant="dialog"
+          />
         )}
         <button
           className="wide"

@@ -66,7 +66,7 @@ for (const theme of ['light', 'dark']) {
       )
       for (const path of [
         'app/shared-ui.css',
-        'app/highlights.css',
+        'components/highlights/highlights.css',
         'components/articles/reader.css',
       ]) {
         await page.addStyleTag({ content: await readFile(path, 'utf8') })

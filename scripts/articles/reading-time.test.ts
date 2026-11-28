@@ -56,7 +56,7 @@ test.each([undefined, 1, 99])(
   }
 )
 
-test('saved edits keep initial publication and live Reading Room estimates current across a minute boundary', async () => {
+test('saved draft edits set the reading estimate published to the Reading Room, and published articles stay fixed', async () => {
   const t = convexTest(schema, modules)
   const authorId = await t.run((ctx) =>
     ctx.db.insert('users', {
@@ -64,6 +64,9 @@ test('saved edits keep initial publication and live Reading Room estimates curre
       username: 'reading-time-writer',
       name: 'Reading Time Writer',
       stellarAddress: 'G' + 'A'.repeat(55),
+      // The writer proved control of this address on testnet.
+      stellarAddressVerifiedAt: 1,
+      stellarAddressVerifiedNetwork: 'Test SDF Network ; September 2015',
       createdAt: 1,
       updatedAt: 1,
     })
@@ -85,17 +88,19 @@ test('saved edits keep initial publication and live Reading Room estimates curre
   expect(
     (await t.query(api.articles.listArticles, {})).articles[0]?.readTime
   ).toBe(2)
-  await author.mutation(api.articles.saveDraft, {
-    id,
-    title,
-    content: body(401),
-  })
+  await expect(
+    author.mutation(api.articles.saveDraft, {
+      id,
+      title,
+      content: body(401),
+    })
+  ).rejects.toThrow()
   expect(
     (await author.query(api.articles.getArticleById, { id }))?.readTime
-  ).toBe(3)
+  ).toBe(2)
   expect(
     (await t.query(api.articles.listArticles, {})).articles[0]?.readTime
-  ).toBe(3)
+  ).toBe(2)
 })
 
 test('formatted fragments, rich blocks and hard breaks match editor word boundaries', async () => {

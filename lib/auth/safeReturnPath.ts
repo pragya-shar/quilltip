@@ -48,6 +48,34 @@ export function getSafeReturnPath(
   return trimmed
 }
 
+/**
+ * Reads the post-auth return path from `redirect`, then `returnTo`, then
+ * `next`; the first safe value wins.
+ */
+export function resolveAuthReturnPath(params: {
+  get(name: string): string | null
+}): string {
+  return getSafeReturnPath(
+    params.get('redirect'),
+    getSafeReturnPath(
+      params.get('returnTo'),
+      getSafeReturnPath(params.get('next'))
+    )
+  )
+}
+
+/** Adapts Next.js page `searchParams` to the `get` shape used above. */
+export function searchParamsRecordReader(
+  record: Record<string, string | string[] | undefined>
+): { get(name: string): string | null } {
+  return {
+    get(name) {
+      const value = record[name]
+      return (Array.isArray(value) ? value[0] : value) ?? null
+    },
+  }
+}
+
 export function getCurrentReturnPath(
   pathname: string,
   searchParams: URLSearchParams | { toString(): string }

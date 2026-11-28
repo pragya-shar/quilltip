@@ -56,7 +56,7 @@ export function WritingDesk({
   }
   return (
     <>
-      <p className="muted">Saved to your QuillTip account.</p>
+      <p className="muted">Saved to your Quilltip account.</p>
       <button className="wine wide" onClick={onNew}>
         ＋ New draft
       </button>
@@ -108,7 +108,9 @@ export function WritingDesk({
           ))
       )}
       <h3 className="writing-group">Published</h3>
-      <p className="muted">Published articles cannot be deleted.</p>
+      <p className="muted">
+        Published articles can&rsquo;t be changed or deleted.
+      </p>
       {!publications ? (
         <p className="empty-writing" role="status">
           Loading publications…
@@ -131,9 +133,9 @@ export function WritingDesk({
               })}
             </small>
             <div className="publication-actions">
-              <a href={`/write?id=${encodeURIComponent(article._id)}`}>Edit</a>
               <a
                 href={`/${article.authorUsername ?? username}/${article.slug}`}
+                aria-label={`View article: ${article.title}`}
               >
                 View article ↗
               </a>

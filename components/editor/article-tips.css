@@ -1,0 +1,408 @@
+/* Tips on Stellar for one article, inside the writing workspace. */
+.writing-workspace .article-tips {
+  --tips-muted: #71565c;
+  --tips-line: #66003326;
+  --tips-error: #9b1c1c;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: var(--ink);
+  font-size: 15px;
+  line-height: 1.5;
+}
+.writing-workspace .article-tips--page {
+  max-width: 720px;
+  margin: 0 auto 32px;
+  padding: 20px 24px;
+  border: 1px solid var(--tips-line);
+  border-radius: 6px;
+}
+.writing-workspace .article-tips--dialog {
+  margin-top: 20px;
+  padding-top: 18px;
+  border-top: 1px solid var(--tips-line);
+}
+.writing-workspace .article-tips h2 {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin: 0;
+  font: 600 18px/1.35 var(--title-font);
+}
+.writing-workspace .article-tips .tips-network {
+  font:
+    500 11px/1.4 'Writing Syne',
+    'Syne 600 Fallback',
+    sans-serif;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tips-muted);
+}
+.writing-workspace .article-tips p {
+  margin: 0;
+  max-width: 62ch;
+  text-wrap: pretty;
+}
+.writing-workspace .article-tips .tips-muted {
+  color: var(--tips-muted);
+  font-size: 14px;
+}
+.writing-workspace .article-tips .tips-note {
+  padding: 10px 12px;
+  border-left: 2px solid var(--wine);
+  background: #6600330a;
+  font-size: 14px;
+}
+.writing-workspace .article-tips [translate='no'],
+.writing-workspace .article-tips .tips-split-address {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  /* A shortened address reads as one unit. */
+  white-space: nowrap;
+}
+
+/* Buttons and links */
+.writing-workspace .article-tips .tips-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.writing-workspace .article-tips .tips-primary {
+  background: var(--wine);
+  color: #fff3e2;
+  font-weight: 600;
+  padding: 10px 18px;
+  align-self: flex-start;
+}
+.writing-workspace .article-tips .tips-primary:hover {
+  background: #80134b;
+  box-shadow: 0 4px 15px #66003322;
+}
+.writing-workspace .article-tips .tips-secondary {
+  border: 1px solid #66003355;
+  color: var(--wine);
+  font-weight: 600;
+  align-self: flex-start;
+}
+.writing-workspace .article-tips .tips-text-button {
+  min-height: 44px;
+  padding: 9px 4px;
+  color: var(--wine);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.writing-workspace .article-tips .tips-text-button:hover {
+  background: transparent;
+  text-decoration-thickness: 2px;
+}
+.writing-workspace .article-tips button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+.writing-workspace .article-tips button:disabled {
+  cursor: not-allowed;
+  background: #6600330f;
+  color: #8a6f75;
+  box-shadow: none;
+}
+.writing-workspace .article-tips .tips-link {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 44px;
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+
+/* Progress */
+.writing-workspace .article-tips .tips-progress {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+}
+.writing-workspace .article-tips .tips-spinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #66003333;
+  border-top-color: var(--wine);
+  border-radius: 50%;
+  animation: tips-spin 0.8s linear infinite;
+}
+@keyframes tips-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .writing-workspace .article-tips .tips-spinner {
+    animation: none;
+    border-color: var(--wine);
+    border-right-color: transparent;
+  }
+  .writing-workspace .article-tips button:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+/* Registered */
+.writing-workspace .article-tips .tips-on {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+}
+.writing-workspace .article-tips svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.writing-workspace .article-tips .tips-on svg {
+  stroke: var(--wine);
+}
+.writing-workspace .article-tips .tips-paused svg {
+  stroke: var(--tips-muted);
+}
+.writing-workspace .article-tips .tips-facts {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+}
+.writing-workspace .article-tips .tips-facts > div {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 12px;
+}
+.writing-workspace .article-tips .tips-facts dt {
+  color: var(--tips-muted);
+  font-size: 14px;
+}
+.writing-workspace .article-tips .tips-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.writing-workspace .article-tips .tips-update,
+.writing-workspace .article-tips .tips-move {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--tips-line);
+}
+.writing-workspace .article-tips .tips-move-title {
+  font-weight: 600;
+}
+.writing-workspace .article-tips .tips-steps {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 22px;
+  list-style: decimal;
+}
+.writing-workspace .article-tips .tips-steps li[aria-current='step'] {
+  font-weight: 600;
+}
+.writing-workspace .article-tips .tips-step-done {
+  color: var(--tips-muted);
+  font-weight: 400;
+}
+
+/* Form */
+.writing-workspace .article-tips .tips-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.writing-workspace .article-tips .tips-toggle {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 10px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.writing-workspace .article-tips .tips-toggle input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--wine);
+}
+.writing-workspace .article-tips .tips-splits {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.writing-workspace .article-tips .tips-splits legend {
+  padding: 0;
+  margin-bottom: 8px;
+  color: var(--tips-muted);
+  font-size: 14px;
+}
+.writing-workspace .article-tips .tips-splits ul {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.writing-workspace .article-tips .tips-split-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px 12px;
+}
+.writing-workspace .article-tips .tips-split-who {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+.writing-workspace .article-tips .tips-split-label {
+  font-size: 13px;
+  color: var(--tips-muted);
+}
+.writing-workspace .article-tips .tips-split-address {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.writing-workspace .article-tips .tips-split-share {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.writing-workspace .article-tips input[type='text'] {
+  min-height: 44px;
+  padding: 8px 10px;
+  /* 3:1 against the panel and the input fill (WCAG 1.4.11). */
+  border: 1px solid #66003380;
+  border-radius: 6px;
+  background: #fffaf2;
+  color: var(--ink);
+  /* 16px stops iOS from zooming on focus. */
+  font-size: 16px;
+}
+@media (hover: hover) and (pointer: fine) {
+  .writing-workspace .article-tips input[type='text']:hover {
+    border-color: #660033b3;
+  }
+}
+.writing-workspace .article-tips .tips-split-who input {
+  width: 100%;
+  min-width: 0;
+  font-variant-numeric: tabular-nums;
+}
+.writing-workspace .article-tips .tips-split-share input {
+  width: 72px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.writing-workspace .article-tips input[aria-invalid='true'] {
+  border-color: var(--tips-error);
+  box-shadow: inset 0 0 0 1px var(--tips-error);
+}
+.writing-workspace .article-tips .tips-split-remove {
+  width: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  color: var(--tips-muted);
+}
+.writing-workspace .article-tips .tips-split-spacer {
+  flex: none;
+  width: 44px;
+}
+.writing-workspace .article-tips .tips-split-remove svg {
+  width: 18px;
+  height: 18px;
+}
+.writing-workspace .article-tips .tips-split-share > span {
+  color: var(--tips-muted);
+}
+.writing-workspace .article-tips .tips-field-error {
+  grid-column: 1 / -1;
+  color: var(--tips-error);
+  font-size: 14px;
+}
+.writing-workspace .article-tips .tips-field-error::before {
+  /* Decorative: screen readers skip it. */
+  content: '! ' / '';
+  font-weight: 700;
+}
+.writing-workspace .article-tips .tips-split-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+.writing-workspace .article-tips .tips-split-total {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+.writing-workspace .article-tips .tips-split-total.is-error {
+  color: var(--tips-error);
+}
+
+/* Failure */
+.writing-workspace .article-tips .tips-failure {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid #9b1c1c40;
+  border-radius: 6px;
+  background: #9b1c1c0a;
+}
+.writing-workspace .article-tips .tips-failure > svg {
+  margin-top: 2px;
+  stroke: var(--tips-error);
+}
+.writing-workspace .article-tips .tips-failure > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+/* Error details can hold hashes or addresses with no break points. */
+.writing-workspace .article-tips .tips-failure p {
+  overflow-wrap: anywhere;
+}
+.writing-workspace .article-tips .tips-failure:focus {
+  outline: 2px solid var(--tips-error);
+  outline-offset: 2px;
+}
+.writing-workspace .article-tips h2:focus {
+  outline: none;
+}
+.writing-workspace .article-tips .tips-split-full {
+  color: var(--tips-muted);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.writing-workspace .article-tips .tips-failure-title {
+  font-weight: 600;
+  color: var(--tips-error);
+}
+
+@media (max-width: 640px) {
+  .writing-workspace .article-tips--page {
+    padding: 16px;
+  }
+  .writing-workspace .article-tips .tips-split-row {
+    grid-template-columns: 1fr;
+  }
+  .writing-workspace .article-tips .tips-primary {
+    align-self: stretch;
+  }
+}

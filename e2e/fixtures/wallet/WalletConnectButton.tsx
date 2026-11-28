@@ -1,0 +1,249 @@
+'use client'
+
+/**
+ * The wallet fixture's connect, wallet-menu and Disconnect control: the entry
+ * point the wallet suites drive (wallet-connect, -coverage, -states,
+ * -verification, -restore). No app page renders it; readers connect from
+ * the wallet page, the tab page and the payment dialogs. It lives here as
+ * test harness and still uses the app's wallet provider, picker and copy.
+ */
+
+import { useId, useRef, useState } from 'react'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { useWallet } from '@/components/providers/WalletProvider'
+import { useWalletActivation } from '@/components/providers/WalletActivationContext'
+import {
+  Wallet,
+  Loader2,
+  AlertCircle,
+  CheckCircle,
+  Copy,
+  ExternalLink,
+  Power,
+  ChevronDown,
+} from 'lucide-react'
+import { toast } from 'sonner'
+import { cn } from '@/lib/utils'
+import { networkLabelLowercase } from '@/lib/copy/network-status'
+import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
+import { describeConnectFailure } from '@/lib/stellar/v2/wallet-errors'
+
+interface WalletConnectButtonProps {
+  className?: string
+  size?: 'sm' | 'default' | 'lg'
+  variant?: 'default' | 'outline' | 'secondary' | 'ghost'
+}
+
+export function WalletConnectButton({
+  className,
+  size = 'default',
+  variant = 'default',
+}: WalletConnectButtonProps) {
+  const {
+    isConnected,
+    isLoading,
+    isRestoring,
+    lastUsed,
+    publicKey,
+    network,
+    error,
+    selectedWallet,
+    connect,
+    disconnect,
+  } = useWallet({ activateOnMount: true })
+  const { activateWallet } = useWalletActivation()
+  const [isConnecting, setIsConnecting] = useState(false)
+  const [installDialogOpen, setInstallDialogOpen] = useState(false)
+  const connectButtonRef = useRef<HTMLButtonElement>(null)
+  const lastUsedId = useId()
+
+  const handleConnect = async () => {
+    if (isConnecting) return
+    activateWallet()
+    setIsConnecting(true)
+    try {
+      await connect()
+    } catch (error) {
+      const failure = describeConnectFailure(error)
+      if (failure.action === 'install') {
+        setInstallDialogOpen(true)
+        return
+      }
+      if (failure.action === 'ignore') return
+      const { title, detail } = failure.message
+
+      toast.error(title, { description: detail })
+    } finally {
+      setIsConnecting(false)
+    }
+  }
+
+  const formatAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-6)}`
+  }
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      toast.success('Wallet address copied to clipboard')
+    } catch {
+      toast.error('Failed to copy address')
+    }
+  }
+
+  // A wallet that cannot report its network signs for Quilltip's, so show
+  // that one.
+  const shownNetwork = network ? network.toLowerCase() : networkLabelLowercase()
+  const openInExplorer = (address: string) => {
+    const explorerUrl =
+      shownNetwork === 'testnet'
+        ? `https://stellar.expert/explorer/testnet/account/${address}`
+        : `https://stellar.expert/explorer/public/account/${address}`
+    window.open(explorerUrl, '_blank')
+  }
+
+  const handleDisconnect = () => {
+    disconnect()
+    toast.success('Wallet disconnected')
+  }
+
+  // Show loading state
+  if (isLoading || isRestoring) {
+    return (
+      <Button
+        disabled
+        size={size}
+        variant={variant}
+        className={className}
+        aria-busy
+        aria-label={isRestoring ? 'Checking your wallet' : 'Wallet loading'}
+      >
+        <Loader2 className="w-4 h-4 motion-safe:animate-spin" />
+      </Button>
+    )
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <>
+        <Button
+          ref={connectButtonRef}
+          onClick={handleConnect}
+          size={size}
+          variant="outline"
+          className={cn('text-destructive border-destructive/50', className)}
+        >
+          <AlertCircle className="w-4 h-4 mr-2" />
+          Wallet Error
+        </Button>
+        <InstallWalletDialog
+          open={installDialogOpen}
+          onOpenChange={setInstallDialogOpen}
+          returnFocusRef={connectButtonRef}
+        />
+      </>
+    )
+  }
+
+  // Show connected state
+  if (isConnected && publicKey) {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size={size}
+            variant="outline"
+            className={cn('gap-2', className)}
+            aria-label="Open wallet menu"
+          >
+            <CheckCircle className="w-4 h-4 text-success-foreground" />
+            <div className="flex flex-col items-start">
+              <span className="text-sm font-medium">
+                {formatAddress(publicKey)}
+              </span>
+              <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                {selectedWallet && <span>{selectedWallet.name}</span>}
+                {selectedWallet && <span>•</span>}
+                <span className="capitalize">{shownNetwork}</span>
+              </div>
+            </div>
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-72">
+          <DropdownMenuLabel className="font-normal">
+            <span className="text-xs text-muted-foreground">Address</span>
+            <p className="mt-1 font-mono text-xs break-all">{publicKey}</p>
+          </DropdownMenuLabel>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onSelect={() => void copyToClipboard(publicKey)}>
+            <Copy className="w-4 h-4" />
+            Copy address
+          </DropdownMenuItem>
+          <DropdownMenuItem onSelect={() => openInExplorer(publicKey)}>
+            <ExternalLink className="w-4 h-4" />
+            View on explorer
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onSelect={handleDisconnect}
+            className="text-destructive focus:text-destructive"
+          >
+            <Power className="w-4 h-4" />
+            Disconnect
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    )
+  }
+
+  // Show connect button
+  return (
+    <>
+      <Button
+        ref={connectButtonRef}
+        onClick={handleConnect}
+        aria-disabled={isConnecting || undefined}
+        aria-describedby={lastUsed ? lastUsedId : undefined}
+        size={size}
+        variant={variant}
+        className={className}
+      >
+        {isConnecting ? (
+          <>
+            <Loader2 className="w-4 h-4 motion-safe:animate-spin mr-2" />
+            Connecting...
+          </>
+        ) : (
+          <>
+            <Wallet className="w-4 h-4 mr-2" />
+            Connect Wallet
+          </>
+        )}
+      </Button>
+      {lastUsed && (
+        <p id={lastUsedId} className="mt-1 text-xs text-muted-foreground">
+          Last used: {lastUsed.walletName},{' '}
+          <span className="tabular-nums">
+            {formatAddress(lastUsed.address)}
+          </span>
+        </p>
+      )}
+
+      <InstallWalletDialog
+        returnFocusRef={connectButtonRef}
+        open={installDialogOpen}
+        onOpenChange={setInstallDialogOpen}
+      />
+    </>
+  )
+}

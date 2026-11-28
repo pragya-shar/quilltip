@@ -2,6 +2,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { getTitleMonogram } from '@/lib/articles/articleListingMeta'
 import { cn } from '@/lib/utils'
+import { shownCoverImage } from '@/lib/tiptap/articleImage'
 
 type ArticleListingThumbnailProps = {
   title: string
@@ -14,13 +15,15 @@ type ArticleListingThumbnailProps = {
 
 export function ArticleListingThumbnail({
   title,
-  coverImage,
+  coverImage: storedCover,
   href,
   variant,
   priority,
   onNavigate,
 }: ArticleListingThumbnailProps) {
   const monogram = getTitleMonogram(title)
+  // A cover from another host counts as none (#615).
+  const coverImage = shownCoverImage(storedCover)
 
   if (variant === 'feed') {
     return (

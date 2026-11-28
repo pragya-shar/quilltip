@@ -2,18 +2,14 @@
 
 import { useRef, useState } from 'react'
 import { WalletSetupHelp } from '@/components/stellar/WalletSetupHelp'
-import { useMutation } from 'convex/react'
 import { Loader2, PlugZap } from 'lucide-react'
 import { toast } from 'sonner'
-import { api } from '@/convex/_generated/api'
 import { Button } from '@/components/ui/button'
 import { InstallWalletDialog } from '@/components/stellar/InstallWalletDialog'
 import { useWallet } from '@/components/providers/WalletProvider'
 import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
-import {
-  NO_WALLET_AVAILABLE_ERROR_CODE,
-  ALBEDO_INSECURE_LOCALHOST_ERROR_CODE,
-} from '@/lib/stellar/wallet-adapter'
+import { describeConnectFailure } from '@/lib/stellar/v2/wallet-errors'
+import { useWalletOwnership } from '@/hooks/useWalletOwnership'
 import { cn } from '@/lib/utils'
 
 export type WalletSetupMode = 'send' | 'receive'
@@ -25,6 +21,8 @@ export interface ContextualWalletSetupProps {
   onConnected?: () => void
   showHelp?: boolean
   className?: string
+  /** An element that describes the Connect button, such as the last used wallet. */
+  describedBy?: string
 }
 
 function getHeadline(mode: WalletSetupMode, recipientLabel?: string): string {
@@ -50,9 +48,10 @@ export function ContextualWalletSetup({
   onConnected,
   className,
   showHelp = true,
+  describedBy,
 }: ContextualWalletSetupProps) {
-  const updateProfile = useMutation(api.users.updateProfile)
-  const { isLoading, connect } = useWallet({
+  const ownership = useWalletOwnership()
+  const { isLoading, isRestoring, connect } = useWallet({
     activateOnMount: true,
   })
   const [isConnecting, setIsConnecting] = useState(false)
@@ -61,61 +60,39 @@ export function ContextualWalletSetup({
   const [feedback, setFeedback] = useState<FlowFeedback | null>(null)
 
   const handleConnect = async () => {
+    if (isConnecting) return
     setIsConnecting(true)
     setFeedback(null)
     try {
-      const success = await connect()
-      if (!success) {
-        setFeedback({
-          variant: 'destructive',
-          title: 'Failed to connect wallet',
-          detail: 'Try again or choose a different wallet extension.',
-        })
-        toast.error('Failed to connect wallet')
-        return
-      }
+      // false: the reader closed the wallet picker. Nothing to report.
+      if (!(await connect())) return
 
       if (mode === 'receive') {
-        const { walletAdapter } = await import('@/lib/stellar/wallet-adapter')
-        const connectedKey = await walletAdapter.getPublicKey()
-        if (connectedKey) {
-          await updateProfile({ stellarAddress: connectedKey })
-          onAddressSaved?.(connectedKey)
-          toast.success('Wallet connected and saved successfully!')
-        } else {
-          setFeedback({
-            variant: 'destructive',
-            title: 'Could not retrieve wallet address',
-            detail:
-              'The wallet connected but returned no public key. Try again.',
-          })
-          toast.error('Could not retrieve wallet address')
-          return
-        }
+        // Linking needs proof that this wallet holds the address.
+        const result = await ownership.verify()
+        if (!result) return
+        onAddressSaved?.(result.address)
+        toast.success('Wallet verified. Tips now go to this address.')
       } else {
         toast.success('Wallet connected successfully!')
       }
 
       onConnected?.()
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : 'Failed to connect wallet'
-
-      if (message.startsWith(`${NO_WALLET_AVAILABLE_ERROR_CODE}:`)) {
+      const failure = describeConnectFailure(error)
+      if (failure.action === 'install') {
         setInstallDialogOpen(true)
         return
       }
-
-      if (message.startsWith(`${ALBEDO_INSECURE_LOCALHOST_ERROR_CODE}:`)) {
-        return
-      }
+      if (failure.action === 'ignore') return
+      const { title, detail } = failure.message
 
       setFeedback({
         variant: 'destructive',
-        title: 'Failed to connect wallet',
-        detail: message,
+        title,
+        detail,
       })
-      toast.error(message)
+      toast.error(title, { description: detail })
     } finally {
       setIsConnecting(false)
     }
@@ -129,6 +106,14 @@ export function ContextualWalletSetup({
           className
         )}
       >
+        {mode === 'receive' &&
+          ownership.status === 'error' &&
+          ownership.error && (
+            <div className="wallet-connection-notice" role="alert">
+              <strong>{ownership.error.title}</strong>
+              <p>{ownership.error.detail}</p>
+            </div>
+          )}
         {feedback && (
           <div className="wallet-connection-notice" role="alert">
             <strong>{feedback.title}</strong>
@@ -147,14 +132,17 @@ export function ContextualWalletSetup({
           ref={connectButtonRef}
           type="button"
           onClick={() => void handleConnect()}
-          disabled={isConnecting || isLoading}
+          aria-disabled={isConnecting || isLoading || isRestoring || undefined}
+          aria-describedby={describedBy}
           className="w-full"
           size="lg"
         >
-          {isConnecting || isLoading ? (
+          {isConnecting || isLoading || isRestoring ? (
             <>
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-              Connecting wallet...
+              <Loader2 className="w-4 h-4 mr-2 motion-safe:animate-spin" />
+              {isRestoring && !isConnecting
+                ? 'Checking your wallet…'
+                : 'Connecting wallet...'}
             </>
           ) : (
             <>

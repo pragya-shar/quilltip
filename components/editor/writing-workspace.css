@@ -1,10 +1,10 @@
 @font-face {
   font-family: 'Writing Work';
-  src: url(/prototype/writing/fonts/reading-work-sans.woff2);
+  src: url(/landing/fonts/work-sans-latin-400-normal.woff2);
 }
 @font-face {
   font-family: 'Writing Syne';
-  src: url('/prototype/writing/fonts/reading-syne.woff2');
+  src: url('/landing/fonts/syne-latin-600-normal.woff2');
 }
 @font-face {
   font-family: 'Writing Literata';
@@ -12,7 +12,7 @@
 }
 @font-face {
   font-family: 'Writing Alegreya';
-  src: url('/prototype/writing/fonts/alegreya-latin-400-italic.woff');
+  src: url('/landing/fonts/alegreya-latin-400-italic.woff2') format('woff2');
   font-style: italic;
 }
 .writing-workspace * {
@@ -24,13 +24,14 @@
   --wine: #660033;
   --ink: #38272c;
   --paper: #eee3cf;
-  --article-font: 'Writing Literata', Georgia, serif;
-  --title-font: 'Writing Literata', Georgia, serif;
+  --article-font: 'Writing Literata', 'Literata Fallback', Georgia, serif;
+  --title-font: 'Writing Literata', 'Literata Fallback', Georgia, serif;
   margin: 0;
   background: var(--paper);
   color: var(--ink);
   font:
     15px/1.5 'Writing Syne',
+    'Syne 600 Fallback',
     sans-serif;
 }
 .writing-workspace button,
@@ -222,6 +223,7 @@
   left: calc(50% - 575px);
   font:
     italic 27px/1.2 'Writing Alegreya',
+    'Alegreya Fallback',
     Georgia,
     serif;
   color: #804157;
@@ -678,6 +680,7 @@
 .writing-workspace figcaption {
   font:
     14px/1.5 'Writing Syne',
+    'Syne 600 Fallback',
     sans-serif;
   color: #71565c;
   margin-top: 10px;
@@ -1167,6 +1170,14 @@
   display: block;
   border-radius: 0;
 }
+.writing-workspace .writing-image-hidden {
+  display: block;
+  padding: 16px;
+  border: 1px dashed #66003340;
+  color: var(--wine);
+  font-size: 14px;
+  line-height: 1.5;
+}
 .writing-workspace .writing-image-tools {
   display: flex;
   align-items: center;
@@ -1198,4 +1209,80 @@
 .writing-workspace .writing-image:hover .writing-image-tools,
 .writing-workspace .writing-image[data-selected='true'] .writing-image-tools {
   display: flex;
+}
+.writing-workspace .locked-main {
+  padding: 32px 24px 64px;
+}
+.writing-workspace .locked-notice {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  max-width: 720px;
+  margin: 0 auto 32px;
+  padding: 20px 24px;
+  border: 1px solid #66003333;
+  border-radius: 6px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.writing-workspace .locked-notice svg {
+  flex: none;
+  width: 22px;
+  height: 22px;
+  margin-top: 3px;
+  fill: none;
+  stroke: var(--wine);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.writing-workspace .locked-notice h1 {
+  margin: 0 0 6px;
+  font: 600 18px/1.35 var(--title-font);
+  text-wrap: balance;
+}
+.writing-workspace .locked-notice p {
+  margin: 0;
+  color: var(--ui-muted-foreground);
+  font-size: 15px;
+  line-height: 1.5;
+  text-wrap: pretty;
+}
+.writing-workspace .locked-article-link,
+.writing-workspace .locked-desk-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--wine);
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+.writing-workspace .locked-article-link {
+  margin-top: 8px;
+}
+@media (max-width: 640px) {
+  .writing-workspace .locked-main {
+    padding: 20px 16px 48px;
+  }
+  .writing-workspace .locked-notice {
+    padding: 16px;
+    gap: 12px;
+  }
+}
+/* The shared account menu trigger keeps its round shape in the topbar. */
+.writing-workspace button.editor-account-trigger {
+  min-width: 44px;
+  padding: 4px;
+  border-radius: 999px;
+}
+@media (max-width: 650px) {
+  /* Sit beside the wordmark instead of taking a row of its own. */
+  .writing-workspace .topbar {
+    position: relative;
+  }
+  .writing-workspace button.editor-account-trigger {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+  }
 }

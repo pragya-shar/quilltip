@@ -2,6 +2,9 @@ import { tipXlmPresetValidator } from './lib/articleTipExpectation'
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { authTables } from '@convex-dev/auth/server'
+import { nftChainFields, nftTransferChainFields } from './lib/chain/nftSchema'
+import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
+import { lifetimeTotalsFields } from './lib/lifetimeTotalsFields'
 
 export default defineSchema({
   ...authTables,
@@ -21,9 +24,17 @@ export default defineSchema({
 
     // Authentication
     hashedPassword: v.optional(v.string()),
+    // Set by Convex Auth when an emailed code is verified (password reset).
+    emailVerificationTime: v.optional(v.number()),
 
-    // Stellar integration (optional, can be null to explicitly clear)
+    // Stellar integration (optional, can be null to explicitly clear).
+    // An address counts for tips and earnings only once the user has proved
+    // control of it (convex/walletLink.ts): stellarAddressVerifiedAt is set and
+    // stellarAddressVerifiedNetwork is the backend's network passphrase.
+    // Addresses linked before proof was required have neither field.
     stellarAddress: v.optional(v.union(v.string(), v.null())),
+    stellarAddressVerifiedAt: v.optional(v.number()),
+    stellarAddressVerifiedNetwork: v.optional(v.string()),
 
     // Onboarding
     onboardingCompleted: v.optional(v.boolean()),
@@ -36,13 +47,36 @@ export default defineSchema({
     nftsCreated: v.optional(v.number()),
     nftsOwned: v.optional(v.number()),
 
+    // Accounts used for QA and demos. Missing means false. Set only by
+    // internal functions; public metrics can exclude or label them.
+    isTestAccount: v.optional(v.boolean()),
+
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
   })
     .index('by_email', ['email'])
     .index('by_username', ['username'])
-    .index('by_username_lower', ['usernameLower']),
+    .index('by_username_lower', ['usernameLower'])
+    .index('by_test_account', ['isTestAccount'])
+    // Resolves an on-chain recipient address to a Quilltip user (earnings).
+    .index('by_stellar_address', ['stellarAddress']),
+
+  // Single-use proofs of wallet control (convex/walletLink.ts).
+  walletChallenges: defineTable({
+    userId: v.id('users'),
+    address: v.string(),
+    networkPassphrase: v.string(),
+    origin: v.string(),
+    nonce: v.string(),
+    issuedAt: v.number(),
+    expiresAt: v.number(),
+    // Set on the first verification attempt, successful or not.
+    usedAt: v.optional(v.number()),
+    outcome: v.optional(v.string()),
+  })
+    .index('by_user_issued', ['userId', 'issuedAt'])
+    .index('by_expires', ['expiresAt']),
 
   // Handles a writer used before. Each stays reserved for that writer and its
   // URLs redirect to the writer's current handle.
@@ -106,8 +140,16 @@ export default defineSchema({
     arweaveTimestamp: v.optional(v.number()),
     arweaveVerifyAttempts: v.optional(v.number()), // Track verification retries
     arweaveErrorMessage: v.optional(v.string()), // Store error details
+    // Content anchor. With contentHashSchema 'quilltip-article-v1', contentHash
+    // is SHA-256 of canonicalArticleBytes (convex/lib/chain/ids.ts) at
+    // contentVersion. Without it, contentHash is a legacy hash of an earlier
+    // upload body and is kept unchanged.
     contentVersion: v.optional(v.number()),
-    contentHash: v.optional(v.string()), // SHA-256 hash of Arweave content
+    contentHash: v.optional(v.string()),
+    contentHashSchema: v.optional(v.string()),
+    // The contentHash the Arweave upload body reproduces. Registration passes
+    // arweaveTxId on chain only when this equals contentHash.
+    arweaveContentHash: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
@@ -391,10 +433,17 @@ export default defineSchema({
     verificationRequestedAt: v.optional(v.number()),
 
     // Status
-    status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED, FRAUDULENT
+    status: v.string(), // PENDING, CONFIRMING, CONFIRMED, FAILED, FRAUDULENT, UNVERIFIED
     failureReason: v.optional(v.string()), // Error message if failed
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
+
+    // Payments v2 fields (optional; v1 rows leave them unset)
+    ...tipChainFields,
+    // Set once the earnings sync has handled this v2 row. A row it did not
+    // credit carries `earningsSkipReason` (for example `needs_review`).
+    earningsAppliedAt: v.optional(v.number()),
+    earningsSkipReason: v.optional(v.string()),
 
     // Timestamps
     createdAt: v.number(),
@@ -407,8 +456,19 @@ export default defineSchema({
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
     .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
+    // v2 paid rows not yet handled by the earnings sync.
+    .index('by_version_status_earnings', [
+      'contractVersion',
+      'status',
+      'earningsAppliedAt',
+    ])
     .index('by_article_tip_intent', ['articleTipIntentId'])
-    .index('by_stellar_tx', ['stellarTxId']), // For dedup on at-least-once retries
+    // Not unique for v2: batch rows share one hash.
+    .index('by_stellar_tx', ['stellarTxId'])
+    .index('by_client_ref', ['clientRef'])
+    // Rows flagged for operator review (convex/chain/review.ts).
+    .index('by_needs_review', ['needsReview', 'updatedAt'])
+    .index('by_request', ['requestId']),
 
   // Highlight Tips table (NEW - granular tipping)
   highlightTips: defineTable({
@@ -432,10 +492,11 @@ export default defineSchema({
     amountCents: v.number(),
     message: v.optional(v.string()),
 
-    // Stellar transaction data
-    stellarTxId: v.string(),
-    stellarNetwork: v.string(), // TESTNET or MAINNET
-    stellarMemo: v.string(), // Highlight ID stored in memo
+    // Stellar transaction data. Optional because v2 batch and tab rows have
+    // no value at insert.
+    stellarTxId: v.optional(v.string()),
+    stellarNetwork: v.optional(v.string()), // TESTNET or MAINNET
+    stellarMemo: v.optional(v.string()), // Highlight ID stored in memo
     stellarLedger: v.optional(v.number()),
     stellarFeeCharged: v.optional(v.string()),
     stellarSourceAccount: v.optional(v.string()),
@@ -469,7 +530,7 @@ export default defineSchema({
     endContainerPath: v.optional(v.string()),
 
     // Status
-    status: v.string(), // PENDING, CONFIRMED, FAILED
+    status: v.string(), // PENDING, CONFIRMED, FAILED, UNVERIFIED
     failureReason: v.optional(v.string()),
     // Set when verification confirms the tip but could not fully validate the
     // claimed USD amount — e.g. XLM price oracle was unreachable, or the
@@ -481,9 +542,16 @@ export default defineSchema({
     platformFee: v.optional(v.number()),
     authorShare: v.optional(v.number()),
 
+    // Payments v2 fields (optional; v1 rows leave them unset)
+    ...tipChainFields,
+    // Set once the earnings sync has handled this v2 row. A row it did not
+    // credit carries `earningsSkipReason` (for example `needs_review`).
+    earningsAppliedAt: v.optional(v.number()),
+    earningsSkipReason: v.optional(v.string()),
+
     // Timestamps
     createdAt: v.number(),
-    processedAt: v.number(),
+    processedAt: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index('by_highlight', ['highlightId'])
@@ -493,8 +561,18 @@ export default defineSchema({
     .index('by_status', ['status'])
     .index('by_status_created', ['status', 'createdAt']) // For paginated status queries
     .index('by_status_updated', ['status', 'updatedAt']) // For stuck verification recovery
+    // v2 paid rows not yet handled by the earnings sync.
+    .index('by_version_status_earnings', [
+      'contractVersion',
+      'status',
+      'earningsAppliedAt',
+    ])
     .index('by_highlight_tip_intent', ['highlightTipIntentId'])
-    .index('by_stellar_tx', ['stellarTxId']),
+    .index('by_stellar_tx', ['stellarTxId'])
+    .index('by_client_ref', ['clientRef'])
+    // Rows flagged for operator review (convex/chain/review.ts).
+    .index('by_needs_review', ['needsReview', 'updatedAt'])
+    .index('by_request', ['requestId']),
 
   // Author Earnings table
   authorEarnings: defineTable({
@@ -519,6 +597,20 @@ export default defineSchema({
     // Monthly breakdown (denormalized)
     monthlyEarnings: v.optional(v.any()),
 
+    // Payments v2 (docs/architecture/v2/06-app-integration.md, section 6.2).
+    // Decimal strings of base units, keyed by token contract ID.
+    earnedBaseUnits: v.optional(v.record(v.string(), v.string())),
+    pendingBaseUnits: v.optional(v.record(v.string(), v.string())),
+    collectedBaseUnits: v.optional(v.record(v.string(), v.string())),
+    // The v2 part of tipCount and totalEarnedCents.
+    v2TipCount: v.optional(v.number()),
+    v2EarnedCents: v.optional(v.number()),
+
+    // Lifetime totals per recipient for the writer's earnings summary
+    // (#552, convex/lib/lifetimeEarnings.ts), and the progress of a row's
+    // rebuild from its history (convex/earningsTotalsBackfill.ts).
+    ...lifetimeTotalsFields,
+
     // Top articles (denormalized)
     topArticles: v.optional(
       v.array(
@@ -534,25 +626,43 @@ export default defineSchema({
     // Timestamps
     createdAt: v.number(),
     updatedAt: v.number(),
-  }).index('by_user', ['userId']),
+  })
+    .index('by_user', ['userId'])
+    .index('by_lifetime_totals', [
+      'lifetimeTotalsAt',
+      'lifetimeRebuildFailedAt',
+      'lifetimeRebuildTurnAt',
+    ]),
 
   // Article NFTs table
   articleNFTs: defineTable({
     // Article reference
     articleId: v.id('articles'),
 
-    // NFT data
+    // NFT data. v2 rows: `tokenId` is the contract's u32 token ID in decimal.
     tokenId: v.string(),
     contractAddress: v.optional(v.string()),
     metadataUrl: v.string(),
 
-    // Ownership
-    mintedBy: v.id('users'),
-    currentOwner: v.id('users'),
+    // Ownership. For v2 rows `ownerAddress` is the source of truth and
+    // `currentOwner` is set only when it resolves to a Quilltip user. Only
+    // the NFT event handlers (convex/lib/chain/nftEventHandlers.ts) write
+    // ownership of a v2 row.
+    // v2 rows: the user whose verified address minted, when there is one.
+    mintedBy: v.optional(v.id('users')),
+    currentOwner: v.optional(v.id('users')),
+    ownerAddress: v.optional(v.string()),
 
-    // Minting criteria
-    tipThreshold: v.number(),
-    totalTipsAtMint: v.number(),
+    // Payments v2
+    contractVersion: v.optional(v.union(v.literal('v1'), v.literal('v2'))),
+    txHash: v.optional(v.string()),
+    chainVerifiedAt: v.optional(v.number()),
+    ...nftChainFields,
+
+    // Minting criteria (v1 rows, in USD cents; v2 rows use the base-unit
+    // fields in `nftChainFields`)
+    tipThreshold: v.optional(v.number()),
+    totalTipsAtMint: v.optional(v.number()),
 
     // Timestamps
     mintedAt: v.number(),
@@ -561,26 +671,33 @@ export default defineSchema({
     .index('by_token_id', ['tokenId'])
     .index('by_article', ['articleId'])
     .index('by_current_owner', ['currentOwner'])
-    .index('by_minted_by', ['mintedBy']),
+    .index('by_minted_by', ['mintedBy'])
+    .index('by_owner_address', ['ownerAddress']),
 
   // NFT Transfers table
   nftTransfers: defineTable({
     // NFT reference
     nftId: v.id('articleNFTs'),
 
-    // Transfer parties
-    fromUserId: v.id('users'),
-    toUserId: v.id('users'),
+    // Transfer parties. v2 rows: the addresses come from the verified
+    // `transfer` event; the user IDs are set only for Quilltip users.
+    fromUserId: v.optional(v.id('users')),
+    toUserId: v.optional(v.id('users')),
+    fromAddress: v.optional(v.string()),
+    toAddress: v.optional(v.string()),
 
-    // Transaction data
+    // Transaction data. Required for v2 rows (checked in
+    // convex/lib/chain/nftStore.ts).
     transactionId: v.optional(v.string()),
+    ...nftTransferChainFields,
 
     // Timestamp
     transferredAt: v.number(),
   })
     .index('by_nft', ['nftId'])
     .index('by_from_user', ['fromUserId'])
-    .index('by_to_user', ['toUserId']),
+    .index('by_to_user', ['toUserId'])
+    .index('by_chain_event', ['chainEventId']),
 
   // Withdrawals table
   withdrawals: defineTable({
@@ -680,21 +797,56 @@ export default defineSchema({
     fetchedAt: v.number(),
   }),
 
-  // Waitlist table
+  // Waitlist table. Status flow: pending -> invited -> joined. A row is
+  // marked joined when an account is created with the same email.
   waitlist: defineTable({
+    // Lowercased, trimmed email
     email: v.string(),
+    name: v.optional(v.string()),
+    // What the person wants to read or write about (optional, short)
+    interest: v.optional(v.string()),
 
     // Status tracking
     status: v.optional(v.string()), // "pending", "invited", "joined"
 
     // Metadata
-    source: v.optional(v.string()), // "landing_page", "referral", etc.
+    source: v.optional(v.string()), // "waitlist_page", "referral", etc.
     invitedAt: v.optional(v.number()),
     joinedAt: v.optional(v.number()),
+    userId: v.optional(v.id('users')),
 
     // Timestamps
     createdAt: v.number(),
   })
     .index('by_email', ['email'])
     .index('by_status', ['status']),
+
+  // In-product feedback from signed-in readers and writers.
+  feedback: defineTable({
+    userId: v.id('users'),
+    category: v.union(
+      v.literal('bug'),
+      v.literal('idea'),
+      v.literal('question'),
+      v.literal('other')
+    ),
+    message: v.string(),
+    // Path the person was on, without query string
+    pagePath: v.optional(v.string()),
+    status: v.union(v.literal('new'), v.literal('reviewed')),
+    createdAt: v.number(),
+  })
+    .index('by_user_created', ['userId', 'createdAt'])
+    .index('by_status_created', ['status', 'createdAt']),
+
+  // Fixed-window counters for rate limiting public and signed-in writes.
+  rateLimits: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  }).index('by_key', ['key']),
+
+  // Payments v2 chain layer (docs/architecture/v2/06-app-integration.md, 6.2)
+  ...chainTables,
+  ...tabTables,
 })

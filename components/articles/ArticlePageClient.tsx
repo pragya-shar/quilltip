@@ -3,7 +3,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArticleReadNext } from '@/components/articles/ArticleReadNext'
-import { useMemo } from 'react'
+import { lazy, Suspense, useMemo } from 'react'
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '@/convex/_generated/api'
 import {
@@ -15,7 +15,6 @@ import {
 import ArticleDisplay from '@/components/articles/ArticleDisplay'
 import { ArticlePageLoadingSkeleton } from '@/components/articles/ArticlePageLoadingSkeleton'
 import { ArticleReaderSupport } from '@/components/articles/ArticleReaderSupport'
-import { ArticleDetailsPanel } from '@/components/articles/ArticleDetailsPanel'
 import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -32,6 +31,16 @@ import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
 import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
 import { useRouter } from 'next/navigation'
+import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
+
+// The collapsed details panel sits below the article. The server renders it
+// into the HTML; its accordion, highlight notes and date code load while the
+// page hydrates instead of with the first scripts.
+const ArticleDetailsPanel = lazy(() =>
+  import('@/components/articles/ArticleDetailsPanel').then((mod) => ({
+    default: mod.ArticleDetailsPanel,
+  }))
+)
 
 type PublishedArticle = FunctionReturnType<typeof api.articles.getArticleBySlug>
 
@@ -40,12 +49,21 @@ interface ArticlePageClientProps {
   slug: string
   /** Server-fetched published article, so the first HTML has its content. */
   initialArticle?: PublishedArticle
+  /** Server-rendered HTML of `initialArticle`'s body. */
+  initialBodyHtml?: string
+  /**
+   * Set when the server could not read the article in time: until the live
+   * query answers, show a fallback that reads without scripts.
+   */
+  unavailableRetryHref?: string
 }
 
 export function ArticlePageClient({
   username,
   slug,
   initialArticle,
+  initialBodyHtml,
+  unavailableRetryHref,
 }: ArticlePageClientProps) {
   const { user } = useAuth()
   const router = useRouter()
@@ -80,6 +98,21 @@ export function ArticlePageClient({
     notFound()
   }
 
+  // The server could not read the article in time. Outside LoadingRegion,
+  // which hides its fallback from assistive technology.
+  if (article === undefined && unavailableRetryHref) {
+    return (
+      <div className="min-h-screen reader-surface">
+        <AppNavigation />
+        <ReadingUnavailable
+          what="This article"
+          retryHref={unavailableRetryHref}
+          headingLevel={1}
+        />
+      </div>
+    )
+  }
+
   if (article === undefined) {
     return (
       <div className="min-h-screen reader-surface">
@@ -106,6 +139,8 @@ export function ArticlePageClient({
     title: article.title,
     content: article.content,
     excerpt: article.excerpt,
+    // No outside cover reaches here: getArticleBySlug leaves it out for
+    // readers and the server page scrubs initialArticle (#633).
     coverImage: article.coverImage,
     publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
     author: {
@@ -140,6 +175,13 @@ export function ArticlePageClient({
             <ArticleDisplay
               article={articleForDisplay}
               tocHeadings={tocHeadings}
+              // The server HTML matches the article it was rendered from; the
+              // highlight editor takes over with live content once loaded.
+              bodyHtml={
+                initialArticle && article._id === initialArticle._id
+                  ? initialBodyHtml
+                  : undefined
+              }
               authorStellarAddress={article.author.stellarAddress}
               readNext={
                 <ArticleReadNext
@@ -153,7 +195,6 @@ export function ArticlePageClient({
                   articleId={article._id}
                   articleSlug={article.slug}
                   authorName={article.author.name || article.author.username}
-                  authorStellarAddress={article.author.stellarAddress}
                 />
               }
             />
@@ -164,22 +205,24 @@ export function ArticlePageClient({
               <ArticleSidebarSectionFallback onRetry={reset} />
             )}
           >
-            <ArticleDetailsPanel
-              articleId={article._id}
-              articleTitle={article.title}
-              articleExcerpt={article.excerpt}
-              articleSlug={article.slug}
-              authorId={article.author.id}
-              currentUserId={user?._id as Id<'users'> | undefined}
-              tocHeadings={tocHeadings}
-              highlights={highlights}
-              tipsByHighlight={tipsByHighlight}
-              tipStats={article.tipStats}
-              arweaveStatus={article.arweaveStatus}
-              arweaveTxId={article.arweaveTxId}
-              arweaveUrl={article.arweaveUrl}
-              arweaveTimestamp={article.arweaveTimestamp}
-            />
+            <Suspense fallback={null}>
+              <ArticleDetailsPanel
+                articleId={article._id}
+                articleTitle={article.title}
+                articleExcerpt={article.excerpt}
+                articleSlug={article.slug}
+                authorId={article.author.id}
+                currentUserId={user?._id as Id<'users'> | undefined}
+                tocHeadings={tocHeadings}
+                highlights={highlights}
+                tipsByHighlight={tipsByHighlight}
+                tipStats={article.tipStats}
+                arweaveStatus={article.arweaveStatus}
+                arweaveTxId={article.arweaveTxId}
+                arweaveUrl={article.arweaveUrl}
+                arweaveTimestamp={article.arweaveTimestamp}
+              />
+            </Suspense>
           </ErrorBoundary>
         </EditorialSurface>
       </main>

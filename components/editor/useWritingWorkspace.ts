@@ -6,26 +6,28 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEditor, JSONContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { lowlight } from '@/lib/lowlight'
 import { WritingImage } from './WritingImage'
+import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
 import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
 import { useAuth } from '@/components/providers/AuthContext'
 import { useCurrentUser } from '@/hooks/convex/useUsers'
 import { useSuspendDialogModalForWallet } from '@/hooks/useSuspendDialogModalForWallet'
 import { useAutoSave } from '@/hooks/useAutoSave'
-import { useConvex, useMutation } from 'convex/react'
+import { useConvex, useMutation, useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
 import { useArticleById } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
+import { convexErrorMessage } from '@/lib/feedback/convexErrorMessage'
 import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
 import {
   PUBLISH_EMPTY_CONTENT_FEEDBACK,
+  publishBlockedFeedback,
   publishErrorFeedback,
 } from '@/lib/editor/publish-feedback'
 import {
@@ -162,11 +164,25 @@ export function useWritingWorkspace() {
     string | null | undefined
   >(undefined)
 
+  // Publishing needs a wallet the writer proved control of; an address linked
+  // before proof was required counts as not set up until it is verified.
+  const walletLink = useQuery(
+    api.walletLink.getMyWalletLink,
+    isAuthenticated ? {} : 'skip'
+  )
+  // Whether publishing also stores a permanent copy (Arweave). Undefined
+  // while loading; the publish dialog waits for it.
+  const permanentStorageEnabled = useQuery(
+    api.permanentStorage.isEnabled,
+    isAuthenticated ? {} : 'skip'
+  )
   useEffect(() => {
-    if (currentUser !== undefined) {
-      setReceivingWalletAddress(currentUser?.stellarAddress ?? null)
+    if (walletLink !== undefined) {
+      setReceivingWalletAddress(
+        walletLink?.state === 'verified' ? walletLink.address : null
+      )
     }
-  }, [currentUser])
+  }, [walletLink])
 
   const suspendDialogModalForWallet = useSuspendDialogModalForWallet()
 
@@ -223,11 +239,9 @@ export function useWritingWorkspace() {
         underline: false,
       }),
       Underline,
-      Link.configure({
+      createArticleLinkExtension({
         openOnClick: false,
-        HTMLAttributes: {
-          class: 'underline cursor-pointer',
-        },
+        className: 'underline cursor-pointer',
       }),
       WritingImage.configure({
         HTMLAttributes: {
@@ -274,6 +288,17 @@ export function useWritingWorkspace() {
     draftIdParam ? (draftIdParam as Id<'articles'>) : undefined
   )
 
+  // Published articles are permanent; the editor becomes read-only and
+  // autosave stops. The server rejects changes as well.
+  const articleLocked = publishStatus.published
+  useEffect(() => {
+    if (editor && !editor.isDestroyed && editor.isEditable === articleLocked) {
+      editor.setEditable(!articleLocked)
+    }
+    // Typing that lands while publishing completes can't be saved.
+    if (articleLocked) setHasUnsavedChanges(false)
+  }, [editor, articleLocked])
+
   const { isSaving, lastSavedAt, error, saveNow } = useAutoSave({
     content: editorContent,
     articleId,
@@ -287,6 +312,7 @@ export function useWritingWorkspace() {
       hasUnsavedChanges &&
       backupRecoveryStatus === 'resolved' &&
       !backupPrompt &&
+      !publishStatus.published &&
       (!draftIdParam || (!!draft && draft.authorId === currentUser?._id)),
     onSaveSuccess: (response) => {
       hydratedDraftIdRef.current = response.id
@@ -373,6 +399,13 @@ export function useWritingWorkspace() {
         router.replace(url, { scroll: false })
         return
       }
+    }
+
+    // A published article can't take local changes, so its backup is stale.
+    if (draft?.published && backup.articleId === draft._id) {
+      clearDraftBackup()
+      setBackupRecoveryStatus('resolved')
+      return
     }
 
     const serverDraft =
@@ -551,6 +584,7 @@ export function useWritingWorkspace() {
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault()
         if (
+          !articleLocked &&
           backupRecoveryStatus === 'resolved' &&
           !backupPrompt &&
           (!draftIdParam || (draft && draft.authorId === currentUser?._id))
@@ -561,6 +595,7 @@ export function useWritingWorkspace() {
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [
+    articleLocked,
     saveNow,
     backupRecoveryStatus,
     backupPrompt,
@@ -657,12 +692,18 @@ export function useWritingWorkspace() {
     try {
       const savedDraft = await saveNow()
       if (hasUnsavedChanges && !savedDraft) {
-        throw new Error('Save your latest changes before publishing')
+        setPublishFeedback(
+          publishBlockedFeedback('Save your latest changes before publishing.')
+        )
+        return
       }
 
       const targetArticleId = savedDraft?.id ?? articleId
       if (!targetArticleId) {
-        throw new Error('Save your draft before publishing')
+        setPublishFeedback(
+          publishBlockedFeedback('Save your draft before publishing.')
+        )
+        return
       }
 
       const published = await publishArticleMutation({
@@ -687,18 +728,15 @@ export function useWritingWorkspace() {
       setPublishSuccessVisible(true)
     } catch (error) {
       console.error('Publish error:', error)
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      if (message.toLowerCase().includes('title')) {
+      // The refusal's own words (a ConvexError's data); the raw client
+      // message is never read, and a production deployment redacts it.
+      const refusal = convexErrorMessage(error) ?? ''
+      if (refusal.toLowerCase().includes('add a title')) {
         setTitleError(TITLE_PUBLISH_ERROR)
         focusTitleField()
       } else {
-        const feedback = publishErrorFeedback(error)
-        setPublishFeedback(feedback)
-        toast.error(
-          feedback.detail
-            ? `${feedback.title}: ${feedback.detail}`
-            : feedback.title
-        )
+        // One alert, in the place the writer is (WritingWorkspaceView).
+        setPublishFeedback(publishErrorFeedback(error))
       }
     } finally {
       publishingRef.current = false
@@ -803,10 +841,7 @@ export function useWritingWorkspace() {
           return
         }
         console.error('Error uploading image:', err)
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Upload failed. Please try again.'
+        const message = 'The upload failed. Try again.'
         setBodyUploadAnnouncement({ type: 'error', text: message })
         toast.error(message)
       } finally {
@@ -867,6 +902,7 @@ export function useWritingWorkspace() {
   const publishSlug = publishedSlugOverride ?? savedArticleForLink?.slug
   return {
     editor,
+    permanentStorageEnabled,
     title,
     setTitle,
     titleError,
@@ -917,6 +953,7 @@ export function useWritingWorkspace() {
     setSaveErrorDismissed,
     publishFeedback,
     publishStatus,
+    articleLocked,
     publishSuccessVisible,
     setPublishSuccessVisible,
     publishConfirmOpen,

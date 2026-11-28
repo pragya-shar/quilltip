@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import Image from 'next/image'
 import { FileText } from 'lucide-react'
+import { shownCoverImage } from '@/lib/tiptap/articleImage'
 import './nft-card.css'
 
 export interface NftCardProps {
@@ -13,6 +14,8 @@ export interface NftCardProps {
   footerLabel: string
   footerUsername?: string
   href?: string
+  /** `'v1 record'` for an NFT from the earlier testnet version. */
+  recordLabel?: string | null
 }
 
 function buildArticleHref(
@@ -27,14 +30,17 @@ export function NftCard({
   title,
   slug,
   authorUsername,
-  coverImage,
+  coverImage: storedCover,
   excerpt,
   tokenId,
   footerLabel,
   footerUsername,
   href,
+  recordLabel,
 }: NftCardProps) {
   const articleHref = href ?? buildArticleHref(authorUsername, slug)
+  // A cover from another host counts as none (#615).
+  const coverImage = shownCoverImage(storedCover)
   const displayTitle = title || 'Untitled'
   const articleContent = (
     <>
@@ -53,7 +59,9 @@ export function NftCard({
             <span>Collected words</span>
           </div>
         )}
-        <span className="nft-card-edition">Article NFT</span>
+        <span className="nft-card-edition">
+          Article NFT · {recordLabel || 'Stellar testnet'}
+        </span>
       </div>
       <div className="nft-card-copy">
         <h3 title={displayTitle}>{displayTitle}</h3>

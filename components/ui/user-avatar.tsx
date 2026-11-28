@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
+import { shownAvatar } from '@/lib/profile/shownAvatar'
 
 export function avatarInitials(name: string): string {
   const n = name.trim()
@@ -24,10 +25,16 @@ export function UserAvatar({
   className,
   fallbackClassName,
 }: UserAvatarProps) {
-  const trimmedSrc = src?.trim()
+  // A photo from another host shows the initials: no image element and no
+  // request for it (#633).
+  const shownSrc = shownAvatar(src)
   return (
-    <Avatar className={cn(className)} role="img" aria-label={alt}>
-      {trimmedSrc ? <AvatarImage src={trimmedSrc} alt="" /> : null}
+    // An empty alt marks the avatar as decorative (a name sits beside it).
+    <Avatar
+      className={cn(className)}
+      {...(alt ? { role: 'img', 'aria-label': alt } : { 'aria-hidden': true })}
+    >
+      {shownSrc ? <AvatarImage src={shownSrc} alt="" /> : null}
       <AvatarFallback
         className={cn(
           'bg-primary text-primary-foreground font-semibold text-sm',
