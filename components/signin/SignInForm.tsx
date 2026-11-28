@@ -75,6 +75,20 @@ export function SignInForm({
   const notice = useRef<HTMLDivElement>(null)
   const status = useRef<HTMLParagraphElement>(null)
   const otherWay = useRef<HTMLDivElement>(null)
+  // With the password focused, its two buttons stay in view, also when the
+  // keyboard opens or the visible area changes after focus (the sheet then
+  // scrolls its body; this runs after the shell's own scroll).
+  const keepButtonsInView = () =>
+    requestAnimationFrame(() => {
+      if (document.activeElement !== password.current) return
+      otherWay.current?.scrollIntoView({ block: 'nearest' })
+    })
+  useEffect(() => {
+    const viewport = window.visualViewport
+    if (!viewport) return
+    viewport.addEventListener('resize', keepButtonsInView)
+    return () => viewport.removeEventListener('resize', keepButtonsInView)
+  })
   // A press before the page script runs is held, then sent once from here.
   const early = useEarlySubmit('signin')
   const done = useRef(onSignedIn)
@@ -234,13 +248,7 @@ export function SignInForm({
           type={showPassword ? 'text' : 'password'}
           autoComplete={mode === 'create' ? 'new-password' : 'current-password'}
           enterKeyHint="go"
-          // With the password focused, its two buttons come into view too
-          // (in a sheet over a keyboard, the space left is short).
-          onFocus={() =>
-            requestAnimationFrame(() =>
-              otherWay.current?.scrollIntoView({ block: 'nearest' })
-            )
-          }
+          onFocus={keepButtonsInView}
           {...(mode === 'create' ? PASSWORD_RULES : null)}
           // The rule shows once: an error about it takes the hint's place.
           hint={
