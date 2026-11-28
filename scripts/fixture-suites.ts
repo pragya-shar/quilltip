@@ -74,11 +74,14 @@ export const FIXTURES = [
     },
   },
   {
-    // The v2 article NFT: mint at the threshold and transfer, every state.
+    // The v2 article NFT: mint at the threshold and transfer, every state
+    // in Chromium; the transfer footer's layout check in WebKit too (its
+    // own config).
     name: 'nft-v2',
     server: 'e2e/fixtures/nft-v2/server.mjs',
     port: 4182,
     spec: 'e2e/nft-v2.spec.ts',
+    config: 'e2e/fixtures/nft-v2/playwright.config.ts',
     env: {
       NFT_V2_FIXTURES: '1',
       PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4182',

@@ -242,6 +242,24 @@
   height: 16px;
   margin-top: 2px;
 }
+/*
+ * The amount's hint and error share one box (#658): the error covers the
+ * hint, and an unseen copy of the longest error keeps the box's height, so
+ * the buttons under the field do not move when the error appears. The
+ * hidden hint stays in the field's description for screen readers.
+ */
+.tip-v2-field-note {
+  display: grid;
+  margin-top: 6px;
+}
+.tip-v2-field-note > p {
+  grid-area: 1 / 1;
+  margin-top: 0;
+}
+.tip-v2-field-note > .tip-hint[data-covered],
+.tip-v2-field-note > [data-sizer] {
+  visibility: hidden;
+}
 .tip-dialog .tip-input[aria-invalid='true'] {
   border-color: var(--ui-danger);
 }

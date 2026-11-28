@@ -2,9 +2,10 @@ import { defineConfig, devices } from '@playwright/test'
 
 /**
  * `e2e/early-taps.spec.ts` in Chromium and WebKit, the server-HTML form
- * check `e2e/server-forms.spec.ts`, and the header glyph and theme-button
- * checks `e2e/site-chrome-glyphs.spec.ts`, against a production build served
- * by `scripts/perf/early-taps-check.ts`.
+ * check `e2e/server-forms.spec.ts`, the header glyph and theme-button checks
+ * `e2e/site-chrome-glyphs.spec.ts`, and the password reset pages
+ * `e2e/password-reset.spec.ts` (#658), against a production build served by
+ * `scripts/perf/early-taps-check.ts`.
  */
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? 'http://127.0.0.1:3197'
 
@@ -14,6 +15,7 @@ export default defineConfig({
     'early-taps.spec.ts',
     'server-forms.spec.ts',
     'site-chrome-glyphs.spec.ts',
+    'password-reset.spec.ts',
   ],
   globalSetup: './global-setup.ts',
   fullyParallel: true,

@@ -19,7 +19,7 @@ import type { TipActivityItem } from '../../../lib/account/tipActivity'
 import type { MyTabTips } from '../../../lib/tab-ui/types'
 import '../../../components/account/account.css'
 import '../../../components/tab/tab.css'
-import { scenario, seedDevice, services, stateId } from './session'
+import { noteBoot, scenario, seedDevice, services, stateId } from './session'
 
 const params = new URLSearchParams(location.search)
 if (params.get('theme') === 'dark')
@@ -141,6 +141,7 @@ function Fixture() {
 }
 
 void seedDevice(scenario?.device ?? 'none').then(() => {
+  noteBoot('render')
   createRoot(document.getElementById('root')!).render(
     <StrictMode>
       <Fixture />

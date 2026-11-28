@@ -1,6 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
 import path from 'node:path'
 
+import { expectFixtureReady } from './fixtures/tab-ui/ready'
+
 const SHOTS = process.env.TAB_UI_SCREENSHOTS
 
 /** Saves the state at 375, 768 and 1440 px (Chromium only) when TAB_UI_SCREENSHOTS is set. */
@@ -27,7 +29,7 @@ async function open(page: Page, id: string, session?: string) {
   const errors: string[] = []
   page.on('pageerror', (error) => errors.push(error.message))
   await page.goto(`/?state=${id}${session ? `&session=${session}` : ''}`)
-  await expect(page.getByTestId('fixture-state')).toBeVisible()
+  await expectFixtureReady(page)
   return errors
 }
 
