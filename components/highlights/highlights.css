@@ -647,11 +647,13 @@ mark[data-note]:hover::before {
 }
 
 /* Touch selection: the passage slip opens from this button, so the reader can
-   still drag the selection handles first. Above the browser's bottom bar. */
+   still drag the selection handles first. It sits on the half of the screen
+   away from the selection. On iOS the bottom safe area already includes the
+   browser's floating bar. */
 .highlight-touch-offer {
   position: fixed;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 88px);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 16px);
   z-index: 70;
   transform: translateX(-50%);
   min-height: 48px;
@@ -664,6 +666,10 @@ mark[data-note]:hover::before {
   box-shadow: 0 6px 20px rgb(40 20 28 / 0.25);
   -webkit-tap-highlight-color: transparent;
   touch-action: manipulation;
+}
+.highlight-touch-offer[data-place='top'] {
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+  bottom: auto;
 }
 .highlight-touch-offer:focus-visible {
   outline: 2px solid #660033;

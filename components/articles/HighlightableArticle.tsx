@@ -142,6 +142,8 @@ export function HighlightableArticle({
     from: number
     to: number
     anchor: { top: number; left: number }
+    /** Where the offer sits: away from the selection and its handles. */
+    place: 'top' | 'bottom'
   } | null>(null)
 
   const { user, isAuthenticated } = useAuth()
@@ -187,24 +189,35 @@ export function HighlightableArticle({
     const { from, to } = state.selection
     const text = state.doc.textBetween(from, to, ' ')
     const domSelection = window.getSelection()
-    const anchor =
+    const range =
       text.trim().length >= 3 && domSelection && domSelection.rangeCount > 0
-        ? getRangeTopCenterAnchor(domSelection.getRangeAt(0))
+        ? domSelection.getRangeAt(0)
         : null
-    setTouchOffer(anchor ? { text, from, to, anchor } : null)
+    const anchor = range ? getRangeTopCenterAnchor(range) : null
+    if (!range || !anchor) {
+      setTouchOffer(null)
+      return
+    }
+    // A selection in the lower part of the screen gets the offer at the top,
+    // so the button never covers the words or their handles.
+    const box = range.getBoundingClientRect()
+    const place = box.bottom > window.innerHeight * 0.55 ? 'top' : 'bottom'
+    setTouchOffer({ text, from, to, anchor, place })
   }, [])
 
   const presentSelection = useCallback(
     (state: Editor['state']) => {
       if (editable || isApplyingHighlightsRef.current) return
       if (!showHighlights) return
-      // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
-      if (isDraggingRef.current || isKeyboardSelectingRef.current) return
+      // Touch: follow the selection as it changes, also while a handle is
+      // dragged. iOS sends no touchend for a handle drag, so the offer cannot
+      // wait for one. A press on the offer may empty the selection; keep it.
       if (touchInputRef.current) {
-        // A press on the offer may empty the selection; keep the offer.
         if (!offerPressRef.current) offerTouchSelection(state)
         return
       }
+      // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
+      if (isDraggingRef.current || isKeyboardSelectingRef.current) return
 
       const { selection } = state
       const { from, to } = selection
@@ -849,6 +862,7 @@ export function HighlightableArticle({
           <button
             type="button"
             className="highlight-touch-offer"
+            data-place={touchOffer.place}
             onPointerDown={() => {
               offerPressRef.current = true
             }}
