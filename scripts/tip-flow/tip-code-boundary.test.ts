@@ -112,10 +112,15 @@ describe('tip form code that fails to load (#669)', () => {
     expect(alert?.textContent).toContain(TIP_CODE_FAILED.inline)
     expect(host.textContent).toContain('Article text')
     online = true
-    await act(async () => host.querySelector('button')!.click())
+    const retry = host.querySelector('button')!
+    retry.focus()
+    await act(async () => retry.click())
+    await settle()
     await settle()
     expect(host.querySelector('[role="alert"]')).toBeNull()
     expect(host.textContent).toContain('Tip article')
+    // Focus moves to the control that replaced Try again, not to the body.
+    expect(document.activeElement?.textContent).toBe('Tip article')
     await act(async () => root.unmount())
   })
 

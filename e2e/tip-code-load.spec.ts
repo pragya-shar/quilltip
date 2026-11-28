@@ -84,5 +84,9 @@ test('tip buttons that fail to load at page load leave the article, and Try agai
   }
   await expect(notices).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Tip article' })).toBeVisible()
+  // Focus went to a control that replaced Try again, not to the page body.
+  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe(
+    'BODY'
+  )
   await expect(page.getByText(/^Opening line\./)).toBeVisible()
 })

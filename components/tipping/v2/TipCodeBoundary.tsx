@@ -2,6 +2,7 @@
 
 import {
   Component,
+  createRef,
   lazy,
   type ComponentType,
   type LazyExoticComponent,
@@ -30,6 +31,9 @@ export function retryableLazy<P extends object>(
   }
 }
 
+const FOCUSABLE =
+  'button:not([disabled]), a[href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
 interface Props {
   /** Called before the boundary renders its children again. */
   onRetry: () => void
@@ -51,12 +55,50 @@ export class TipCodeBoundary extends Component<Props, { failed: boolean }> {
     return { failed: true }
   }
 
+  private box = createRef<HTMLDivElement>()
+  private moveFocus = false
+  private frame = 0
+
   private retry = () => {
+    // The pressed Try again unmounts: hand focus to what replaces it, so a
+    // keyboard or screen reader user keeps their place in the article.
+    this.moveFocus = !!this.box.current?.contains(document.activeElement)
     this.props.onRetry()
     this.setState({ failed: false })
   }
 
+  override componentDidUpdate() {
+    if (!this.moveFocus) return
+    cancelAnimationFrame(this.frame)
+    let frames = 0
+    const tryFocus = () => {
+      const target = this.box.current?.querySelector<HTMLElement>(FOCUSABLE)
+      if (target) {
+        this.moveFocus = false
+        target.focus({ preventScroll: true })
+      } else if (++frames < 300) {
+        // The code may still be loading behind the Suspense fallback.
+        this.frame = requestAnimationFrame(tryFocus)
+      } else {
+        this.moveFocus = false
+      }
+    }
+    tryFocus()
+  }
+
+  override componentWillUnmount() {
+    cancelAnimationFrame(this.frame)
+  }
+
   override render() {
+    return (
+      <div ref={this.box} style={{ display: 'contents' }}>
+        {this.content()}
+      </div>
+    )
+  }
+
+  private content() {
     if (!this.state.failed) return this.props.children()
     if (this.props.variant === 'inline')
       return (
