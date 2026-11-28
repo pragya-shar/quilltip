@@ -129,6 +129,17 @@ export function HighlightableArticle({
   // the article body and the native selection collapses. Defer popover to pointerup.
   const isDraggingRef = useRef(false)
   const isKeyboardSelectingRef = useRef(false)
+  // A touch reader selects in two steps: a long press picks one word, then the
+  // handles extend it. Opening the passage slip at the first step would stop
+  // the selection at that word, so touch input first offers a button that
+  // opens the slip with the selection as it is when the reader taps it (#665).
+  const touchInputRef = useRef(false)
+  const [touchOffer, setTouchOffer] = useState<{
+    text: string
+    from: number
+    to: number
+    anchor: { top: number; left: number }
+  } | null>(null)
 
   const { user, isAuthenticated } = useAuth()
   const currentUserIdRef = useRef(user?._id)
@@ -169,12 +180,27 @@ export function HighlightableArticle({
     []
   )
 
+  const offerTouchSelection = useCallback((state: Editor['state']) => {
+    const { from, to } = state.selection
+    const text = state.doc.textBetween(from, to, ' ')
+    const domSelection = window.getSelection()
+    const anchor =
+      text.trim().length >= 3 && domSelection && domSelection.rangeCount > 0
+        ? getRangeTopCenterAnchor(domSelection.getRangeAt(0))
+        : null
+    setTouchOffer(anchor ? { text, from, to, anchor } : null)
+  }, [])
+
   const presentSelection = useCallback(
     (state: Editor['state']) => {
       if (editable || isApplyingHighlightsRef.current) return
       if (!showHighlights) return
       // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
       if (isDraggingRef.current || isKeyboardSelectingRef.current) return
+      if (touchInputRef.current) {
+        offerTouchSelection(state)
+        return
+      }
 
       const { selection } = state
       const { from, to } = selection
@@ -201,6 +227,7 @@ export function HighlightableArticle({
         setPopoverPosition(null)
         setSignInSelection(null)
         setSignInPromptPosition(null)
+        setTouchOffer(null)
       }
     },
     [
@@ -209,6 +236,7 @@ export function HighlightableArticle({
       signInPromptActive,
       highlightsActive,
       applySignedOutTextSelection,
+      offerTouchSelection,
     ]
   )
 
@@ -286,6 +314,7 @@ export function HighlightableArticle({
       editorProps: {
         handleDOMEvents: {
           keydown(view, event) {
+            touchInputRef.current = false
             if (
               editable ||
               !showHighlights ||
@@ -532,6 +561,7 @@ export function HighlightableArticle({
     if (!container || editable || !showHighlights) return
 
     const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      touchInputRef.current = e.type === 'touchstart'
       handleArticleHighlightOverlayPointerDown(e.target, {
         closeCreatePopover: () => {
           isDraggingRef.current = true
@@ -539,6 +569,7 @@ export function HighlightableArticle({
           setPopoverPosition(null)
           setSignInSelection(null)
           setSignInPromptPosition(null)
+          setTouchOffer(null)
         },
         closeDetailsPanel: () => setHighlightTooltip(null),
         closeSignInPrompt: () => {
@@ -554,6 +585,10 @@ export function HighlightableArticle({
       // Defer one frame so the browser and Tiptap commit the final selection.
       requestAnimationFrame(() => {
         if (!editor) return
+        if (touchInputRef.current) {
+          offerTouchSelection(editor.state)
+          return
+        }
         const { from, to } = editor.state.selection
         const text = editor.state.doc.textBetween(from, to, ' ')
         if (text.trim().length < 3) return
@@ -594,6 +629,7 @@ export function HighlightableArticle({
     highlightsActive,
     signInPromptActive,
     applySignedOutTextSelection,
+    offerTouchSelection,
   ])
 
   const handleCreateHighlight = useCallback(
@@ -753,6 +789,30 @@ export function HighlightableArticle({
             onActivate={focusPassage}
           />,
           passageRailTarget
+        )}
+
+      {touchOffer &&
+        !selectedText &&
+        (highlightsActive || signInPromptActive) &&
+        createPortal(
+          <button
+            type="button"
+            className="highlight-touch-offer"
+            onClick={() => {
+              setSelectedText({
+                text: touchOffer.text,
+                from: touchOffer.from,
+                to: touchOffer.to,
+              })
+              setPopoverPosition(touchOffer.anchor)
+              setSignInSelection(null)
+              setSignInPromptPosition(null)
+              setTouchOffer(null)
+            }}
+          >
+            Keep these words
+          </button>,
+          document.body
         )}
 
       <AnimatePresence>
