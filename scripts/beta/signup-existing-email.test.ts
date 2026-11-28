@@ -5,10 +5,10 @@
 import { convexTest } from 'convex-test'
 import { ConvexError } from 'convex/values'
 import { exportJWK, exportPKCS8, generateKeyPair } from 'jose'
-import { beforeAll, describe, expect, test } from 'vitest'
+import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api } from '../../convex/_generated/api'
-import { SIGN_UP_PER_EMAIL_LIMIT } from '../../convex/auth'
+import { SIGN_UP_CLAIM_MS, SIGN_UP_PER_EMAIL_LIMIT } from '../../convex/auth'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const newTest = () => convexTest(schema, modules)
@@ -122,15 +122,25 @@ describe('sign-up with an existing email', () => {
     expect(gotTokens(await signIn(t, PASSWORD))).toBe(true)
   })
 
-  test('a case variant of an existing email never opens that account', async () => {
-    const t = await withAccount()
-    const original = await signIn(t, PASSWORD)
-    // The provider's account id is the email as given, so a variant is a
-    // different account: it is created, never compared with the original.
-    const variant = await signUp(t, PASSWORD, 'Reader@example.test')
-    expect(gotTokens(variant)).toBe(true)
-    expect(userOf(variant)).not.toBe(userOf(original))
-  })
+  // The provider stores the email as given as the account id, and the
+  // lookup uses exactly that id. A variant is a different id: the library
+  // creates a separate account and never compares with the original's hash.
+  test.each([['Reader@example.test'], [' reader@example.test ']])(
+    'the variant %j never opens the existing account',
+    async (variant) => {
+      const t = await withAccount()
+      const original = await signIn(t, PASSWORD)
+      const answer = await signUp(t, PASSWORD, variant)
+      expect(gotTokens(answer)).toBe(true)
+      expect(userOf(answer)).not.toBe(userOf(original))
+      const ids = await t.run(async (ctx) =>
+        (await ctx.db.query('authAccounts').collect()).map(
+          (a) => a.providerAccountId
+        )
+      )
+      expect(ids.sort()).toEqual([EMAIL, variant].sort())
+    }
+  )
 })
 
 describe('ordinary flows still work', () => {
@@ -232,7 +242,7 @@ describe('sign-up attempts', () => {
 })
 
 describe('two sign-ups for one new email at the same moment', () => {
-  test('one account; the other gets the same refusal or the same account', async () => {
+  test('one account; the other is refused before any password compare', async () => {
     for (let i = 0; i < 3; i++) {
       const t = newTest()
       const email = `race${i}@example.test`
@@ -241,19 +251,95 @@ describe('two sign-ups for one new email at the same moment', () => {
         signUp(t, WRONG(i), email),
       ])
       expect(gotTokens(first)).toBe(true)
-      // Never a plain library error, never a session with another password.
       expect(second).toEqual(EMAIL_IN_USE)
+      // The same password too: create-only, never a sign-in through sign-up.
       const [a, b] = await Promise.all([
         signUp(t, PASSWORD, `same${email}`),
         signUp(t, PASSWORD, `same${email}`),
       ])
-      // The same person sending twice: both reach the one new account.
-      expect(gotTokens(a) && gotTokens(b)).toBe(true)
-      expect(userOf(a)).toBe(userOf(b))
+      expect(gotTokens(a)).toBe(true)
+      expect(b).toEqual(EMAIL_IN_USE)
       const accounts = await t.run((ctx) =>
         ctx.db.query('authAccounts').collect()
       )
       expect(accounts).toHaveLength(2)
+      // Every hold is released.
+      const holds = await t.run(async (ctx) =>
+        (await ctx.db.query('rateLimits').collect()).filter((r) =>
+          r.key.startsWith('sign-up-claim:')
+        )
+      )
+      expect(holds).toEqual([])
     }
+  })
+
+  test('a hold left by a stopped sign-up blocks only until it runs out', async () => {
+    const t = newTest()
+    const email = 'held@example.test'
+    await t.run(async (ctx) => {
+      await ctx.db.insert('rateLimits', {
+        key: `sign-up-claim:${email}`,
+        windowStart: Date.now(),
+        count: 1,
+      })
+    })
+    expect(await signUp(t, PASSWORD, email)).toEqual(EMAIL_IN_USE)
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('rateLimits').collect()) {
+        if (row.key.startsWith('sign-up-claim:')) {
+          await ctx.db.patch(row._id, {
+            windowStart: Date.now() - SIGN_UP_CLAIM_MS,
+          })
+        }
+      }
+    })
+    expect(gotTokens(await signUp(t, PASSWORD, email))).toBe(true)
+  })
+})
+
+describe('a used-up sign-up count', () => {
+  let sent: { to: string[]; text: string }[] = []
+  afterEach(() => {
+    vi.unstubAllGlobals()
+    delete process.env.AUTH_RESEND_KEY
+  })
+
+  test('leaves sign-in and password reset working for that email', async () => {
+    sent = []
+    process.env.AUTH_RESEND_KEY = 'test-key'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init: RequestInit) => {
+        if (url === 'https://api.resend.com/emails') {
+          sent.push(JSON.parse(String(init.body)))
+          return new Response('{}', { status: 200 })
+        }
+        throw new Error(`Unexpected fetch ${url}`)
+      })
+    )
+    const t = await withAccount()
+    for (let i = 1; i < SIGN_UP_PER_EMAIL_LIMIT; i++) await signUp(t, WRONG(i))
+    expect(await signUp(t, PASSWORD)).toEqual(LIMITED)
+
+    // Sign-in still works.
+    expect(gotTokens(await signIn(t, PASSWORD))).toBe(true)
+
+    // A reset request still sends a code, and the code sets a new password.
+    await t.action(api.auth.signIn, {
+      provider: 'password',
+      params: { email: EMAIL, flow: 'reset' },
+    })
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    await t.finishInProgressScheduledFunctions()
+    const code = /reset code is (\d{8})/.exec(sent.at(-1)?.text ?? '')?.[1]
+    expect(code).toMatch(/^\d{8}$/)
+    const reset = await attempt(t, {
+      email: EMAIL,
+      code: code!,
+      newPassword: 'NewPassword2',
+      flow: 'reset-verification',
+    })
+    expect(gotTokens(reset)).toBe(true)
+    expect(gotTokens(await signIn(t, 'NewPassword2'))).toBe(true)
   })
 })

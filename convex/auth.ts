@@ -43,11 +43,26 @@ function passwordMeetsRule(value: unknown): value is string {
   )
 }
 
+// How long a sign-up holds its account id while the library creates the
+// account. Creation is one mutation; the hold only outlasts it when the
+// action stops before it can release the hold.
+export const SIGN_UP_CLAIM_MS = 60 * 1000
+
+/** The hold on one account id (the email as given), in `rateLimits`. */
+function claimKey(email: string) {
+  return `sign-up-claim:${email}`
+}
+
 /**
  * Before a sign-up: counts the attempt, then says whether a password
  * account exists for this email (the account id Convex Auth uses: the
  * email as given). Sign-up for such an email is refused before the
  * password is read; signing in to that account goes through sign-in.
+ *
+ * The library creates the account in a later, separate transaction, and for
+ * an id that exists by then it compares the password and signs in. So a new
+ * id is held here, in this transaction, until `endSignUp`: a second sign-up
+ * for the same id in the meantime is answered as in use.
  */
 export const beginSignUp = internalMutation({
   args: { email: v.string() },
@@ -67,7 +82,36 @@ export const beginSignUp = internalMutation({
         q.eq('provider', 'password').eq('providerAccountId', email)
       )
       .unique()
-    return account ? 'in-use' : 'new'
+    if (account) return 'in-use'
+    const now = Date.now()
+    const claim = await ctx.db
+      .query('rateLimits')
+      .withIndex('by_key', (q) => q.eq('key', claimKey(email)))
+      .unique()
+    if (claim && now - claim.windowStart < SIGN_UP_CLAIM_MS) return 'in-use'
+    if (claim) await ctx.db.patch(claim._id, { windowStart: now, count: 1 })
+    else {
+      await ctx.db.insert('rateLimits', {
+        key: claimKey(email),
+        windowStart: now,
+        count: 1,
+      })
+    }
+    return 'new'
+  },
+})
+
+/** Releases the hold `beginSignUp` took, whatever the sign-up's outcome. */
+export const endSignUp = internalMutation({
+  args: { email: v.string() },
+  returns: v.null(),
+  handler: async (ctx, { email }) => {
+    const claim = await ctx.db
+      .query('rateLimits')
+      .withIndex('by_key', (q) => q.eq('key', claimKey(email)))
+      .unique()
+    if (claim) await ctx.db.delete(claim._id)
+    return null
   },
 })
 
@@ -148,10 +192,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
             try {
               return await baseAuthorize(params, ctx)
             } catch (error) {
-              // The check and the library's account creation are separate
-              // transactions: a sign-up running at the same moment can make
-              // the account in between. The library then refuses with a
-              // plain error; answer with the same code.
+              // Only if the account appeared after the hold ran out: the
+              // library refuses with a plain error; answer with the code.
               if (
                 !(error instanceof ConvexError) &&
                 error instanceof Error &&
@@ -160,6 +202,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
                 throw new ConvexError(EMAIL_IN_USE)
               }
               throw error
+            } finally {
+              await ctx.runMutation(internal.auth.endSignUp, { email })
             }
           }
           if (params.flow !== 'reset') return baseAuthorize(params, ctx)
