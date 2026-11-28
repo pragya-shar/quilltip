@@ -113,7 +113,7 @@ controls:
    variable is set. Never put it in a shared `.env` file.
 
    The one exception is an approved maintenance window, for the payments v2
-   cutover only. `bun run live-window` runs a fixed list of operations on the
+   cutover only. `bun scripts/live-window.ts` runs a fixed list of operations on the
    live deployment when `QUILLTIP_LIVE_WINDOW_APPROVAL` is set in the shell to
    `<deployment>@<release commit>@<YYYY-MM-DDTHH:MMZ>+<hours>h` (at most 4
    hours). It refuses unless the checkout is clean and at that commit, the
@@ -121,7 +121,9 @@ controls:
    development deploy key for that deployment is the only Convex target, and
    the Stellar checks pass for TESTNET. Each use prints a warning and appends a
    line to `~/.quilltip/live-window.log` (or `QUILLTIP_LIVE_WINDOW_LOG`, outside
-   the repository). `bun run live-window check` evaluates the approval without
+   the repository). Each run pushes code it builds from the approved commit's
+   git objects in a private folder, not the checkout.
+   `bun scripts/live-window.ts check` evaluates the approval without
    any network call. Every other tool refuses to run while the variable is set,
    and `guard:convex` still refuses every live deploy. A replace-all import
    also needs `QUILLTIP_LIVE_WINDOW_RESTORE=<deployment>@sha256:<digest>` for

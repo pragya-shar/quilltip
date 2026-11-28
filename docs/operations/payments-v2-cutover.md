@@ -553,9 +553,27 @@ window.
 #### 5.0.3 Live window approval
 
 The network guard refuses every deploy-kind command on the live deployment.
-For this window only, `bun run live-window` runs the Convex steps of stages 0,
-1, 4 to 6 and section 6.2 under an operator approval. It builds each Convex CLI
-command itself, so no flag can select another deployment.
+For this window only, `bun scripts/live-window.ts` runs the Convex steps of
+stages 0, 1, 4 to 6 and section 6.2 under an operator approval. It builds each
+Convex CLI command itself, so no flag can select another deployment.
+
+**What a run pushes.** Each `run` builds its code from the approved commit, not
+from the checkout. It exports the commit into a new private folder under
+`~/.quilltip/live-window/builds/` from git's objects, checks every object and
+the exported folder against the commit's ids, installs the dependencies there
+with `bun install --frozen-lockfile --ignore-scripts`, and runs the Convex CLI
+there with system Node and an environment that holds only `CONVEX_DEPLOY_KEY`.
+The checkout's files, index and git settings, its `node_modules` and the
+shell's other variables cannot change what is pushed. The first run of a
+window downloads the packages (about 10 seconds and 1.5 GB); later runs use the
+window's private package cache. The checks of the checkout below stay as a
+second check.
+
+Run the tool with Bun directly, not with `bun run`, which puts the checkout's
+`node_modules/.bin` first in `PATH`. Use the Bun version the release pins:
+`npx bun@1.4.4 scripts/live-window.ts …` when the installed Bun differs. Node
+20 or later and git must be in `/usr/bin`, `/bin`, `/usr/local/bin` or
+`/opt/homebrew/bin`; the tool does not look them up in `PATH`.
 
 The approval is one variable, set in the shell (never in a file):
 `QUILLTIP_LIVE_WINDOW_APPROVAL=<deployment>@<release commit>@<UTC start>+<hours>h`.
@@ -576,10 +594,11 @@ development deploy key for that deployment. Mainnet is refused as always.
    ```
 
 2. Verify it (dry mode: local checks only, nothing is sent):
-   `bun run live-window check` lists the allowed operations, and
-   `bun run live-window check <operation> <args>` checks one command.
-3. Run each step as `bun run live-window run <operation> <args>`. Each run
-   prints the deployment, commit, operation and expiry, and appends a line to
+   `bun scripts/live-window.ts check` lists the allowed operations, and
+   `bun scripts/live-window.ts check <operation> <args>` checks one command.
+3. Run each step as `bun scripts/live-window.ts run <operation> <args>`. Each
+   run builds its code as described above, prints the deployment, commit,
+   operation and expiry, and appends lines (including the checked tree) to
    `~/.quilltip/live-window.log` (`QUILLTIP_LIVE_WINDOW_LOG` to change it; it
    must be outside the repository). The log holds no key or secret.
 
@@ -609,7 +628,8 @@ development deploy key for that deployment. Mainnet is refused as always.
 
    ```bash
    unset QUILLTIP_LIVE_WINDOW_APPROVAL QUILLTIP_LIVE_WINDOW_RESTORE CONVEX_DEPLOY_KEY
-   bun run live-window check
+   bun scripts/live-window.ts check
+   rm -rf ~/.quilltip/live-window/builds
    ```
 
 Outside the approval: the secrets `TAB_ACCEPTOR_SECRET`, `TAB_SETTLER_SECRET`
