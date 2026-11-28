@@ -1,3 +1,4 @@
+import { ConvexError } from 'convex/values'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api } from '../../convex/_generated/api'
 import { isPausedDeploymentMessage } from '../../lib/convex/pausedDeployment'
@@ -37,6 +38,10 @@ const {
   movedPublicPath,
 } = await import('../../lib/seo/publicContent')
 
+/** A function that throws the full two-line text on purpose. */
+const THROWN_FULL_TEXT =
+  '[Request ID: 1] Server Error\nUncaught Error: Server Error\nCannot run functions while this deployment is paused.'
+
 /** The same text as a live subscription reports it. */
 const SUBSCRIPTION_MESSAGE = `[CONVEX Q(articles:getArticleBySlug)] ${PAUSED_BODY.errorMessage}`
 
@@ -75,6 +80,7 @@ describe('the paused-deployment text', () => {
       'a function that throws the same words',
       '[Request ID: 1] Server Error\nUncaught Error: Cannot run functions while this deployment is paused.',
     ],
+    ['a function that throws the full two-line text', THROWN_FULL_TEXT],
     [
       'the sentence without the Server Error line',
       'Cannot run functions while this deployment is paused.',
@@ -96,6 +102,23 @@ describe('publicQuery', () => {
   it('does not count a near miss: same status and shape, another message', async () => {
     answer(NEAR_MISS_BODY)
     const error = await read().catch((e: unknown) => e)
+    expect(error).not.toBeInstanceOf(BackendUnavailable)
+    expect(countsAsOutage(error)).toBe(false)
+  })
+
+  it('does not count a function that throws the full two-line text', async () => {
+    answer({ status: 'error', errorMessage: THROWN_FULL_TEXT })
+    const error = await read().catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(Error)
+    expect(error).not.toBeInstanceOf(BackendUnavailable)
+    expect(countsAsOutage(error)).toBe(false)
+  })
+
+  it('does not count a ConvexError that carries the paused text', async () => {
+    // A function's own ConvexError: the body has `errorData`.
+    answer({ ...PAUSED_BODY, errorData: { reason: 'paused' } })
+    const error = await read().catch((e: unknown) => e)
+    expect(error).toBeInstanceOf(ConvexError)
     expect(error).not.toBeInstanceOf(BackendUnavailable)
     expect(countsAsOutage(error)).toBe(false)
   })
