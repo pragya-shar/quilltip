@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { prefetchFor } from '@/lib/routing/legacyRoutes'
 import type { ReactNode } from 'react'
 import { cx } from '../cx'
 
@@ -35,7 +36,7 @@ export function TextLink({
     )
   }
   return (
-    <Link {...props} href={href} prefetch={prefetch}>
+    <Link {...props} href={href} prefetch={prefetch ?? prefetchFor(href)}>
       {children}
     </Link>
   )

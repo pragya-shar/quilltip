@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { prefetchFor } from '@/lib/routing/legacyRoutes'
 import type { ReactNode } from 'react'
 import { cx } from '../cx'
 import { FailIcon, PendingIcon } from '../icons'
@@ -87,7 +88,12 @@ export function ActivityRow({
   const words = statusText ?? STATUS_TEXT[status]
   const title =
     href !== undefined ? (
-      <Link className="qt-activity__link" href={href} aria-label={label}>
+      <Link
+        className="qt-activity__link"
+        href={href}
+        prefetch={prefetchFor(href)}
+        aria-label={label}
+      >
         {name}
       </Link>
     ) : onPress ? (

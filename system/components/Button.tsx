@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { prefetchFor } from '@/lib/routing/legacyRoutes'
 import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 import { cx } from '../cx'
 import { Icon, type IconGlyph } from './Icon'
@@ -68,7 +69,13 @@ export function Button(props: ButtonProps) {
   }
   if (props.href !== undefined) {
     return (
-      <Link href={props.href} onClick={props.onClick} ref={ref} {...data}>
+      <Link
+        href={props.href}
+        prefetch={prefetchFor(props.href)}
+        onClick={props.onClick}
+        ref={ref}
+        {...data}
+      >
         {inner}
       </Link>
     )
