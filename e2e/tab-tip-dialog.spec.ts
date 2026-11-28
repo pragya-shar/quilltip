@@ -6,6 +6,7 @@ import path from 'node:path'
 import { installVarialEmulator } from './helpers/varialEmulator'
 import { expectNoticeTookFocus } from './helpers/noticeFocus'
 import { SEND_TIP, SEND_TIP_FROM_WALLET } from './helpers/sendButton'
+import { ESTIMATE } from '../lib/copy/payment-states'
 
 /**
  * The tab tip section of the article and passage tip dialogs (issue #546),
@@ -202,6 +203,10 @@ const STATES: Record<string, StateCase> = {
           exact: false,
         })
       ).toBeVisible()
+      // A tab tip has no wallet prompt: the estimate does not promise one.
+      const caption = dialog.locator('.pay-amount-caption')
+      await expect(caption).toContainText(ESTIMATE.tabCaption)
+      await expect(caption).not.toContainText(ESTIMATE.caption)
     },
   },
   'above-max': {
@@ -218,6 +223,10 @@ const STATES: Record<string, StateCase> = {
           name: 'Send $0.75 from your tab',
         })
       ).toHaveAttribute('aria-disabled', 'true')
+      // Only the wallet can send this amount, so the wallet sentence holds.
+      await expect(dialog.locator('.pay-amount-caption')).toContainText(
+        ESTIMATE.caption
+      )
     },
   },
   short: {

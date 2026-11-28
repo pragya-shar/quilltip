@@ -223,11 +223,35 @@ export function TabHome() {
 
   const balances = tabBalances(tab)
   const busy = op.active
+  // A closing tab's next step is the withdrawal: its timeline and action
+  // come before the tip history (#671). An open tab keeps "Close tab" last.
+  const closeSection =
+    status.kind === 'open' || status.kind === 'closing' ? (
+      <TabCloseSection
+        status={status}
+        balance={tab.confirmedBalance}
+        clock={clock}
+        busy={busy || running}
+        onClose={() => start({ flow: 'tab-close' })}
+        onWithdraw={() => start({ flow: 'tab-withdraw' })}
+      />
+    ) : null
   return (
     <div className="tab-page">
       {conditions}
       <div className="tab-section">
-        <TabBalance balances={balances} closing={tab.status === 'CLOSING'} />
+        <TabBalance
+          balances={balances}
+          closing={
+            status.kind === 'closing'
+              ? {
+                  unlocksAround: status.unlocksAround,
+                  ready: status.ready,
+                  overdue: status.overdue,
+                }
+              : null
+          }
+        />
         {progress}
         {!running && !paused && !quickTipsOff
           ? gate(
@@ -268,17 +292,9 @@ export function TabHome() {
           onRevoke={(keyId) => start({ flow: 'tab-revoke-key', keyId })}
         />
       ) : null}
+      {status.kind === 'closing' ? closeSection : null}
       <TabTipHistory activity={activity ?? null} tabShort={short !== null} />
-      {status.kind === 'open' || status.kind === 'closing' ? (
-        <TabCloseSection
-          status={status}
-          balance={tab.confirmedBalance}
-          clock={clock}
-          busy={busy || running}
-          onClose={() => start({ flow: 'tab-close' })}
-          onWithdraw={() => start({ flow: 'tab-withdraw' })}
-        />
-      ) : null}
+      {status.kind === 'open' ? closeSection : null}
     </div>
   )
 }

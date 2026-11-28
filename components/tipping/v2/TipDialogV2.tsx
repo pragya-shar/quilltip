@@ -37,6 +37,7 @@ import { buildLoginHref } from '@/lib/auth/safeReturnPath'
 import { v2Runtime } from '@/lib/stellar/v2/chain-runtime'
 import { AMOUNT_ERRORS, BASKET_COPY, TIP_DIALOG } from '@/lib/copy/tip-flow'
 import { TAB_TIP_DIALOG } from '@/lib/copy/tab'
+import { ESTIMATE } from '@/lib/copy/payment-states'
 import { tabTipPresets } from '@/lib/tab-ui/tip-limits'
 import {
   TIP_MAX_CENTS,
@@ -554,6 +555,10 @@ export function TipDialogV2({
                   })()}
                   quoteCents={check.ok ? check.cents : null}
                   estimate
+                  // A tab tip has no wallet prompt (#670).
+                  estimateCaption={
+                    tabReady ? ESTIMATE.tabCaption : ESTIMATE.caption
+                  }
                 />
               ) : (
                 <TestnetLabel detail />

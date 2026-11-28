@@ -33,6 +33,12 @@ export type TabStatusView =
       /** Formatted estimate, for example "Monday 30 November". */
       unlocksAround: string | null
       unlocksAt: Date | null
+      /**
+       * The estimated moment has passed but the unlock ledger has not been
+       * reached (ledgers ran slower, or the clock read is old): the copy
+       * says "soon", never a date in the past (#671).
+       */
+      overdue: boolean
     }
   | { kind: 'closed' }
 
@@ -41,6 +47,8 @@ export function tabStatusView(input: {
   chainConfig: ChainConfigView | undefined
   clock: LedgerClock | null
   locale?: string
+  /** The time now, in ms; `Date.now()` when not given. */
+  now?: number
 }): TabStatusView {
   const { tab, chainConfig, clock } = input
   if (chainConfig === undefined || tab === undefined) return { kind: 'loading' }
@@ -57,13 +65,18 @@ export function tabStatusView(input: {
     unlockLedger !== null && clock
       ? estimateLedgerTime(unlockLedger, clock)
       : null
+  const ready =
+    unlockLedger !== null && clock !== null && clock.sequence >= unlockLedger
   return {
     kind: 'closing',
     unlockLedger,
-    ready:
-      unlockLedger !== null && clock !== null && clock.sequence >= unlockLedger,
+    ready,
     unlocksAt,
     unlocksAround: unlocksAt ? formatDay(unlocksAt, input.locale) : null,
+    overdue:
+      !ready &&
+      unlocksAt !== null &&
+      unlocksAt.getTime() < (input.now ?? Date.now()),
   }
 }
 
