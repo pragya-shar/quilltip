@@ -7,9 +7,11 @@ import {
   TAB_RECEIPT_STATUSES,
 } from '../../convex/lib/chain/schema'
 import {
+  historyStatusLabel,
   receiptStatusNote,
   shownTipStatus,
   tipGenerationLabel,
+  tipKindLabel,
   tipStatusLabel,
 } from '../../components/account/TipReceiptDialog'
 import { WalletTipHistory } from '../../components/account/WalletTipHistory'
@@ -241,5 +243,91 @@ describe('accepted tab tips on a short tab', () => {
       createElement(WalletTipHistory, { items, readerTabShort: false })
     )
     expect(funded).toContain('Settling')
+  })
+})
+
+/** The writer's received tab tips and every row's kind (#707). */
+describe('received tab tips and tip kinds', () => {
+  const received = (rows: Record<string, unknown>[], passages = false) =>
+    ({
+      sentArticles: [],
+      receivedArticles: passages ? [] : rows.map(article),
+      sentPassages: [],
+      receivedPassages: passages
+        ? rows.map((o) => ({
+            ...article(o),
+            highlightText: 'words',
+            highlightId: 'h1',
+          }))
+        : [],
+    }) as unknown as TipActivitySources
+
+  it('reads "Received" for a settled tab tip, with its kind and the testnet label', () => {
+    const items = [
+      ...normalizeTipActivity(
+        received([
+          {
+            _id: 'tab-article',
+            contractVersion: 'v2',
+            channel: 'tab',
+            status: 'SETTLED',
+            grossBaseUnits: '1000000',
+          },
+          { _id: 'direct', contractVersion: 'v2', channel: 'direct' },
+          { _id: 'batch', contractVersion: 'v2', channel: 'batch' },
+          { _id: 'earlier', contractVersion: 'v1' },
+        ])
+      ),
+      ...normalizeTipActivity(
+        received(
+          [
+            {
+              _id: 'tab-passage',
+              contractVersion: 'v2',
+              channel: 'tab',
+              status: 'SETTLED',
+            },
+          ],
+          true
+        )
+      ),
+    ]
+    const byId = (id: string) => items.find((i) => i.id === id)!
+    expect(tipKindLabel(byId('tab-article'))).toBe('Article tip, from a tab')
+    expect(tipKindLabel(byId('tab-passage'))).toBe('Passage tip, from a tab')
+    expect(tipKindLabel(byId('direct'))).toBe('Article tip, from a wallet')
+    expect(tipKindLabel(byId('batch'))).toBe('Article tip, in a batch')
+    expect(tipKindLabel(byId('earlier'))).toBe('Article tip')
+    expect(byId('tab-article').grossBaseUnits).toBe('1000000')
+    expect(historyStatusLabel(byId('tab-article'))).toBe('Received')
+
+    const html = renderToStaticMarkup(
+      createElement(WalletTipHistory, { items })
+    )
+    const rows = html.split('<li').slice(1)
+    expect(rows).toHaveLength(5)
+    const tab = rows.find((r) => r.includes('Article tip, from a tab'))!
+    expect(tab).toContain('<span>Received</span>')
+    expect(tab).toContain('<span>Testnet</span>')
+    expect(tab).not.toContain('Settled')
+    expect(html).toContain('5 of 5 tips')
+  })
+
+  it('keeps the reader’s and other statuses as they are', () => {
+    expect(historyStatusLabel({ status: 'SETTLED', direction: 'sent' })).toBe(
+      'Settled'
+    )
+    expect(historyStatusLabel({ status: 'CONFIRMED', direction: 'sent' })).toBe(
+      'Sent'
+    )
+    expect(
+      historyStatusLabel({ status: 'CONFIRMED', direction: 'received' })
+    ).toBe('Received')
+    expect(
+      historyStatusLabel({ status: 'ACCEPTED', direction: 'received' })
+    ).toBe('Settling')
+    expect(
+      historyStatusLabel({ status: 'ACCEPTED', direction: 'sent' }, true)
+    ).toBe('Waiting for balance')
   })
 })

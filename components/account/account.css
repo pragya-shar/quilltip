@@ -668,6 +668,10 @@
   font-size: 16px;
   margin-top: 4px;
 }
+.account-tip-person .account-tip-kind {
+  font-size: 14px;
+  margin-top: 2px;
+}
 .account-tip-person .account-amount-notice {
   font-size: 12px;
   color: var(--account-wine);
