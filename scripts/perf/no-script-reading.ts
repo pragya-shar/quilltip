@@ -18,7 +18,9 @@
 // - an unpublished article, an unknown article and an unknown writer answer
 //   404 and show no article text, and no public list names the unpublished
 //   article;
-// - with scripts on, a signed-in section sends a signed-out reader to sign in.
+// - with scripts on, a signed-in section sends a signed-out reader to sign in;
+//   a page a package lists in signedOutLanding instead ends on that
+//   package's page, which offers a plain link to sign in, scripts on and off.
 // The assertions use roles, link targets and visible text only, never class
 // names or file paths, so the same check can run against redesigned pages:
 // change READING below.
@@ -31,6 +33,7 @@ import {
 } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
+import { SIGNED_OUT_LANDING } from './routes'
 
 type Role = Parameters<Page['getByRole']>[0]
 /** A locator by role and accessible name, inside an optional landmark. */
@@ -180,6 +183,69 @@ async function check(
   }
 }
 
+type Landing = (typeof SIGNED_OUT_LANDING)[number]
+
+/**
+ * A protected old page that ends, for a signed-out reader, on a package's
+ * page that offers sign-in itself: with scripts on and with JavaScript off,
+ * the visit ends at `endsAt`, `main` holds the sign-in link back to it and
+ * no money, and with no script following the link shows the sign-in form.
+ */
+async function checkLanding(
+  browser: Browser,
+  landing: Landing,
+  failures: string[]
+) {
+  const signIn = READING.signedIn.signInPath
+  const href = `${signIn}?returnTo=${encodeURIComponent(landing.endsAt)}`
+  for (const scripts of [true, false]) {
+    const label = `${landing.path}, signed out, scripts ${scripts ? 'on' : 'off'}`
+    const fail = (what: string) => failures.push(`${label}: ${what}`)
+    const context = await browser.newContext({ javaScriptEnabled: scripts })
+    try {
+      const page = await context.newPage()
+      await page.goto(BASE_URL + landing.path)
+      await page
+        .waitForURL((url) => url.pathname === landing.endsAt, {
+          timeout: 15_000,
+        })
+        .catch(() => {})
+      const reached = new URL(page.url()).pathname
+      console.log(`${label} -> ${reached}`)
+      if (reached !== landing.endsAt) {
+        fail(`ended at ${reached}, expected ${landing.endsAt}`)
+        continue
+      }
+      const main = page.getByRole('main')
+      const link = main.getByRole('link', {
+        name: landing.signInLink,
+        exact: true,
+      })
+      if (!(await shown(link))) {
+        fail(`main shows no link named "${landing.signInLink}"`)
+        continue
+      }
+      const target = await link.first().getAttribute('href')
+      if (target !== href)
+        fail(`the sign-in link goes to ${target}, expected ${href}`)
+      if (/\$\s?\d/.test(await main.innerText()))
+        fail('main shows a money figure')
+      if (scripts) continue
+      await link.first().click()
+      await page
+        .waitForURL((url) => url.pathname === signIn, { timeout: 15_000 })
+        .catch(() => {})
+      const after = new URL(page.url())
+      if (after.pathname !== signIn)
+        fail(`following the sign-in link ended at ${after.pathname}`)
+      else if (!(await shown(page.getByRole('textbox'))))
+        fail(`${signIn} shows no form field`)
+    } finally {
+      await context.close()
+    }
+  }
+}
+
 async function main() {
   const backend = startFixtureBackend(CONVEX_PORT)
   const app = await startProductionApp(APP_PORT, BASE_URL)
@@ -208,8 +274,21 @@ async function main() {
       )
         failures.push(`${path}: the response names the unpublished article`)
     }
+    // Guard: a page a package lists ends on that package's page, which
+    // offers sign-in itself (signedOutLanding).
+    const landing = SIGNED_OUT_LANDING.find(
+      (entry) => entry.path === READING.signedIn.path
+    )
+    if (landing) {
+      const browser = await chromium.launch()
+      try {
+        await checkLanding(browser, landing, failures)
+      } finally {
+        await browser.close()
+      }
+    }
     // Guard: a signed-in section still sends a signed-out reader to sign in.
-    {
+    if (!landing) {
       const browser = await chromium.launch()
       try {
         const page = await browser.newPage()

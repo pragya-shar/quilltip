@@ -21,6 +21,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  useLayoutEffect,
 } from 'react'
 import {
   useConvexAuth,
@@ -36,9 +37,14 @@ import {
   createOutbox,
   type OutboxEntry,
 } from '@/lib/payments/outbox'
-import { paymentsStore } from '@/lib/payments/store'
-import { money } from '@/lib/payments/money'
-import { onJob, tapOnce, type JobStatus } from '@/lib/payments/tip-machine'
+import { bindingHolds, pairOf, paymentsStore } from '@/lib/payments/store'
+import { tipAmount } from '@/lib/payments/money'
+import {
+  onJob,
+  onOnline,
+  tapOnce,
+  type JobStatus,
+} from '@/lib/payments/tip-machine'
 import type {
   BalanceView,
   Cents,
@@ -59,6 +65,7 @@ import {
   TIP_LADDER,
   balanceViewOf,
   effectiveChoice,
+  tipBlocked,
   readerItemsOf,
   pageState,
   publicChoices,
@@ -68,6 +75,7 @@ import {
 } from '@/lib/payments/views'
 import { EarningsWatch } from './EarningsWatch'
 import { useAsOf } from './useAsOf'
+import { OwnTipsWatch } from './OwnTipsWatch'
 import { TipContextWatch } from './TipContextWatch'
 import { WriterWatch } from './WriterWatch'
 
@@ -149,6 +157,21 @@ export function PaymentsEngine() {
     () => 0
   )
   const userId = rawSession?.userId ?? null
+  // The pair the server answered for. Everything this engine publishes or
+  // sends is bound to it, and only while the session token names it too.
+  const pair =
+    rawSession?.userId && rawSession.sessionId
+      ? pairOf(rawSession.userId, rawSession.sessionId)
+      : null
+  const owner = useStoreValue((s) => s.owner)
+  const live = useStoreValue((s) => bindingHolds(s, pair))
+  // Before any watcher publishes (their effects run after this layout
+  // effect): the store holds this pair's figures, nobody else's. Claimed
+  // whenever the store is unclaimed (another tab's sign-in cleared it) and
+  // whenever the answer changes, so A, then B, then A again recovers.
+  useLayoutEffect(() => {
+    if (pair && owner !== pair) paymentsStore.claim(pair)
+  }, [pair, owner])
   const entries = useMemo(
     () => (userId ? outbox.list(userId) : []),
     [outbox, userId, outboxVersion] // eslint-disable-line react-hooks/exhaustive-deps
@@ -348,19 +371,21 @@ export function PaymentsEngine() {
   useEffect(() => {
     if (device !== 'ready' || !queue) return
     const resume = () => {
+      if (!paymentsStore.bound(pair)) return
       for (const entry of unansweredEntries(entries, session))
         queue.enqueue(entry)
     }
     resume()
     const id = window.setInterval(resume, RESUME_EVERY_MS)
     return () => window.clearInterval(id)
-  }, [device, entries, recent, queue]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [device, entries, recent, queue, pair]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const send = useCallback<
     (target: TipTarget, cents: Cents, meta: TipMeta, requestId: string) => void
   >(
     (target, cents, meta, requestId) => {
-      if (!session || !binding || !queue) return
+      // Never for a pair the session token does not name now.
+      if (!session || !binding || !queue || !paymentsStore.bound(pair)) return
       const price = session.prices[0]?.usd ?? 0
       const entry: OutboxEntry = {
         requestId,
@@ -376,7 +401,7 @@ export function PaymentsEngine() {
       setJob(requestId, { status: 'sending' })
       queue.enqueue(entry)
     },
-    [session, binding, queue, outbox, setJob]
+    [session, binding, queue, outbox, setJob, pair]
   )
 
   const asOf = useAsOf(online && session !== undefined, now)
@@ -416,14 +441,16 @@ export function PaymentsEngine() {
     [reader, entries, session, now, hasBalance]
   )
 
-  // Publish the reader's views.
+  // Publish the reader's views, only while the binding holds, and again
+  // when it holds again (a claim clears them).
   useEffect(() => {
-    paymentsStore.set({ balance, readerActivity })
-  }, [balance, readerActivity])
+    if (live) paymentsStore.set({ balance, readerActivity })
+  }, [balance, readerActivity, live])
 
   // Tip controls: one controller per registered control.
   const registrations = useStoreValue((s) => s.registrations)
   const queuedTaps = useStoreValue((s) => s.queuedTaps)
+  const missedTaps = useStoreValue((s) => s.missedTaps)
   const watches = useStoreValue((s) => s.watches)
   const [tipState, setTipState] = useState<
     Record<string, { phase: TipPhase; chosen: Cents | null }>
@@ -463,6 +490,26 @@ export function PaymentsEngine() {
   balanceRef.current = balance
   const chosenByTarget = useRef<Record<string, Cents>>({})
 
+  // Back online, a control that said "Offline" is ready again; nothing is
+  // sent by that.
+  useEffect(() => {
+    if (!online) return
+    for (const [id, phase] of Object.entries(phases.current))
+      phases.current[id] = onOnline(phase, true)
+    setTipState((all) => {
+      let changed = false
+      const next = { ...all }
+      for (const [id, t] of Object.entries(all)) {
+        const moved = onOnline(t.phase, true)
+        if (moved !== t.phase) {
+          next[id] = { ...t, phase: moved }
+          changed = true
+        }
+      }
+      return changed ? next : all
+    })
+  }, [online])
+
   const controllers = useMemo(() => {
     const out: Record<string, TipController> = {}
     for (const [id, reg] of Object.entries(registrations)) {
@@ -481,22 +528,21 @@ export function PaymentsEngine() {
         : balance.amounts.map((a) => a.cents)
       // Never above the reader's choice (views.ts, `effectiveChoice`).
       const cents = effectiveChoice(t.chosen, offered)
-      const blocked =
-        cents !== null
-          ? null
-          : (balance.noAmountReason ?? (offered.length ? 'choose' : null))
+      const blocked = tipBlocked(cents, offered, balance.noAmountReason)
       const early =
         balance.status === 'signed-out' ||
         balance.status === 'none' ||
         balance.status === 'closing' ||
         balance.device === 'unavailable' ||
         balance.device === 'needs-setup'
-      const ready = signedOut
-        ? publicTerms !== undefined
-        : early ||
-          (balance.status === 'ready' &&
-            balance.device !== 'loading' &&
-            context !== undefined)
+      // Whether the article can take a tip at all comes first, for everyone:
+      // no control is offered until it is known.
+      const ready =
+        context !== undefined &&
+        (signedOut
+          ? publicTerms !== undefined
+          : early ||
+            (balance.status === 'ready' && balance.device !== 'loading'))
       const unavailable = ready ? unavailableOf(balance, context) : null
       const setPhase = (phase: TipPhase) =>
         setTipState((all) => ({
@@ -504,6 +550,9 @@ export function PaymentsEngine() {
           [id]: { phase, chosen: all[id]?.chosen ?? null },
         }))
       const tip = async () => {
+        // The engine's own check, whoever holds this controller.
+        if (!paymentsStore.bound(pair)) return
+        paymentsStore.clearMissed(id)
         if (!ready || unavailable) return
         const current = phases.current[id] ?? { phase: 'idle' as const }
         const b = balanceRef.current
@@ -512,7 +561,7 @@ export function PaymentsEngine() {
           if (blocked === 'balance' && current.phase !== 'sending') {
             const next: TipPhase = {
               phase: 'needs-funds',
-              amount: money(TIP_LADDER[0]),
+              amount: tipAmount(TIP_LADDER[0]),
               available: b.available,
             }
             phases.current[id] = next
@@ -535,15 +584,15 @@ export function PaymentsEngine() {
       }
       out[id] = {
         state: t.phase,
-        amount: cents === null || signedOut ? null : money(cents),
+        amount: cents === null || signedOut ? null : tipAmount(cents),
         blocked: signedOut ? null : blocked,
         amounts: signedOut ? [] : balance.amounts,
         signedOut:
-          signedOut && cents !== null
+          signedOut && cents !== null && unavailable === 'signed-out'
             ? {
                 signedOut: true,
-                amount: money(cents),
-                amounts: offered.map(money),
+                amount: tipAmount(cents),
+                amounts: offered.map(tipAmount),
               }
             : null,
         setAmount: (next) => {
@@ -569,6 +618,7 @@ export function PaymentsEngine() {
         ready,
         warming: !ready && balance.status !== 'signed-out',
         queued: id in queuedTaps,
+        missed: id in missedTaps,
         unavailable,
       }
     }
@@ -579,11 +629,15 @@ export function PaymentsEngine() {
     tipState,
     balance,
     queuedTaps,
+    missedTaps,
     publicAmounts,
+    pair,
     publicTerms,
   ])
 
   useEffect(() => {
+    // Controllers are published only while the binding holds.
+    if (!live) return
     paymentsStore.set({ tips: controllers })
     // A tap made before the engine was ready: send it once, for what was
     // pressed (its own target, request id and amount, never raised), not
@@ -591,7 +645,7 @@ export function PaymentsEngine() {
     for (const [id, controller] of Object.entries(controllers)) {
       if (!(id in queuedTaps)) continue
       if (!controller.ready) continue
-      const tap = paymentsStore.takeTap(id)
+      const tap = paymentsStore.takeTap(id, pair)
       if (!tap || controller.unavailable) continue
       const cents = effectiveChoice(
         tap.cents,
@@ -613,7 +667,7 @@ export function PaymentsEngine() {
       if (decision.send)
         sendRef.current(tap.target, cents, tap.meta, tap.requestId)
     }
-  }, [controllers]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [controllers, live]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -621,7 +675,9 @@ export function PaymentsEngine() {
         <TipContextWatch
           key={articleId}
           articleId={articleId as Id<'articles'>}
-          enabled={balance.status === 'ready'}
+          // Public facts about the article (registered, split, the
+          // caller's own): asked for signed in or out, once auth is known.
+          enabled={!isLoading}
           onValue={(value) =>
             setContexts((all) =>
               all[articleId] === value ? all : { ...all, [articleId]: value }
@@ -629,9 +685,17 @@ export function PaymentsEngine() {
           }
         />
       ))}
-      {watches.writer > 0 ? <WriterWatch now={now} /> : null}
+      {articleIds.map((articleId) => (
+        <OwnTipsWatch
+          key={`own:${articleId}`}
+          articleId={articleId as Id<'articles'>}
+          enabled={isAuthenticated && !isLoading}
+          live={live}
+        />
+      ))}
+      {watches.writer > 0 ? <WriterWatch now={now} live={live} /> : null}
       {watches.earnings > 0 ? (
-        <EarningsWatch now={now} online={online} />
+        <EarningsWatch now={now} online={online} live={live} />
       ) : null}
     </>
   )
@@ -641,12 +705,15 @@ function unavailableOf(
   balance: BalanceView,
   context: { tippable: boolean; reason: string | null } | undefined
 ): UnavailableReason | null {
+  // The article first: one that cannot take a tip (not registered on
+  // chain, split, or the reader's own) says so before anything about the
+  // reader, so no tip is offered that the server would refuse.
+  if (context && !context.tippable)
+    return context.reason === 'own-article' ? 'own-article' : 'not-tippable'
   if (balance.status === 'signed-out') return 'signed-out'
   if (balance.status === 'none') return 'no-balance'
   if (balance.status === 'closing') return 'closing'
   if (!balance.settlement.enabled) return 'settlement-off'
   if (!balance.deviceReady) return 'device'
-  if (context && !context.tippable)
-    return context.reason === 'own-article' ? 'own-article' : 'not-tippable'
   return null
 }

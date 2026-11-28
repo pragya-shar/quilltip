@@ -8,6 +8,7 @@
  * explained in `convex/lib/moneyViews.ts` (invariants M1 to M4). Tips are
  * still accepted by `tabs.prepareTip` and `tabs.submitTip`.
  */
+import { getAuthSessionId } from '@convex-dev/auth/server'
 import { v } from 'convex/values'
 import { query, type QueryCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
@@ -59,6 +60,9 @@ async function cursorClock(
  *   drops an optimistic tip from this same snapshot, never counting it twice.
  * - `ledger`: the indexer's latest ledger, for device-key expiry without a
  *   Stellar RPC read.
+ * - `sessionId`: the auth session this answer is for. With `userId` it is
+ *   the pair the client binds these figures to, and shows them only while
+ *   the browser's session token names the same pair.
  */
 export const session = query({
   args: {},
@@ -69,8 +73,10 @@ export const session = query({
     const price = await cachedPrice(ctx)
     const settlement = settlementExpectation()
     const ledger = await cursorClock(ctx, chain)
+    const sessionId = await getAuthSessionId(ctx)
     const base = {
       userId: me.userId,
+      sessionId,
       accountAddress: me.address,
       network: 'testnet' as const,
       wallet: me.address

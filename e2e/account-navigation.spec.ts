@@ -14,7 +14,6 @@ const ACCOUNT_LINKS = [
   'Settings',
   'Drafts',
   'Balance',
-  'Earnings',
   'Stats',
   'Wallet',
   'Help & support',
@@ -23,8 +22,7 @@ const destinations = [
   ['View profile', null, null],
   ['Settings', '/settings', '/settings'],
   ['Drafts', '/drafts', '/write?desk=writing'],
-  ['Balance', '/dashboard/balance', '/dashboard/balance'],
-  ['Earnings', '/dashboard/earnings', '/dashboard/earnings'],
+  ['Balance', '/pocket', '/pocket'],
   ['Stats', '/dashboard/stats', '/dashboard/stats'],
   ['Wallet', '/dashboard/wallet', '/dashboard/wallet'],
   ['Help & support', '/support', '/support'],
@@ -85,13 +83,9 @@ async function expectDestination(page: Page, label: string, path: string) {
       ).toBeVisible()
       break
     case 'Balance':
+      // The balance sheet's page in the application shell.
       await expect(
-        page.getByRole('heading', { name: 'Ready to tip', exact: true })
-      ).toBeVisible()
-      break
-    case 'Earnings':
-      await expect(
-        page.getByRole('heading', { name: 'Ready to withdraw', exact: true })
+        page.getByRole('heading', { level: 1, name: 'Balance', exact: true })
       ).toBeVisible()
       break
     case 'Stats':
