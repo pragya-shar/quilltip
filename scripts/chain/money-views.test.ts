@@ -21,7 +21,9 @@ import {
 } from '../../convex/lib/chain/tabLedger'
 import { tabShareCents } from '../../convex/lib/authorEarnings'
 import {
+  reservedHeld,
   syncCollectedCents,
+  syncPaidPart,
   unpaidCents,
 } from '../../convex/lib/chain/balanceFigures'
 import {
@@ -32,12 +34,15 @@ import { SETTLE_REQUEST_LEASE } from '../../convex/lib/chain/settleSchedule'
 import {
   RECOUNT_PAGE,
   rebuildCollected,
+  resyncReaderPage,
 } from '../../convex/lib/chain/balanceRecount'
 import { RECENT_REQUESTS } from '../../convex/balance'
+import { OWN_TIPS_ON_ARTICLE_LIMIT } from '../../convex/activity'
 import {
   ACCEPTOR_PUBLIC,
   EPOCH,
   HIGHLIGHT,
+  PASSPHRASE,
   READER,
   TAB,
   TOKEN,
@@ -442,6 +447,144 @@ describe('what each side is told', () => {
     expect(reader!.isWriter).toBe(false)
     const writer = await as(t, s.authorId).query(api.earnings.mine, {})
     expect(writer!.isWriter).toBe(true)
+  })
+})
+
+describe("a reader's own tips on one article", () => {
+  it('lists only the caller’s accepted and settled tips there, with the passage, bounded', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10, requestId: 'line-1', highlight: HIGHLIGHT })
+    await tip(t, s, { cents: 25, requestId: 'article-1' })
+    // Another article: not listed.
+    await tip(t, s, { cents: 10, articleId: s.otherArticleId })
+    // A rejected receipt on this article: not listed.
+    await t.run(async (ctx) => {
+      const first = (await ctx.db.query('tabReceipts').first())!
+      await ctx.db.insert('tabReceipts', {
+        ...(({ _id: _i, _creationTime: _c, ...rest }) => rest)(first),
+        clientRef: 'f'.repeat(32),
+        leafHash: 'f'.repeat(64),
+        requestId: 'rejected-1',
+        status: 'REJECTED',
+        acceptedAt: first.acceptedAt + 1,
+      })
+    })
+
+    const mine = await as(t, s.readerId).query(api.activity.mineOnArticle, {
+      articleId: s.articleId,
+    })
+    expect(mine.complete).toBe(true)
+    expect(mine.tips.map((x) => x.requestId).sort()).toEqual([
+      'article-1',
+      'line-1',
+    ])
+    const line = mine.tips.find((x) => x.requestId === 'line-1')!
+    expect(line).toMatchObject({
+      passage: HIGHLIGHT,
+      amountCents: 10,
+      state: 'accepted',
+    })
+    expect(
+      mine.tips.find((x) => x.requestId === 'article-1')!.passage
+    ).toBeNull()
+
+    // The writer and a signed-out visitor see none of the reader's tips.
+    for (const query of [
+      as(t, s.authorId).query(api.activity.mineOnArticle, {
+        articleId: s.articleId,
+      }),
+      t.query(api.activity.mineOnArticle, { articleId: s.articleId }),
+    ])
+      expect(await query).toEqual({ tips: [], complete: true })
+  })
+
+  it('says when there are more than it returns', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10, requestId: 'seed' })
+    await t.run(async (ctx) => {
+      const first = (await ctx.db.query('tabReceipts').first())!
+      const { _id: _i, _creationTime: _c, ...rest } = first
+      for (let i = 0; i < OWN_TIPS_ON_ARTICLE_LIMIT; i++)
+        await ctx.db.insert('tabReceipts', {
+          ...rest,
+          clientRef: i.toString(16).padStart(32, '0'),
+          leafHash: i.toString(16).padStart(64, '0'),
+          requestId: `more-${i}`,
+          acceptedAt: first.acceptedAt + i + 1,
+        })
+    })
+    const mine = await as(t, s.readerId).query(api.activity.mineOnArticle, {
+      articleId: s.articleId,
+    })
+    expect(mine.tips).toHaveLength(OWN_TIPS_ON_ARTICLE_LIMIT)
+    expect(mine.complete).toBe(false)
+    // Newest first.
+    expect(mine.tips[0]!.requestId).toBe(
+      `more-${OWN_TIPS_ON_ARTICLE_LIMIT - 1}`
+    )
+  })
+
+  it('fills its page past rows it leaves out, and never shows one reader another’s tips', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10, requestId: 'kept-1' })
+    await t.run(async (ctx) => {
+      const first = (await ctx.db.query('tabReceipts').first())!
+      const { _id: _i, _creationTime: _c, ...rest } = first
+      // More refused rows, newer than the accepted one, than a page holds.
+      for (let i = 0; i < OWN_TIPS_ON_ARTICLE_LIMIT + 5; i++)
+        await ctx.db.insert('tabReceipts', {
+          ...rest,
+          clientRef: i.toString(16).padStart(32, '0'),
+          leafHash: i.toString(16).padStart(64, '0'),
+          requestId: `refused-${i}`,
+          status: 'REJECTED',
+          acceptedAt: first.acceptedAt + i + 1,
+        })
+    })
+    const mine = await as(t, s.readerId).query(api.activity.mineOnArticle, {
+      articleId: s.articleId,
+    })
+    expect(mine.tips.map((x) => x.requestId)).toEqual(['kept-1'])
+    expect(mine.complete).toBe(true)
+
+    // Another account that has verified the same wallet sees none of the
+    // tips: the tab account belongs to the first reader.
+    const other = await t.run((ctx) =>
+      ctx.db.insert('users', {
+        email: 'other-reader@example.test',
+        username: 'other_reader',
+        usernameLower: 'other_reader',
+        stellarAddress: READER,
+        stellarAddressVerifiedAt: Date.now(),
+        stellarAddressVerifiedNetwork: PASSPHRASE,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    )
+    expect(
+      await as(t, other).query(api.activity.mineOnArticle, {
+        articleId: s.articleId,
+      })
+    ).toEqual({ tips: [], complete: true })
+    const list = await as(t, other).query(api.activity.mine, {
+      role: 'reader',
+      paginationOpts: { numItems: 10, cursor: null },
+    })
+    expect(list.page).toEqual([])
+  })
+
+  it('puts the article id on every activity entry', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    const page = await as(t, s.readerId).query(api.activity.mine, {
+      role: 'reader',
+      paginationOpts: { numItems: 10, cursor: null },
+    })
+    expect(page.page[0]!.article.id).toBe(s.articleId)
   })
 })
 
@@ -1026,6 +1169,241 @@ describe('totals at any history length and across collects', () => {
     expect(twice.session.pendingCents).toBe(once.session.pendingCents)
   }, 120_000)
 
+  it('leaves no reserve behind when a settlement lands between the reader and writer passes, in one run', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Five unmarked receipts on one pair and the anchor: one page each side.
+    const h = await longHistory(t, s, { keys: 2, perPair: 5 })
+    expect((h.keys - 1) * h.perPair + 1).toBeLessThan(RECOUNT_PAGE)
+    const rows = await receipts(t)
+    const pair = rows.filter((r) => r.keyId === 1)
+    const cumulative = BigInt(pair[pair.length - 1]!.cumulativeAfter)
+
+    await t.mutation(internal.balanceBackfill.start, {})
+    // The reader's one-page recount, alone.
+    vi.runOnlyPendingTimers()
+    await t.finishInProgressScheduledFunctions()
+    const afterReader = await t.run(
+      async (ctx) => (await ctx.db.query('tabAccounts').first())!.reservedCents
+    )
+    expect(afterReader).toBe(h.reservedCents)
+    // A settlement of the five lands before the writer pass.
+    await ingest(
+      t,
+      ev.tabSettled({
+        keyId: 1,
+        cumulative,
+        paidAfter: cumulative,
+        gross: cumulative,
+      })
+    )
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+
+    // One run is enough: only the anchor tip is still reserved, as a
+    // recount from the receipts says.
+    const once = await views(t, s)
+    expect(once.session.pendingCents).toBe(1)
+    const fromReceipts = (await receipts(t))
+      .filter((r) => r.status === 'ACCEPTED' || r.status === 'SHORTFALL')
+      .reduce((sum, r) => sum + r.amountCents!, 0)
+    expect(once.session.pendingCents).toBe(fromReceipts)
+    expect(
+      (await receipts(t)).every((r) => r.moneyReservedCents !== undefined)
+    ).toBe(true)
+  })
+
+  /**
+   * The rehearsal's case: two pairs of 50 receipts from before the running
+   * figures (150 cents each) and the 1-cent anchor, 301 cents reserved.
+   * Pair 1 settles between the backfill's reader and writer steps. The
+   * truth is 151 cents, after the first run and after a second one.
+   */
+  async function settleBetweenSteps(
+    settle: (t: T, cumulative: bigint) => Promise<void>
+  ) {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const h = await longHistory(t, s, { keys: 3, perPair: 50 })
+    expect(h.reservedCents).toBe(301)
+    expect((h.keys - 1) * h.perPair + 1).toBeLessThan(RECOUNT_PAGE)
+    const pair1 = (await receipts(t))
+      .filter((r) => r.keyId === 1)
+      .sort((a, b) => a.seq - b.seq)
+    const cumulative = BigInt(pair1[pair1.length - 1]!.cumulativeAfter)
+    const reserved = () =>
+      t.run(
+        async (ctx) =>
+          (await ctx.db.query('tabAccounts').first())!.reservedCents
+      )
+
+    await t.mutation(internal.balanceBackfill.start, {})
+    // The reader step alone.
+    vi.runOnlyPendingTimers()
+    await t.finishInProgressScheduledFunctions()
+    expect(await reserved()).toBe(301)
+    // Pair 1 settles before the writer step.
+    await settle(t, cumulative)
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    expect(await reserved()).toBe(151)
+    expect((await views(t, s)).session.pendingCents).toBe(151)
+
+    // A retry of the backfill does not change a correct figure.
+    await t.mutation(internal.balanceBackfill.start, {})
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    expect(await reserved()).toBe(151)
+    expect((await views(t, s)).session.pendingCents).toBe(151)
+    const markers = (await receipts(t)).reduce(
+      (sum, r) => sum + (r.moneyReservedCents ?? 0),
+      0
+    )
+    expect(markers).toBe(151)
+  }
+
+  it('reserves 151 cents, not 301, when pair 1 of two pairs of 50 settles by event between the reader and writer steps, and again on a second backfill', async () => {
+    await settleBetweenSteps(async (t, cumulative) => {
+      await ingest(
+        t,
+        ev.tabSettled({
+          keyId: 1,
+          cumulative,
+          paidAfter: cumulative,
+          gross: cumulative,
+        })
+      )
+    })
+  }, 60_000)
+
+  it('reserves 151 cents, not 301, when pair 1 of two pairs of 50 settles by reconcile between the reader and writer steps, and again on a second backfill', async () => {
+    await settleBetweenSteps(async (t, cumulative) => {
+      const account = await t.run(
+        async (ctx) => (await ctx.db.query('tabAccounts').first())!
+      )
+      const ledger = account.balanceLedger + 10
+      await t.run(async (ctx) => {
+        const cursor = (await ctx.db.query('chainCursor').first())!
+        if (cursor.lastLedger < ledger)
+          await ctx.db.patch(cursor._id, { lastLedger: ledger })
+      })
+      const snap = await t.query(internal.chain.tabReconcile.snapshot, {
+        reader: READER,
+      })
+      if (!snap) throw new Error('no snapshot')
+      const result = await t.mutation(internal.chain.tabReconcile.reconcile, {
+        tabAccountId: snap.tabAccountId,
+        digest: snap.digest,
+        pairs: snap.pairs,
+        chain: {
+          ledger,
+          balance: (BigInt(account.confirmedBalance) - cumulative).toString(),
+          paid: snap.pairs.map((p) => ({
+            ...p,
+            paid: (p.keyId === 1 ? cumulative : BigInt(0)).toString(),
+          })),
+        },
+        apply: true,
+      })
+      expect(result).toMatchObject({ status: 'applied' })
+    })
+  }, 60_000)
+
+  it('leaves no reserve behind when an on-hold receipt is partly paid between the reader and writer passes', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await longHistory(t, s, { keys: 2, perPair: 5 })
+    // As left before the running figures existed: five tips skipped for
+    // shortfall, never applied (no moneyAppliedStatus).
+    await t.run(async (ctx) => {
+      for (const r of await ctx.db.query('tabReceipts').collect())
+        if (r.keyId === 1) await ctx.db.patch(r._id, { status: 'SHORTFALL' })
+    })
+    const pair = (await receipts(t))
+      .filter((r) => r.keyId === 1)
+      .sort((a, b) => a.seq - b.seq)
+    const cumulative = BigInt(pair[pair.length - 1]!.cumulativeAfter)
+    await t.mutation(internal.balanceBackfill.start, {})
+    // The reader pass alone, then half of the first tip is paid.
+    vi.runOnlyPendingTimers()
+    await t.finishInProgressScheduledFunctions()
+    const half = BigInt(pair[0]!.amount) / BigInt(2)
+    await ingest(
+      t,
+      ev.tabSettled({ keyId: 1, cumulative, paidAfter: half, gross: half })
+    )
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+
+    // One run is enough: the account, the receipts' markers and a count
+    // from the receipts agree.
+    const rows = await receipts(t)
+    const fromReceipts = rows
+      .filter((r) => r.status === 'ACCEPTED' || r.status === 'SHORTFALL')
+      .reduce((sum, r) => {
+        const paid = r.keyId === 1 ? paidPartOf(r, half).gross : BigInt(0)
+        return sum + unpaidCents(r.amountCents!, BigInt(r.amount), paid)
+      }, 0)
+    const markers = rows.reduce(
+      (sum, r) => sum + (r.moneyReservedCents ?? 0),
+      0
+    )
+    const once = await views(t, s)
+    expectCents(once.session.pendingCents, fromReceipts)
+    expectCents(markers, fromReceipts)
+  })
+
+  it('treats an unmarked, partly paid receipt as holding its whole cents on every path', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 100 }) // 10 M base units
+    // As left by code that reserved before the markers existed: applied as
+    // accepted, the whole tip reserved, no reserve marker, though the pair
+    // had already paid 40% of it.
+    const amount = BigInt(10_000_000)
+    const paid = (gross: bigint) => ({ gross, net: netOf(gross) })
+    const before = paid(BigInt(4_000_000))
+    const after = paid(BigInt(6_000_000))
+    const unmark = () =>
+      t.run(async (ctx) => {
+        const r = (await ctx.db.query('tabReceipts').first())!
+        const { moneyReservedCents: _dropped, ...rest } = r
+        await ctx.db.replace(r._id, { ...rest, moneyAppliedStatus: 'ACCEPTED' })
+        await ctx.db.patch(r.tabAccountId, { reservedCents: 100 })
+        return (await ctx.db.get(r._id))!
+      })
+
+    // The one rule, stated once.
+    const unmarked = await unmark()
+    expect(unmarked.moneyReservedCents).toBeUndefined()
+    expect(reservedHeld(unmarked, 100)).toBe(100)
+
+    // A further payment: what is left reserved is the unpaid part after it.
+    await t.run(async (ctx) => {
+      await syncPaidPart(ctx, unmarked, {
+        amountCents: 100,
+        before,
+        after,
+        token: TOKEN,
+        now: Date.now(),
+      })
+    })
+    const reservedAfterPayment = await t.run(
+      async (ctx) => (await ctx.db.query('tabAccounts').first())!.reservedCents
+    )
+    expect(reservedAfterPayment).toBe(unpaidCents(100, amount, after.gross))
+
+    // The paged recount reads the same receipt the same way: from the
+    // whole cents to its unpaid part now.
+    const again = await unmark()
+    await t.run(async (ctx) => {
+      await ctx.db.patch(again._id, { status: 'ACCEPTED' })
+      const pair = (await ctx.db.query('tabVouchers').first())!
+      await ctx.db.patch(pair._id, { paidOnChain: after.gross.toString() })
+      await resyncReaderPage(ctx, again.tabAccountId, null, Date.now())
+    })
+    const reservedAfterPage = await t.run(
+      async (ctx) => (await ctx.db.query('tabAccounts').first())!.reservedCents
+    )
+    expect(reservedAfterPage).toBe(reservedAfterPayment)
+  })
+
   async function settleTwo(t: T, s: Seeded) {
     await tip(t, s, { cents: 100 }) // 10 M base units, 97.5 cents to the writer
     await tip(t, s, { cents: 300 }) // 30 M, 292.5 cents
@@ -1377,6 +1755,17 @@ describe('balance session', () => {
         articleId: s.articleId,
       })
     ).toMatchObject({ tippable: false, ownArticle: true })
+  })
+
+  it('answers a signed-out visitor with public facts only', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    expect(
+      await t.query(api.balance.tipContext, { articleId: s.unregisteredId })
+    ).toEqual({ tippable: false, reason: 'not-tippable', ownArticle: false })
+    expect(
+      await t.query(api.balance.tipContext, { articleId: s.articleId })
+    ).toEqual({ tippable: true, reason: null, ownArticle: false })
   })
 })
 

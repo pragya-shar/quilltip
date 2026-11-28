@@ -70,13 +70,14 @@ export function statusCopy(item: ActivityItem): {
       if (!final)
         return reader
           ? {
-              label: 'On hold',
+              // "On hold" is the internal name only; both sides read this.
+              label: 'Waiting for balance',
               detail:
                 'Your balance was short when this was paid out. Add money and it goes through.',
               tone: 'danger',
             }
           : {
-              label: 'On hold',
+              label: 'Waiting for balance',
               detail: "Waiting on the reader's balance.",
               tone: 'danger',
             }

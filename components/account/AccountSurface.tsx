@@ -5,17 +5,7 @@ import { usePathname } from 'next/navigation'
 import { ArrowRight } from 'lucide-react'
 import { useAuth } from '@/components/providers/AuthContext'
 import AppNavigation from '@/components/layout/AppNavigation'
-import { SETTINGS_PATH } from '@/lib/navigation/siteNavigation'
-
-const ACCOUNT_SECTIONS = [
-  { href: '/dashboard/balance', label: 'Balance' },
-  { href: '/dashboard/earnings', label: 'Earnings' },
-  { href: '/dashboard/wallet', label: 'Wallet' },
-  { href: '/dashboard/tab', label: 'Tab' },
-  { href: '/dashboard/stats', label: 'Stats' },
-  { href: '/dashboard/feedback', label: 'Feedback' },
-  { href: SETTINGS_PATH, label: 'Settings' },
-] as const
+import { AccountSections } from './AccountSections'
 
 export function AccountSurface({ children }: { children: ReactNode }) {
   const { user } = useAuth()
@@ -31,20 +21,7 @@ export function AccountSurface({ children }: { children: ReactNode }) {
           id="account-content"
           className="account-folio account-folio-under-header"
         >
-          <nav className="account-nav" aria-label="Account sections">
-            {ACCOUNT_SECTIONS.map(({ href, label }) => (
-              <Link
-                key={href}
-                href={href}
-                aria-current={pathname === href ? 'page' : undefined}
-              >
-                {label}
-              </Link>
-            ))}
-            {user?.username && (
-              <span className="account-name">@{user.username}</span>
-            )}
-          </nav>
+          <AccountSections pathname={pathname} username={user?.username} />
           {children}
         </main>
         <footer className="account-footer">

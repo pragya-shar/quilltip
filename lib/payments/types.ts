@@ -23,6 +23,10 @@ export type Money = {
   converted?: boolean
   /** For a screen reader: "about 18 dollars 40" (`spokenMoney`). */
   spoken?: string
+  /** On a tip amount (the amounts offered and the one chosen): the short
+   * text for a control, "$1", "$0.50" (`tipAmount`). Rows and receipts use
+   * `display`. */
+  short?: string
 }
 
 export type PassageRef = {
@@ -136,7 +140,9 @@ export type ActivityItem = {
   requestId: string | null
   role: 'reader' | 'writer'
   counterparty: { name: string; username: string | null }
-  article: { title: string; href: string | null }
+  /** `id`: the article's id, so a screen can find this reader's tips on
+   * it; null where the server gave none. */
+  article: { id: string | null; title: string; href: string | null }
   passage: string | null
   /** The tip as chosen, in dollars at tip time. */
   amount: Money
@@ -224,8 +230,12 @@ export type TipController = {
   ready: boolean
   /** Signed in and the payments code is still loading: show the control. */
   warming: boolean
-  /** A tap waits for the payments code; it is sent once, when ready. */
+  /** A tap waits for the payments code; it is sent once, when ready, if
+   * that is within 3 s. */
   queued: boolean
+  /** A tap waited more than 3 s for the payments code and was dropped:
+   * nothing was sent. True until the control is pressed again. */
+  missed: boolean
   /** Null when this reader can tip here from the balance. */
   unavailable: UnavailableReason | null
   /**
@@ -241,11 +251,32 @@ export type TipController = {
 }
 
 /** What each screen reads. The live provider and the fixture supply it. */
+/** One of the signed-in reader's own tips on an article (accepted or
+ * settled), with the tipped passage's stored text and offsets. */
+export type OwnTip = {
+  requestId: string | null
+  passage: PassageRef | null
+  amount: Money
+  state: 'accepted' | 'on-chain'
+  at: number
+}
+
+/** The signed-in reader's own tips on one article, newest first, at most a
+ * bounded number (`complete` is false when there are more). Only while a
+ * tip control for that article is on the page. */
+export type OwnTipsView = {
+  status: 'loading' | 'signed-out' | 'ready' | 'unavailable'
+  tips: OwnTip[]
+  complete: boolean
+}
+
 export type PaymentsRuntime = {
   useBalance(): BalanceView
   useTip(target: TipTarget, meta: TipMeta): TipController
   useActivity(role: 'reader' | 'writer'): ActivityView
   useEarnings(): EarningsView
+  /** This reader's own tips on an article with a tip control on the page. */
+  useOwnTips(articleId: string): OwnTipsView
 }
 
 /** Shown on the optimistic activity row until the server answers. */
