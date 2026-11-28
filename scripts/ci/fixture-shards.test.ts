@@ -60,6 +60,9 @@ describe('fixture shards in CI', () => {
     const engines = new Set(SHARDS.flatMap((s) => s.browsers.split(' ')))
     expect(new Set(fallback[0]!.browsers.split(' '))).toEqual(engines)
     expect(job).toContain('bun run test:e2e:fixtures\n')
+    expect(job).toContain(
+      "timeout-minutes: ${{ matrix.shard == 'all' && 75 || 15 }}"
+    )
     expect(new Set(SHARDS.map((s) => s.shard)).size).toBe(SHARDS.length)
   })
 })

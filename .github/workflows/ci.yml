@@ -527,8 +527,9 @@ jobs:
   e2e-fixtures:
     name: Playwright (fixtures, ${{ matrix.shard }})
     runs-on: ubuntu-latest
-    # Per shard; the longest shard took about 9 minutes on 0472be1a.
-    timeout-minutes: 15
+    # Per shard; the longest shard took about 9 minutes on 0472be1a. The
+    # one job that runs every suite when there is no plan takes about 45.
+    timeout-minutes: ${{ matrix.shard == 'all' && 75 || 15 }}
     permissions:
       contents: read
     needs: changes
