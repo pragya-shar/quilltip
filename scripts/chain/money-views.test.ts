@@ -36,6 +36,7 @@ import {
   resyncReaderPage,
 } from '../../convex/lib/chain/balanceRecount'
 import { RECENT_REQUESTS } from '../../convex/balance'
+import { OWN_TIPS_ON_ARTICLE_LIMIT } from '../../convex/activity'
 import {
   ACCEPTOR_PUBLIC,
   EPOCH,
@@ -444,6 +445,94 @@ describe('what each side is told', () => {
     expect(reader!.isWriter).toBe(false)
     const writer = await as(t, s.authorId).query(api.earnings.mine, {})
     expect(writer!.isWriter).toBe(true)
+  })
+})
+
+describe("a reader's own tips on one article", () => {
+  it('lists only the caller’s accepted and settled tips there, with the passage, bounded', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10, requestId: 'line-1', highlight: HIGHLIGHT })
+    await tip(t, s, { cents: 25, requestId: 'article-1' })
+    // Another article: not listed.
+    await tip(t, s, { cents: 10, articleId: s.otherArticleId })
+    // A rejected receipt on this article: not listed.
+    await t.run(async (ctx) => {
+      const first = (await ctx.db.query('tabReceipts').first())!
+      await ctx.db.insert('tabReceipts', {
+        ...(({ _id: _i, _creationTime: _c, ...rest }) => rest)(first),
+        clientRef: 'f'.repeat(32),
+        leafHash: 'f'.repeat(64),
+        requestId: 'rejected-1',
+        status: 'REJECTED',
+        acceptedAt: first.acceptedAt + 1,
+      })
+    })
+
+    const mine = await as(t, s.readerId).query(api.activity.mineOnArticle, {
+      articleId: s.articleId,
+    })
+    expect(mine.complete).toBe(true)
+    expect(mine.tips.map((x) => x.requestId).sort()).toEqual([
+      'article-1',
+      'line-1',
+    ])
+    const line = mine.tips.find((x) => x.requestId === 'line-1')!
+    expect(line).toMatchObject({
+      passage: HIGHLIGHT,
+      amountCents: 10,
+      state: 'accepted',
+    })
+    expect(
+      mine.tips.find((x) => x.requestId === 'article-1')!.passage
+    ).toBeNull()
+
+    // The writer and a signed-out visitor see none of the reader's tips.
+    for (const query of [
+      as(t, s.authorId).query(api.activity.mineOnArticle, {
+        articleId: s.articleId,
+      }),
+      t.query(api.activity.mineOnArticle, { articleId: s.articleId }),
+    ])
+      expect(await query).toEqual({ tips: [], complete: true })
+  })
+
+  it('says when there are more than it returns', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10, requestId: 'seed' })
+    await t.run(async (ctx) => {
+      const first = (await ctx.db.query('tabReceipts').first())!
+      const { _id: _i, _creationTime: _c, ...rest } = first
+      for (let i = 0; i < OWN_TIPS_ON_ARTICLE_LIMIT; i++)
+        await ctx.db.insert('tabReceipts', {
+          ...rest,
+          clientRef: i.toString(16).padStart(32, '0'),
+          leafHash: i.toString(16).padStart(64, '0'),
+          requestId: `more-${i}`,
+          acceptedAt: first.acceptedAt + i + 1,
+        })
+    })
+    const mine = await as(t, s.readerId).query(api.activity.mineOnArticle, {
+      articleId: s.articleId,
+    })
+    expect(mine.tips).toHaveLength(OWN_TIPS_ON_ARTICLE_LIMIT)
+    expect(mine.complete).toBe(false)
+    // Newest first.
+    expect(mine.tips[0]!.requestId).toBe(
+      `more-${OWN_TIPS_ON_ARTICLE_LIMIT - 1}`
+    )
+  })
+
+  it('puts the article id on every activity entry', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    const page = await as(t, s.readerId).query(api.activity.mine, {
+      role: 'reader',
+      paginationOpts: { numItems: 10, cursor: null },
+    })
+    expect(page.page[0]!.article.id).toBe(s.articleId)
   })
 })
 

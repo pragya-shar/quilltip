@@ -230,8 +230,16 @@ function item(
         : { name: 'A reader', username: null },
     article:
       role === 'reader'
-        ? { title: 'The Winter Shelf', href: '/wen_hsu/the-winter-shelf' }
-        : { title: 'Leave It Overnight', href: '/theo/leave-it-overnight' },
+        ? {
+            id: 'article-winter-shelf',
+            title: 'The Winter Shelf',
+            href: '/wen_hsu/the-winter-shelf',
+          }
+        : {
+            id: 'article-leave-it-overnight',
+            title: 'Leave It Overnight',
+            href: '/theo/leave-it-overnight',
+          },
     passage: 'Leave it overnight.',
     amount: money(cents),
     net: status === 'sending' ? null : money(share(cents)),
@@ -513,5 +521,19 @@ export function fakeRuntime(
     useActivity: (role) =>
       role === 'reader' ? views.readerActivity : views.writerActivity,
     useEarnings: () => views.earnings,
+    // The reader's tips in this scenario, as their own tips on the article.
+    useOwnTips: () => ({
+      status: views.balance.status === 'signed-out' ? 'signed-out' : 'ready',
+      complete: true,
+      tips: views.readerActivity.items
+        .filter((i) => i.status === 'sent' || i.status === 'on-chain')
+        .map((i) => ({
+          requestId: i.requestId,
+          passage: null,
+          amount: i.amount,
+          state: i.status === 'on-chain' ? 'on-chain' : 'accepted',
+          at: i.at,
+        })),
+    }),
   }
 }

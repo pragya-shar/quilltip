@@ -74,6 +74,7 @@ import {
 } from '@/lib/payments/views'
 import { EarningsWatch } from './EarningsWatch'
 import { useAsOf } from './useAsOf'
+import { OwnTipsWatch } from './OwnTipsWatch'
 import { TipContextWatch } from './TipContextWatch'
 import { WriterWatch } from './WriterWatch'
 
@@ -650,6 +651,13 @@ export function PaymentsEngine() {
               all[articleId] === value ? all : { ...all, [articleId]: value }
             )
           }
+        />
+      ))}
+      {articleIds.map((articleId) => (
+        <OwnTipsWatch
+          key={`own:${articleId}`}
+          articleId={articleId as Id<'articles'>}
+          enabled={isAuthenticated && !isLoading}
         />
       ))}
       {watches.writer > 0 ? <WriterWatch now={now} /> : null}

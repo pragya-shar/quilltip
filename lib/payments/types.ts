@@ -140,7 +140,9 @@ export type ActivityItem = {
   requestId: string | null
   role: 'reader' | 'writer'
   counterparty: { name: string; username: string | null }
-  article: { title: string; href: string | null }
+  /** `id`: the article's id, so a screen can find this reader's tips on
+   * it; null where the server gave none. */
+  article: { id: string | null; title: string; href: string | null }
   passage: string | null
   /** The tip as chosen, in dollars at tip time. */
   amount: Money
@@ -245,11 +247,32 @@ export type TipController = {
 }
 
 /** What each screen reads. The live provider and the fixture supply it. */
+/** One of the signed-in reader's own tips on an article (accepted or
+ * settled), with the tipped passage's stored text and offsets. */
+export type OwnTip = {
+  requestId: string | null
+  passage: PassageRef | null
+  amount: Money
+  state: 'accepted' | 'on-chain'
+  at: number
+}
+
+/** The signed-in reader's own tips on one article, newest first, at most a
+ * bounded number (`complete` is false when there are more). Only while a
+ * tip control for that article is on the page. */
+export type OwnTipsView = {
+  status: 'loading' | 'signed-out' | 'ready' | 'unavailable'
+  tips: OwnTip[]
+  complete: boolean
+}
+
 export type PaymentsRuntime = {
   useBalance(): BalanceView
   useTip(target: TipTarget, meta: TipMeta): TipController
   useActivity(role: 'reader' | 'writer'): ActivityView
   useEarnings(): EarningsView
+  /** This reader's own tips on an article with a tip control on the page. */
+  useOwnTips(articleId: string): OwnTipsView
 }
 
 /** Shown on the optimistic activity row until the server answers. */

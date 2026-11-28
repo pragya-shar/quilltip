@@ -337,6 +337,7 @@ describe('optimistic balance and reconciliation', () => {
       role: 'reader',
       counterparty: { name: 'Ada', username: 'ada' },
       article: {
+        id: 'article-1',
         title: 'On Writing',
         slug: 'on-writing',
         authorUsername: 'ada',

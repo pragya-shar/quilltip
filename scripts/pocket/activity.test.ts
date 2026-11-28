@@ -22,7 +22,7 @@ function tip(
       name: role === 'reader' ? 'Theo Marsh' : 'A reader',
       username: null,
     },
-    article: { title: 'A', href: null },
+    article: { id: null, title: 'A', href: null },
     passage: null,
     amount: m(25),
     net: m(24.375),

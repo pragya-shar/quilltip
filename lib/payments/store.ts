@@ -20,6 +20,7 @@ import type {
   ActivityView,
   BalanceView,
   EarningsView,
+  OwnTipsView,
   TipController,
   TipMeta,
   TipTarget,
@@ -41,6 +42,8 @@ export type PaymentsState = {
   readerActivity: ActivityView | null
   writerActivity: ActivityView | null
   earnings: EarningsView | null
+  /** The reader's own tips, by article id, for articles with a control. */
+  ownTips: Record<string, OwnTipsView>
   /** Controllers the engine computed, by control id. */
   tips: Record<string, TipController>
   /** Live controls and what they tip, for the engine. */
@@ -58,6 +61,7 @@ const CLEARED = {
   readerActivity: null,
   writerActivity: null,
   earnings: null,
+  ownTips: {},
   tips: {},
   queuedTaps: {},
 }

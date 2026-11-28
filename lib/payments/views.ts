@@ -17,6 +17,7 @@ import type {
   BalanceView,
   EarningsView,
   Money,
+  OwnTipsView,
 } from './types'
 
 export type SessionRead = FunctionReturnType<typeof api.balance.session>
@@ -26,6 +27,7 @@ export type ActivityEntry = FunctionReturnType<
 export type EarningsRead = FunctionReturnType<typeof api.earnings.mine>
 /** Public tip terms for a signed-out visitor (`balance.publicTipTerms`). */
 export type PublicTerms = FunctionReturnType<typeof api.balance.publicTipTerms>
+export type OwnTipsRead = FunctionReturnType<typeof api.activity.mineOnArticle>
 
 /** The amounts a signed-out visitor's button offers: the cap and minimum
  * only, never a balance or a daily remainder. */
@@ -286,7 +288,11 @@ export function activityItemOf(
     requestId: entry.requestId,
     role: entry.role,
     counterparty: entry.counterparty,
-    article: { title: entry.article.title, href: articleHref(entry) },
+    article: {
+      id: entry.article.id,
+      title: entry.article.title,
+      href: articleHref(entry),
+    },
     passage: entry.passage,
     amount: money(entry.amountCents),
     net: money(entry.netCents),
@@ -311,7 +317,11 @@ export function sendingItemOf(entry: OutboxEntry): ActivityItem {
     requestId: entry.requestId,
     role: 'reader',
     counterparty: { name: entry.meta.writerName, username: null },
-    article: { title: entry.meta.articleTitle, href: entry.meta.href },
+    article: {
+      id: entry.articleId,
+      title: entry.meta.articleTitle,
+      href: entry.meta.href,
+    },
     passage: entry.passage?.text ?? null,
     amount: money(entry.amountCents),
     // Net and fee are unknown until the server accepts and prices the tip.
@@ -420,5 +430,20 @@ export function pageState(
     firstLoad: status === 'LoadingFirstPage',
     canLoadMore: status === 'CanLoadMore',
     loadingMore: status === 'LoadingMore',
+  }
+}
+
+/** The reader's own tips on one article, from `activity.mineOnArticle`. */
+export function ownTipsViewOf(read: OwnTipsRead): OwnTipsView {
+  return {
+    status: 'ready',
+    complete: read.complete,
+    tips: read.tips.map((tip) => ({
+      requestId: tip.requestId,
+      passage: tip.passage,
+      amount: money(tip.amountCents),
+      state: tip.state,
+      at: tip.at,
+    })),
   }
 }

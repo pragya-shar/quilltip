@@ -128,7 +128,7 @@ describe('ActivityItem.fee, unpaid and unpaidNet', () => {
       requestId: 'q1',
       role: 'writer',
       counterparty: { name: 'A reader', username: null },
-      article: { title: 'A', slug: 'a', authorUsername: 'w' },
+      article: { id: 'article-1', title: 'A', slug: 'a', authorUsername: 'w' },
       passage: null,
       amountCents: 25,
       netCents: 24.375,

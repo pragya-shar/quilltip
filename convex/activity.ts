@@ -37,7 +37,12 @@ export type ActivityEntry = {
   requestId: string | null
   role: 'reader' | 'writer'
   counterparty: { name: string; username: string | null }
-  article: { title: string; slug: string; authorUsername: string | null }
+  article: {
+    id: string
+    title: string
+    slug: string
+    authorUsername: string | null
+  }
   passage: string | null
   /** The tip as the reader chose it, in whole US cents (exact). */
   amountCents: number
@@ -109,6 +114,7 @@ async function entryOf(
           }
         : { name: 'A reader', username: null },
     article: {
+      id: receipt.articleId,
       title: row?.articleTitle ?? 'Article',
       slug: row?.articleSlug ?? '',
       authorUsername: author?.username ?? null,
@@ -173,5 +179,85 @@ export const mine = query({
     for (const receipt of result.page)
       page.push(await entryOf(ctx, receipt, 'writer'))
     return { ...result, page }
+  },
+})
+
+/** At most this many of a reader's own tips on one article are returned. */
+export const OWN_TIPS_ON_ARTICLE_LIMIT = 100
+
+const ownTipValidator = v.object({
+  requestId: v.union(v.string(), v.null()),
+  passage: v.union(
+    v.null(),
+    v.object({
+      text: v.string(),
+      startOffset: v.number(),
+      endOffset: v.number(),
+    })
+  ),
+  amountCents: v.number(),
+  state: v.union(v.literal('accepted'), v.literal('on-chain')),
+  at: v.number(),
+})
+
+/**
+ * The signed-in reader's own tips on one article that the server accepted
+ * or that are settled, newest first, with each tipped passage's stored text
+ * and offsets, so the article can mark the lines this reader tipped after a
+ * reload. At most `OWN_TIPS_ON_ARTICLE_LIMIT`; `complete` is false when
+ * there are more. Only the caller's own receipts, through their own tab
+ * account: no one else's tips and nothing of the writer's.
+ */
+export const mineOnArticle = query({
+  args: { articleId: v.id('articles') },
+  returns: v.object({
+    tips: v.array(ownTipValidator),
+    complete: v.boolean(),
+  }),
+  handler: async (ctx, args) => {
+    const none = { tips: [], complete: true }
+    const me = await caller(ctx)
+    if (!me || !me.address || !me.chain.tabContractId) return none
+    const account = await tabAccountForReader(
+      ctx,
+      me.address,
+      me.chain.chainEpoch
+    )
+    if (!account || account.userId !== me.userId) return none
+    const receipts = await ctx.db
+      .query('tabReceipts')
+      .withIndex('by_account_article', (q) =>
+        q.eq('tabAccountId', account._id).eq('articleId', args.articleId)
+      )
+      .order('desc')
+      .take(OWN_TIPS_ON_ARTICLE_LIMIT + 1)
+    const tips = []
+    for (const receipt of receipts.slice(0, OWN_TIPS_ON_ARTICLE_LIMIT)) {
+      if (receipt.status !== 'ACCEPTED' && receipt.status !== 'SETTLED')
+        continue
+      const row = await tipRowOf(ctx, receipt)
+      const passage =
+        row && 'highlightText' in row && row.highlightText
+          ? {
+              text: row.highlightText,
+              startOffset: row.startOffset,
+              endOffset: row.endOffset,
+            }
+          : null
+      tips.push({
+        requestId: receipt.requestId ?? row?.requestId ?? null,
+        passage,
+        amountCents: await receiptCents(ctx, receipt),
+        state:
+          receipt.status === 'SETTLED'
+            ? ('on-chain' as const)
+            : ('accepted' as const),
+        at: receipt.acceptedAt,
+      })
+    }
+    return {
+      tips,
+      complete: receipts.length <= OWN_TIPS_ON_ARTICLE_LIMIT,
+    }
   },
 })

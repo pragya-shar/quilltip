@@ -26,6 +26,7 @@ import type {
   BalanceView,
   EarningsView,
   Money,
+  OwnTipsView,
   PaymentsRuntime,
   TipController,
   TipMeta,
@@ -86,6 +87,7 @@ const ACTIVITY: Record<Blank, ActivityView> = {
 
 const LOADING_EARNINGS: EarningsView = {
   status: 'loading',
+  isWriter: null,
   pending: null,
   available: null,
   collected: null,
@@ -100,6 +102,12 @@ const EARNINGS: Record<Blank, EarningsView> = {
   loading: LOADING_EARNINGS,
   'signed-out': { ...LOADING_EARNINGS, status: 'signed-out' },
   unavailable: { ...LOADING_EARNINGS, status: 'unavailable' },
+}
+
+const OWN_TIPS: Record<Blank, OwnTipsView> = {
+  loading: { status: 'loading', tips: [], complete: true },
+  'signed-out': { status: 'signed-out', tips: [], complete: true },
+  unavailable: { status: 'unavailable', tips: [], complete: true },
 }
 
 /** The views the hooks read: the engine's, else the blank one (stable). */
@@ -200,6 +208,9 @@ export const shellRuntime: PaymentsRuntime = {
     useEffect(() => paymentsStore.watch('earnings'), [])
     return useStore((s) => viewsOf(s).earnings)
   },
+  // The engine reads it for each article with a tip control on the page.
+  useOwnTips: (articleId) =>
+    useStore((s) => s.ownTips[articleId] ?? OWN_TIPS[blankOf(s)]),
 }
 
 export const PaymentsRuntimeContext =
