@@ -44,6 +44,7 @@ import {
   fromRow,
   networkName,
   signingLine,
+  smallestUnitLine,
 } from '@/lib/addMoney/words'
 import { useSettlingPresses } from '@/hooks/addMoney/useSettlingPresses'
 import { AmountStep } from './AmountStep'
@@ -320,6 +321,11 @@ export function AddMoneyFlow({
       )
     if (moved && keyIn) {
       pollAbort.current?.abort()
+      if (step.prepared.key && reading.address)
+        void services.retireOtherKeys(
+          reading.address,
+          step.prepared.key.publicKey
+        )
       const until = step.prepared.key
         ? consentFigures(
             step.prepared.key,
@@ -329,7 +335,7 @@ export function AddMoneyFlow({
         : null
       setStep({ at: 'added', request: step.request, until })
     }
-  }, [step, reading])
+  }, [step, reading, services])
   useEffect(() => {
     if (step.at !== 'adding' || step.slow) return
     const timer = setTimeout(
@@ -372,8 +378,13 @@ export function AddMoneyFlow({
             )
             return
           }
-          // Back to the review with the wallet named: the next press asks it.
-          backToReview()
+          // An extension answers in this page: the press that chose it
+          // asks it to sign. A web wallet opens a window, which needs a
+          // fresh press: back to the review with the wallet named.
+          const review = lastReview.current
+          if (row.access === 'installed' && review)
+            sign(review.request, review.prepared)
+          else backToReview()
         })
         .catch((error) => {
           const failure =
@@ -385,7 +396,7 @@ export function AddMoneyFlow({
           else fail(failure, null)
         })
     },
-    [services, reading, fail, backToReview]
+    [services, reading, fail, backToReview, sign]
   )
 
   const link = useCallback(() => {
@@ -678,6 +689,7 @@ export function AddMoneyFlow({
             quickTips: request.withQuickTips ? consent : null,
           })}
         </p>
+        <p className="qt-add__fine">{smallestUnitLine(prepared.amount)}</p>
         <p className="qt-add__fine">Don’t see the request? Open your wallet.</p>
         <Button
           variant="quiet"

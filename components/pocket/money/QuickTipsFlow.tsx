@@ -140,12 +140,17 @@ export function QuickTipsFlow({
   useEffect(() => {
     if (step.at !== 'setting-up' || !reading) return
     const key = step.prepared.key!
-    if (reading.keys.some((k) => k.publicKey?.toLowerCase() === key.publicKey))
+    if (
+      reading.keys.some((k) => k.publicKey?.toLowerCase() === key.publicKey)
+    ) {
+      if (reading.address)
+        void services.retireOtherKeys(reading.address, key.publicKey)
       setStep({
         at: 'done',
         until: consentFigures(key, step.prepared.clock, reading.priceUsd).until,
       })
-  }, [step, reading])
+    }
+  }, [step, reading, services])
   useEffect(() => {
     if (step.at !== 'setting-up' || step.slow) return
     const timer = setTimeout(

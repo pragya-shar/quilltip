@@ -112,6 +112,14 @@ export function signingLine(input: {
     : `${base}, plus the ${input.fee} network fee.`
 }
 
+/**
+ * A wallet shows a contract call's amount in stroops ("100000000"), not in
+ * XLM: the sheet says what that number is.
+ */
+export function smallestUnitLine(stroops: string): string {
+  return `Your wallet may show the amount as ${stroops}, Stellar’s smallest unit: that is ${formatTokenAmount(stroops)}.`
+}
+
 /** The reason line at the top of the quick tips sheet. */
 export function whyLine(
   variant: QuickTipsVariant,

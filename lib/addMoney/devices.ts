@@ -59,7 +59,7 @@ export function quickTipsRows(reading: Reading, now: number): DeviceRow[] {
   if (!reading.ledger) return []
   const current = ledgerNow(reading.ledger, now)
   return reading.keys
-    .filter((k) => k.publicKey !== null)
+    .filter((k) => k.publicKey !== null && !k.retired)
     .filter((k) =>
       k.revoked
         ? k.validUntilLedger > current

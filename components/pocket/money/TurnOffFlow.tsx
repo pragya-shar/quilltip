@@ -141,9 +141,20 @@ export function TurnOffFlow({
 
   const turnOff = (prepared: PreparedRequest) => {
     if (step.at !== 'review' || step.busy) return
+    if (!address || !reading) return
     setStep({ ...step, busy: true })
-    services
-      .stopKey(keyId)
+    // Turning this device off stops every live approval this browser
+    // holds; another device's row stops that one only.
+    const here = reading.keys.find((k) => k.keyId === keyId)?.here ?? false
+    const ids = here
+      ? [
+          keyId,
+          ...reading.keys
+            .filter((k) => k.here && !k.revoked && k.keyId !== keyId)
+            .map((k) => k.keyId),
+        ]
+      : [keyId]
+    Promise.all(ids.map((id) => services.stopKey(id, address)))
       .then(() => {
         if (cancelled.current) return
         confirm(prepared)

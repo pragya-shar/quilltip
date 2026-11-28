@@ -60,6 +60,8 @@ type Log = {
   tips: number
   /** Keys stopped in Quilltip (turn off). */
   stopped: number[]
+  /** Keys this browser replaced with a newer approval. */
+  retired: number[]
 }
 
 declare global {
@@ -69,7 +71,7 @@ declare global {
 }
 window.__wallet = {
   next: 'approve',
-  log: { signed: [], sent: [], tips: 0, stopped: [] },
+  log: { signed: [], sent: [], tips: 0, stopped: [], retired: [] },
 }
 
 const now = () => Date.now()
@@ -89,6 +91,7 @@ if (device === 'ready' || device === 'expired' || device === 'unchecked')
     spendLimit: (BigInt(50) * XLM).toString(),
     acceptedTotal: (BigInt(12) * XLM).toString(),
     here: true,
+    retired: false,
   })
 if (params.has('other-key'))
   startKeys.push({
@@ -99,6 +102,7 @@ if (params.has('other-key'))
     spendLimit: (BigInt(50) * XLM).toString(),
     acceptedTotal: (BigInt(3) * XLM).toString(),
     here: false,
+    retired: false,
   })
 
 let reading: Reading = {
@@ -313,6 +317,7 @@ export const emulatedServices: AddMoneyServices = {
               spendLimit: prepared.key.spendLimit,
               acceptedTotal: '0',
               here: true,
+              retired: false,
             },
           ]
           next = { device: 'ready', deviceKeyId: keyId }
@@ -332,6 +337,19 @@ export const emulatedServices: AddMoneyServices = {
   async poll() {
     await pause(params.has('slow') ? 26_000 : 500)
     return 'SUCCESS'
+  },
+  async retireOtherKeys(_address, keepPublicKey) {
+    const older = reading.keys.filter(
+      (k) => k.here && !k.revoked && k.publicKey !== keepPublicKey
+    )
+    window.__wallet.log.retired.push(...older.map((k) => k.keyId))
+    set({
+      keys: reading.keys.map((k) =>
+        older.includes(k)
+          ? { ...k, revoked: true, retired: true, here: false }
+          : k
+      ),
+    })
   },
   async stopKey(keyId) {
     await pause(150)

@@ -7473,3 +7473,65 @@ describe('adding money from the balance sheet', () => {
     expect(after?.keys[0]).toEqual(before?.keys[0])
   })
 })
+
+describe('a first deposit with no device key: who may prepare it', () => {
+  const amount = (BigInt(10) * XLM).toString()
+
+  it('refuses a reader whose wallet is not verified on this network, and records nothing', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await t.run((ctx) =>
+      ctx.db.patch(s.readerId, { stellarAddressVerifiedNetwork: 'other' })
+    )
+    expect(
+      await errorCode(
+        as(t, s.readerId).mutation(api.tabs.prepareDeposit, { amount })
+      )
+    ).toBe('TAB_READER_UNVERIFIED')
+    await t.run((ctx) =>
+      ctx.db.patch(s.readerId, { stellarAddressVerifiedAt: undefined })
+    )
+    expect(
+      await errorCode(
+        as(t, s.readerId).mutation(api.tabs.prepareDeposit, { amount })
+      )
+    ).toBe('TAB_READER_UNVERIFIED')
+    expect(
+      await t.run((ctx) => ctx.db.query('tabAccounts').collect())
+    ).toHaveLength(0)
+  })
+
+  it('refuses an address whose balance belongs to another account', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t, { open: false })
+    await as(t, s.readerId).mutation(api.tabs.prepareDeposit, { amount })
+    // Another account that claims the same address.
+    const intruder = await t.run((ctx) =>
+      ctx.db.insert('users', {
+        username: 'intruder',
+        email: 'intruder@example.test',
+        stellarAddress: READER,
+        stellarAddressVerifiedAt: Date.now(),
+        stellarAddressVerifiedNetwork: PASSPHRASE,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    )
+    expect(
+      await errorCode(
+        as(t, intruder).mutation(api.tabs.prepareDeposit, { amount })
+      )
+    ).toBe('TAB_ACCOUNT_OTHER_USER')
+    const accounts = await t.run((ctx) => ctx.db.query('tabAccounts').collect())
+    expect(accounts).toHaveLength(1)
+    expect(accounts[0]!.userId).toBe(s.readerId)
+  })
+
+  it('refuses a signed-out caller', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t, { open: false })
+    expect(
+      await errorCode(t.mutation(api.tabs.prepareDeposit, { amount }))
+    ).toBe('UNAUTHENTICATED')
+  })
+})

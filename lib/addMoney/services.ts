@@ -3,6 +3,12 @@
  * the reader's balance and device, Stellar testnet, the wallet. One seam,
  * so the app passes the live services (`./live/services`, loaded with the
  * sheet) and a fixture passes an emulated wallet and chain. Types only.
+ *
+ * Where the money comes from is the wallet steps only (`wallets`,
+ * `connect`, `link`, `sign`): the amount, the review with its consent
+ * line, the Added state and the return to the line read `Reading` and
+ * `PreparedRequest` and do not know the source. A second source (an
+ * account that needs no wallet) adds its own approve step beside `sign`.
  */
 import type { DeviceKind } from './plan'
 
@@ -21,6 +27,8 @@ export type DeviceKey = {
   acceptedTotal: string | null
   /** This browser holds the key. */
   here: boolean
+  /** This browser replaced it with a newer approval and deleted it. */
+  retired: boolean
 }
 
 /** The reader's money as the sheets read it, reactive. */
@@ -168,8 +176,15 @@ export type AddMoneyServices = {
     signal: AbortSignal
   ): Promise<'SUCCESS' | 'FAILED' | 'TIMEOUT'>
   /** Quilltip stops accepting tips under the key at once, before the
-   * wallet confirms it on the network. Throws `StepError`. */
-  stopKey(keyId: number): Promise<void>
+   * wallet confirms it on the network; this browser deletes the key if it
+   * holds it. Throws `StepError`. */
+  stopKey(keyId: number, address: string): Promise<void>
+  /**
+   * After a new approval is confirmed: this browser's older keys are
+   * stopped in Quilltip and deleted here, so one browser never holds two
+   * live approvals. No wallet step. Best effort; never throws.
+   */
+  retireOtherKeys(address: string, keepPublicKey: string): Promise<void>
   /** Client time, ms. */
   now(): number
 }

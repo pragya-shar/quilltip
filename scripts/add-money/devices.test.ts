@@ -15,6 +15,7 @@ function key(over: Partial<DeviceKey>): DeviceKey {
     spendLimit: '500000000',
     acceptedTotal: '0',
     here: false,
+    retired: false,
     ...over,
   }
 }
@@ -64,6 +65,19 @@ describe('quick tips in Balance', () => {
       NOW
     )
     expect(rows.map((r) => r.key.keyId)).toEqual([2])
+  })
+
+  it('leaves out an approval this browser replaced with a newer one', () => {
+    const rows = quickTipsRows(
+      reading({
+        keys: [
+          key({ keyId: 4, revoked: true, retired: true }),
+          key({ keyId: 5, here: true }),
+        ],
+      }),
+      NOW
+    )
+    expect(rows.map((r) => r.key.keyId)).toEqual([5])
   })
 
   it('keeps an approval turned off in Quilltip and not yet confirmed by the wallet, marked', () => {

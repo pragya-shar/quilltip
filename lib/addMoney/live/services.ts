@@ -32,7 +32,7 @@ import {
   ownershipErrorMessage,
   WalletOwnershipError,
 } from '@/lib/stellar/v2/wallet-ownership'
-import { seenKeyIds } from '@/lib/tab-ui/device-memory'
+import { noteSeenKeyIds, seenKeyIds } from '@/lib/tab-ui/device-memory'
 import {
   deviceKeyView,
   keyPlan,
@@ -59,6 +59,7 @@ import {
 import type { DeviceKind } from '../plan'
 import { stepFailureFromWallet } from '../walletFailure'
 import { FEE_CEILING_STROOPS } from '../fee'
+import { noteRetiredKeyIds, retiredKeyIds } from '../forgetKeys'
 
 /** Ledgers close about every 5 seconds. */
 const LEDGER_MS = 5_000
@@ -186,6 +187,7 @@ function useDevice(
           serverKeys.map((k) => ({ keyId: k.keyId, publicKey: k.publicKey }))
         )
         const held = (await keys().list(scope)).map((k) => k.info)
+        noteSeenKeyIds(tab, address, localKeyIds(held))
         const current = ledger
           ? ledger.sequence +
             Math.max(0, Math.floor((Date.now() - ledger.closedAt) / LEDGER_MS))
@@ -201,7 +203,13 @@ function useDevice(
             key: signature,
             kind: view.kind,
             keyId: view.kind === 'ready' ? view.keyId : null,
-            here: localKeyIds(held),
+            // Held here, or held here before and turned off since.
+            here: [
+              ...localKeyIds(held),
+              ...seenKeyIds(tab, address).filter((id) =>
+                serverKeys.some((k) => k.keyId === id && k.revoked)
+              ),
+            ],
           })
       } catch {
         if (alive)
@@ -247,6 +255,12 @@ function useLiveReading(): Reading | undefined {
         ledger: null,
       }
     const quote = session.prices.find((p) => p.token === 'xlm') ?? null
+    let retired: number[] = []
+    try {
+      retired = address ? retiredKeyIds(config().tabContractId, address) : []
+    } catch {
+      retired = []
+    }
     return {
       userId: session.userId,
       address,
@@ -264,6 +278,7 @@ function useLiveReading(): Reading | undefined {
         spendLimit: k.spendLimit,
         acceptedTotal: k.acceptedTotal,
         here: device.here.includes(k.keyId),
+        retired: retired.includes(k.keyId),
       })),
       device: address ? device.kind : null,
       deviceKeyId: device.keyId,
@@ -350,6 +365,14 @@ async function prepareOnServer(
     context,
     clock,
   }
+}
+
+/** Deletes this browser's copy of `keyId`, for any reader it holds. */
+async function forgetHeld(keyId: number, address: string) {
+  const c = config()
+  const scope = { tabContractId: c.tabContractId, readerAddress: address }
+  const held = await keys().get(scope, keyId)
+  if (held) await keys().forget(scope, held.info.publicKey)
 }
 
 export function createLiveServices(
@@ -531,11 +554,34 @@ export function createLiveServices(
       }
       throw new StepError({ kind: 'expired' })
     },
-    async stopKey(keyId) {
+    async stopKey(keyId, address) {
       try {
         await convex.mutation(api.tabs.prepareRevokeKey, { keyId })
       } catch (error) {
         throw asStep(error)
+      }
+      // This browser's copy goes at once: a key with no key material
+      // cannot sign a tip, whatever the network says until the wallet
+      // records the change.
+      await forgetHeld(keyId, address).catch(() => {})
+    },
+    async retireOtherKeys(address, keepPublicKey) {
+      try {
+        const c = config()
+        const scope = { tabContractId: c.tabContractId, readerAddress: address }
+        const held = await keys().list(scope)
+        const older = held.filter(
+          (k) => k.info.publicKey !== keepPublicKey.toLowerCase()
+        )
+        const ids = older.flatMap((k) => k.info.keyIds)
+        for (const keyId of ids)
+          await convex
+            .mutation(api.tabs.prepareRevokeKey, { keyId })
+            .catch(() => {})
+        for (const k of older) await keys().forget(scope, k.info.publicKey)
+        noteRetiredKeyIds(c.tabContractId, address, ids)
+      } catch {
+        // Best effort: the older key keeps its own end.
       }
     },
     poll(hash, maxTime, signal) {
