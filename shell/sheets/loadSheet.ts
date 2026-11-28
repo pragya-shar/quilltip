@@ -23,11 +23,8 @@ export function preloadSheet(id: string): Promise<{ default: Body }> | null {
       },
       () => {}
     )
-    // A failed load is forgotten, so Try again loads afresh.
-    promise.catch(() => {
-      started.delete(id)
-      lazies.delete(id)
-    })
+    // A failed load stays failed, so the sheet says so; Try again
+    // (`forgetSheet`) loads afresh.
     started.set(id, promise)
   }
   return promise

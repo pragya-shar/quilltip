@@ -72,29 +72,33 @@ export function LazySheet({
       title={title}
       description={declaration.description}
     >
-      <SheetLoadBoundary
-        key={attempt}
-        onRetry={() => {
-          forgetSheet(id)
-          setAttempt((n) => n + 1)
-        }}
-      >
-        <Suspense
-          fallback={
-            <div
-              className="qt-sheet-loading"
-              aria-busy="true"
-              aria-label="Loading"
-            >
-              <Skeleton width="70%" />
-              <Skeleton width="45%" />
-              <Skeleton shape="block" height="3.5rem" />
-            </div>
-          }
+      {/* Nothing in the body until the wait ends: no hidden placeholder,
+          and no lazy body suspending while the code may still arrive. */}
+      {waited ? (
+        <SheetLoadBoundary
+          key={attempt}
+          onRetry={() => {
+            forgetSheet(id)
+            setAttempt((n) => n + 1)
+          }}
         >
-          <Body props={props} close={onClose} />
-        </Suspense>
-      </SheetLoadBoundary>
+          <Suspense
+            fallback={
+              <div
+                className="qt-sheet-loading"
+                aria-busy="true"
+                aria-label="Loading"
+              >
+                <Skeleton width="70%" />
+                <Skeleton width="45%" />
+                <Skeleton shape="block" height="3.5rem" />
+              </div>
+            }
+          >
+            <Body props={props} close={onClose} />
+          </Suspense>
+        </SheetLoadBoundary>
+      ) : null}
     </Sheet>
   )
 }
