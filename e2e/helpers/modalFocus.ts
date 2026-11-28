@@ -1,8 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 
 // The focus rules every modal keeps, asserted on any modal by its role and
-// its own aria-labelledby. Shaped like the v2 side's e2e/helpers/dialogFocus.ts
-// so these tests can move to it once it reaches the base.
+// its own aria-labelledby, so any modal's tests can use them.
 
 /** The element that names the modal (its aria-labelledby). */
 export async function modalTitle(modal: Locator): Promise<Locator> {
