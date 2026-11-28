@@ -67,11 +67,13 @@ const LEGACY_FIXTURES = [
     },
   },
   {
-    // v2 article, highlight and basket tips in every state.
+    // v2 article, highlight and basket tips in every state in Chromium; the
+    // keyboard, focus and result tests in WebKit too (its own config).
     name: 'tips-v2',
     server: 'e2e/fixtures/tips-v2/server.mjs',
     port: 4179,
     spec: 'e2e/tips-v2.spec.ts',
+    config: 'e2e/fixtures/tips-v2/playwright.config.ts',
     env: {
       TIPS_V2_FIXTURES: '1',
       PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4179',

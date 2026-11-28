@@ -13,6 +13,23 @@ export const APP_ROUTE_SEGMENTS: ReadonlySet<string> = new Set(
 /** Framework paths; usernames may otherwise start with an underscore. */
 const NEXT_INTERNAL_SEGMENTS = new Set(['_next', '_vercel'])
 
+/** Route handlers under app/api, outside the proxy's matcher. */
+const ROUTE_HANDLER_SEGMENTS = new Set(['api'])
+
+/**
+ * Whether a name, in any case, is a first segment that is never a writer's
+ * page: a reserved segment, a framework path or the route handlers. For
+ * redirects that build a writer path from what a person typed.
+ */
+export function isReservedFirstSegment(name: string): boolean {
+  const lower = name.toLowerCase()
+  return (
+    APP_ROUTE_SEGMENTS.has(lower) ||
+    NEXT_INTERNAL_SEGMENTS.has(lower) ||
+    ROUTE_HANDLER_SEGMENTS.has(lower)
+  )
+}
+
 /**
  * Returns the writer (and article slug) a path points at, or null for app
  * routes, files and anything deeper than two segments.

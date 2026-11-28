@@ -186,6 +186,37 @@ test('focus follows the tip by touch or pointer too, with no ring', async ({
   await expect(button).toHaveText('Tip Tomás $5')
 })
 
+test('focus moves never scroll, and a press elsewhere is never undone', async ({
+  page,
+}) => {
+  await open(page)
+  const group = liveTip(page)
+  const button = group.locator('.qt-tip__button')
+  await button.scrollIntoViewIfNeeded()
+  const y = await page.evaluate(() => window.scrollY)
+  await press(page, button)
+  await expect.poll(async () => (await focused(page)).text).toBe('Sending $1')
+  await expect(button).toHaveText(/^Sent \$1/)
+  expect(await page.evaluate(() => window.scrollY)).toBe(y)
+  // While it says Sent, the person presses plain text elsewhere: focus is
+  // theirs now (on the body in Safari and here), and stays there.
+  const text = page.getByText('Amounts are the money layer’s display strings', {
+    exact: false,
+  })
+  await press(page, text)
+  await expect(
+    group.getByRole('button', { name: 'Tip Tomás $1' })
+  ).toBeVisible()
+  await page.waitForTimeout(300)
+  expect(
+    await page.evaluate(() =>
+      document.activeElement?.closest('.qt-tip')
+        ? 'in the control'
+        : 'elsewhere'
+    )
+  ).toBe('elsewhere')
+})
+
 test('a refused tip moves focus to the reason, and Try again is there', async ({
   page,
 }) => {
@@ -406,37 +437,57 @@ test('another amount: typed, checked, chosen without sending', async ({
   await expect(
     tray.getByRole('radio', { name: '$1', exact: true })
   ).toBeFocused()
+  // Set by a press: Safari moves focus off a pressed button before its
+  // click, and the tray still takes the amount.
+  await group
+    .getByRole('textbox', { name: 'Other amount in dollars' })
+    .fill('3')
+  await press(page, group.getByRole('button', { name: 'Set' }))
+  await expect(group.locator('.qt-tip__button')).toHaveText('Tip Tomás $3')
 })
 
 test('a line changing state keeps every line break', async ({ page }) => {
   await open(page)
   const layout = await page.evaluate(() =>
-    ['chosen', 'holding', 'mine'].map((state) => {
-      const p = document.querySelector<HTMLElement>(`[data-steady="${state}"]`)!
-      // Lines of text, not the ornaments drawn beside it.
-      const bottoms = new Set<number>()
-      const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT)
-      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-        if (node.parentElement?.closest('[aria-hidden="true"]')) continue
-        const range = document.createRange()
-        range.selectNodeContents(node)
-        for (const r of range.getClientRects())
-          if (r.width > 0) bottoms.add(Math.round(r.bottom))
+    ['chosen', 'holding', 'mine', 'others-top', 'others-top-chosen'].map(
+      (state) => {
+        const p = document.querySelector<HTMLElement>(
+          `[data-steady="${state}"]`
+        )!
+        // Lines of text, not the ornaments drawn beside it.
+        const bottoms = new Set<number>()
+        const walker = document.createTreeWalker(p, NodeFilter.SHOW_TEXT)
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          if (node.parentElement?.closest('[aria-hidden="true"]')) continue
+          const range = document.createRange()
+          range.selectNodeContents(node)
+          for (const r of range.getClientRects())
+            if (r.width > 0) bottoms.add(Math.round(r.bottom))
+        }
+        const lines = bottoms.size
+        const base = p.getBoundingClientRect()
+        const words = [...p.querySelector('.qt-mark')!.getClientRects()].map(
+          (r) =>
+            [r.left - base.left, r.top - base.top, r.width].map((v) =>
+              Math.round(v)
+            )
+        )
+        // Where the text after the line starts: anything drawn in the flow
+        // after the mark (a count, a check) would push it along.
+        const tail = p.lastChild as Text
+        const after = document.createRange()
+        after.setStart(tail, tail.data.search(/\S/))
+        after.setEnd(tail, tail.data.search(/\S/) + 1)
+        const first = after.getClientRects()[0]!
+        const next = [first.left - base.left, first.top - base.top].map((v) =>
+          Math.round(v)
+        )
+        return { height: Math.round(base.height), lines, words, next }
       }
-      const lines = bottoms.size
-      const base = p.getBoundingClientRect()
-      const words = [...p.querySelector('.qt-mark')!.getClientRects()].map(
-        (r) =>
-          [r.left - base.left, r.top - base.top, r.width].map((v) =>
-            Math.round(v)
-          )
-      )
-      return { height: Math.round(base.height), lines, words }
-    })
+    )
   )
   expect(layout[0]!.lines).toBeGreaterThan(1)
-  expect(layout[1]).toEqual(layout[0])
-  expect(layout[2]).toEqual(layout[0])
+  for (const other of layout.slice(1)) expect(other).toEqual(layout[0])
 })
 
 test('forced colors keep their mapping under a stored dark theme', async ({
@@ -527,6 +578,8 @@ for (const kind of [
     ).toBe(false)
 
     // By touch or pointer: the title again, and no focus ring anywhere.
+    // After the hold that every close starts (system/pressGuard.ts).
+    await page.waitForTimeout(450)
     await press(page, opener)
     await expect(modal).toBeVisible()
     await expect(modal.getByRole('heading', { name: kind.name })).toBeFocused()
@@ -542,6 +595,17 @@ for (const kind of [
     ).toBe(true)
     await press(page, modal.getByRole('button', { name: kind.close }))
     await expect(modal).toBeHidden()
+    // Opened by a press, closed by a press: focus is back on the opener,
+    // in WebKit too (Safari focuses no pressed button).
+    await expect(opener).toBeFocused()
+
+    // Opened by a press, closed by Escape: the same.
+    await page.waitForTimeout(450) // the press hold after a modal closes
+    await press(page, opener)
+    await expect(modal).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(modal).toBeHidden()
+    await expect(opener).toBeFocused()
   })
 }
 
@@ -687,6 +751,239 @@ test('tabs move with arrow keys', async ({ page }) => {
   await expect(page.getByRole('tabpanel')).toHaveText('Showing Following.')
 })
 
+test('a toast stays the same toast while a modal opens and closes', async ({
+  page,
+}) => {
+  await open(page)
+  await press(page, page.getByRole('button', { name: 'Sent', exact: true }))
+  const toast = page.locator('.qt-toast', { hasText: 'You tipped Tomás $3' })
+  await expect(toast).toBeVisible()
+  await toast.evaluate((el) => ((el as HTMLElement).dataset.seen = 'yes'))
+  // Its entry plays once.
+  await toast.evaluate((el) =>
+    Promise.all(el.getAnimations().map((a) => a.finished))
+  )
+  await page.getByRole('button', { name: 'Open the sheet' }).focus()
+  await page.keyboard.press('Enter')
+  const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
+  await expect(sheet).toBeVisible()
+  // Moved into the modal, not drawn again, and not animated in again.
+  const moved = sheet.locator('.qt-toast[data-seen="yes"]')
+  await expect(moved).toHaveCount(1)
+  expect(await moved.evaluate((el) => el.getAnimations().length)).toBe(0)
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+  await expect(page.locator('.qt-toast[data-seen="yes"]')).toHaveCount(1)
+})
+
+/**
+ * What each click was and whether it got past the press hold, and when each
+ * modal closed: printed with a failure, so a run tells a press that came
+ * after the hold (a slow runner) from one the hold let through.
+ */
+async function recordPresses(page: Page) {
+  await page.addInitScript(() => {
+    type Press = {
+      at: number
+      detail: number
+      pointerType: string
+      target: string
+      passed: boolean
+    }
+    const w = window as unknown as { __presses: Press[]; __closes: number[] }
+    w.__presses = []
+    w.__closes = []
+    // Before the guard's own listener (it installs later), and after it.
+    window.addEventListener(
+      'click',
+      (event) => {
+        const target = event.target as Element | null
+        w.__presses.push({
+          at: Math.round(performance.now()),
+          detail: event.detail,
+          pointerType: String((event as PointerEvent).pointerType ?? 'none'),
+          target:
+            target?.closest?.('button')?.textContent?.trim().slice(0, 20) ??
+            target?.tagName ??
+            '?',
+          passed: false,
+        })
+      },
+      true
+    )
+    window.addEventListener('click', () => {
+      const last = w.__presses.at(-1)
+      if (last) last.passed = true
+    })
+    new MutationObserver((records) => {
+      // Set when a modal closes (and removed when its exit ends, at once
+      // with reduced motion): the first change of a batch is the close.
+      if (records.some((record) => record.oldValue === null))
+        w.__closes.push(Math.round(performance.now()))
+    }).observe(document, {
+      subtree: true,
+      attributes: true,
+      attributeFilter: ['data-closing'],
+      attributeOldValue: true,
+    })
+  })
+}
+
+const pressLog = (page: Page) =>
+  page.evaluate(() => {
+    const w = window as unknown as { __presses: unknown[]; __closes: number[] }
+    return JSON.stringify({ closes: w.__closes, presses: w.__presses })
+  })
+
+/** The last press: how long after the last close it came, what it hit,
+ * and whether it got past the hold. */
+async function lastPress(page: Page) {
+  const log = await pressLog(page)
+  const { closes, presses } = JSON.parse(log) as {
+    closes: number[]
+    presses: { at: number; target: string; passed: boolean }[]
+  }
+  const press = presses.at(-1)
+  return {
+    gap: (press?.at ?? 0) - (closes.at(-1) ?? 0),
+    target: press?.target ?? '',
+    passed: press?.passed ?? true,
+    log,
+  }
+}
+
+/**
+ * A press on the tip button right after `close`, checked to have been held.
+ * The proof does not hang on the runner's speed: the press goes in at once
+ * (no scroll, no wait for the button to take it), and an attempt whose
+ * press came after the 400 ms hold (a slow runner) proves nothing either
+ * way, so it is tried again, up to three times.
+ */
+async function expectPressHeld(
+  page: Page,
+  tip: Locator,
+  count: Locator,
+  openSheet: () => Promise<void>,
+  close: () => Promise<void>
+) {
+  for (let attempt = 1; ; attempt++) {
+    await openSheet()
+    const before = await count.getAttribute('data-press-count')
+    const at = await centre(tip)
+    await close()
+    await pressAt(page, at)
+    // A press that got through would show in the count by now.
+    await page.waitForTimeout(150)
+    const press = await lastPress(page)
+    const record = `attempt ${attempt}: ${press.gap} ms after the close, ${JSON.stringify((JSON.parse(press.log) as { presses: unknown[] }).presses.at(-1))}`
+    test.info().annotations.push({ type: 'held press', description: record })
+    // In the run's output too, so a CI log shows each engine's click.
+    console.log(`held press [${test.info().project.name}] ${record}`)
+    // Not a press that missed (no click, or a click beside the button).
+    expect(
+      press.target,
+      `the press did not reach the tip button: ${press.log}`
+    ).toMatch(/^Tip Lena/)
+    if (press.gap < 400) {
+      expect(
+        await count.getAttribute('data-press-count'),
+        `the tip button took a press ${press.gap} ms after the close, inside the hold: ${press.log}`
+      ).toBe(before)
+      expect(press.passed).toBe(false)
+      return
+    }
+    expect(
+      attempt,
+      `every press came after the 400 ms hold, the last ${press.gap} ms after the close: the runner was too slow for this check (${press.log})`
+    ).toBeLessThan(3)
+    await page.waitForTimeout(1100) // the tip control's own latch
+  }
+}
+
+/** A press at a point, with no wait for the target to take it: a finger
+ * on touch projects, the pointer elsewhere. */
+async function pressAt(page: Page, at: { x: number; y: number }) {
+  if (hasTouch()) await page.touchscreen.tap(at.x, at.y)
+  else await page.mouse.click(at.x, at.y)
+}
+
+/** The centre of a control. */
+async function centre(target: Locator) {
+  const box = (await target.boundingBox())!
+  return { x: box.x + box.width / 2, y: box.y + box.height / 2 }
+}
+
+/** The gallery's sheet over the tip button, opened by script so the page
+ * does not scroll away from the button. */
+function gallerySheet(page: Page) {
+  const tip = page
+    .getByRole('group', { name: 'Tip Lena Park' })
+    .getByRole('button', { name: 'Tip Lena $1' })
+  const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
+  const openSheet = async () => {
+    await tip.scrollIntoViewIfNeeded()
+    await page
+      .getByRole('button', { name: 'Open the sheet' })
+      .evaluate((el) => (el as HTMLButtonElement).click())
+    await expect(sheet).toBeVisible()
+    // Past the hold an earlier close started.
+    await page.waitForTimeout(500)
+  }
+  return { tip, sheet, openSheet }
+}
+
+test('a press just after a sheet closes reaches nothing under it', async ({
+  page,
+}) => {
+  await recordPresses(page)
+  // The sheet goes at once, so the press lands well inside the hold.
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await open(page)
+  const count = page.locator('[data-press-count]')
+  const { tip, sheet, openSheet } = gallerySheet(page)
+
+  // A pointer press as the sheet closes is swallowed.
+  await expectPressHeld(page, tip, count, openSheet, () =>
+    press(page, sheet.getByRole('button', { name: 'Close' }))
+  )
+  await expect(sheet).toBeHidden()
+  // A moment later, presses count again.
+  const before = Number(await count.getAttribute('data-press-count'))
+  await page.waitForTimeout(500)
+  await press(page, tip)
+  await expect(count).toHaveAttribute('data-press-count', String(before + 1))
+
+  // A key press in the same moment is never swallowed.
+  await page.waitForTimeout(1100) // the tip control's own latch
+  await openSheet()
+  await press(page, sheet.getByRole('button', { name: 'Close' }))
+  await expect(sheet).toBeHidden()
+  await tip.focus()
+  await page.keyboard.press('Enter')
+  await expect(count).toHaveAttribute('data-press-count', String(before + 2))
+})
+
+test('after any close, a pointer press is held for a moment, then lands', async ({
+  page,
+}) => {
+  await recordPresses(page)
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await open(page)
+  const count = page.locator('[data-press-count]')
+  const { tip, sheet, openSheet } = gallerySheet(page)
+  // Closed by script, long after the press that opened it, as a path change
+  // or a finished result closes it: every close holds.
+  await expectPressHeld(page, tip, count, openSheet, () =>
+    sheet.evaluate((el) => {
+      el.dispatchEvent(new Event('cancel', { cancelable: true }))
+    })
+  )
+  const before = Number(await count.getAttribute('data-press-count'))
+  await page.waitForTimeout(500)
+  await press(page, tip)
+  await expect(count).toHaveAttribute('data-press-count', String(before + 1))
+})
+
 test('a failure toast is announced as an alert, others politely', async ({
   page,
 }) => {
@@ -747,4 +1044,338 @@ test('a figure never shows a placeholder zero while loading or unavailable', asy
   await expect(
     page.locator('[data-specimen="Loading"] .qt-money').first()
   ).toHaveAttribute('aria-busy', 'true')
+})
+
+test('a line keeps both of its states, each with its cue', async ({ page }) => {
+  await open(page)
+  const specimen = page.locator('[data-specimen="Lines in two states at once"]')
+  const look = (text: string) =>
+    specimen.locator('.qt-mark', { hasText: text }).evaluate((el) => {
+      const style = getComputedStyle(el)
+      return {
+        state: el.getAttribute('data-state'),
+        fill: style.getPropertyValue('--qt-mark-fill').trim(),
+        underline: style.textDecorationLine,
+        described: el.getAttribute('aria-description'),
+      }
+    })
+  const chosen = await look('A chosen line')
+  expect(chosen.state).toBe('others-top chosen')
+  expect(chosen.fill).not.toBe('transparent')
+  expect(chosen.underline).toContain('underline')
+  await expect(specimen.locator('.qt-line-overlay__tick')).toHaveCount(1)
+  const kept = await look('A line you kept')
+  expect(kept.state).toBe('mine kept')
+  expect(kept.underline).toContain('underline')
+  expect(kept.described).toBe('You tipped this line. Kept')
+  await expect(specimen.locator('.qt-mark__check')).toHaveCount(1)
+})
+
+test('the tray says what is ready to tip, from the money value', async ({
+  page,
+}) => {
+  await open(page)
+  const group = liveTip(page)
+  await press(page, group.getByRole('button', { name: 'Change amount' }))
+  const caption = group.getByRole('button', {
+    name: 'about 18 dollars 40 ready to tip. Open balance',
+  })
+  await expect(caption.locator('.qt-money__digits')).toHaveText('≈$18.40')
+  await expect(caption).toContainText(/ ready to tip$/)
+  // It opens the balance: the way to it on a pushed screen at phone width.
+  await press(page, caption)
+  await expect(group.getByRole('radiogroup')).toBeHidden()
+  await expect(
+    page.locator('.qt-toasts').getByText('The balance opens here')
+  ).toBeVisible()
+})
+
+test('the amount control can carry its word', async ({ page }) => {
+  await open(page)
+  const specimen = page.locator(
+    '[data-specimen="Amount control with its word"]'
+  )
+  const control = specimen.getByRole('button', { name: 'Amount', exact: true })
+  await expect(control).toBeVisible()
+  await press(page, control)
+  await expect(specimen.getByRole('radiogroup')).toBeVisible()
+})
+
+test('after a refusal the button states the amount chosen since', async ({
+  page,
+}) => {
+  await open(page)
+  const specimen = page.locator(
+    '[data-specimen="Refused, then another amount chosen"]'
+  )
+  await expect(
+    specimen.getByRole('button', { name: 'Try again: tip $1', exact: true })
+  ).toBeVisible()
+})
+
+test('an empty place can be a section heading', async ({ page }) => {
+  await open(page)
+  await expect(
+    page
+      .locator('[data-specimen="Empty state as a section heading"]')
+      .getByRole('heading', { level: 2, name: 'Nothing on your shelf yet.' })
+  ).toBeVisible()
+})
+
+test('sign-out says what it would strand, once, and a broken check never blocks', async ({
+  page,
+}) => {
+  await open(page)
+  const stranded = page.locator(
+    '[data-specimen="Sign out, with something it would strand"]'
+  )
+  await press(page, stranded.getByRole('button', { name: 'Sign out' }))
+  const ask = page.getByRole('alertdialog', { name: 'Sign out?' })
+  await expect(ask).toBeVisible()
+  await expect(ask).toContainText('2 drafts are only on this device.')
+  await press(page, ask.getByRole('button', { name: 'Stay' }))
+  await expect(ask).toBeHidden()
+  await expect(page.getByText('Signed out (gallery)')).toHaveCount(0)
+  await page.waitForTimeout(450) // the press hold after a modal closes
+  await press(page, stranded.getByRole('button', { name: 'Sign out' }))
+  await press(page, ask.getByRole('button', { name: 'Sign out anyway' }))
+  await expect(
+    page
+      .locator('.qt-toasts')
+      .getByText('Signed out (gallery)', { exact: true })
+  ).toBeVisible()
+
+  const broken = page.locator(
+    '[data-specimen="Sign out, when a check fails or runs late"]'
+  )
+  await page.waitForTimeout(450)
+  await press(page, broken.getByRole('button', { name: 'Sign out' }))
+  await expect(ask).toBeHidden()
+  await expect(
+    page
+      .locator('.qt-toasts')
+      .getByText('Signed out (gallery), no checks answered')
+  ).toBeVisible({ timeout: 3000 })
+})
+
+test('a field error is read once: by focus, or by a live region', async ({
+  page,
+}) => {
+  await open(page)
+  const email = page
+    .locator('[data-specimen="Error"]')
+    .getByRole('textbox', { name: 'Email' })
+  await expect(email).toHaveAttribute('aria-invalid', 'true')
+  await expect(email).toHaveAccessibleDescription(
+    'Enter an email like name@example.com.'
+  )
+  // Focus moves to the field, so nothing else repeats the error.
+  await expect(
+    page.locator(
+      '[data-specimen="Error"] [role="alert"], [data-specimen="Error"] [aria-live]'
+    )
+  ).toHaveCount(0)
+
+  const live = page.locator('[data-specimen="Error while focus is elsewhere"]')
+  const region = live.locator('[aria-live="polite"]')
+  await expect(region).toHaveCount(1)
+  await expect(region).toHaveText('')
+  // Rendered before the error (display: none would take it out of the
+  // accessibility tree, and the error would not be read), with no room.
+  const empty = await region.evaluate((el) => ({
+    display: getComputedStyle(el).display,
+    height: el.getBoundingClientRect().height,
+  }))
+  expect(empty.display).not.toBe('none')
+  expect(empty.height).toBeLessThanOrEqual(1)
+  await press(page, live.getByRole('button', { name: 'Check address' }))
+  await expect(region).toHaveText('That address is taken. Try another.')
+  await expect(
+    live.getByRole('textbox', { name: 'Your Quilltip address' })
+  ).toHaveAttribute('aria-invalid', 'true')
+  await expect(live.locator('[role="alert"]')).toHaveCount(0)
+})
+
+test('a list of choices opens on the first one the reader can use', async ({
+  page,
+}) => {
+  await open(page)
+  const specimen = page.locator(
+    '[data-specimen="Menu whose first action is not available"]'
+  )
+  await specimen.getByRole('button', { name: 'Article actions' }).focus()
+  await page.keyboard.press('Enter')
+  const menu = specimen.getByRole('menu', { name: 'Article actions' })
+  await expect(menu.getByRole('menuitem', { name: 'Copy link' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitem', { name: 'Report' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  // Past the end: back to the first usable one, never the unavailable one.
+  await expect(menu.getByRole('menuitem', { name: 'Copy link' })).toBeFocused()
+  await expect(
+    menu.getByRole('menuitem', { name: 'Download (not available yet)' })
+  ).toHaveAttribute('aria-disabled', 'true')
+  await page.keyboard.press('Escape')
+})
+
+test("a task screen's Close stores first, and never waits long", async ({
+  page,
+}) => {
+  await open(page)
+  const close = page.getByRole('link', { name: 'Close the editor' })
+  await expect(close).toHaveAttribute('href', '/shelf')
+  await press(page, close)
+  await expect(page).toHaveURL(/\/shelf$/)
+  expect(
+    await page.evaluate(() => sessionStorage.getItem('gallery-close'))
+  ).toBe('stored')
+
+  await open(page)
+  const started = Date.now()
+  await press(page, page.getByRole('link', { name: 'Close (slow to store)' }))
+  await expect(page).toHaveURL(/\/shelf$/, { timeout: 3000 })
+  // The bound (800 ms), not the five seconds the store asked for.
+  expect(Date.now() - started).toBeLessThan(3000)
+})
+
+test('a toast lets every tap through but its action', async ({ page }) => {
+  await open(page)
+  await press(page, page.getByRole('button', { name: 'Sent', exact: true }))
+  const toast = page.locator('.qt-toast', { hasText: 'You tipped Tomás $3' })
+  await expect(toast).toBeVisible()
+  // A point on the card, away from its action: what is under it gets it.
+  const under = await toast.evaluate((card) => {
+    const r = card.getBoundingClientRect()
+    const x = r.left + 12
+    const y = r.top + r.height / 2
+    const hit = document.elementFromPoint(x, y)
+    return { x, y, onCard: Boolean(hit?.closest('.qt-toast')) }
+  })
+  expect(under.onCard).toBe(false)
+  await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y)!
+    hit.addEventListener(
+      'click',
+      () => ((window as unknown as { __under: boolean }).__under = true),
+      { once: true }
+    )
+  }, under)
+  if (hasTouch()) await page.touchscreen.tap(under.x, under.y)
+  else await page.mouse.click(under.x, under.y)
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __under?: boolean }).__under
+    )
+  ).toBe(true)
+  await expect(toast).toBeVisible()
+
+  // The action by tap, and by keyboard.
+  await press(page, toast.getByRole('button', { name: 'Share' }))
+  await expect(
+    page.locator('.qt-toast', { hasText: 'Share opens here' })
+  ).toBeVisible()
+  await press(page, page.getByRole('button', { name: 'Sent', exact: true }))
+  const again = page.locator('.qt-toast', { hasText: 'You tipped Tomás $3' })
+  await again.getByRole('button', { name: 'Share' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(again).toHaveCount(0)
+})
+
+test('links to articles prefetch on intent, never on sight', async ({
+  page,
+}) => {
+  await open(page)
+  const links = page.locator('[data-article-links] a')
+  await links.first().scrollIntoViewIfNeeded()
+  await page.waitForTimeout(400)
+  const prefetched = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __prefetched?: string[] }).__prefetched ?? []
+    )
+  // Four article links in view, and no route check for any of them.
+  expect((await prefetched()).filter((h) => h.startsWith('/tomas/'))).toEqual(
+    []
+  )
+  // Intent on one: that one, once.
+  if (hasTouch()) await links.nth(1).dispatchEvent('touchstart')
+  else await links.nth(1).hover()
+  await expect
+    .poll(async () =>
+      (await prefetched()).filter((h) => h.startsWith('/tomas/'))
+    )
+    .toEqual(['/tomas/lamp'])
+})
+
+test('Enter held on an amount chooses once and leaves the tray closed', async ({
+  page,
+}) => {
+  await open(page)
+  const group = liveTip(page)
+  const amount = group.getByRole('button', { name: 'Change amount' })
+  await amount.focus()
+  await page.keyboard.press('Enter')
+  const tray = group.getByRole('radiogroup', { name: 'Tip amount' })
+  await expect(tray).toBeVisible()
+  await page.keyboard.press('ArrowRight')
+  // An even number of key-downs: a tray that toggled at repeat rate would
+  // end open.
+  for (let i = 0; i < 8; i++) await page.keyboard.down('Enter')
+  await page.keyboard.up('Enter')
+  await expect(tray).toBeHidden()
+  await page.waitForTimeout(200)
+  await expect(tray).toBeHidden()
+  await expect(amount).toHaveAttribute('aria-expanded', 'false')
+  await expect(amount).toBeFocused()
+  await expect(group.locator('.qt-tip__button')).toHaveText('Tip Tomás $2')
+})
+
+test('a control can be unavailable and still focusable, with its reason', async ({
+  page,
+}) => {
+  await open(page)
+  const specimen = page.locator(
+    '[data-specimen="Not available now, still focusable"]'
+  )
+  const image = specimen.getByRole('button', {
+    name: 'Add an image. Not available yet',
+  })
+  const withdraw = specimen.getByRole('button', { name: 'Withdraw' })
+  const share = specimen.getByRole('button', { name: 'Share' })
+  await expect(withdraw).toHaveAccessibleDescription(
+    'Your balance is below $1.'
+  )
+  for (const control of [image, withdraw, share]) {
+    await expect(control).toHaveAttribute('aria-disabled', 'true')
+    await control.focus()
+    await expect(control).toBeFocused()
+    await page.keyboard.press('Enter')
+    // A press where it is drawn: Playwright waits for an aria-disabled
+    // control to become usable, so press its place as a finger would.
+    const box = (await control.boundingBox())!
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    if (hasTouch()) await page.touchscreen.tap(x, y)
+    else await page.mouse.click(x, y)
+  }
+  await page.waitForTimeout(300)
+  await expect(page.getByText('Pressed (should not be)')).toHaveCount(0)
+})
+
+test("a person's image comes only from allowed sources, and sends no referrer", async ({
+  page,
+}) => {
+  await open(page)
+  const row = page.locator('[data-avatar-sources]')
+  const same = row.getByRole('img', { name: 'Same Site' })
+  const image = same.locator('img')
+  await expect(image).toHaveAttribute('src', '/images/quilltip-logo.png')
+  await expect(image).toHaveAttribute('referrerpolicy', 'no-referrer')
+  await expect(image).toHaveAttribute('loading', 'lazy')
+  await expect(image).toHaveAttribute('decoding', 'async')
+  // Another host: initials, and no request to it.
+  const other = row.getByRole('img', { name: 'Other Host' })
+  await expect(other.locator('img')).toHaveCount(0)
+  await expect(other).toHaveText('OH')
+  await expect(row.getByRole('img', { name: 'No Image' })).toHaveText('NI')
 })

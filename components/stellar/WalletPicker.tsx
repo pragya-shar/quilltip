@@ -91,15 +91,10 @@ export function WalletPicker() {
     () => null
   )
   const wentBack = useRef(false)
-  // The control that opened the picker gets focus back when it closes.
-  const origin = useRef<HTMLElement | null>(null)
+  const content = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!open) return
-    origin.current =
-      document.activeElement instanceof HTMLElement
-        ? document.activeElement
-        : null
     let live = true
     setOptions(null)
     setPending(null)
@@ -111,6 +106,27 @@ export function WalletPicker() {
       live = false
     }
   }, [open])
+
+  // The picker opens on its title while it looks for wallets; then focus
+  // moves to the first wallet the reader can use now, unless the reader has
+  // moved it.
+  useEffect(() => {
+    if (!open || !options || pending) return
+    const root = content.current
+    if (!root) return
+    const active = document.activeElement
+    const titleId = root.getAttribute('aria-labelledby')
+    const atStart =
+      active === root ||
+      active === document.body ||
+      (!!titleId && active?.id === titleId)
+    if (!atStart) return
+    root
+      .querySelector<HTMLElement>(
+        '[data-wallet-choice]:not([aria-disabled="true"])'
+      )
+      ?.focus({ preventScroll: true })
+  }, [open, options, pending])
 
   async function choose(option: WalletOption) {
     if (pending) return
@@ -153,13 +169,8 @@ export function WalletPicker() {
         overlayClassName="wallet-install-overlay"
         // The pairing step is waiting on the reader, not loading.
         aria-busy={pending !== null && !showPairing}
-        onCloseAutoFocus={(event) => {
-          const target = origin.current
-          if (target?.isConnected && target !== document.body) {
-            event.preventDefault()
-            target.focus({ preventScroll: true })
-          }
-        }}
+        ref={content}
+        initialFocus="title"
       >
         <DialogHeader>
           <DialogTitle>Choose a wallet</DialogTitle>

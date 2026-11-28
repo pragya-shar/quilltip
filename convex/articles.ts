@@ -80,6 +80,8 @@ import {
   tiptapJsonHasNonEmptyText,
 } from './lib/tiptapContent'
 import { scheduleShareReconcile } from './shares'
+import { forgetDraftClientIds } from './lib/write/clientIds'
+import { nextUpdatedAt } from './lib/write/clock'
 
 const WRITER_NOTES_MAX_LENGTH = 5000
 const PUBLISH_RECEIVING_WALLET_ERROR =
@@ -1009,7 +1011,8 @@ export const updateArticle = mutation({
       tags?: string[]
       searchContent?: string
     } = {
-      updatedAt: Date.now(),
+      // Forward only, as `write.saveDraft` does, so a base never matches twice.
+      updatedAt: nextUpdatedAt(article.updatedAt),
     }
 
     if (args.title !== undefined && args.title !== article.title) {
@@ -1087,7 +1090,7 @@ export const updateArticle = mutation({
  * canonical hash (published before, then returned to draft) keeps its version
  * when the bytes are unchanged and moves to the next version otherwise.
  */
-async function publishContentAnchor(article: Doc<'articles'>) {
+export async function publishContentAnchor(article: Doc<'articles'>) {
   const fields = {
     articleId: article._id,
     authorId: article.authorId,
@@ -1294,6 +1297,7 @@ export const deleteArticle = mutation({
 
     // Delete article
     await ctx.db.delete(args.id)
+    await forgetDraftClientIds(ctx, args.id)
     await scheduleShareReconcile(ctx, args.id)
 
     return { success: true }
@@ -1346,7 +1350,8 @@ export const saveDraft = mutation({
         coverImage: args.coverImage,
         tags: args.tags,
         writerNotes: args.writerNotes,
-        updatedAt: Date.now(),
+        // Forward only, as `write.saveDraft` does, so a base never matches twice.
+        updatedAt: nextUpdatedAt(article.updatedAt),
         searchContent: buildSearchContent(args.title, args.excerpt, {
           tags: args.tags,
           content: args.content,

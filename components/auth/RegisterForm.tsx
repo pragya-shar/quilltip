@@ -18,6 +18,8 @@ import {
 import { ArrowRight } from '@/components/landing/LandingIcons'
 import { AccountField } from './AccountField'
 import { AccountPasswordToggle } from './AccountPasswordToggle'
+import { AccountSubmitLabel } from './AccountSubmitLabel'
+import { useEarlySubmit } from './useEarlySubmit'
 
 export default function RegisterForm() {
   const [visible, setVisible] = useState(false)
@@ -27,6 +29,7 @@ export default function RegisterForm() {
   const [announcement, setAnnouncement] = useState('')
   const submitting = useRef(false)
   const handle = useRef<string | null>(null)
+  const earlySubmit = useEarlySubmit('register')
   const router = useRouter()
   const returnPath = useAuthReturnPath()
   const { signIn } = useAuth()
@@ -102,7 +105,12 @@ export default function RegisterForm() {
       </p>
     )
   return (
+    // A submit before the page scripts run is held, then sent through
+    // onSubmit (useEarlySubmit). method="post" keeps the password out of the
+    // URL if the inline script that holds it did not run.
     <form
+      {...earlySubmit}
+      method="post"
       noValidate
       onSubmit={handleSubmit(onSubmit, onInvalid)}
       aria-busy={busy}
@@ -165,13 +173,9 @@ export default function RegisterForm() {
         </p>
       </AccountField>
       <button className="account-primary" type="submit" disabled={busy}>
-        {busy ? (
-          'One moment…'
-        ) : (
-          <>
-            Create account <ArrowRight size={20} />
-          </>
-        )}
+        <AccountSubmitLabel busy={busy} busyLabel="One moment…">
+          Create account <ArrowRight size={20} />
+        </AccountSubmitLabel>
       </button>
     </form>
   )

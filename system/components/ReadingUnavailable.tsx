@@ -1,4 +1,5 @@
 import { Heading } from './Heading'
+import { READING_UNAVAILABLE_COPY as COPY } from './readingUnavailableCopy'
 
 type ReadingUnavailableProps = {
   /** What could not load: "This article", "This writer’s page", "Today". */
@@ -27,14 +28,12 @@ export function ReadingUnavailable({
       {/* React places this in the document head. */}
       <meta name="robots" content="noindex" />
       <Heading level={headingLevel} variant="title" id="unavailable-title">
-        {`${what} could not be loaded right now.`}
+        {COPY.title(what)}
       </Heading>
-      <p className="qt-unavailable__body">
-        Quilltip did not answer in time. Try again in a moment.
-      </p>
+      <p className="qt-unavailable__body">{COPY.body}</p>
       {/* A plain link: it loads the page again with no script. */}
       <a className="qt-unavailable__retry" href={retryHref}>
-        Try again
+        {COPY.retry}
       </a>
     </section>
   )

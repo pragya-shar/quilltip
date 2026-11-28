@@ -151,7 +151,7 @@ test('account changed since the last visit: stays disconnected with the remember
   await expect(wallet.getByText(next.publicKey())).toBeVisible()
   await expect(
     wallet.getByText(
-      `This is not your saved address. To tip, switch your wallet to ${READER.slice(0, 4)}…${READER.slice(-4)}.`
+      `This is not your saved address. Tips, tab payments and NFT actions are signed by ${READER.slice(0, 4)}…${READER.slice(-4)}, so switch your wallet to that account first.`
     )
   ).toBeVisible()
   expect(JSON.parse((await remembered(page))!)).toEqual({
@@ -405,6 +405,98 @@ test('two tabs: signing out in one tab lets go of the wallet in the other', asyn
   )
   await expect(connectButton(tab)).toBeVisible()
   expect(errors).toEqual([])
+})
+
+test('connecting after an in-place sign-out stores nothing for the signed-out reader', async ({
+  page,
+}) => {
+  await open(page)
+  await settled(page)
+  await page.evaluate(() =>
+    (
+      window as unknown as { __fixtureAuth: { signOut(): void } }
+    ).__fixtureAuth.signOut()
+  )
+  // Signed out on the same page; the reader can still connect for this page.
+  await connectVarial(page)
+  const keys = await page.evaluate(() => Object.keys(localStorage))
+  expect(keys.filter((key) => key.startsWith('quilltip:wallet:v1:'))).toEqual(
+    []
+  )
+})
+
+test('the last used wallet describes the Connect buttons', async ({ page }) => {
+  await page.addInitScript(([key, value]) => localStorage.setItem(key, value), [
+    KEY,
+    JSON.stringify({ walletId: 'xbull', address }),
+  ] as const)
+  await open(page, `/?secret=${secret}&view=dashboard&link=verified`)
+  await settled(page)
+  await expect(connectButton(page)).toHaveAccessibleDescription(
+    `Last used: xBull, ${short(address)}`
+  )
+  await expect(
+    page
+      .getByRole('region', { name: 'Your wallet' })
+      .getByRole('button', { name: 'Connect wallet', exact: true })
+  ).toHaveAccessibleDescription(`Last used: xBull ${address}`)
+})
+
+for (const motion of ['reduce', 'no-preference'] as const) {
+  test(`the checking spinner ${motion === 'reduce' ? 'stays still' : 'turns'} with prefers-reduced-motion: ${motion}`, async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: motion })
+    await page.addInitScript(
+      ([key, value]) => localStorage.setItem(key, value),
+      [KEY, JSON.stringify({ walletId: 'varial', address })] as const
+    )
+    await page.addInitScript(installVarialEmulator, {
+      mode: 'slow-read' as VarialMode,
+      address: READER,
+    })
+    await page.goto(`/?secret=${secret}`)
+    const checking = page.getByRole('button', {
+      name: 'Checking your wallet',
+      exact: true,
+    })
+    await expect(checking).toBeVisible()
+    const animation = await checking
+      .locator('svg')
+      .evaluate((icon) => getComputedStyle(icon).animationName)
+    expect(animation).toBe(motion === 'reduce' ? 'none' : 'spin')
+    await expect(account(page)).toContainText('Varial')
+  })
+}
+
+test('the picker opened and dismissed with nothing connected leaves no kit key (#607)', async ({
+  page,
+}) => {
+  // The kit's keys as an earlier visit left them; the kit reads them into its
+  // state when it loads and writes them back from its storage effects.
+  await page.addInitScript(() => {
+    if (sessionStorage.getItem('qa-seeded')) return
+    localStorage.setItem('@StellarWalletsKit/selectedModuleId', 'varial')
+    localStorage.setItem('@StellarWalletsKit/usedWalletsIds', '["varial"]')
+    localStorage.setItem('@StellarWalletsKit/hardwareWalletPaths', '[]')
+    localStorage.setItem('@StellarWalletsKit/wcSessionPaths', '[]')
+    sessionStorage.setItem('qa-seeded', '1')
+  })
+  await open(page)
+  await settled(page)
+  await connectButton(page).click()
+  await expect(picker(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(picker(page)).toHaveCount(0)
+  await expect(connectButton(page)).toBeVisible()
+  const keys = await page.evaluate(() => Object.keys(localStorage))
+  expect(
+    keys.filter(
+      (key) =>
+        key.startsWith('@StellarWalletsKit/') ||
+        key.startsWith('quilltip:wallet')
+    )
+  ).toEqual([])
 })
 
 test('the restored state is not announced on load', async ({ page }) => {

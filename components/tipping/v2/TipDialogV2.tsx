@@ -113,7 +113,13 @@ export function TipDialogV2({
   const [message, setMessage] = useState('')
   const [amountError, setAmountError] = useState<string | null>(null)
   const [added, setAdded] = useState<AddResult>(null)
-  const ids = { custom: useId(), error: useId(), note: useId(), hint: useId() }
+  const ids = {
+    custom: useId(),
+    error: useId(),
+    note: useId(),
+    hint: useId(),
+    summary: useId(),
+  }
   const customRef = useRef<HTMLInputElement>(null)
   const sendRef = useRef<HTMLButtonElement>(null)
   /** The reader acted in the gate; focus "Send tip" once it opens. */
@@ -545,6 +551,9 @@ export function TipDialogV2({
                   })()}
                   quoteCents={check.ok ? check.cents : null}
                   estimate
+                  // "Send tip" reads the total as its description, so the
+                  // reader hears the chosen amount before sending.
+                  totalId={ids.summary}
                 />
               ) : (
                 <TestnetLabel detail />
@@ -646,6 +655,9 @@ export function TipDialogV2({
                     variant={tabReady ? 'outline' : 'default'}
                     className={tabReady ? 'tip-v2-secondary' : 'tip-primary'}
                     aria-disabled={blocked || undefined}
+                    aria-describedby={
+                      estimate && estimate !== '0' ? ids.summary : undefined
+                    }
                   >
                     <Heart className="w-4 h-4" aria-hidden="true" />
                     {tabReady ? TAB_TIP_DIALOG.sendFromWallet : TIP_DIALOG.send}

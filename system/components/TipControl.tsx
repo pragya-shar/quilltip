@@ -7,6 +7,9 @@ import { AmountIcon, CloseIcon, DoneIcon, TipIcon } from '../icons'
 import type { MoneyValue } from '../money/figure'
 import {
   HOLD_CANCELLED,
+  amountChoosable,
+  buttonAmount,
+  pressHoldAfter,
   tipButtonParts,
   tipNote,
   type TipControlPhase,
@@ -44,8 +47,9 @@ export type TipControlProps = {
   /** The quick amounts, within every limit. */
   amounts: readonly MoneyValue[]
   onAmountChange: (cents: number) => void
-  /** Sends the chosen amount, or retries after a failure. */
-  onTip: () => void
+  /** Sends the chosen amount, or retries after a failure: the amount is
+   * the one the button states (`buttonAmount`). */
+  onTip: (amount: MoneyValue) => void
   /** Opens the add-money sheet when the balance is short. */
   onAddMoney?: () => void
   /** After a failure: leaves it, back to idle ("Not now"). */
@@ -65,6 +69,17 @@ export type TipControlProps = {
   unavailable?: string | null
   /** Offers an "Other" amount field in the tray. */
   allowOther?: boolean
+  /** What the reader can tip now (the money layer's figure); the tray
+   * shows "≈ $18.40 ready to tip". */
+  balance?: MoneyValue | null
+  /** Opens the balance (the shell's `sheetStack.open('pocket')`) from the
+   * tray's caption: on a pushed screen at phone width it is the way to the
+   * balance. */
+  onOpenBalance?: () => void
+  /** `labelled`: the amount control shows the word "Amount" beside its
+   * icon, where the design has one. `icon` (default): the icon alone, named
+   * "Change amount". */
+  amountControl?: 'icon' | 'labelled'
   className?: string
 }
 
@@ -75,16 +90,6 @@ function refuseRepeat(event: KeyboardEvent<HTMLElement>) {
 
 /** How long a press waits for the phase to change before another counts. */
 const PRESS_LATCH_MS = 1000
-
-/** Focus is lost when it sits on the body, or on a box around the control. */
-function focusLost(root: HTMLElement | null): boolean {
-  const active = document.activeElement
-  return (
-    !active ||
-    active === document.body ||
-    (root !== null && active !== root && active.contains(root))
-  )
-}
 
 /**
  * The main action: a labelled button that states the amount
@@ -114,6 +119,9 @@ export function TipControl({
   hold,
   unavailable,
   allowOther = true,
+  balance,
+  onOpenBalance,
+  amountControl = 'icon',
   className,
 }: TipControlProps) {
   const trayId = useId()
@@ -121,6 +129,17 @@ export function TipControl({
   const [trayOpen, setTrayOpen] = useState(false)
   const [cancelled, setCancelled] = useState(false)
   const root = useRef<HTMLDivElement>(null)
+  // Whether focus is the control's to move: it put focus on its status or
+  // its reason, or focus is inside it, and the person has not since moved
+  // it out (Tab) or pressed elsewhere. Not "focus is on the body": in
+  // Safari a press on plain text leaves focus there too, and the control
+  // must not pull it back.
+  const owned = useRef(false)
+  // A press that began inside the control. Safari moves focus to the
+  // nearest focusable box (the page's main) when a button that takes no
+  // focus is pressed, before its click: that blur is not focus leaving.
+  const pressingInside = useRef(false)
+  const wasBusy = useRef(false)
   const amountButton = useRef<HTMLButtonElement>(null)
   const tipButton = useRef<HTMLButtonElement>(null)
   const status = useRef<HTMLDivElement>(null)
@@ -144,18 +163,35 @@ export function TipControl({
 
   // Focus follows the tip: to the status while it is held or sending, kept
   // on "Sent", to the reason on a refusal, back to the button when the
-  // status leaves and focus went with it.
+  // status leaves and focus was still the control's. Every move uses
+  // preventScroll.
   useEffect(() => {
     const before = previous.current
     previous.current = state.phase
-    if (before === state.phase) return
+    if (before === state.phase) {
+      wasBusy.current = busy
+      return
+    }
     releaseLatch()
+    // A button that now means another action holds presses a moment.
+    const hold = pressHoldAfter(state.phase)
+    if (hold > 0) latch.current = window.setTimeout(releaseLatch, hold)
+    const started = busy && !wasBusy.current
+    wasBusy.current = busy
     if (busy) {
       setCancelled(false)
-      focusDestination(status.current)
+      // A tip starts: focus goes to its status. Held to sending to sent:
+      // it follows only while it is still the control's.
+      if (started) owned.current = true
+      if (owned.current) focusDestination(status.current)
     } else if (state.phase === 'failed') {
+      owned.current = true
       focusDestination(note.current)
-    } else if (state.phase === 'idle' && focusLost(root.current)) {
+    } else if (
+      state.phase === 'idle' &&
+      owned.current &&
+      !root.current?.contains(document.activeElement)
+    ) {
       tipButton.current?.focus({ preventScroll: true })
     }
     // `busy` follows the phase; listing the phase is enough.
@@ -165,6 +201,28 @@ export function TipControl({
     if (busy) setTrayOpen(false)
   }, [busy])
   useEffect(() => () => releaseLatch(), [])
+  useEffect(() => {
+    // A press anywhere else takes focus back from the control.
+    const onDown = (event: PointerEvent) => {
+      const inside = Boolean(root.current?.contains(event.target as Node))
+      pressingInside.current = inside
+      if (!inside) owned.current = false
+    }
+    // Cleared after the press's click has run.
+    const onEnd = () => {
+      window.setTimeout(() => {
+        pressingInside.current = false
+      }, 0)
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    document.addEventListener('click', onEnd, true)
+    document.addEventListener('pointercancel', onEnd, true)
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true)
+      document.removeEventListener('click', onEnd, true)
+      document.removeEventListener('pointercancel', onEnd, true)
+    }
+  }, [])
 
   // Escape ends a hold while focus is in the control (the hold puts it on
   // the status); elsewhere Escape belongs to whatever has focus.
@@ -199,13 +257,15 @@ export function TipControl({
       onAddMoney?.()
       return
     }
-    if (!amount) {
+    // The amount the button states is the one a press sends.
+    const sending = buttonAmount(state, amount)
+    if (!sending) {
       // Nothing to send: the tray opens to choose one.
       setTrayOpen(true)
       return
     }
     latch.current = window.setTimeout(releaseLatch, PRESS_LATCH_MS)
-    onTip()
+    onTip(sending)
   }
 
   const closeTray = (returnFocus: boolean) => {
@@ -248,7 +308,16 @@ export function TipControl({
       aria-label={`Tip ${recipient}`}
       data-phase={unavailable ? 'unavailable' : state.phase}
       data-target={target}
+      onFocus={() => {
+        owned.current = true
+      }}
       onBlur={(event) => {
+        if (pressingInside.current) return
+        const outside =
+          event.relatedTarget !== null &&
+          !event.currentTarget.contains(event.relatedTarget)
+        // Moved out (Tab, or a press on another control): not ours now.
+        if (outside) owned.current = false
         // Focus left the control and its tray: the tray closes.
         if (trayOpen && !event.currentTarget.contains(event.relatedTarget))
           setTrayOpen(false)
@@ -265,6 +334,8 @@ export function TipControl({
           amounts={amounts}
           value={amount}
           allowOther={allowOther}
+          balance={balance}
+          onOpenBalance={onOpenBalance}
           onChange={onAmountChange}
           onClose={closeTray}
           anchor={amountButton}
@@ -296,17 +367,23 @@ export function TipControl({
             <Icon icon={CloseIcon} size={24} />
           </button>
         ) : null}
-        {!unavailable && !busy ? (
+        {!unavailable && !busy && amountChoosable(state) ? (
           <button
             ref={amountButton}
             type="button"
             className="qt-tip__round"
             data-variant="action"
-            aria-label="Change amount"
+            data-labelled={amountControl === 'labelled' || undefined}
+            aria-label={
+              amountControl === 'labelled' ? undefined : 'Change amount'
+            }
             aria-expanded={trayOpen}
             aria-controls={trayOpen ? trayId : undefined}
             onClick={() => setTrayOpen((open) => !open)}
             onKeyDown={(event) => {
+              // A held Enter would open and close the tray at key-repeat
+              // rate (Enter on an amount closes it onto this button).
+              refuseRepeat(event)
               if (event.key === 'Escape' && trayOpen) {
                 event.preventDefault()
                 setTrayOpen(false)
@@ -314,6 +391,9 @@ export function TipControl({
             }}
           >
             <Icon icon={AmountIcon} size={24} />
+            {amountControl === 'labelled' ? (
+              <span className="qt-tip__amount-word">Amount</span>
+            ) : null}
           </button>
         ) : null}
         {busy ? (

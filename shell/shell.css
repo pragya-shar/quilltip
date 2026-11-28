@@ -128,10 +128,13 @@
   .qt-rail__item[data-balance] .qt-money__figure {
     font-size: var(--qt-text-ui-l);
   }
-  /* Before auth is known: "Sign in", or "Balance" when a session token is
-   * held (set before paint by shell/prePaint.ts). */
-  :root:not([data-session='held']) .qt-balance-slot [data-when='held'],
-  :root[data-session='held'] .qt-balance-slot [data-when='signed-out'] {
+  /* Before auth is known: the "Sign in" link, or the "Balance" link when a
+   * session token is held (set before paint by shell/prePaint.ts). */
+  .qt-balance-switch {
+    display: contents;
+  }
+  :root:not([data-session='held']) [data-session-switch] > [data-when='held'],
+  :root[data-session='held'] [data-session-switch] > [data-when='signed-out'] {
     display: none;
   }
   .qt-navbar__item[data-balance][aria-expanded='true'],
@@ -392,13 +395,7 @@
   }
 }
 
-/* Cross-document navigations (into and out of the application, and full
- * reloads within it) fade instead of flashing white. */
-@view-transition {
-  navigation: auto;
-}
-@media (prefers-reduced-motion: reduce) {
-  @view-transition {
-    navigation: none;
-  }
-}
+/* No cross-document view transition: in WebKit it swallowed the first tap
+ * after a full load (reloads, and every crossing from the legacy pages),
+ * and in Chromium an aborted one threw. A first tap that does nothing costs
+ * more than a fade is worth. */

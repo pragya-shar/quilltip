@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
+import { AppLink as Link } from './AppLink'
 import type { ReactNode } from 'react'
 import { cx } from '../cx'
 
@@ -12,7 +11,7 @@ type TextLinkProps = {
   /** false for a link to a page of the other root layout (a legacy page):
    * that is a full page load, and a prefetch would only fetch the other
    * layout's assets. */
-  prefetch?: boolean
+  prefetch?: false
   className?: string
   children: ReactNode
 }
@@ -36,7 +35,11 @@ export function TextLink({
     )
   }
   return (
-    <Link {...props} href={href} prefetch={prefetch ?? prefetchFor(href)}>
+    <Link
+      {...props}
+      href={href}
+      prefetch={prefetch === false ? false : undefined}
+    >
       {children}
     </Link>
   )

@@ -109,6 +109,7 @@ export function HighlightTipV2({
           className="tip-dialog"
           overlayClassName="tip-dialog-overlay"
           aria-busy={busy}
+          initialFocus="title"
         >
           <DialogHeader className="tip-dialog-header">
             <DialogTitle>{TIP_DIALOG.highlightTitle}</DialogTitle>

@@ -24,7 +24,8 @@ import { PocketContent } from '../../../components/pocket/PocketContent'
 // The design system gallery, the sample reading page and the shell's own
 // pages inside the real application shell, with no backend: what
 // e2e/system-*.spec.ts drives. `?balance=` picks the balance source:
-// ready (default), loading, unavailable, signed-out.
+// ready (default), converted, loading, unavailable, signed-out, and
+// auth-loading (who is here is not known yet).
 const readings: Record<string, BalanceReading> = {
   ready: {
     auth: 'signed-in',
@@ -39,6 +40,7 @@ const readings: Record<string, BalanceReading> = {
   loading: { auth: 'signed-in', available: null, status: 'loading' },
   unavailable: { auth: 'signed-in', available: null, status: 'unavailable' },
   'signed-out': { auth: 'signed-out', available: null, status: 'unavailable' },
+  'auth-loading': { auth: 'loading', available: null, status: 'unavailable' },
 }
 const reading =
   readings[new URLSearchParams(location.search).get('balance') ?? 'ready'] ??
@@ -65,6 +67,41 @@ const pages: Record<string, () => React.ReactNode> = {
   '/sheets': () => <SheetsPage />,
 }
 const Page = pages[location.pathname] ?? pages['/']!
+
+// What the root layout writes from system/fonts.ts, with the fixture's
+// family names (fixture.css).
+document.documentElement.dataset.readingFaces = JSON.stringify({
+  pairs: {
+    latin: {
+      first: "'Literata Fixture'",
+      next: "'Literata Fixture Next'",
+      italic: false,
+    },
+    latinItalic: {
+      first: "'Literata Fixture Italic'",
+      next: "'Literata Fixture Italic Next'",
+      italic: true,
+    },
+    extended: {
+      first: "'Literata Fixture Ext'",
+      next: "'Literata Fixture Ext Next'",
+      italic: false,
+    },
+    extendedItalic: {
+      first: "'Literata Fixture Ext Italic'",
+      next: "'Literata Fixture Ext Italic Next'",
+      italic: true,
+    },
+  },
+  lists: {
+    '--qt-face-read': ['latin', 'extended', 'Quilltip Read Fallback'],
+    '--qt-face-read-italic': [
+      'latinItalic',
+      'extendedItalic',
+      'Quilltip Read Italic Fallback',
+    ],
+  },
+})
 
 createRoot(document.getElementById('root')!).render(
   <BalanceSourceContext.Provider value={useFakeBalance}>

@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
+import { AppLink as Link } from './AppLink'
 import type { ReactNode } from 'react'
 import { cx } from '../cx'
 import { ForwardIcon } from '../icons'
@@ -67,12 +66,7 @@ export function ListRow({
   const props = { className: cx('qt-row', className) }
   if (href)
     return (
-      <Link
-        {...props}
-        href={href}
-        prefetch={prefetchFor(href)}
-        data-interactive=""
-      >
+      <Link {...props} href={href} data-interactive="">
         {content}
       </Link>
     )

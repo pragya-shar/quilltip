@@ -81,3 +81,95 @@ test('before scripts run, a held session shows Balance, never Sign in, at the sa
   const held = await slot.boundingBox()
   expect(held!.width).toBe(signedOut!.width)
 })
+
+test('before scripts run, a press on the balance item goes where the marker says', async ({
+  page,
+}) => {
+  // The app's scripts are held back until after the press, as on a slow
+  // phone: only the server HTML and the pre-paint script have run.
+  await page.route('**/_next/static/chunks/**', (route) =>
+    route.request().resourceType() === 'script'
+      ? route.abort()
+      : route.continue()
+  )
+  const item = page
+    .getByRole('navigation', { name: 'Main' })
+    .locator('[data-balance]:visible')
+  // A held session token: the balance, not the sign-in page.
+  await page.goto('/system/reading')
+  await page.evaluate(() =>
+    localStorage.setItem('__convexAuthJWT_test', 'held')
+  )
+  await page.goto('/shelf')
+  await expect(item).toHaveCount(1)
+  await item.click()
+  await expect(page).toHaveURL(/\/pocket$/)
+  // No token: the sign-in page.
+  await page.evaluate(() => localStorage.clear())
+  await page.goto('/shelf')
+  await expect(item).toHaveCount(1)
+  await item.click()
+  await expect(page).toHaveURL(/\/(login|signin)/)
+})
+
+test('the first tap after a full page load is never lost', async ({ page }) => {
+  // A same-origin full load (a reload, or a crossing from the legacy pages),
+  // then a press at once where the balance item is drawn, with no wait for
+  // it to take input. Signed out, the item is the link to sign in. Two
+  // things are told apart: the press reached the link (its navigation
+  // started), and the sign-in page arrived, which a loaded runner may take
+  // seconds for.
+  await page.addInitScript(() => {
+    document.addEventListener(
+      'click',
+      (event) => {
+        const link = (event.target as Element | null)?.closest?.(
+          '[data-balance]'
+        )
+        if (link)
+          sessionStorage.setItem(
+            'balance-click',
+            `${link.getAttribute('data-when')}${event.defaultPrevented ? ' prevented' : ''}`
+          )
+      },
+      true
+    )
+  })
+  for (let run = 0; run < 3; run++) {
+    await page.goto('/system/reading')
+    await page.evaluate(() => sessionStorage.removeItem('balance-click'))
+    await page.goto('/shelf', { waitUntil: 'commit' })
+    const box = await page.waitForFunction(() => {
+      const items = [...document.querySelectorAll('[data-balance]')]
+      const item = items.find((el) => el.getClientRects().length > 0)
+      if (!item) return null
+      const r = item.getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    })
+    const at = (await box.jsonValue())!
+    const started = page
+      .waitForRequest(
+        (request) =>
+          request.isNavigationRequest() &&
+          /\/(login|signin)/.test(request.url()),
+        { timeout: 5000 }
+      )
+      .then(
+        () => true,
+        () => false
+      )
+    await page.mouse.click(at.x, at.y)
+    if (!(await started)) {
+      const clicked = await page.evaluate(() =>
+        sessionStorage.getItem('balance-click')
+      )
+      throw new Error(
+        `run ${run + 1}: the press was lost: no navigation to sign in started (click on the item: ${clicked ?? 'none'})`
+      )
+    }
+    await expect(page, `run ${run + 1}: the sign-in page arrives`).toHaveURL(
+      /\/(login|signin)/,
+      { timeout: 15_000 }
+    )
+  }
+})

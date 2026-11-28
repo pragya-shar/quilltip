@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expectFocusWraps, expectOpensOnTitle } from './helpers/modalFocus'
 import { signInPathFromRoutes } from '../lib/routing/signInPath'
 
 // The application shell around the gallery, the sample reading page
@@ -91,8 +92,162 @@ test('the balance opens the Pocket over the page and gives focus back', async ({
   ).toBeAttached()
   await page.keyboard.press('Escape')
   await expect(pocket).toBeHidden()
-  if (!hasTouch()) await expect(item).toBeFocused()
+  // Back on the item, opened by a tap or a click as well (Safari focuses no
+  // pressed link, so the sheet remembers what was pressed).
+  await expect(item).toBeFocused()
   await expect(item).toHaveAttribute('aria-expanded', 'false')
+})
+
+/** The first family of the reading variable on <html>. */
+const readingLead = (page: Page) =>
+  page.evaluate(() =>
+    getComputedStyle(document.documentElement)
+      .getPropertyValue('--qt-face-read')
+      .split(',')[0]!
+      .trim()
+      .replace(/["']/g, '')
+  )
+
+/** A client change of path, as a link makes. */
+const goTo = (page: Page, path: string) =>
+  page.evaluate((to) => {
+    history.pushState({}, '', to)
+    dispatchEvent(new PopStateEvent('popstate'))
+  }, path)
+
+// Loaded when the page is idle, after late fonts on a slow runner too.
+const secondNameLoaded = (page: Page) =>
+  expect(page.locator('html')).toHaveAttribute(
+    'data-reading-faces-loaded',
+    /\blatin\b/,
+    { timeout: 15_000 }
+  )
+
+test('the next page reads in the loaded face under its second name', async ({
+  page,
+}) => {
+  await page.goto('/reading')
+  await secondNameLoaded(page)
+  // Inside the page view nothing changes.
+  expect(await readingLead(page)).toBe('Literata Fixture')
+  await goTo(page, '/shelf')
+  await expect.poll(() => readingLead(page)).toBe('Literata Fixture Next')
+})
+
+test('no face changes at a change of page while a sheet or panel is up', async ({
+  page,
+}) => {
+  test.skip(!wide(), 'The rail, with its balance item, shows from 1024 px')
+  await page.goto('/reading')
+  await secondNameLoaded(page)
+  await press(nav(page).getByRole('link', { name: /^Balance/ }))
+  const pocket = page.getByRole('complementary', { name: 'Balance' })
+  await expect(pocket).toBeVisible()
+  await goTo(page, '/shelf')
+  await expect(pocket).toBeHidden()
+  expect(await readingLead(page)).toBe('Literata Fixture')
+  // The next change, with nothing up.
+  await goTo(page, '/reading')
+  await expect.poll(() => readingLead(page)).toBe('Literata Fixture Next')
+})
+
+/** The first family of a reading variable on <html>. */
+const lead = (page: Page, variable: string) =>
+  page.evaluate(
+    (name) =>
+      getComputedStyle(document.documentElement)
+        .getPropertyValue(name)
+        .split(',')[0]!
+        .trim()
+        .replace(/["']/g, ''),
+    variable
+  )
+
+test('a face not yet loaded under its second name keeps its first name', async ({
+  page,
+}) => {
+  // The italic file answers late: its second name is not loaded at the
+  // first change of page, the roman's is.
+  await page.route('**/fonts/literata-latin-italic.woff2', async (route) => {
+    await new Promise((done) => setTimeout(done, 4000))
+    await route.continue().catch(() => {})
+  })
+  await page.goto('/reading', { waitUntil: 'domcontentloaded' })
+  await secondNameLoaded(page)
+  await expect(page.locator('html')).not.toHaveAttribute(
+    'data-reading-faces-loaded',
+    /latinItalic/
+  )
+  await goTo(page, '/shelf')
+  await expect
+    .poll(() => lead(page, '--qt-face-read'))
+    .toBe('Literata Fixture Next')
+  expect(await lead(page, '--qt-face-read-italic')).toBe(
+    'Literata Fixture Italic'
+  )
+  // Once it loads, a later change of page switches it.
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-reading-faces-loaded',
+    /latinItalic/,
+    { timeout: 15_000 }
+  )
+  await goTo(page, '/reading')
+  await expect
+    .poll(() => lead(page, '--qt-face-read-italic'))
+    .toBe('Literata Fixture Italic Next')
+})
+
+test('the balance figure changing face at a change of page moves no nav item', async ({
+  page,
+}) => {
+  // Every font late: the first view stays in the fallback, the next page
+  // reads in Literata.
+  await page.route('**/fonts/*.woff2', async (route) => {
+    await new Promise((done) => setTimeout(done, 1500))
+    await route.continue().catch(() => {})
+  })
+  await page.goto('/shelf', { waitUntil: 'domcontentloaded' })
+  const figure = nav(page).locator('[data-balance]:visible .qt-money')
+  await expect(figure).toBeVisible()
+  await secondNameLoaded(page)
+  const items = () =>
+    nav(page)
+      .locator('a:visible')
+      .evaluateAll((links) =>
+        links.map((a) => {
+          const r = a.getBoundingClientRect()
+          return [r.x, r.y, r.width, r.height].map(Math.round).join(',')
+        })
+      )
+  const before = await items()
+  const width = () => figure.evaluate((el) => el.getBoundingClientRect().width)
+  const figureBefore = await width()
+  await goTo(page, '/pocket')
+  await expect
+    .poll(() => lead(page, '--qt-face-read'))
+    .toBe('Literata Fixture Next')
+  expect(await items()).toEqual(before)
+  // The figure itself may change width inside its fixed slot.
+  test.info().annotations.push({
+    type: 'figure width',
+    description: `${figureBefore.toFixed(1)} px to ${(await width()).toFixed(1)} px`,
+  })
+})
+
+test('a change of path closes the sheets over the old page', async ({
+  page,
+}) => {
+  test.skip(wide(), 'On a desktop the balance is a panel, not a sheet')
+  await page.goto('/shelf')
+  await press(nav(page).getByRole('link', { name: /^Balance/ }))
+  const pocket = page.getByRole('dialog', { name: 'Balance' })
+  await expect(pocket).toBeVisible()
+  // A client navigation, as a link inside the sheet would make.
+  await page.evaluate(() => {
+    history.pushState({}, '', '/')
+    dispatchEvent(new PopStateEvent('popstate'))
+  })
+  await expect(pocket).toBeHidden()
 })
 
 test('while no amount is known, the item reads Balance, not a figure', async ({
@@ -166,7 +321,9 @@ test('a converted balance reads about, and every state keeps the slot width', as
     'signed-out',
   ]) {
     await page.goto(`/shelf?balance=${state}`)
-    const box = await nav(page).locator('.qt-balance-slot').boundingBox()
+    const box = await nav(page)
+      .locator('.qt-balance-slot:visible')
+      .boundingBox()
     widths.push(Math.round(box!.width))
   }
   expect(new Set(widths).size).toBe(1)
@@ -278,8 +435,106 @@ test('the skip link moves focus to the content', async ({
   browserName,
 }) => {
   await page.goto('/')
+  // The fixture renders in the browser: the link is there to take the key.
+  await expect(page.locator('.qt-shell')).toBeVisible()
   // WebKit, like Safari, includes links in the Tab order only with Option.
   await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab')
   await page.keyboard.press('Enter')
   await expect(page.locator('#content')).toBeFocused()
+})
+
+test('every sheet: title first, focus wraps, Escape and Close return it', async ({
+  page,
+}) => {
+  // The balance, as a sheet on a phone.
+  if (!wide()) {
+    await page.goto('/shelf')
+    const item = nav(page).getByRole('link', { name: /^Balance/ })
+    await item.focus()
+    await page.keyboard.press('Enter')
+    const pocket = page.getByRole('dialog', { name: 'Balance' })
+    await expectOpensOnTitle(pocket)
+    await expectFocusWraps(page, pocket)
+    await page.keyboard.press('Escape')
+    await expect(pocket).toBeHidden()
+    await expect(item).toBeFocused()
+  }
+
+  // A sheet that loads on demand: still on its title once its body arrives.
+  await page.goto('/sheets')
+  const opener = page.getByRole('button', { name: 'Open the lazy sheet' })
+  await opener.focus()
+  await page.keyboard.press('Enter')
+  const lazy = page.getByRole('dialog', { name: 'Add money to tip $3' })
+  await expect(lazy.getByText('Loaded on demand for $3.')).toBeVisible()
+  await expectOpensOnTitle(lazy)
+  await expectFocusWraps(page, lazy)
+  await lazy.getByRole('button', { name: 'Close' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(lazy).toBeHidden()
+  await expect(opener).toBeFocused()
+})
+
+test('with its opener gone, a closed sheet gives focus to the page, never the body', async ({
+  page,
+}) => {
+  await page.goto('/sheets')
+  await page.getByRole('button', { name: 'Open, and the opener goes' }).focus()
+  await page.keyboard.press('Enter')
+  const sheet = page.getByRole('dialog', { name: 'The opener is gone' })
+  await expectOpensOnTitle(sheet)
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.id ?? ''))
+    .toBe('content')
+})
+
+test('a sheet that goes while the page moves focus leaves focus there', async ({
+  page,
+}) => {
+  await page.goto('/sheets')
+  const opener = page.getByRole('button', {
+    name: 'Open, then the page moves on',
+  })
+  await opener.focus()
+  await page.keyboard.press('Enter')
+  const sheet = page.getByRole('dialog', { name: 'The page moves on' })
+  await expectOpensOnTitle(sheet)
+  await sheet.getByRole('button', { name: 'Go on' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(sheet).toHaveCount(0)
+  await page.waitForTimeout(400) // past the sheet's exit
+  await expect(
+    page.getByRole('button', { name: 'Where the page went' })
+  ).toBeFocused()
+})
+
+test('while auth loads with a held token, the Balance item opens the balance', async ({
+  page,
+}) => {
+  await page.goto('/shelf?balance=auth-loading')
+  await page.evaluate(() =>
+    localStorage.setItem('__convexAuthJWT_test', 'held')
+  )
+  await page.reload()
+  // The fixture runs no pre-paint script, so the word on the item is not
+  // the point here: where it goes, and what a press does, are.
+  const item = nav(page).locator('[data-balance]:visible')
+  await expect(item).toHaveAttribute('href', '/pocket')
+  await press(item)
+  // Over the page, not off to the sign-in page.
+  await expect(page).toHaveURL(/\/shelf\?balance=auth-loading$/)
+  const pocket = wide()
+    ? page.getByRole('complementary', { name: 'Balance' })
+    : page.getByRole('dialog', { name: 'Balance' })
+  await expect(pocket).toBeVisible()
+})
+
+test('while auth loads with no token, the item is still the way to sign in', async ({
+  page,
+}) => {
+  await page.goto('/shelf?balance=auth-loading')
+  const item = nav(page).locator('[data-balance]:visible')
+  await expect(item).toHaveAttribute('href', /\/(login|signin)/)
 })

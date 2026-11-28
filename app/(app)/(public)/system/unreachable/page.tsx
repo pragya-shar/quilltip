@@ -3,9 +3,24 @@ import { PushedScreen } from '@/shell/PushedScreen'
 import { retryHrefFor, withinReadLimit } from '@/shell/public/boundedRead'
 import { ReadingUnavailable } from '@/system/components/ReadingUnavailable'
 
-export const metadata: Metadata = {
-  title: 'Unreachable state sample',
-  robots: { index: false, follow: false },
+/**
+ * Noindex like every sample, except with `?indexable=1`: then the page's own
+ * metadata says index, as an article's does, and the unreachable state's
+ * own noindex must still reach the first response.
+ */
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}): Promise<Metadata> {
+  const { indexable } = await searchParams
+  return {
+    title: 'Unreachable state sample',
+    robots:
+      indexable === '1'
+        ? { index: true, follow: true }
+        : { index: false, follow: false },
+  }
 }
 
 /**

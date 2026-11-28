@@ -5,6 +5,15 @@
 export const FIXTURE_WRITER = 'fixture-writer'
 export const FIXTURE_SLUG = 'the-lamp-on-orchard-street'
 export const FIXTURE_ARTICLE_PATH = `/${FIXTURE_WRITER}/${FIXTURE_SLUG}`
+/** The writer's other published articles, 2 to 9. */
+export const fixtureArticlePath = (n: number) =>
+  `/${FIXTURE_WRITER}/fixture-article-${n}`
+/** An unpublished article by the fixture writer: no public page shows it. */
+export const FIXTURE_DRAFT = {
+  slug: 'the-unsent-letter',
+  title: 'The Unsent Letter',
+  text: 'This draft sentence must never reach a public page.',
+}
 
 const PARAGRAPHS = [
   'The lamp on Orchard Street came on every evening at a quarter past six, a little before the others, as if it had somewhere to be.',
@@ -47,13 +56,22 @@ function articleContent(paragraphs: string[]) {
   }
 }
 
-function fixtureArticle(index: number) {
-  const title =
-    index === 0
+function fixtureArticle(index: number, draft = false) {
+  const title = draft
+    ? FIXTURE_DRAFT.title
+    : index === 0
       ? 'The Lamp on Orchard Street'
       : `Fixture Article ${index + 1}: Notes from a Quiet Street`
-  const slug = index === 0 ? FIXTURE_SLUG : `fixture-article-${index + 1}`
-  const paragraphs = index === 0 ? PARAGRAPHS : PARAGRAPHS.slice(0, 6)
+  const slug = draft
+    ? FIXTURE_DRAFT.slug
+    : index === 0
+      ? FIXTURE_SLUG
+      : `fixture-article-${index + 1}`
+  const paragraphs = draft
+    ? [FIXTURE_DRAFT.text]
+    : index === 0
+      ? PARAGRAPHS
+      : PARAGRAPHS.slice(0, 6)
   return {
     _creationTime: BASE_TIME - index * 86_400_000,
     _id: `fixturearticle${String(index).padStart(18, '0')}`,
@@ -71,8 +89,8 @@ function fixtureArticle(index: number) {
     excerpt:
       'A street lamp that always came on a little early, and the neighbours who noticed when it stopped.',
     highlightCount: 0,
-    published: true,
-    publishedAt: BASE_TIME - index * 86_400_000,
+    published: !draft,
+    publishedAt: draft ? undefined : BASE_TIME - index * 86_400_000,
     readTime: index === 0 ? 4 : 1,
     // Real rows carry the search text too; /articles must not send it.
     searchContent: `${title} ${paragraphs.join(' ')}`,
@@ -87,7 +105,20 @@ function fixtureArticle(index: number) {
   }
 }
 
-const ARTICLES = Array.from({ length: 9 }, (_, index) => fixtureArticle(index))
+/**
+ * Every row the fixture writer has, as the database holds them. The public
+ * queries below return published rows only, as the real Convex queries do.
+ */
+const ROWS = [
+  ...Array.from({ length: 9 }, (_, index) => fixtureArticle(index)),
+  fixtureArticle(9, true),
+]
+const ARTICLES = ROWS.filter((row) => row.published)
+
+function publishedBySlug(username: unknown, slug: unknown) {
+  if (username !== FIXTURE_WRITER) return null
+  return ARTICLES.find((row) => row.slug === slug) ?? null
+}
 
 type QueryArgs = Record<string, unknown>
 
@@ -100,14 +131,34 @@ export function answerFixtureQuery(
     case 'publicRoutes:resolvePublicRoute': {
       const found =
         args.username === FIXTURE_WRITER &&
-        (args.slug === undefined || args.slug === FIXTURE_SLUG)
+        (args.slug === undefined ||
+          publishedBySlug(args.username, args.slug) !== null)
       return { value: { kind: found ? 'found' : 'missing' } }
     }
     case 'articles:getArticleBySlug':
       return {
+        value: publishedBySlug(args.username, args.slug),
+      }
+    // The writer page (/fixture-writer): public fields only, as the real
+    // query returns them.
+    case 'users:getUserByUsername':
+      return {
         value:
-          args.username === FIXTURE_WRITER && args.slug === FIXTURE_SLUG
-            ? ARTICLES[0]
+          args.username === FIXTURE_WRITER
+            ? {
+                _id: FIXTURE_AUTHOR.id,
+                _creationTime: BASE_TIME,
+                name: FIXTURE_AUTHOR.name,
+                username: FIXTURE_WRITER,
+                bio: 'Writes short stories about streets and the people on them.',
+                avatar: undefined,
+                stellarAddress: undefined,
+                articleCount: ARTICLES.length,
+                highlightCount: 0,
+                nftsCreated: 0,
+                nftsOwned: 0,
+                createdAt: BASE_TIME,
+              }
             : null,
       }
     case 'articles:listArticles':

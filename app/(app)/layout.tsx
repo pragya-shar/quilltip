@@ -5,11 +5,13 @@ import '@/shell/shell.css'
 import {
   readingFace,
   readingFaceStyle,
+  readingFaceUpgradeData,
   readingItalicFace,
 } from '@/system/fonts'
 import { ToastRegion } from '@/system/components/ToastRegion'
 import { AppProviders } from '@/shell/AppProviders'
 import { AppShell } from '@/shell/AppShell'
+import { DeferredPaymentsShell } from '@/shell/DeferredPaymentsShell'
 import { PaymentsSlot } from '@/shell/PaymentsSlot'
 import { SheetHost } from '@/shell/SheetHost'
 import { PRE_PAINT_SCRIPT } from '@/shell/prePaint'
@@ -54,6 +56,7 @@ export default async function AppRootLayout({
       lang="en"
       className={`${readingFace.variable} ${readingItalicFace.variable}`}
       style={readingFaceStyle}
+      data-reading-faces={readingFaceUpgradeData}
       suppressHydrationWarning
     >
       <head>
@@ -71,7 +74,9 @@ export default async function AppRootLayout({
               <>
                 <SheetHost />
                 <ToastRegion />
-                <PaymentsSlot />
+                <PaymentsSlot>
+                  <DeferredPaymentsShell />
+                </PaymentsSlot>
               </>
             }
           >

@@ -22,8 +22,8 @@ const balance = (cents: number): MoneyValue => ({
 /**
  * A stand-in for `useTip` from hooks/payments, for the gallery only. With
  * `withHold`, a press holds for 3 s ("+$1" restarts it, Cancel or Escape
- * stops it), then sends; without it the tip sends at once, as slice 1
- * does. Sending, then sent (or failed when `refuse` is on), then idle. No
+ * stops it), then sends; without it the tip sends at once, as the money
+ * layer does until it holds tips. Sending, then sent (or failed when `refuse` is on), then idle. No
  * money moves; nothing leaves the page.
  */
 export function useDemoTip(refuse: boolean, withHold = false) {

@@ -41,6 +41,11 @@ export default function SampleReadingPage() {
               not a budget. There were no columns for rent or groceries, and the
               totals never added up to anything.
             </p>
+            {/* One line within 0.1 percent of the measure at the desktop
+                reading size, for the fallback's calibration: in a fallback
+                face any wider it takes two lines. Nothing moves either way,
+                since a page view keeps the face it started in. */}
+            <p>She set down each coin she gave, the name by it, in ink.</p>
             <p>
               <PassageMark state="others" count={9}>
                 Two pesos to the boy who carried her bags.

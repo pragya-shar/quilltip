@@ -22,6 +22,57 @@ export type TipControlPhase =
   | { phase: 'needs-funds'; amount: MoneyValue; available: MoneyValue | null }
   | { phase: 'other'; words: string; amount: MoneyValue; busy: boolean }
 
+/** The amount as a label says it: the short text when the money layer
+ * gives one ("$1"), else the display text ("$1.00"). */
+export function labelAmount(value: MoneyValue): string {
+  return value.short ?? value.display
+}
+
+/**
+ * The amount the tip button states and a press sends: one value for both.
+ * Idle: the chosen amount. After a refusal or a short balance: the amount
+ * chosen since, else the one that was tried. Every other phase: the
+ * phase's own. Null when there is none (the press opens the amount tray).
+ */
+export function buttonAmount(
+  state: TipControlPhase,
+  amount: MoneyValue | null
+): MoneyValue | null {
+  switch (state.phase) {
+    case 'idle':
+      return amount
+    case 'failed':
+    case 'needs-funds':
+      return amount ?? state.amount
+    default:
+      return state.amount
+  }
+}
+
+/**
+ * How long the button ignores presses after the phase becomes this one, in
+ * ms. A refusal or a short balance turns the button into another action
+ * (Try again, Add money): the second tap of a double tap that sent the
+ * first must not start it.
+ */
+export function pressHoldAfter(phase: TipControlPhase['phase']): number {
+  return phase === 'failed' || phase === 'needs-funds' ? 500 : 0
+}
+
+/**
+ * Whether the reader may choose the amount in this phase: only where the
+ * button's amount is the chosen one (`buttonAmount` reads it). In every
+ * other phase the amount is the phase's own, so the amount control is not
+ * shown and the words and the press can never differ.
+ */
+export function amountChoosable(state: TipControlPhase): boolean {
+  return (
+    state.phase === 'idle' ||
+    state.phase === 'failed' ||
+    state.phase === 'needs-funds'
+  )
+}
+
 /** "Tomás Reyes" → "Tomás": the button names the writer by first name. */
 export function firstName(name: string): string {
   return name.trim().split(/\s+/u)[0] ?? name
@@ -40,23 +91,34 @@ export function tipButtonParts(
   switch (state.phase) {
     case 'holding':
     case 'sending':
-      return { words: 'Sending', amount: state.amount.display }
+      return { words: 'Sending', amount: labelAmount(state.amount) }
     case 'sent':
-      return { words: 'Sent', amount: state.amount.display }
+      return { words: 'Sent', amount: labelAmount(state.amount) }
+    // After a refusal the reader may choose another amount: the button
+    // states the amount it will send now, as the amount control does.
     case 'failed':
-      return { words: 'Try again: tip', amount: state.amount.display }
+      return {
+        words: 'Try again: tip',
+        amount: labelAmount(buttonAmount(state, amount)!),
+      }
     case 'offline':
       return { words: 'Offline. You can tip when you reconnect.', amount: null }
     case 'needs-funds':
-      return { words: 'Add money to tip', amount: state.amount.display }
+      return {
+        words: 'Add money to tip',
+        amount: labelAmount(buttonAmount(state, amount)!),
+      }
     case 'other':
-      return { words: state.words, amount: state.amount.display }
+      return { words: state.words, amount: labelAmount(state.amount) }
     case 'idle': {
       if (!amount) return { words: 'Choose an amount', amount: null }
       if (target === 'passage')
-        return { words: 'Tip this line', amount: amount.display }
+        return { words: 'Tip this line', amount: labelAmount(amount) }
       const name = firstName(recipient)
-      return { words: name ? `Tip ${name}` : 'Tip', amount: amount.display }
+      return {
+        words: name ? `Tip ${name}` : 'Tip',
+        amount: labelAmount(amount),
+      }
     }
   }
 }

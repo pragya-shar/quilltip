@@ -177,7 +177,159 @@ lag alert.
    indexed without being read.
 
 5. Reconcile, then set `CHAIN_V2_ENABLED=true`. Records that no source can
-   resolve stay flagged for manual review.
+   resolve stay flagged for manual review. A tab settlement whose
+   `TabSettled` no source has keeps its reserve; correct it with
+   [Stale settlement reserves](#stale-settlement-reserves).
+
+## Stale settlement reserves
+
+A tab settlement moves the paid amount from the reader's `outstanding` to
+`tabAccounts.settledUnindexed` when the settler records it. The indexed
+`TabSettled` event then debits `confirmedBalance` and clears the reserve. If
+that event is never indexed (a gap beyond RPC retention that no backfill
+covers, or a database restore), the reserve stays. Spendable then reads low,
+never high.
+
+Two paths release it, each only when the stored balance already reflects
+the debit:
+
+- **On its own.** An absolute balance event (`Deposited`, `WithdrawStarted`,
+  `WithdrawCancelled`, `Withdrawn`) from a later ledger than every unindexed
+  payment of a pair releases that pair's reserve. Each pair keeps that
+  ledger as `paidLedger`. A reserve whose ledger is unknown (a pair written
+  before this field) waits for the pair's next payment, which sets it, or
+  for the operator path.
+- **Operator reconciliation.** It reads the Tab contract's
+  `account(reader).balance` and `paid(reader, key_id, writer)` at one
+  ledger, and releases what the chain confirms.
+
+Each release writes a `tabReserveReleases` row and logs
+`CHAIN_TAB_RESERVE_RELEASED`. A missing event that arrives after a release
+does not debit or release again.
+
+### Check
+
+`/ops/chain` lists the accounts whose reserve has stayed above 0 for more
+than an hour, with each pair's unindexed amount and `paidLedger`. From the
+command line (owner credentials for the deployment):
+
+```bash
+bunx convex run chain/tabReconcile:listStaleReserves '{}'
+bunx convex run chain/tabReconcile:listStaleReserves '{"olderThanMs":600000}'
+```
+
+A reserve normally clears within a few minutes of its settlement. One that
+stays for an hour means a `TabSettled` the indexer has not applied.
+
+### Correction
+
+1. Make sure the indexer is `OK` and caught up, and that no Tab event for
+   this reader is `pending` or `error` (the `chainEvents` rows with this
+   reader as the second topic). Other `pending` events, such as role grants
+   that no handler records, do not block it. If a range was missed, backfill it first
+   ([Indexer behind retention](#indexer-behind-retention)): the backfilled
+   event releases the reserve the normal way.
+2. Dry run for the reader. It writes nothing:
+
+   ```bash
+   bunx convex run chain/tabReconcile:run '{"reader":"G…"}'
+   ```
+
+   The result shows the ledger it read at, the account figures before and
+   after, and for each pair the stored and on-chain paid amounts and the
+   amount it would mark as indexed. Add `"keyId"` and `"writer"` to limit
+   it to one pair.
+
+3. Apply, with a note for the record:
+
+   ```bash
+   bunx convex run chain/tabReconcile:run '{"reader":"G…","apply":true,"note":"<ticket or reason>"}'
+   ```
+
+   It applies the contract's balance as the account's balance at the end of
+   the ledger it read, and marks each pair's `[0, paid]` as indexed.
+
+4. Run it again: it returns `nothing_to_do`. Check that the account no
+   longer appears in the list.
+
+It refuses, and writes nothing, when it cannot prove the release:
+
+| Refusal            | Meaning and next step                                                                                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `CHANGED`          | The account changed between the snapshot and the write (a tip or an event). Run it again.                                                                                                                   |
+| `INDEXER_BEHIND`   | The indexer has not applied the ledger the chain was read at. Wait, or fix the indexer.                                                                                                                     |
+| `EVENTS_UNHANDLED` | A Tab event for this reader at or before that ledger is `pending` or `error`. Dispatch it first (`chain/indexer:redispatch`).                                                                               |
+| `STALE_READ`       | The stored balance, or a settlement debit applied to it, comes from after the ledger read. Run it again.                                                                                                    |
+| `MISSING_READ`     | A pair in the snapshot has no row or no chain read (the pair list changed). Run it again.                                                                                                                   |
+| `MISMATCH_PAID`    | The contract shows less paid than stored. Do not correct by hand: review the pair's settlements.                                                                                                            |
+| `BALANCE_MISMATCH` | The difference between the stored and on-chain balance is not explained by the unindexed payments (for example, a lost deposit or withdrawal event). Backfill the missing range instead, then run it again. |
+
+### Reconciliation required
+
+An absolute balance event (`Deposited`, `WithdrawStarted`,
+`WithdrawCancelled`, `Withdrawn`) subtracts every settlement debit indexed
+after it. It applies none of it when it cannot read them all: more than 1,000
+such debits are waiting, or the same update already read its share (8,000
+debit rows across the events it dispatches). Both are possible only when the
+balance event itself arrives late, for example from a backfill. The indexer
+then logs `CHAIN_TAB_RECONCILE_REQUIRED` and marks the account
+`reconcileRequired` with the newest balance event it could not apply, and the
+account takes no tab tip until its balance is known again. The event still
+counts as handled, so the indexer does not stop.
+
+`/ops/chain` lists these accounts under "Waiting for a reconciliation", and
+so does:
+
+```bash
+bunx convex run chain/tabReconcile:listReconcileRequired '{}'
+```
+
+An absolute balance event newer than the marked one clears the mark by
+itself; an older one changes nothing. Otherwise run the correction above for
+the reader. For a marked account the reconciliation accepts any balance
+difference (the event it could not apply explains it), sets the contract's
+balance and clears the mark.
+
+The reconciliation never sets spendable above the contract's balance minus
+the accepted amounts still unpaid. Running it on a reader with a pair limit
+(`keyId`, `writer`) may leave other pairs' reserves in place: that is safe,
+and a reader-wide run releases them.
+
+## Collected earnings
+
+A writer's collected tab earnings (`authorEarnings.collectedBaseUnits`) are
+the sum of their indexed `Claimed` events. Each applied event has a
+`tabClaims` record, keyed by the chain epoch and the RPC event id. That id
+is the event's ledger, transaction, operation and index, so a restore, a
+backfill or rebuilt `chainEvents` rows give the same id. An event with a
+record is not counted again, however it is re-dispatched.
+
+**Once after deploying this change**, record the claims applied before it
+(a dry run first; it changes no total):
+
+```bash
+bunx convex run chain/tabClaims:seedClaimRecords '{}'
+bunx convex run chain/tabClaims:seedClaimRecords '{"apply":true}'
+```
+
+Repeat with `"cursor"` set to the returned `continueCursor` while
+`isDone` is false. Until it has run, a re-dispatch of an older `Claimed`
+event would count it again. A deployment that indexed no `Claimed` event
+before this change has nothing to record: production at the v2 cutover is
+one, because `main` has no v2 indexer.
+
+**Check and correct**, for example after a restore:
+
+```bash
+bunx convex run chain/tabClaims:recomputeCollected '{}'
+bunx convex run chain/tabClaims:recomputeCollected '{"apply":true,"note":"<reason>"}'
+```
+
+It compares each writer's collected amount with the sum of their records
+(`"userId"` limits it to one writer; page with `"cursor"`). With `apply` it
+sets the amount to that sum and writes a `tabClaimCorrections` row for
+each change. The Tab contract keeps no total of past claims, only what is
+still claimable, so the records are the reference.
 
 ## Testnet reset
 

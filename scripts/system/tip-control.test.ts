@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import {
+  amountChoosable,
+  buttonAmount,
+  pressHoldAfter,
   centsFromInput,
   firstName,
   tipButtonLabel,
@@ -51,6 +54,23 @@ describe('tip button words', () => {
     )
   })
 
+  it('states the chosen amount after a refusal, as the amount control does', () => {
+    const two = { cents: 200, display: '$2' }
+    expect(
+      tipButtonLabel({ phase: 'failed', amount: three }, two, 'article')
+    ).toBe('Try again: tip $2')
+    expect(
+      tipButtonLabel(
+        { phase: 'needs-funds', amount: three, available: null },
+        two,
+        'article'
+      )
+    ).toBe('Add money to tip $2')
+    expect(
+      tipButtonLabel({ phase: 'failed', amount: three }, null, 'article')
+    ).toBe('Try again: tip $3')
+  })
+
   it('takes one more phase from outside, with its own words', () => {
     expect(
       tipButtonLabel(
@@ -59,6 +79,24 @@ describe('tip button words', () => {
         'article'
       )
     ).toBe('Adding $3')
+  })
+
+  it('states the short amount when the money layer gives one', () => {
+    const one = { cents: 100, display: '$1.00', short: '$1' }
+    expect(tipButtonLabel({ phase: 'idle' }, one, 'passage')).toBe(
+      'Tip this line $1'
+    )
+    expect(
+      tipButtonLabel({ phase: 'sending', amount: one }, one, 'article')
+    ).toBe('Sending $1')
+    expect(
+      tipButtonLabel(
+        { phase: 'idle' },
+        { cents: 100, display: '$1.00' },
+        'article',
+        'Ama'
+      )
+    ).toBe('Tip Ama $1.00')
   })
 
   it('explains a refusal and being offline, and nothing else', () => {
@@ -104,5 +142,61 @@ describe('another amount', () => {
       '1e3',
     ])
       expect(centsFromInput(text), text).toBeNull()
+  })
+})
+
+describe('one amount for the label and the press', () => {
+  const two = { cents: 200, display: '$2' }
+  it('is the chosen amount when idle, none without one', () => {
+    expect(buttonAmount({ phase: 'idle' }, two)).toBe(two)
+    expect(buttonAmount({ phase: 'idle' }, null)).toBeNull()
+  })
+  it('after a refusal, the amount chosen since, else the one tried', () => {
+    expect(buttonAmount({ phase: 'failed', amount: three }, two)).toBe(two)
+    expect(buttonAmount({ phase: 'failed', amount: three }, null)).toBe(three)
+    expect(
+      tipButtonLabel({ phase: 'failed', amount: three }, null, 'article')
+    ).toBe('Try again: tip $3')
+  })
+  it("in another phase, the phase's own", () => {
+    const other = {
+      phase: 'other',
+      words: 'Adding',
+      amount: three,
+      busy: false,
+    } as const
+    expect(buttonAmount(other, null)).toBe(three)
+    expect(tipButtonLabel(other, null, 'article')).toBe('Adding $3')
+  })
+  it('holds presses a moment when the button turns into another action', () => {
+    // Longer than the gap between the two taps of a double tap.
+    expect(pressHoldAfter('failed')).toBeGreaterThanOrEqual(400)
+    expect(pressHoldAfter('needs-funds')).toBeGreaterThanOrEqual(400)
+    for (const phase of ['idle', 'sending', 'sent', 'offline'] as const)
+      expect(pressHoldAfter(phase), phase).toBe(0)
+  })
+
+  it('lets the reader choose the amount only where the button sends it', () => {
+    const one = { cents: 100, display: '$1' }
+    const phases = [
+      { phase: 'idle' },
+      { phase: 'holding', amount: three },
+      { phase: 'sending', amount: three },
+      { phase: 'sent', amount: three },
+      { phase: 'failed', amount: three },
+      { phase: 'offline', amount: three },
+      { phase: 'needs-funds', amount: three, available: null },
+      { phase: 'other', words: 'Adding', amount: three, busy: false },
+    ] as const
+    for (const state of phases) {
+      // Where the amount control is hidden, a chosen amount changes nothing
+      // the button says or sends.
+      const reads = buttonAmount(state, one) !== buttonAmount(state, two)
+      expect(amountChoosable(state), state.phase).toBe(reads)
+      if (!amountChoosable(state))
+        expect(tipButtonParts(state, one, 'article')).toEqual(
+          tipButtonParts(state, two, 'article')
+        )
+    }
   })
 })
