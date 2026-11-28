@@ -7091,6 +7091,129 @@ describe('spendable balance across settler records and indexed events', () => {
     },
     900_000
   )
+
+  // -------------------------------------------------------------------------
+  // #616: a short payment parks the pair at once.
+
+  /** Tab of 0.15 with 0.10 and 0.04 accepted, then 0.10 paid on another key. */
+  async function overCommitted() {
+    const { t, s } = await opened(BigInt(15) * CENT, [10, 4])
+    await ingest(
+      t,
+      ev.tabSettled(
+        {
+          keyId: 1,
+          writer: OTHER_WRITER,
+          cumulative: BigInt(10) * CENT,
+          paidAfter: BigInt(10) * CENT,
+          gross: BigInt(10) * CENT,
+        },
+        { ledger: LEDGER + 2 }
+      )
+    )
+    expect(await spendable(t, s)).toBe(-BigInt(9) * CENT)
+    const pair = async () =>
+      (await pairs(t)).find((v) => v.writerAddress === WRITER)!
+    const earnings = () =>
+      as(t, s.authorId).query(api.tabActivity.getMyTabEarnings, {})
+    return { t, s, pair, earnings }
+  }
+  // The settler pays what is left: 0.05 of 0.14.
+  const shortPayment = {
+    kind: 'settled' as const,
+    writer: WRITER,
+    cumulative: BigInt(14) * CENT,
+    paidAfter: BigInt(5) * CENT,
+    gross: BigInt(5) * CENT,
+  }
+
+  it('a short payment parks the pair at once, counts it as short and is not selected again (#616)', async () => {
+    const { t, s, pair, earnings } = await overCommitted()
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [shortPayment], LEDGER + 3)
+    expect((await pair()).settleQueue).toBe('blocked')
+    expect((await pair()).settlementId).toBeUndefined()
+    expect(await receiptStatuses(t)).toEqual(['SHORTFALL', 'SHORTFALL'])
+    const owedNet = netOf(BigInt(9) * CENT).toString()
+    expect(await earnings()).toMatchObject({
+      pendingNet: owedNet,
+      shortfallPairs: 1,
+      shortfallNet: owedNet,
+      unpaidPairs: 0,
+    })
+    // However late, the settler spends no transaction on it.
+    const later = await t.query(internal.tabSettlement.selectCandidates, {
+      ledger: LEDGER + 3,
+      now: T0 + 24 * 60 * 60 * 1000,
+    })
+    expect(later.candidates).toEqual([])
+    await ingest(t, settledEvent(shortPayment, { ledger: LEDGER + 3 }))
+    expect((await pair()).settleQueue).toBe('blocked')
+    // A deposit returns it to the queue; the old short event, dispatched
+    // again, does not park it again.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(20) * CENT, BigInt(20) * CENT, {
+        ledger: LEDGER + 4,
+      })
+    )
+    expect((await pair()).settleQueue).toBe('ready')
+    await redispatchEvents(t)
+    expect((await pair()).settleQueue).toBe('ready')
+    // The rest settles.
+    const next = await beginSettlement(t)
+    const rest = {
+      ...shortPayment,
+      paidAfter: BigInt(14) * CENT,
+      gross: BigInt(9) * CENT,
+    }
+    await settlerRecord(t, next.settlementId, [rest], LEDGER + 5)
+    await ingest(t, settledEvent(rest, { ledger: LEDGER + 5 }))
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SETTLED'])
+    expect((await pair()).settleQueue).toBe('done')
+    expect(await earnings()).toMatchObject({
+      pendingNet: '0',
+      shortfallPairs: 0,
+      shortfallNet: '0',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(11) * CENT)
+  })
+
+  it('a short payment indexed first parks the pair, or leaves it to the record while it is in flight (#616)', async () => {
+    // The writer's own `settle_own` pays what is left: no settler record.
+    const first = await overCommitted()
+    await ingest(first.t, settledEvent(shortPayment, { ledger: LEDGER + 3 }))
+    expect((await first.pair()).settleQueue).toBe('blocked')
+    expect(await first.earnings()).toMatchObject({ shortfallPairs: 1 })
+
+    // The event arrives while the settler's settlement is open.
+    const second = await overCommitted()
+    const { settlementId } = await beginSettlement(second.t)
+    await ingest(second.t, settledEvent(shortPayment, { ledger: LEDGER + 3 }))
+    expect((await second.pair()).settleQueue).toBe('inflight')
+    await settlerRecord(second.t, settlementId, [shortPayment], LEDGER + 3)
+    expect((await second.pair()).settleQueue).toBe('blocked')
+    expect((await second.pair()).settlementId).toBeUndefined()
+  })
+
+  it('a short payment does not park the pair when a newer deposit is already applied (#616)', async () => {
+    const { t, s, pair, earnings } = await overCommitted()
+    const { settlementId } = await beginSettlement(t)
+    // A top-up at a later ledger is indexed before the settler's record and
+    // before the settlement event.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(20) * CENT, BigInt(20) * CENT, {
+        ledger: LEDGER + 4,
+      })
+    )
+    await settlerRecord(t, settlementId, [shortPayment], LEDGER + 3)
+    expect((await pair()).settleQueue).toBe('ready')
+    await ingest(t, settledEvent(shortPayment, { ledger: LEDGER + 3 }))
+    expect((await pair()).settleQueue).toBe('ready')
+    expect(await earnings()).toMatchObject({ shortfallPairs: 0 })
+    expect(await spendable(t, s)).toBe(BigInt(11) * CENT)
+  })
 })
 
 // ---------------------------------------------------------------------------
