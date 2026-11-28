@@ -297,8 +297,10 @@ export async function syncPaidPart(
   const applied = receipt.moneyAppliedStatus
   const receiptPatch: Partial<Doc<'tabReceipts'>> = {}
 
-  // Reader: a reserving receipt reserves only its unpaid part.
-  if (reserves(applied)) {
+  // Reader: a reserving receipt reserves only its unpaid part. One never
+  // applied (from before the running figures) reserves by its own status:
+  // the recount may already have counted and marked it.
+  if (reserves(applied ?? receipt.status)) {
     const was = reservedHeld(receipt, args.amountCents)
     const now_ = unpaidCents(args.amountCents, amount, args.after.gross)
     if (now_ !== was) {

@@ -184,6 +184,8 @@ export const mine = query({
 
 /** At most this many of a reader's own tips on one article are returned. */
 export const OWN_TIPS_ON_ARTICLE_LIMIT = 100
+/** At most this many receipts are read to fill that page. */
+export const OWN_TIPS_SCAN = 500
 
 const ownTipValidator = v.object({
   requestId: v.union(v.string(), v.null()),
@@ -204,8 +206,8 @@ const ownTipValidator = v.object({
  * The signed-in reader's own tips on one article that the server accepted
  * or that are settled, newest first, with each tipped passage's stored text
  * and offsets, so the article can mark the lines this reader tipped after a
- * reload. At most `OWN_TIPS_ON_ARTICLE_LIMIT`; `complete` is false when
- * there are more. Only the caller's own receipts, through their own tab
+ * reload. At most `OWN_TIPS_ON_ARTICLE_LIMIT`, reading at most
+ * `OWN_TIPS_SCAN` receipts; `complete` is false when there may be more. Only the caller's own receipts, through their own tab
  * account: no one else's tips and nothing of the writer's.
  */
 export const mineOnArticle = query({
@@ -224,15 +226,22 @@ export const mineOnArticle = query({
       me.chain.chainEpoch
     )
     if (!account || account.userId !== me.userId) return none
-    const receipts = await ctx.db
+    // Newest first, reading past tips that are not shown (refused, not
+    // paid) until the page is full, and never more than OWN_TIPS_SCAN rows.
+    const tips = []
+    let read = 0
+    let complete = true
+    for await (const receipt of ctx.db
       .query('tabReceipts')
       .withIndex('by_account_article', (q) =>
         q.eq('tabAccountId', account._id).eq('articleId', args.articleId)
       )
-      .order('desc')
-      .take(OWN_TIPS_ON_ARTICLE_LIMIT + 1)
-    const tips = []
-    for (const receipt of receipts.slice(0, OWN_TIPS_ON_ARTICLE_LIMIT)) {
+      .order('desc')) {
+      if (read === OWN_TIPS_SCAN || tips.length === OWN_TIPS_ON_ARTICLE_LIMIT) {
+        complete = false
+        break
+      }
+      read += 1
       if (receipt.status !== 'ACCEPTED' && receipt.status !== 'SETTLED')
         continue
       const row = await tipRowOf(ctx, receipt)
@@ -255,9 +264,6 @@ export const mineOnArticle = query({
         at: receipt.acceptedAt,
       })
     }
-    return {
-      tips,
-      complete: receipts.length <= OWN_TIPS_ON_ARTICLE_LIMIT,
-    }
+    return { tips, complete }
   },
 })

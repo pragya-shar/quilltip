@@ -41,6 +41,7 @@ import {
   ACCEPTOR_PUBLIC,
   EPOCH,
   HIGHLIGHT,
+  PASSPHRASE,
   READER,
   TAB,
   TOKEN,
@@ -522,6 +523,56 @@ describe("a reader's own tips on one article", () => {
     expect(mine.tips[0]!.requestId).toBe(
       `more-${OWN_TIPS_ON_ARTICLE_LIMIT - 1}`
     )
+  })
+
+  it('fills its page past rows it leaves out, and never shows one reader another’s tips', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10, requestId: 'kept-1' })
+    await t.run(async (ctx) => {
+      const first = (await ctx.db.query('tabReceipts').first())!
+      const { _id: _i, _creationTime: _c, ...rest } = first
+      // More refused rows, newer than the accepted one, than a page holds.
+      for (let i = 0; i < OWN_TIPS_ON_ARTICLE_LIMIT + 5; i++)
+        await ctx.db.insert('tabReceipts', {
+          ...rest,
+          clientRef: i.toString(16).padStart(32, '0'),
+          leafHash: i.toString(16).padStart(64, '0'),
+          requestId: `refused-${i}`,
+          status: 'REJECTED',
+          acceptedAt: first.acceptedAt + i + 1,
+        })
+    })
+    const mine = await as(t, s.readerId).query(api.activity.mineOnArticle, {
+      articleId: s.articleId,
+    })
+    expect(mine.tips.map((x) => x.requestId)).toEqual(['kept-1'])
+    expect(mine.complete).toBe(true)
+
+    // Another account that has verified the same wallet sees none of the
+    // tips: the tab account belongs to the first reader.
+    const other = await t.run((ctx) =>
+      ctx.db.insert('users', {
+        email: 'other-reader@example.test',
+        username: 'other_reader',
+        usernameLower: 'other_reader',
+        stellarAddress: READER,
+        stellarAddressVerifiedAt: Date.now(),
+        stellarAddressVerifiedNetwork: PASSPHRASE,
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    )
+    expect(
+      await as(t, other).query(api.activity.mineOnArticle, {
+        articleId: s.articleId,
+      })
+    ).toEqual({ tips: [], complete: true })
+    const list = await as(t, other).query(api.activity.mine, {
+      role: 'reader',
+      paginationOpts: { numItems: 10, cursor: null },
+    })
+    expect(list.page).toEqual([])
   })
 
   it('puts the article id on every activity entry', async () => {
@@ -1158,6 +1209,49 @@ describe('totals at any history length and across collects', () => {
     expect(
       (await receipts(t)).every((r) => r.moneyReservedCents !== undefined)
     ).toBe(true)
+  })
+
+  it('leaves no reserve behind when an on-hold receipt is partly paid between the reader and writer passes', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await longHistory(t, s, { keys: 2, perPair: 5 })
+    // As left before the running figures existed: five tips skipped for
+    // shortfall, never applied (no moneyAppliedStatus).
+    await t.run(async (ctx) => {
+      for (const r of await ctx.db.query('tabReceipts').collect())
+        if (r.keyId === 1) await ctx.db.patch(r._id, { status: 'SHORTFALL' })
+    })
+    const pair = (await receipts(t))
+      .filter((r) => r.keyId === 1)
+      .sort((a, b) => a.seq - b.seq)
+    const cumulative = BigInt(pair[pair.length - 1]!.cumulativeAfter)
+    await t.mutation(internal.balanceBackfill.start, {})
+    // The reader pass alone, then half of the first tip is paid.
+    vi.runOnlyPendingTimers()
+    await t.finishInProgressScheduledFunctions()
+    const half = BigInt(pair[0]!.amount) / BigInt(2)
+    await ingest(
+      t,
+      ev.tabSettled({ keyId: 1, cumulative, paidAfter: half, gross: half })
+    )
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+
+    // One run is enough: the account, the receipts' markers and a count
+    // from the receipts agree.
+    const rows = await receipts(t)
+    const fromReceipts = rows
+      .filter((r) => r.status === 'ACCEPTED' || r.status === 'SHORTFALL')
+      .reduce((sum, r) => {
+        const paid = r.keyId === 1 ? paidPartOf(r, half).gross : BigInt(0)
+        return sum + unpaidCents(r.amountCents!, BigInt(r.amount), paid)
+      }, 0)
+    const markers = rows.reduce(
+      (sum, r) => sum + (r.moneyReservedCents ?? 0),
+      0
+    )
+    const once = await views(t, s)
+    expectCents(once.session.pendingCents, fromReceipts)
+    expectCents(markers, fromReceipts)
   })
 
   it('treats an unmarked, partly paid receipt as holding its whole cents on every path', async () => {
