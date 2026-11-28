@@ -9,9 +9,17 @@ import { expect, type Locator, type Page } from '@playwright/test'
 export const accountRow = (page: Page) =>
   page.getByRole('navigation', { name: 'Account sections' })
 
-/** How far the page is wider than the viewport, in pixels. */
-export const pageOverflow = (page: Page) =>
-  page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+/**
+ * How far the page is wider than the viewport, in pixels. Measured against
+ * the emulated screen width: in mobile emulation, Chromium widens
+ * window.innerWidth to fit wide content, which would hide the overflow.
+ */
+export async function pageOverflow(page: Page) {
+  const scrollWidth = await page.evaluate(
+    () => document.documentElement.scrollWidth
+  )
+  return scrollWidth - page.viewportSize()!.width
+}
 
 /**
  * The link and its focus ring sit inside the row's visible part. A drawn

@@ -270,10 +270,14 @@ for (const width of [375, 390, 412]) {
     }
 
     // A move between sections inside the app: the row stays mounted and
-    // shows the new current link.
+    // shows the new current link. A script click, because Playwright's own
+    // click scrolls the link into view first.
     await page.goto(hrefs[0]!)
     await expectCurrentInView(page)
-    await row.getByRole('link').last().click()
+    await row
+      .getByRole('link')
+      .last()
+      .evaluate((link: HTMLElement) => link.click())
     await expect(page).toHaveURL(hrefs.at(-1)!)
     await expectCurrentInView(page)
 
