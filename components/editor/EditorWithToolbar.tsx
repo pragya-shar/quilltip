@@ -3,9 +3,9 @@
 import { useEditor, EditorContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
+import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
 import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { lowlight } from '@/lib/lowlight'
 import { useEffect } from 'react'
@@ -46,11 +46,9 @@ export function EditorWithToolbar({
         underline: false,
       }),
       // Add Link separately with our configuration
-      Link.configure({
+      createArticleLinkExtension({
         openOnClick: false,
-        HTMLAttributes: {
-          class: 'underline cursor-pointer',
-        },
+        className: 'underline cursor-pointer',
       }),
       // Add Underline extension
       Underline,
