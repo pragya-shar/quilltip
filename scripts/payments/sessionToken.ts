@@ -1,10 +1,9 @@
 /**
  * Session tokens for the payments tests, kept as Convex Auth keeps them: in
- * localStorage under this deployment's key (lib/payments/owner.ts), with
+ * localStorage under this deployment's key (lib/payments/store.ts), with
  * `sub` = `<userId>|<sessionId>`. Needs a DOM environment.
  */
-import { tokenKey } from '../../lib/payments/owner'
-import { paymentsStore } from '../../lib/payments/store'
+import { paymentsStore, tokenKey } from '../../lib/payments/store'
 
 export const TEST_CONVEX_URL = 'https://unit-test-123.convex.cloud'
 process.env.NEXT_PUBLIC_CONVEX_URL = TEST_CONVEX_URL

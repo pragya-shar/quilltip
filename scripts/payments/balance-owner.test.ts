@@ -2,9 +2,13 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { writerMemory } from '../../components/pocket/writerMemory'
 import { convertedMoney, money } from '../../lib/payments/money'
-import { tokenKey, tokenPair } from '../../lib/payments/owner'
 import { shellController, viewsOf } from '../../lib/payments/runtime'
-import { figuresShown, paymentsStore } from '../../lib/payments/store'
+import {
+  figuresShown,
+  paymentsStore,
+  tokenKey,
+  tokenPair,
+} from '../../lib/payments/store'
 import type {
   BalanceView,
   EarningsView,

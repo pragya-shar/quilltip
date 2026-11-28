@@ -9,7 +9,7 @@
  * user under the deployment's key, as Convex Auth does, whose pair matches
  * `balance.session`'s `userId` and `sessionId`.
  */
-import { tokenKey } from '../../../lib/payments/owner'
+import { tokenKey } from '../../../lib/payments/store'
 
 type User = 'a' | 'b' | 'w'
 type Status = 'ACCEPTED' | 'SETTLED' | 'SHORTFALL' | 'UNPAID' | 'REJECTED'

@@ -33,8 +33,7 @@ import {
 } from 'react'
 import { usePathname } from 'next/navigation'
 import { useConvexAuth } from 'convex/react'
-import { isTokenKey } from '@/lib/payments/owner'
-import { paymentsStore } from '@/lib/payments/store'
+import { isTokenKey, paymentsStore } from '@/lib/payments/store'
 import { PaymentsBoundary } from './PaymentsBoundary'
 
 export const FIRST_RETRY_MS = 5_000

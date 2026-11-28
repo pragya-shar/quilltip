@@ -37,8 +37,7 @@ import {
   createOutbox,
   type OutboxEntry,
 } from '@/lib/payments/outbox'
-import { pairOf } from '@/lib/payments/owner'
-import { bindingHolds, paymentsStore } from '@/lib/payments/store'
+import { bindingHolds, pairOf, paymentsStore } from '@/lib/payments/store'
 import { tipAmount } from '@/lib/payments/money'
 import {
   onJob,

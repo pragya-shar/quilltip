@@ -14,7 +14,7 @@ const result = await Bun.build({
   entrypoints: [path.join(here, 'page.tsx')],
   target: 'browser',
   // A deployment URL, so the payments shell reads the session token under
-  // its key (lib/payments/owner.ts); backend.ts writes that token.
+  // its key (lib/payments/store.ts); backend.ts writes that token.
   define: {
     'process.env.NODE_ENV': '"development"',
     'process.env': JSON.stringify({
