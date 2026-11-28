@@ -190,10 +190,10 @@ test.describe('above a keyboard', () => {
       const keep = dialog.locator('[data-sheet-keep]')
       await expect(keep).toHaveCount(1)
       await expect(keep.getByLabel('Password', { exact: true })).toHaveCount(1)
-      await expect(keep.getByRole('button')).toHaveText([
-        'Create account',
-        'I have an account',
-      ])
+      await expect(keep.getByRole('button')).toHaveText(
+        ['Create account', 'I have an account'],
+        { useInnerText: true }
+      )
       // Enter on the email moved on; it sent nothing and said nothing.
       await expect(dialog.getByText('Enter your password.')).toHaveCount(0)
       await page.waitForTimeout(300)
