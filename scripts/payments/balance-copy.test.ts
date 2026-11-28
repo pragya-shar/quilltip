@@ -22,7 +22,12 @@ function entry(over: Partial<ActivityEntry>): ActivityEntry {
     requestId: 'r1',
     role: 'writer',
     counterparty: { name: 'A reader', username: null },
-    article: { title: 'Leave It Overnight', slug: 'l', authorUsername: 'theo' },
+    article: {
+      id: 'article-1',
+      title: 'Leave It Overnight',
+      slug: 'l',
+      authorUsername: 'theo',
+    },
     passage: null,
     amountCents: 50,
     netCents: 48.75,

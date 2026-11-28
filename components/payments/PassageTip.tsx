@@ -124,13 +124,16 @@ export function PassageTip({
     status = { text: 'Tips here are capped below the smallest amount.' }
   else if (tip.blocked === 'choose') status = { text: 'Choose an amount.' }
   else if (tip.blocked === 'price')
-    status = { text: 'Dollar value not available right now. Try again soon.' }
+    status = {
+      text: 'Dollar amounts are not available right now, so tipping is paused.',
+    }
   else if (tip.blocked === 'balance')
     status = {
       text: 'Your balance is too low for a tip.',
       link: { href: ADD_MONEY_HREF, label: 'Add money' },
     }
   if (tip.queued) status = { text: 'Getting ready. Your tip goes in a moment.' }
+  else if (tip.missed) status = { text: 'Nothing sent. Tap to tip.' }
   else if (tip.unavailable === 'not-loaded')
     status = {
       text: 'Tipping is unavailable right now. Reading is not affected.',

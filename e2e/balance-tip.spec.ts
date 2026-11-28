@@ -16,7 +16,7 @@ type Backend = {
 let runSeq = 0
 async function open(
   page: Page,
-  screen: 'tip' | 'balance' | 'earnings' | 'app',
+  screen: 'tip' | 'balance' | 'earnings' | 'app' | 'account',
   seed: string,
   run = `${Date.now()}-${++runSeq}`,
   extra = ''
@@ -316,6 +316,32 @@ test.describe('passage tip from the balance', () => {
   })
 })
 
+test.describe('no sideways scroll on a phone', () => {
+  // Every screen the money layer adds, and the old dashboard's section row
+  // its pages sit under, at the narrow phone widths.
+  for (const width of [360, 390, 412])
+    test(`at ${width} px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 })
+      for (const [screen, seed] of [
+        ['tip', 'reader-ready'],
+        ['balance', 'reader-history'],
+        ['earnings', 'writer-failed'],
+        ['app', 'reader-ready'],
+        ['account', 'reader-history'],
+      ] as const) {
+        await open(page, screen, seed)
+        await page.waitForLoadState('networkidle')
+        const fit = await page.evaluate(() => ({
+          scroll: document.documentElement.scrollWidth,
+          width: document.documentElement.clientWidth,
+        }))
+        expect(fit.scroll, `${screen} at ${width}`).toBeLessThanOrEqual(
+          fit.width
+        )
+      }
+    })
+})
+
 test.describe('balance screen', () => {
   for (const [seed, name] of [
     ['reader-history', 'history'],
@@ -333,7 +359,7 @@ test.describe('balance screen', () => {
         await expect(
           page.getByText('Did not complete', { exact: true })
         ).toBeVisible()
-        await expect(page.getByText('On hold')).toBeVisible()
+        await expect(page.getByText('Waiting for balance')).toBeVisible()
         await expect(
           page.getByText('Added to earnings', { exact: true })
         ).toBeVisible()
@@ -413,7 +439,7 @@ test.describe('earnings screen', () => {
       }
       if (name === 'failed') {
         await expect(page.getByTestId('earnings-on-hold')).toContainText(
-          '1 tip on hold'
+          "1 tip waiting for a reader's balance"
         )
         await expect(page.getByTestId('earnings-not-paid')).toContainText(
           '1 tip did not complete'
@@ -473,7 +499,8 @@ test.describe('states the ledger can reach', () => {
     page,
   }) => {
     await open(page, 'balance', 'reader-overdrawn')
-    await expect(page.getByTestId('balance-available')).toHaveText('≈ $0.00')
+    // Nothing left to tip is an exact zero, never a conversion.
+    await expect(page.getByTestId('balance-available')).toHaveText('$0.00')
     await open(page, 'tip', 'reader-overdrawn')
     const bar = await choosePassage(page)
     await expect(bar.getByRole('status')).toContainText(
@@ -481,14 +508,14 @@ test.describe('states the ledger can reach', () => {
     )
   })
 
-  test('tips on hold for an empty reader balance are on hold, not on their way', async ({
+  test('tips waiting for an empty reader balance say so, not on their way', async ({
     page,
   }) => {
     await open(page, 'earnings', 'writer-held-reader-empty')
     await expect(page.getByTestId('earnings-pending')).toHaveText('$0.00')
     await expect(page.getByTestId('earnings-available')).toHaveText('$0.00')
     await expect(page.getByTestId('earnings-on-hold')).toContainText(
-      '2 tips on hold'
+      "2 tips waiting for a reader's balance"
     )
   })
 })

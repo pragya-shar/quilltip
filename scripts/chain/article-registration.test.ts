@@ -335,6 +335,73 @@ async function registerArticle(t: T, s: Seeded) {
   return p
 }
 
+describe('an article published before its writer confirmed an address', () => {
+  /** `write.publish` by a writer with no address (no confirmed one needed). */
+  async function publishedWithoutAddress(t: T) {
+    const s = await seed(t, { address: null, published: false })
+    await t.run((ctx) =>
+      ctx.db.patch(s.articleId, {
+        content: {
+          type: 'doc',
+          content: [
+            { type: 'paragraph', content: [{ type: 'text', text: 'Words.' }] },
+          ],
+        },
+      })
+    )
+    const base = (await t.run((ctx) => ctx.db.get(s.articleId)))!.updatedAt
+    await as(t, s.authorId).mutation(api.write.publish, {
+      id: s.articleId,
+      baseUpdatedAt: base,
+    })
+    return s
+  }
+
+  it('cannot turn tips on without a confirmed address, and registers as before once it has one', async () => {
+    const t = convexTest(schema, modules)
+    const s = await publishedWithoutAddress(t)
+    const article = (await t.run((ctx) => ctx.db.get(s.articleId)))!
+    expect(article.published).toBe(true)
+    expect(await codeOf(prepare(t, s))).toBe('NO_WALLET')
+    expect(await chainRow(t, s)).toBeNull()
+
+    // The writer confirms an address (as walletLink records it).
+    await t.run((ctx) =>
+      ctx.db.patch(s.authorId, {
+        stellarAddress: AUTHOR,
+        stellarAddressVerifiedAt: Date.now(),
+        stellarAddressVerifiedNetwork: TESTNET,
+      })
+    )
+    const ref = await articleRefHex(s.articleId)
+    const p = await registerArticle(t, s)
+    expect(p).toMatchObject({
+      kind: 'register',
+      contractId: CORE,
+      signer: AUTHOR,
+      author: AUTHOR,
+      articleRef: ref,
+      articleKey: await articleIdHex(AUTHOR, ref),
+      contentHash: article.contentHash,
+      splits: [],
+      existing: false,
+    })
+    expect(await chainRow(t, s)).toMatchObject({
+      status: 'REGISTERED',
+      articleKey: p.articleKey,
+      authorAddress: AUTHOR,
+      contentHash: article.contentHash,
+      // The chain's own count of content versions starts at 1.
+      contentVersion: 1,
+    })
+    expect(
+      await t.query(api.chain.articles.getArticleTipAvailability, {
+        articleId: s.articleId,
+      })
+    ).toMatchObject({ status: 'registered', authorAddress: AUTHOR })
+  })
+})
+
 describe('prepareRegistration', () => {
   it('derives the article ID from the verified address and the app reference', async () => {
     const t = convexTest(schema, modules)

@@ -21,12 +21,14 @@ type ActivityRowBase = {
   label?: string
   /** What: the passage or the article title, quoted in the serif. */
   about?: string
-  amount: MoneyValue
+  /** Left out for a tip waiting for the reader's balance: such a row
+   * states no amount and no time. */
+  amount?: MoneyValue
   /** in: money received (marker-ink, "+"). out: money sent ("−"). */
   direction: 'in' | 'out'
   status: ActivityStatus
   /** "Just now", "9:38", "Yesterday". Formatted by the surface. */
-  time: string
+  time?: string
   /** Overrides the status words. Defaults follow the copy deck. */
   statusText?: string
   /** A second fact under the name, apart from the time: "from a $2 tip",
@@ -131,13 +133,15 @@ export function ActivityRow({
         ) : null}
       </span>
       <span className="qt-activity__end">
-        <MoneyFigure
-          value={amount}
-          size="s"
-          tone={failed ? 'muted' : direction === 'in' ? 'in' : 'default'}
-          sign={failed ? undefined : direction === 'in' ? '+' : '−'}
-        />
-        <span className="qt-activity__time">{time}</span>
+        {amount ? (
+          <MoneyFigure
+            value={amount}
+            size="s"
+            tone={failed ? 'muted' : direction === 'in' ? 'in' : 'default'}
+            sign={failed ? undefined : direction === 'in' ? '+' : '−'}
+          />
+        ) : null}
+        {time ? <span className="qt-activity__time">{time}</span> : null}
         {action ? <span className="qt-activity__action">{action}</span> : null}
       </span>
     </div>

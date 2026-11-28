@@ -1,3 +1,5 @@
 # Paths the pocket package deleted, one per line, relative to the
 # repository root (a file or a directory). Owned by that package.
 # scripts/rebuild/deleted-paths.test.ts fails if any of them exists again.
+app/(legacy)/dashboard/page.tsx
+components/pocket/useNow.ts

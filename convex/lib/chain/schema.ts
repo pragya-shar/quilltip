@@ -339,6 +339,8 @@ export const tabTables = {
     .index('by_pair_seq', ['tabAccountId', 'keyId', 'writerAddress', 'seq'])
     /** A reader's receipts by time, for the tab screens' recent tips. */
     .index('by_account_accepted', ['tabAccountId', 'acceptedAt'])
+    /** A reader's receipts on one article, for their own tipped lines. */
+    .index('by_account_article', ['tabAccountId', 'articleId', 'acceptedAt'])
     /** A writer's receipts by time, for the writer's earnings list. */
     .index('by_author_accepted', ['authorId', 'acceptedAt'])
     .index('by_status_created', ['status', 'createdAt'])

@@ -9,7 +9,7 @@
  */
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '@/convex/_generated/api'
-import { baseUnitsToCents, convertedMoney, money } from './money'
+import { baseUnitsToCents, convertedMoney, money, tipAmount } from './money'
 import type { OutboxEntry } from './outbox'
 import type {
   ActivityItem,
@@ -17,6 +17,7 @@ import type {
   BalanceView,
   EarningsView,
   Money,
+  OwnTipsView,
 } from './types'
 
 export type SessionRead = FunctionReturnType<typeof api.balance.session>
@@ -26,6 +27,7 @@ export type ActivityEntry = FunctionReturnType<
 export type EarningsRead = FunctionReturnType<typeof api.earnings.mine>
 /** Public tip terms for a signed-out visitor (`balance.publicTipTerms`). */
 export type PublicTerms = FunctionReturnType<typeof api.balance.publicTipTerms>
+export type OwnTipsRead = FunctionReturnType<typeof api.activity.mineOnArticle>
 
 /** The amounts a signed-out visitor's button offers: the cap and minimum
  * only, never a balance or a daily remainder. */
@@ -93,6 +95,21 @@ export function effectiveChoice(
   if (amounts.includes(chosen)) return chosen
   const below = amounts.filter((c) => c <= chosen)
   return below.length ? below[below.length - 1]! : null
+}
+
+/**
+ * Why the tip control cannot send, given the amount it would send (null
+ * when none fits), the amounts offered and the balance's own reason:
+ * the balance's reason when it has one (`price`, `cap`, `daily`,
+ * `balance`), else `choose` when amounts are offered but none is chosen.
+ */
+export function tipBlocked(
+  cents: number | null,
+  offered: readonly number[],
+  reason: NoAmountReason | null
+): NoAmountReason | 'choose' | null {
+  if (cents !== null) return null
+  return reason ?? (offered.length ? 'choose' : null)
 }
 
 /**
@@ -220,20 +237,26 @@ export function balanceViewOf(input: {
       dailyLeftCents: dailyLeft,
       spendableCents: availableCents,
     })
-    amounts = choices.amounts.map(money)
+    amounts = choices.amounts.map(tipAmount)
     noAmountReason = choices.reason
-    // No price: no dollar figure, so no amount is known to fit.
-    if (!read) {
-      amounts = []
-      noAmountReason = 'price'
-    }
+  }
+  // No price: no dollar figure, so no amount is known to fit. The server
+  // sends no limits then either, so this is decided outside them.
+  if (!read) {
+    amounts = []
+    noAmountReason = 'price'
   }
   return {
     ...base,
     status: session.status === 'closing' ? 'closing' : 'ready',
     // Converted from the token at today's price: an estimate. With no price
     // there is no dollar figure, never "≈ $0.00": `exact` holds the amount.
-    available: read ? convertedMoney(availableCents) : null,
+    // An empty balance is an exact zero, never "≈ $0.00".
+    available: read
+      ? left > BigInt(0)
+        ? convertedMoney(availableCents)
+        : money(0)
+      : null,
     exact: {
       token: 'XLM',
       available: (left > BigInt(0) ? left : BigInt(0)).toString(),
@@ -270,7 +293,11 @@ export function activityItemOf(
     requestId: entry.requestId,
     role: entry.role,
     counterparty: entry.counterparty,
-    article: { title: entry.article.title, href: articleHref(entry) },
+    article: {
+      id: entry.article.id,
+      title: entry.article.title,
+      href: articleHref(entry),
+    },
     passage: entry.passage,
     amount: money(entry.amountCents),
     net: money(entry.netCents),
@@ -295,7 +322,11 @@ export function sendingItemOf(entry: OutboxEntry): ActivityItem {
     requestId: entry.requestId,
     role: 'reader',
     counterparty: { name: entry.meta.writerName, username: null },
-    article: { title: entry.meta.articleTitle, href: entry.meta.href },
+    article: {
+      id: entry.articleId,
+      title: entry.meta.articleTitle,
+      href: entry.meta.href,
+    },
     passage: entry.passage?.text ?? null,
     amount: money(entry.amountCents),
     // Net and fee are unknown until the server accepts and prices the tip.
@@ -404,5 +435,20 @@ export function pageState(
     firstLoad: status === 'LoadingFirstPage',
     canLoadMore: status === 'CanLoadMore',
     loadingMore: status === 'LoadingMore',
+  }
+}
+
+/** The reader's own tips on one article, from `activity.mineOnArticle`. */
+export function ownTipsViewOf(read: OwnTipsRead): OwnTipsView {
+  return {
+    status: 'ready',
+    complete: read.complete,
+    tips: read.tips.map((tip) => ({
+      requestId: tip.requestId,
+      passage: tip.passage,
+      amount: money(tip.amountCents),
+      state: tip.state,
+      at: tip.at,
+    })),
   }
 }
