@@ -496,10 +496,8 @@ test.describe('keyboard and screen readers', () => {
       name: 'Send $0.10 from your tab',
     })
     await expect(send).toBeVisible()
-    // The dialog opens on Close, its last control; its focus trap wraps Tab
-    // (not Option+Tab) to the first control. Safari's Tab then skips buttons
-    // and links with default settings; Option+Tab reaches them.
-    await page.keyboard.press('Tab')
+    // The dialog opens on its title. Safari's Tab skips buttons and links
+    // with default settings; Option+Tab reaches them.
     const next = browserName === 'webkit' ? 'Alt+Tab' : 'Tab'
     for (let i = 0; i < 20; i++) {
       if (await send.evaluate((el) => el === document.activeElement)) break

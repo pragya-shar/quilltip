@@ -89,7 +89,10 @@ export function WaitlistForm() {
     )
 
   return (
-    <form noValidate onSubmit={onSubmit} aria-busy={submitting}>
+    // method="post" keeps the fields out of the URL if someone submits
+    // before the page script has loaded. Such a submit is not held: the
+    // waitlist refuses a form sent faster than WAITLIST_MIN_FILL_MS.
+    <form method="post" noValidate onSubmit={onSubmit} aria-busy={submitting}>
       {formError && (
         <p className="account-error account-error-banner" role="alert">
           {formError}

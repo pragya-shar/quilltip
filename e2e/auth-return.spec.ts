@@ -8,7 +8,8 @@
  * holds the backend's messages after the client authenticates, so every run
  * meets that window instead of only some.
  */
-import { test, expect, type Page } from '@playwright/test'
+import { createSign } from 'crypto'
+import { test, expect, type BrowserContext, type Page } from '@playwright/test'
 
 import { TOKEN_CONFIRMATION_TIMEOUT_MS } from '../lib/auth/sessionConfirmation'
 
@@ -290,4 +291,253 @@ test('signing out from the dashboard lands on login and stays', async ({
   await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
   // Signed out, the browser keeps no wallet choice.
   await expect.poll(() => walletKeys(page)).toEqual([])
+})
+
+/*
+ * A returning reader whose stored token has expired, with the refresh token
+ * still stored. The runner passes this run's throwaway signing key, so the
+ * copy is signed like a real token; only its expiry differs.
+ *
+ * These tests guard the refresh path of a returning reader. They do not
+ * guard the #575 wait: on this path `useConvexAuth()` reports loading until
+ * the refreshed token is confirmed, so they pass without that wait.
+ */
+const JWT_PRIVATE_KEY = process.env.AUTH_E2E_JWT_PRIVATE_KEY ?? ''
+const jwtStorageKey = () =>
+  `__convexAuthJWT_${CONVEX_URL!.replace(/[^a-zA-Z0-9]/g, '')}`
+
+/** The runner keeps the PEM on one line; restore its line breaks. */
+function pem(key: string): string {
+  const body = key
+    .replace('-----BEGIN PRIVATE KEY-----', '')
+    .replace('-----END PRIVATE KEY-----', '')
+    .replace(/\s+/g, '')
+  return `-----BEGIN PRIVATE KEY-----\n${body.match(/.{1,64}/g)!.join('\n')}\n-----END PRIVATE KEY-----\n`
+}
+
+const claimsOf = (jwt: string) =>
+  JSON.parse(Buffer.from(jwt.split('.')[1]!, 'base64url').toString()) as {
+    exp: number
+  }
+
+/**
+ * The same claims, signed with the backend's key, expiring `expiresIn`
+ * seconds from now (negative: already expired).
+ */
+function resigned(jwt: string, expiresIn: number): string {
+  const now = Math.floor(Date.now() / 1000)
+  const encode = (value: object) =>
+    Buffer.from(JSON.stringify(value)).toString('base64url')
+  const head = encode({ alg: 'RS256' })
+  const body = encode({
+    ...claimsOf(jwt),
+    iat: now - 7200,
+    exp: now + expiresIn,
+  })
+  const signature = createSign('RSA-SHA256')
+    .update(`${head}.${body}`)
+    .sign(pem(JWT_PRIVATE_KEY))
+    .toString('base64url')
+  return `${head}.${body}.${signature}`
+}
+
+/** Counts document loads per tab, so a reload loop shows. */
+async function countLoads(context: BrowserContext) {
+  await context.addInitScript(() => {
+    const count = Number(sessionStorage.getItem('authE2eLoads') ?? '0')
+    sessionStorage.setItem('authE2eLoads', String(count + 1))
+  })
+}
+const loadsOf = (page: Page) =>
+  page.evaluate(() => Number(sessionStorage.getItem('authE2eLoads')))
+const storedToken = (page: Page) =>
+  page.evaluate((key) => localStorage.getItem(key), jwtStorageKey())
+
+/** Convex Auth's refresh: `auth:signIn` over HTTP with the refresh token. */
+const isRefresh = (url: string, body: string | null) =>
+  url.includes('/api/action') && (body ?? '').includes('refreshToken')
+
+/** Counts refresh requests across every tab of the context. */
+function countRefreshes(context: BrowserContext): () => number {
+  let count = 0
+  context.on('request', (request) => {
+    if (isRefresh(request.url(), request.postData())) count++
+  })
+  return () => count
+}
+
+/** The backend's `AuthError` messages to this tab, by error text. */
+function authErrors(page: Page): string[] {
+  const errors: string[] = []
+  page.on('websocket', (ws) => {
+    ws.on('framereceived', ({ payload }) => {
+      if (typeof payload !== 'string' || !payload.includes('"AuthError"'))
+        return
+      const message = JSON.parse(payload) as { type?: string; error?: string }
+      if (message.type === 'AuthError') errors.push(message.error ?? '')
+    })
+  })
+  return errors
+}
+
+/**
+ * Signs in, then leaves a re-signed copy of the token in storage with the
+ * refresh token, as a reader returning hours later has, and closes the tab.
+ * It waits for the refresh that follows sign-in, so that refresh cannot
+ * overwrite the copy.
+ */
+async function returningReader(
+  context: BrowserContext,
+  expiresIn = -3600
+): Promise<string> {
+  const page = await context.newPage()
+  const firstRefresh = page.waitForResponse((response) =>
+    isRefresh(response.url(), response.request().postData())
+  )
+  await page.goto(loginUrl('/dashboard/stats'))
+  await signIn(page)
+  await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+  await firstRefresh
+  const token = await storedToken(page)
+  expect(token).not.toBeNull()
+  const copy = resigned(token!, expiresIn)
+  await page.evaluate(({ key, value }) => localStorage.setItem(key, value), {
+    key: jwtStorageKey(),
+    value: copy,
+  })
+  await page.close()
+  return copy
+}
+
+/** The backend's answer to an expired token. */
+const EXPIRED_TOKEN_ERROR = 'Could not verify OIDC token claim'
+
+/** Ends on the dashboard in one load, with a new, unexpired token. */
+async function expectRefreshedInOneLoad(page: Page, expired: string) {
+  await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({
+    timeout: TOKEN_CONFIRMATION_TIMEOUT_MS,
+  })
+  await staysOn(page, '/dashboard/stats', 3_000)
+  expect(await loadsOf(page)).toBe(1)
+  const token = await storedToken(page)
+  expect(token).not.toBeNull()
+  expect(token).not.toBe(expired)
+  expect(claimsOf(token!).exp).toBeGreaterThan(Date.now() / 1000)
+}
+
+test.describe('a returning reader with an expired token', () => {
+  test.skip(
+    !JWT_PRIVATE_KEY,
+    'Needs the run signing key: bun run test:e2e:auth'
+  )
+
+  test('is refused by the backend, then refreshed in one load', async ({
+    context,
+  }) => {
+    await countLoads(context)
+    const expired = await returningReader(context)
+    const page = await context.newPage()
+    const errors = authErrors(page)
+    await page.goto('/dashboard/stats')
+    await expectRefreshedInOneLoad(page, expired)
+    expect(errors.some((error) => error.includes(EXPIRED_TOKEN_ERROR))).toBe(
+      true
+    )
+  })
+
+  // Control: the same copy with an expiry ahead is accepted, so only the
+  // expiry made the backend refuse the copy above.
+  test('the same copy unexpired is accepted', async ({ context }) => {
+    await countLoads(context)
+    await returningReader(context, 3600)
+    const page = await context.newPage()
+    const errors = authErrors(page)
+    await page.goto('/dashboard/stats')
+    await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({
+      timeout: TOKEN_CONFIRMATION_TIMEOUT_MS,
+    })
+    expect(await loadsOf(page)).toBe(1)
+    expect(errors).toEqual([])
+  })
+
+  test('in two tabs loading at once, both stay signed in', async ({
+    context,
+  }) => {
+    await countLoads(context)
+    const expired = await returningReader(context)
+    const refreshes = countRefreshes(context)
+    const tabs = [await context.newPage(), await context.newPage()]
+    await Promise.all(tabs.map((tab) => tab.goto('/dashboard/stats')))
+    for (const tab of tabs) await expectRefreshedInOneLoad(tab, expired)
+    // The client serialises the refresh with a browser lock. The second tab
+    // skips its refresh only if the first tab's new token has already
+    // reached it through storage, so one or two refreshes, and no loop.
+    expect(refreshes()).toBeGreaterThanOrEqual(1)
+    expect(refreshes()).toBeLessThanOrEqual(2)
+    // The session survives: a reload is still signed in.
+    await tabs[0]!.reload()
+    await expect(PROTECTED[0]!.signedIn(tabs[0]!)).toBeVisible({
+      timeout: TOKEN_CONFIRMATION_TIMEOUT_MS,
+    })
+  })
+})
+
+/** How long the sign-out's own navigation to /login is held (#608). */
+const SIGN_OUT_NAVIGATION_HOLD_MS = 3_000
+
+test('a sign-out whose navigation is slow still lands on login without a return path', async ({
+  page,
+}) => {
+  await page.goto(loginUrl('/dashboard/stats'))
+  await signIn(page)
+  await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+  // A full load of the dashboard, so the client router has no /login route
+  // cached and its navigation must wait for the server.
+  await page.goto('/dashboard/stats')
+  await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+  // Hold that navigation to plain /login, so the sign-out completes and the
+  // dashboard's guard runs while the navigation is pending.
+  let held = 0
+  await page.route(
+    (url) => url.pathname === '/login' && !url.searchParams.has('returnTo'),
+    async (route) => {
+      if (route.request().headers()['rsc'] === '1') {
+        held++
+        await new Promise((r) => setTimeout(r, SIGN_OUT_NAVIGATION_HOLD_MS))
+      }
+      await route.continue()
+    }
+  )
+  await page.getByRole('button', { name: 'Open navigation menu' }).click()
+  await page
+    .getByRole('dialog', { name: 'Find your way' })
+    .getByRole('button', { name: 'Sign out', exact: true })
+    .click()
+  await expect(page).toHaveURL('/login', {
+    timeout: SIGN_OUT_NAVIGATION_HOLD_MS + 10_000,
+  })
+  await staysOn(page, '/login', 2_000)
+  expect(held).toBeGreaterThan(0)
+  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+})
+
+test('a session ended in another tab keeps the return path', async ({
+  context,
+}) => {
+  const page = await context.newPage()
+  await page.goto(loginUrl('/dashboard/stats'))
+  await signIn(page)
+  await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+  // This tab did not sign out: its guard keeps the reader's place.
+  const other = await context.newPage()
+  await other.goto('/articles')
+  await other.getByRole('button', { name: 'Open navigation menu' }).click()
+  await other
+    .getByRole('dialog', { name: 'Find your way' })
+    .getByRole('button', { name: 'Sign out', exact: true })
+    .click()
+  await expect(other).toHaveURL('/login')
+  await expect(page).toHaveURL(loginUrl('/dashboard/stats'), {
+    timeout: PROMPT_MS,
+  })
 })

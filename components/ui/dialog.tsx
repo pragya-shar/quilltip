@@ -5,6 +5,7 @@ import * as DialogPrimitive from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { dialogFocusHandlers, useDialogFocusRefs } from './dialog-focus'
 
 const Dialog = DialogPrimitive.Root
 
@@ -34,32 +35,54 @@ const DialogContent = React.forwardRef<
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
     overlayClassName?: string
     hideCloseButton?: boolean
+    /** `title` opens the dialog on its title (payment dialogs). */
+    initialFocus?: 'title'
   }
 >(
   (
-    { className, children, overlayClassName, hideCloseButton, ...props },
+    {
+      className,
+      children,
+      overlayClassName,
+      hideCloseButton,
+      initialFocus,
+      onOpenAutoFocus,
+      onCloseAutoFocus,
+      onKeyDown,
+      ...props
+    },
     ref
-  ) => (
-    <DialogPortal>
-      <DialogOverlay className={overlayClassName} />
-      <DialogPrimitive.Content
-        ref={ref}
-        className={cn(
-          'font-ui fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[var(--ui-radius)] translate-x-[-50%] translate-y-[-50%] gap-4 border border-ui-border text-ui-foreground bg-ui-surface p-6 shadow-ui duration-150 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-[var(--ui-radius)]',
-          className
-        )}
-        {...props}
-      >
-        {children}
-        {!hideCloseButton && (
-          <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[var(--ui-radius)] opacity-70 ring-offset-ui-surface transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ui-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-ui-accent data-[state=open]:text-ui-muted-foreground">
-            <X className="h-4 w-4" />
-            <span className="sr-only">Close</span>
-          </DialogPrimitive.Close>
-        )}
-      </DialogPrimitive.Content>
-    </DialogPortal>
-  )
+  ) => {
+    const { content, opener, setRef } = useDialogFocusRefs(ref)
+    const focus = dialogFocusHandlers(content, opener, {
+      initialFocus,
+      onOpenAutoFocus,
+      onCloseAutoFocus,
+      onKeyDown,
+    })
+    return (
+      <DialogPortal>
+        <DialogOverlay className={overlayClassName} />
+        <DialogPrimitive.Content
+          ref={setRef}
+          {...focus}
+          className={cn(
+            'font-ui fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[var(--ui-radius)] translate-x-[-50%] translate-y-[-50%] gap-4 border border-ui-border text-ui-foreground bg-ui-surface p-6 shadow-ui duration-150 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-[var(--ui-radius)]',
+            className
+          )}
+          {...props}
+        >
+          {children}
+          {!hideCloseButton && (
+            <DialogPrimitive.Close className="absolute right-4 top-4 rounded-[var(--ui-radius)] opacity-70 ring-offset-ui-surface transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ui-ring focus:ring-offset-2 disabled:pointer-events-none data-[state=open]:bg-ui-accent data-[state=open]:text-ui-muted-foreground">
+              <X className="h-4 w-4" />
+              <span className="sr-only">Close</span>
+            </DialogPrimitive.Close>
+          )}
+        </DialogPrimitive.Content>
+      </DialogPortal>
+    )
+  }
 )
 DialogContent.displayName = DialogPrimitive.Content.displayName
 
@@ -98,7 +121,8 @@ const DialogTitle = React.forwardRef<
   <DialogPrimitive.Title
     ref={ref}
     className={cn(
-      'text-lg font-semibold leading-none tracking-tight',
+      // A title that takes focus on open is not a control: no focus ring.
+      'text-lg font-semibold leading-none tracking-tight focus:outline-none',
       className
     )}
     {...props}
