@@ -19,7 +19,7 @@
  * The figures are the real run's (50¢, 10¢ and 10¢ tips; 68.25¢ to the
  * writer) at $0.127328 per testnet XLM.
  */
-import { convertedMoney, money } from './money'
+import { convertedMoney, money, tipAmount } from './money'
 import type {
   ActivityItem,
   ActivityView,
@@ -96,7 +96,7 @@ function balance(over: Partial<BalanceView>, asOf: number): BalanceView {
       minTip: money(10),
       defaultTip: money(10),
     },
-    amounts: [money(10), money(25), money(50)],
+    amounts: [tipAmount(10), tipAmount(25), tipAmount(50)],
     noAmountReason: null,
     settlement: { enabled: true, expectedWithinMs: 80_000 },
     online: true,
@@ -165,9 +165,9 @@ const NO_EARNINGS = earnings({
 function tipControl(over: Partial<TipController> = {}): TipController {
   return {
     state: { phase: 'idle' },
-    amount: money(10),
+    amount: tipAmount(10),
     blocked: null,
-    amounts: [money(10), money(25), money(50)],
+    amounts: [tipAmount(10), tipAmount(25), tipAmount(50)],
     setAmount: noop,
     tip: async () => {},
     reset: noop,
@@ -182,7 +182,7 @@ function tipControl(over: Partial<TipController> = {}): TipController {
 
 /** A signed-out visitor: no figures, an offer from public terms only. */
 function signedOutViews(offer: number[], fallback: number): FakePayments {
-  const amounts = offer.map(money)
+  const amounts = offer.map(tipAmount)
   const def = offer.includes(100) ? 100 : (offer[0] ?? fallback)
   return {
     balance: balance(
@@ -197,7 +197,7 @@ function signedOutViews(offer: number[], fallback: number): FakePayments {
       amount: null,
       amounts: [],
       unavailable: 'signed-out',
-      signedOut: { signedOut: true, amount: money(def), amounts },
+      signedOut: { signedOut: true, amount: tipAmount(def), amounts },
     }),
     readerActivity: activity([], 'loading'),
     writerActivity: activity([], 'loading'),

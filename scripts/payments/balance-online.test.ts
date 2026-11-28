@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { onOnline, onTap } from '../../lib/payments/tip-machine'
-import { money } from '../../lib/payments/money'
+import { money, tipAmount } from '../../lib/payments/money'
 import type { TipPhase } from '../../lib/payments/types'
 
 // Offline is a refusal before anything is sent, not a state the control
@@ -13,7 +13,7 @@ describe('back online', () => {
     const refused = onTap({ phase: 'idle' }, 100, check, 'r1')
     expect(refused).toEqual({
       send: false,
-      phase: { phase: 'offline', amount: money(100) },
+      phase: { phase: 'offline', amount: tipAmount(100) },
     })
     expect(onOnline(refused.phase, true)).toEqual({ phase: 'idle' })
   })

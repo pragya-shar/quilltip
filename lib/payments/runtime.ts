@@ -19,6 +19,7 @@ import {
   useId,
   useSyncExternalStore,
 } from 'react'
+import { tipAmount } from './money'
 import { paymentsStore, type PaymentsState } from './store'
 import type {
   ActivityView,
@@ -31,7 +32,7 @@ import type {
   TipTarget,
 } from './types'
 
-const ONE: Money = { cents: 100, display: '$1.00' }
+const ONE: Money = tipAmount(100)
 
 type Blank = 'loading' | 'signed-out' | 'unavailable'
 

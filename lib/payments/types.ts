@@ -23,6 +23,10 @@ export type Money = {
   converted?: boolean
   /** For a screen reader: "about 18 dollars 40" (`spokenMoney`). */
   spoken?: string
+  /** On a tip amount (the amounts offered and the one chosen): the short
+   * text for a control, "$1", "$0.50" (`tipAmount`). Rows and receipts use
+   * `display`. */
+  short?: string
 }
 
 export type PassageRef = {

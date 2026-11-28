@@ -37,7 +37,7 @@ import {
   type OutboxEntry,
 } from '@/lib/payments/outbox'
 import { paymentsStore } from '@/lib/payments/store'
-import { money } from '@/lib/payments/money'
+import { tipAmount } from '@/lib/payments/money'
 import {
   onJob,
   onOnline,
@@ -535,7 +535,7 @@ export function PaymentsEngine() {
           if (blocked === 'balance' && current.phase !== 'sending') {
             const next: TipPhase = {
               phase: 'needs-funds',
-              amount: money(TIP_LADDER[0]),
+              amount: tipAmount(TIP_LADDER[0]),
               available: b.available,
             }
             phases.current[id] = next
@@ -558,15 +558,15 @@ export function PaymentsEngine() {
       }
       out[id] = {
         state: t.phase,
-        amount: cents === null || signedOut ? null : money(cents),
+        amount: cents === null || signedOut ? null : tipAmount(cents),
         blocked: signedOut ? null : blocked,
         amounts: signedOut ? [] : balance.amounts,
         signedOut:
           signedOut && cents !== null
             ? {
                 signedOut: true,
-                amount: money(cents),
-                amounts: offered.map(money),
+                amount: tipAmount(cents),
+                amounts: offered.map(tipAmount),
               }
             : null,
         setAmount: (next) => {

@@ -13,13 +13,14 @@ import { FAKE_SCENARIOS, fakePayments } from '../../lib/payments/fake'
 import { MONEY_TEXT_SAMPLES } from '../../lib/payments/money-samples'
 import { createOutbox } from '../../lib/payments/outbox'
 import { articleIdOf, tipTargetOf } from '../../lib/payments/target'
-import { tapOnce } from '../../lib/payments/tip-machine'
+import { tapOnce, tipLabel } from '../../lib/payments/tip-machine'
 import type { TipPhase } from '../../lib/payments/types'
 import {
   centsToBaseUnits,
   convertedMoney,
   formatMoney,
   spokenMoney,
+  tipAmount,
 } from '../../lib/payments/money'
 import type { OutboxEntry } from '../../lib/payments/outbox'
 import {
@@ -480,7 +481,35 @@ describe('the review’s contract points', () => {
       expect(spokenMoney(sample.cents, sample.format), sample.name).toBe(
         sample.spoken
       )
+      // A tip amount carries its short text: a control needs no formatter.
+      if (sample.format?.short)
+        expect(tipAmount(sample.cents).short, sample.name).toBe(sample.text)
     }
+  })
+
+  it('gives each amount offered, and the one chosen, its short text', () => {
+    const v = balance(session())
+    expect(v.amounts.map((a) => a.short)).toEqual(
+      v.amounts.map((a) => formatMoney(a.cents, { short: true }))
+    )
+    expect(v.amounts.every((a) => a.display.includes('.'))).toBe(true)
+    const tap = tapOnce(
+      {},
+      'c',
+      100,
+      {
+        online: true,
+        available: convertedMoney(500),
+        unavailable: null,
+      },
+      'r1'
+    )
+    expect(tap.phase).toMatchObject({
+      amount: { short: '$1', display: '$1.00' },
+    })
+    expect(tipLabel({ phase: 'idle' }, tipAmount(100), true)).toBe(
+      'Tip this line $1'
+    )
   })
 
   it('refuses a second tap synchronously: one outbox entry', () => {

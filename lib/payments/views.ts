@@ -9,7 +9,7 @@
  */
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '@/convex/_generated/api'
-import { baseUnitsToCents, convertedMoney, money } from './money'
+import { baseUnitsToCents, convertedMoney, money, tipAmount } from './money'
 import type { OutboxEntry } from './outbox'
 import type {
   ActivityItem,
@@ -235,7 +235,7 @@ export function balanceViewOf(input: {
       dailyLeftCents: dailyLeft,
       spendableCents: availableCents,
     })
-    amounts = choices.amounts.map(money)
+    amounts = choices.amounts.map(tipAmount)
     noAmountReason = choices.reason
   }
   // No price: no dollar figure, so no amount is known to fit. The server

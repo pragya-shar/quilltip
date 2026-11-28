@@ -7,7 +7,7 @@
  * `job` is what the runtime knows about the tip in flight (from its own send
  * or, after a reload, from the session listing the request as accepted).
  */
-import { formatMoney, money } from './money'
+import { formatMoney, tipAmount } from './money'
 import type { Cents, Money, TipPhase } from './types'
 
 export type JobStatus =
@@ -38,7 +38,7 @@ export function onTap(
   // still shows as just accepted.
   if (phase.phase === 'sending' || phase.phase === 'sent')
     return { send: false, phase }
-  const amount = money(cents)
+  const amount = tipAmount(cents)
   if (check.unavailable) return { send: false, phase }
   if (!check.online) return { send: false, phase: { phase: 'offline', amount } }
   if (!check.available) return { send: false, phase }
@@ -97,7 +97,7 @@ export function tipLabel(
   amount: Money | null,
   passage: boolean
 ): string {
-  const short = (m: Money) => formatMoney(m.cents, { short: true })
+  const short = (m: Money) => m.short ?? formatMoney(m.cents, { short: true })
   switch (phase.phase) {
     case 'sending':
       return `Sending ${short(phase.amount)}`

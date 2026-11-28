@@ -13,6 +13,7 @@ import {
   formatMoney,
   formatTokenAmount,
   money,
+  tipAmount,
 } from '../../lib/payments/money'
 import { createOutbox, type OutboxEntry } from '../../lib/payments/outbox'
 import { onJob, onTap, tipLabel } from '../../lib/payments/tip-machine'
@@ -151,13 +152,17 @@ describe('tip control state machine', () => {
     const tap = onTap({ phase: 'idle' }, 100, ready, 'r1')
     expect(tap).toEqual({
       send: true,
-      phase: { phase: 'sending', requestId: 'r1', amount: money(100) },
+      phase: { phase: 'sending', requestId: 'r1', amount: tipAmount(100) },
     })
     expect(tipLabel(tap.phase, money(100), true)).toBe('Sending $1')
     // The runtime has no answer yet: still sending.
     expect(onJob(tap.phase, { status: 'sending' })).toBe(tap.phase)
     const sent = onJob(tap.phase, { status: 'sent' })
-    expect(sent).toEqual({ phase: 'sent', requestId: 'r1', amount: money(100) })
+    expect(sent).toEqual({
+      phase: 'sent',
+      requestId: 'r1',
+      amount: tipAmount(100),
+    })
     expect(tipLabel(sent, money(100), true)).toBe('Sent $1')
   })
 
@@ -176,12 +181,15 @@ describe('tip control state machine', () => {
   it('refuses offline and over the balance before anything is sent', () => {
     expect(
       onTap({ phase: 'idle' }, 100, { ...ready, online: false }, 'r1')
-    ).toEqual({ send: false, phase: { phase: 'offline', amount: money(100) } })
+    ).toEqual({
+      send: false,
+      phase: { phase: 'offline', amount: tipAmount(100) },
+    })
     expect(onTap({ phase: 'idle' }, 800, ready, 'r1')).toEqual({
       send: false,
       phase: {
         phase: 'needs-funds',
-        amount: money(800),
+        amount: tipAmount(800),
         available: money(695),
       },
     })
