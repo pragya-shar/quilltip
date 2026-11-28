@@ -1,42 +1,52 @@
 /**
- * Presses that land while a sheet or dialog closes. A tap that closes a
- * sheet (its Close, the scrim, a drag down) is often followed at once by a
- * second tap, or by the rest of the same gesture, and it lands on the
- * sliding panel or on whatever was under it. For a short time after a modal
- * starts to close, the shell swallows pointer presses, so none reaches a
- * control the person could not see.
+ * Presses that land while a sheet or dialog goes away. A tap inside a sheet
+ * (its Close, an action, a Cancel, the scrim, a drag down) is often followed
+ * at once by a second tap, or by the rest of the same gesture, and it lands
+ * on the sliding panel or on whatever was under it: under a sheet sits the
+ * tip button. A lost press is safe; a doubled press can send money.
+ *
+ * The rule (`useModal`, through `createPressWindow`): when a modal closes
+ * within PRESS_WINDOW_MS of a pointer press anywhere inside it (or on its
+ * scrim or handle), pointer presses on the page are swallowed for
+ * PRESS_HOLD_MS, whoever closed it (the control's own handler, a result, a
+ * change of page). Never after a close by the keyboard (a key pressed in
+ * the modal after its last pointer press), and never after a close with no
+ * pointer press inside it in that time (a timer, a change of page). A modal
+ * that opens releases the hold, so its own presses land.
  *
  * Only pointer presses: a click from Enter or Space (`detail === 0`) always
- * passes, so a keyboard user's next press is never lost. `useModal` holds
- * presses only when the modal's own Close, its scrim or a drag down closed
- * it (`notePressClose`): never after Escape or a key, and never after a
- * close by a script or a timer (a path change, a sheet that closes itself
- * after a result), whose next tap is the person's own; a surface
- * with a guard of its own drops it and, if it needs to know, asks
- * `pressesHeld()`.
+ * passes, so a keyboard user's next press is never lost.
  */
 
-/** How long presses are held after a modal starts to close. */
+/** How long presses are held after a modal closes. */
 export const PRESS_HOLD_MS = 400
+
+/** How recent a pointer press inside the modal must be for its close to
+ * hold presses. */
+export const PRESS_WINDOW_MS = 1000
 
 let until = 0
 let installed = false
-let pressClosedAt = -Infinity
 
-/** How long a noted press-close waits for its modal to close. */
-const PRESS_CLOSE_MS = 1000
-
-/** A modal's own Close button, scrim or drag down closed it with a
- * pointer: its close holds presses. Called by Sheet and Dialog. */
-export function notePressClose() {
-  pressClosedAt = performance.now()
-}
-
-/** Whether the close now is a noted press-close; it is taken once. */
-export function takePressClose(): boolean {
-  const noted = performance.now() - pressClosedAt <= PRESS_CLOSE_MS
-  pressClosedAt = -Infinity
-  return noted
+/**
+ * One modal's recent input: its last pointer press and its last key inside
+ * it. `holds(now)` says whether its close now holds presses. Pure; `now`
+ * is a time in ms (performance.now()).
+ */
+export function createPressWindow() {
+  let pressAt = -Infinity
+  let keyAt = -Infinity
+  return {
+    press(now: number) {
+      pressAt = now
+    },
+    key(now: number) {
+      keyAt = now
+    },
+    holds(now: number): boolean {
+      return now - pressAt <= PRESS_WINDOW_MS && pressAt >= keyAt
+    },
+  }
 }
 
 function swallow(event: MouseEvent) {
@@ -62,7 +72,7 @@ export function pressesHeld(): boolean {
   return typeof performance !== 'undefined' && performance.now() < until
 }
 
-/** Ends a hold early (tests, and a modal that opens again at once). */
+/** Ends a hold: a modal opens (its presses must land), or a test. */
 export function releasePresses() {
   until = 0
 }

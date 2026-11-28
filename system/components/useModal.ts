@@ -8,7 +8,7 @@ import {
   watchInputModality,
 } from '../inputModality'
 import { modalStack } from '../modalStack'
-import { holdPresses, takePressClose } from '../pressGuard'
+import { createPressWindow, holdPresses, releasePresses } from '../pressGuard'
 
 /** Open modals, so scroll stays locked until the last one closes. */
 let openCount = 0
@@ -79,6 +79,9 @@ export function useModal(
     }
     delete dialog.dataset.closing
     const wasOpen = dialog.open
+    // A modal that opens takes its own presses, also right after another
+    // closed (or this one, reopened before its exit finished).
+    releasePresses()
     if (!wasOpen) dialog.showModal()
     modalStack.push(dialog)
     const first =
@@ -114,22 +117,38 @@ export function useModal(
           : at + 1
       items[next]?.focus()
     }
+    // Its recent presses and keys decide whether its close holds presses
+    // on the page (system/pressGuard.ts). The dialog covers the scrim too.
+    const presses = createPressWindow()
+    const onPress = () => presses.press(performance.now())
+    const onAnyKey = () => presses.key(performance.now())
     dialog.addEventListener('cancel', onCancel)
     dialog.addEventListener('keydown', onKey)
+    dialog.addEventListener('pointerdown', onPress, true)
+    dialog.addEventListener('keydown', onAnyKey, true)
     return () => {
       dialog.removeEventListener('cancel', onCancel)
       dialog.removeEventListener('keydown', onKey)
+      dialog.removeEventListener('pointerdown', onPress, true)
+      dialog.removeEventListener('keydown', onAnyKey, true)
       openCount -= 1
       if (openCount === 0) delete root.dataset.scrollLocked
       dialog.dataset.closing = ''
       modalStack.remove(dialog)
-      // Closed by its own Close, scrim or drag (notePressClose), not by a
-      // key, a script or a timer (closeAll on a path change, a sheet that
-      // closes itself after a result), and a real close, not an effect
-      // re-run (React StrictMode opens it again in the same task).
-      const byPointer = takePressClose()
+      // A pointer press inside it within the window and no key since,
+      // whoever closes it; and a real close, not an effect re-run (React
+      // StrictMode opens it again in the same task).
+      const byPointer = presses.holds(performance.now())
+      // The hold is for what was under it (the page, or the sheet below):
+      // not when another modal opened in its place (its presses must land).
+      const under = modalStack.top()
       queueMicrotask(() => {
-        if (byPointer && dialog.dataset.closing !== undefined) holdPresses()
+        if (
+          byPointer &&
+          dialog.dataset.closing !== undefined &&
+          modalStack.top() === under
+        )
+          holdPresses()
       })
       const finish = () => {
         // Opened again before the exit finished: keep it open.

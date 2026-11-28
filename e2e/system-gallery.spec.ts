@@ -828,8 +828,9 @@ test('a press just after a sheet closes by itself reaches its target', async ({
   await expect(sheet).toBeHidden()
   await expect(count).toHaveAttribute('data-press-count', '1')
 
-  // A press inside the sheet, then the sheet closes by itself at once (a
-  // tip sent from a sheet, its result arriving): the next tap still lands.
+  // A press inside the sheet, then the sheet closes by itself soon after
+  // (a result arriving): the next tap is held, as the same gesture, and a
+  // moment later lands.
   await page.waitForTimeout(1100) // the tip control's own latch
   await press(page, page.getByRole('button', { name: 'Open the sheet' }))
   await expect(sheet).toBeVisible()
@@ -840,6 +841,9 @@ test('a press just after a sheet closes by itself reaches its target', async ({
   )
   await press(page, tip)
   await expect(sheet).toBeHidden()
+  await expect(count).toHaveAttribute('data-press-count', '1')
+  await page.waitForTimeout(500)
+  await press(page, tip)
   await expect(count).toHaveAttribute('data-press-count', '2')
 })
 

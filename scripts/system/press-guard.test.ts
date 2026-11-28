@@ -1,44 +1,54 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
+  PRESS_WINDOW_MS,
+  createPressWindow,
   holdPresses,
-  notePressClose,
   pressesHeld,
   releasePresses,
-  takePressClose,
 } from '@/system/pressGuard'
 
 afterEach(() => {
   vi.restoreAllMocks()
   releasePresses()
-  takePressClose()
 })
 
-const at = (ms: number) => vi.spyOn(performance, 'now').mockReturnValue(ms)
-
-describe('the press guard', () => {
-  it('holds after a press-close only, taken once', () => {
-    at(1000)
-    // A close by a script or a timer: nothing noted, nothing held.
-    expect(takePressClose()).toBe(false)
-    notePressClose()
-    at(1050)
-    expect(takePressClose()).toBe(true)
-    // The next close (a script's) is not a press-close.
-    expect(takePressClose()).toBe(false)
+describe('whether a modal close holds presses', () => {
+  it('holds after a pointer press inside it, whoever closes it', () => {
+    const w = createPressWindow()
+    w.press(1000)
+    // The control's own handler at once, a result 300 ms later, the stack.
+    expect(w.holds(1000)).toBe(true)
+    expect(w.holds(1300)).toBe(true)
+    expect(w.holds(1000 + PRESS_WINDOW_MS)).toBe(true)
   })
 
-  it('forgets a press-close whose modal never closed', () => {
-    at(1000)
-    notePressClose()
-    at(2500)
-    expect(takePressClose()).toBe(false)
+  it('never holds with no recent press inside it', () => {
+    const w = createPressWindow()
+    expect(w.holds(1000)).toBe(false) // a timer, a change of page
+    w.press(1000)
+    expect(w.holds(1000 + PRESS_WINDOW_MS + 1)).toBe(false)
   })
 
-  it('holds pointer presses for a moment', () => {
-    at(1000)
+  it('never holds after a keyboard close', () => {
+    const w = createPressWindow()
+    w.press(1000)
+    w.key(1200) // Escape, or Enter on a button
+    expect(w.holds(1200)).toBe(false)
+    // A press after the key counts again.
+    w.press(1300)
+    expect(w.holds(1350)).toBe(true)
+  })
+})
+
+describe('the hold', () => {
+  it('holds pointer presses for a moment, and a release ends it', () => {
+    vi.spyOn(performance, 'now').mockReturnValue(1000)
     holdPresses(400)
     expect(pressesHeld()).toBe(true)
-    at(1401)
+    releasePresses()
+    expect(pressesHeld()).toBe(false)
+    holdPresses(400)
+    vi.spyOn(performance, 'now').mockReturnValue(1401)
     expect(pressesHeld()).toBe(false)
   })
 })

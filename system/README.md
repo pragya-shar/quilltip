@@ -330,10 +330,26 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
    "Focus is on the body" is no test: in Safari a press on plain text leaves
    it there too. The change is read once, by focus: no live region repeats
    it. `TipControl` does all of this; a surface's own money sheets must too.
-6. **A press while a sheet closes reaches nothing.** For 400 ms after a
-   press closes a sheet or dialog, the shell swallows pointer presses
-   (`@/system/pressGuard`); key presses always pass. Drop a guard of your
-   own; `pressesHeld()` says whether one is in force.
+6. **A press while a sheet closes reaches nothing.** What the shell
+   guarantees, for every `Sheet`, `Dialog` and modal built on `useModal`
+   (`@/system/pressGuard`):
+   - When it closes within 1 s of a pointer press anywhere inside it (an
+     action, a Cancel, its Close, the scrim, the drag handle), pointer
+     presses on what was under it are swallowed for 400 ms, whoever closed
+     it: the control's own handler, a result, `sheetStack`, a change of
+     page. A double tap on a sheet's button never reaches the tip button
+     under it.
+   - Never after a close by the keyboard (a key pressed in it after its
+     last pointer press), and never after a close with no pointer press
+     inside it in the last second (a timer, a change of page).
+   - A modal that opens takes its own presses at once, also right after
+     another closed.
+   - Key presses (clicks with no pointer, `detail === 0`) always pass.
+
+   Drop a guard of your own; `pressesHeld()` says whether a hold is in
+   force. The tests: `scripts/system/sheet-press-guard.test.ts` (the real
+   `Sheet`) and `scripts/system/press-guard.test.ts`.
+
 7. **A new path closes the sheets.** When the path changes, every open
    sheet closes: a link followed from a sheet never leaves it over the new
    page. Open a sheet after navigating, not before.
