@@ -10,7 +10,12 @@
  * glyphs. Values are computed the way next/font computes its own fallback
  * (hhea ascent, descent and line gap, and the average advance of its
  * letter-frequency string), from Literata instanced at the band's weight:
- * optical size 18 below 550 (reading text), 28 from 550 (titles). The
+ * optical size 18 below 550 (reading text), 28 from 550 (titles). The bands
+ * below 550 are then set 2.1 percent narrower. Measured in Chromium and
+ * WebKit with the computed values, the fallback ran 1.4 percent wider than
+ * Literata on average at 21 px (1.3 at 19 px) and 1.8 percent on the reading
+ * page's near-full line: enough for a line that nearly fills the measure to
+ * wrap a word early. A fallback a hair narrow cannot add a line. The
  * Latin Extended face sits before these in the family list
  * (system/fonts.ts). Checked by scripts/perf/font-fallback-check.ts.
  */
@@ -21,9 +26,9 @@
     local('Liberation Serif'), local('LiberationSerif');
   font-weight: 400 424;
   font-style: normal;
-  size-adjust: 117.88%;
-  ascent-override: 99.84%;
-  descent-override: 26.13%;
+  size-adjust: 115.44%;
+  ascent-override: 101.95%;
+  descent-override: 26.68%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -33,9 +38,9 @@
     local('Liberation Serif'), local('LiberationSerif');
   font-weight: 425 474;
   font-style: normal;
-  size-adjust: 119.24%;
-  ascent-override: 98.71%;
-  descent-override: 25.83%;
+  size-adjust: 116.77%;
+  ascent-override: 100.79%;
+  descent-override: 26.38%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -45,9 +50,9 @@
     local('Liberation Serif'), local('LiberationSerif');
   font-weight: 475 549;
   font-style: normal;
-  size-adjust: 120.6%;
-  ascent-override: 97.6%;
-  descent-override: 25.54%;
+  size-adjust: 118.1%;
+  ascent-override: 99.67%;
+  descent-override: 26.08%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -93,9 +98,9 @@
     local('Liberation Serif Italic'), local('LiberationSerif-Italic');
   font-weight: 400 424;
   font-style: italic;
-  size-adjust: 112.27%;
-  ascent-override: 104.84%;
-  descent-override: 27.43%;
+  size-adjust: 109.95%;
+  ascent-override: 107.05%;
+  descent-override: 28.01%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -105,9 +110,9 @@
     local('Liberation Serif Italic'), local('LiberationSerif-Italic');
   font-weight: 425 474;
   font-style: italic;
-  size-adjust: 113.87%;
-  ascent-override: 103.36%;
-  descent-override: 27.05%;
+  size-adjust: 111.51%;
+  ascent-override: 105.54%;
+  descent-override: 27.62%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -117,9 +122,9 @@
     local('Liberation Serif Italic'), local('LiberationSerif-Italic');
   font-weight: 475 549;
   font-style: italic;
-  size-adjust: 115.44%;
-  ascent-override: 101.96%;
-  descent-override: 26.68%;
+  size-adjust: 113.05%;
+  ascent-override: 104.11%;
+  descent-override: 27.24%;
   line-gap-override: 0%;
 }
 @font-face {
@@ -166,11 +171,8 @@
  *   balanced title re-wraps on a two percent difference. Calibrated on
  *   article titles with Literata's kerning, which the advance widths alone
  *   miss by about 1.3 percent.
- * - The lead-in line, drawn in capitals at 0.7 em: capitals differ in width
- *   from the lowercase that size-adjust matches above. (Small caps would
- *   differ by engine: WebKit draws Times New Roman's own, Chromium makes
- *   them from capitals, and Literata's subset has none, so the lead-in is
- *   capitals in every face.)
+ * The lead-in line is reading text at its own size, and uses the bands
+ * above.
  */
 @font-face {
   font-family: 'Quilltip Display Fallback';
@@ -194,17 +196,5 @@
   size-adjust: 114.2%;
   ascent-override: 103.07%;
   descent-override: 26.97%;
-  line-gap-override: 0%;
-}
-@font-face {
-  font-family: 'Quilltip Read Caps Fallback';
-  src:
-    local('Times New Roman'), local('TimesNewRomanPSMT'),
-    local('Liberation Serif'), local('LiberationSerif');
-  font-weight: 400 549;
-  font-style: normal;
-  size-adjust: 106.17%;
-  ascent-override: 110.86%;
-  descent-override: 29.01%;
   line-gap-override: 0%;
 }

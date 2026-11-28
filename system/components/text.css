@@ -116,11 +116,11 @@
   .qt-prose p {
     text-wrap: pretty;
   }
-  /* The lead-in: the first line of the first paragraph in small caps. */
+  /* The lead-in: the first line of the first paragraph, a little smaller and
+   * tracked. Only font size and letter spacing, which both engines apply to
+   * ::first-line alike; the reading face and its fallback, matched. */
   .qt-prose[data-lead-in] > p:first-of-type::first-line {
-    font-family: var(--qt-font-read-caps);
     font-size: var(--qt-read-lead-in-size);
-    text-transform: uppercase;
     letter-spacing: var(--qt-read-lead-in-track);
   }
   .qt-prose h2 {
