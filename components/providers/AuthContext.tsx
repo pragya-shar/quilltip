@@ -13,7 +13,10 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useAuthActions, useAuthToken } from '@convex-dev/auth/react'
 import { useConvexAuth } from 'convex/react'
 import { Value } from 'convex/values'
-import { useCurrentUser } from '@/hooks/convex'
+// The hook's own module, not the hooks/convex barrel: this provider is on
+// every page, and the barrel brings its other hooks into every first load
+// (about 1.7 KB gzip on `/` and `/login`).
+import { useCurrentUser } from '@/hooks/convex/useUsers'
 import {
   TOKEN_CONFIRMATION_TIMEOUT_MS,
   authGate,
