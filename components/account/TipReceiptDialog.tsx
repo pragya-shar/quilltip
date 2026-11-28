@@ -1,5 +1,8 @@
 'use client'
-import type { TipActivityItem } from '@/lib/account/tipActivity'
+import {
+  isUnacceptedTabTip,
+  type TipActivityItem,
+} from '@/lib/account/tipActivity'
 import {
   Dialog,
   DialogContent,
@@ -20,7 +23,12 @@ import { recordedUsdNote } from '@/lib/copy/network-status'
  * A row's status in words. v1 statuses keep their labels; v2 statuses use
  * the payment state kit's (`STATUS_LABEL`), as the tip flows show them.
  */
-export function tipStatusLabel(status: string, mismatchReason?: string) {
+export function tipStatusLabel(
+  status: string,
+  mismatchReason?: string,
+  channel?: TipActivityItem['channel']
+) {
+  if (isUnacceptedTabTip({ channel, status })) return TAB_HISTORY.notSent
   const labels: Record<string, string> = {
     CONFIRMED: 'Confirmed',
     PENDING: 'Pending',
@@ -79,8 +87,11 @@ export function shownTipStatus(
 export function receiptStatusNote(
   item: Pick<TipActivityItem, 'status' | 'mismatchReason'> & {
     direction?: TipActivityItem['direction']
+    channel?: TipActivityItem['channel']
   }
 ): string | null {
+  if (isUnacceptedTabTip(item))
+    return `${TAB_HISTORY.notSent}. ${TAB_HISTORY.notSentDetail}`
   const audience = item.direction === 'received' ? 'writer' : 'reader'
   switch (item.status) {
     case 'CONFIRMED':
@@ -160,7 +171,7 @@ export function TipReceiptDialog({
         >
           <DialogTitle>Tip receipt</DialogTitle>
           <DialogDescription className="account-muted">
-            {tipStatusLabel(status!, item.mismatchReason)} ·{' '}
+            {tipStatusLabel(status!, item.mismatchReason, item.channel)} ·{' '}
             {new Date(item.createdAt).toLocaleDateString('en-US', {
               dateStyle: 'long',
             })}
@@ -192,7 +203,9 @@ export function TipReceiptDialog({
             )}
             <div>
               <dt>Status</dt>
-              <dd>{tipStatusLabel(status!, item.mismatchReason)}</dd>
+              <dd>
+                {tipStatusLabel(status!, item.mismatchReason, item.channel)}
+              </dd>
             </div>
             {tipGenerationLabel(item) && (
               <div>

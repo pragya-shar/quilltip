@@ -138,6 +138,9 @@ export const TAB_HISTORY = {
   readMore: 'Read more',
   /** The settler's rule (convex/lib/chain/settler.ts), not a fixed wait. */
   accepted: 'Settles at 5 XLM to this writer, or after 6 hours',
+  /** A tab tip that was prepared but never accepted (#706). */
+  notSent: 'Not sent',
+  notSentDetail: 'Nothing was taken from your tab.',
 } as const
 
 export const TAB_CLOSE = {

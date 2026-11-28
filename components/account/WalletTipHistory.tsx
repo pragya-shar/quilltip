@@ -92,7 +92,8 @@ export function WalletTipHistory({
                       : 'Received'
                     : tipStatusLabel(
                         shownTipStatus(item, readerTabShort),
-                        item.mismatchReason
+                        item.mismatchReason,
+                        item.channel
                       )}
                 </span>
                 {tipGenerationLabel(item) ? (

@@ -18,6 +18,7 @@ import {
   recordedUsdNote,
 } from '../../lib/copy/network-status'
 import {
+  isUnacceptedTabTip,
   normalizeTipActivity,
   type TipActivityItem,
   type TipActivitySources,
@@ -241,5 +242,76 @@ describe('accepted tab tips on a short tab', () => {
       createElement(WalletTipHistory, { items, readerTabShort: false })
     )
     expect(funded).toContain('Settling')
+  })
+})
+
+/** A tab tip that was never accepted is not a sent tip (#706). */
+describe('tab tips that were never accepted', () => {
+  const rows = [
+    {
+      contractVersion: 'v2',
+      channel: 'tab',
+      status: 'PREPARED',
+      amountCents: 40,
+    },
+    {
+      _id: 'tab-expired',
+      contractVersion: 'v2',
+      channel: 'tab',
+      status: 'EXPIRED',
+    },
+    { contractVersion: 'v2', channel: 'tab', status: 'ACCEPTED' },
+    { contractVersion: 'v2', channel: 'tab', status: 'SETTLED' },
+    { contractVersion: 'v2', channel: 'direct', status: 'PREPARED' },
+    {
+      _id: 'wallet-expired',
+      contractVersion: 'v2',
+      channel: 'batch',
+      status: 'EXPIRED',
+    },
+  ]
+
+  it('leaves them out of the rows, and keeps wallet tips in flight and accepted tab tips', () => {
+    const items = normalizeTipActivity(sources(rows))
+    expect(items.map((i) => `${i.channel}:${i.status}`).sort()).toEqual([
+      'batch:EXPIRED',
+      'direct:PREPARED',
+      'tab:ACCEPTED',
+      'tab:SETTLED',
+    ])
+    expect(isUnacceptedTabTip({ channel: 'tab', status: 'PREPARED' })).toBe(
+      true
+    )
+    expect(isUnacceptedTabTip({ channel: 'tab', status: 'EXPIRED' })).toBe(true)
+    expect(isUnacceptedTabTip({ channel: 'tab', status: 'ACCEPTED' })).toBe(
+      false
+    )
+    expect(isUnacceptedTabTip({ channel: 'direct', status: 'PREPARED' })).toBe(
+      false
+    )
+  })
+
+  it('counts only the shown rows in the history footer', () => {
+    const html = renderToStaticMarkup(
+      createElement(WalletTipHistory, {
+        items: normalizeTipActivity(sources(rows)),
+      })
+    )
+    expect(html.split('<li').slice(1)).toHaveLength(4)
+    expect(html).toContain('4 of 4 tips')
+    expect(html).not.toContain('$0.40')
+  })
+
+  it('says "Not sent" with tab copy if one is ever shown', () => {
+    expect(tipStatusLabel('EXPIRED', undefined, 'tab')).toBe('Not sent')
+    expect(tipStatusLabel('PREPARED', undefined, 'tab')).toBe('Not sent')
+    expect(receiptStatusNote({ status: 'EXPIRED', channel: 'tab' })).toBe(
+      'Not sent. Nothing was taken from your tab.'
+    )
+    // Wallet tips keep their wording.
+    expect(tipStatusLabel('EXPIRED', undefined, 'direct')).toBe('Timed out')
+    expect(receiptStatusNote({ status: 'EXPIRED', channel: 'direct' })).toMatch(
+      /nothing was paid/
+    )
   })
 })

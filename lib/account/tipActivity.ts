@@ -26,6 +26,8 @@ type ActivityBase = {
   amountUsdSuspicious?: boolean
   /** The contract generation the row was recorded with. */
   contractVersion: 'v1' | 'v2'
+  /** How a v2 tip was paid: a direct or batch wallet payment, or a tab. */
+  channel?: 'direct' | 'batch' | 'tab'
   /** v2 `MISMATCH` only: `author` when paid to the registered address. */
   mismatchReason?: string
 }
@@ -40,6 +42,21 @@ export type TipActivityItem = ActivityBase &
       }
   )
 
+/**
+ * A tab tip that was prepared but never accepted (#706): a refused or
+ * abandoned submit leaves it `PREPARED`, and the expiry cron moves it to
+ * `EXPIRED`. It moved no value, so it is not a sent tip.
+ */
+export function isUnacceptedTabTip(
+  item: Pick<ActivityBase, 'channel' | 'status'>
+): boolean {
+  return (
+    item.channel === 'tab' &&
+    (item.status === 'PREPARED' || item.status === 'EXPIRED')
+  )
+}
+
+/** The rows of the tip history, newest first, without unaccepted tab tips. */
 export function normalizeTipActivity(
   input: TipActivitySources
 ): TipActivityItem[] {
@@ -76,6 +93,7 @@ export function normalizeTipActivity(
         amountUsdSuspicious:
           'amountUsdSuspicious' in tip ? tip.amountUsdSuspicious : undefined,
         contractVersion: tip.contractVersion === 'v2' ? 'v2' : 'v1',
+        channel: tip.channel,
         mismatchReason:
           'mismatchReason' in tip && typeof tip.mismatchReason === 'string'
             ? tip.mismatchReason
@@ -94,7 +112,7 @@ export function normalizeTipActivity(
       )
     }
   }
-  return rows.sort(
-    (a, b) => b.createdAt - a.createdAt || a.key.localeCompare(b.key)
-  )
+  return rows
+    .filter((row) => !isUnacceptedTabTip(row))
+    .sort((a, b) => b.createdAt - a.createdAt || a.key.localeCompare(b.key))
 }
