@@ -8,7 +8,13 @@
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Buffer } from 'buffer'
-import { Address, Keypair, nativeToScVal, xdr } from '@stellar/stellar-sdk'
+import {
+  Address,
+  Keypair,
+  StrKey,
+  nativeToScVal,
+  xdr,
+} from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
@@ -20,6 +26,7 @@ import {
   type TabReadinessCause,
 } from '../../convex/lib/chain/tabReadiness'
 import { insertTabAccount } from '../../convex/lib/chain/tabLedger'
+import { loadAcceptor } from '../../convex/lib/chain/voucher'
 import { settlerKeypair } from '../../convex/tabSettler'
 import shared from '../../contracts/shared/test-vectors.json'
 import { fakeRpcFetch } from './fixtures'
@@ -375,13 +382,28 @@ describe('tab tip readiness (#692)', () => {
   })
 
   it('parses the settler secret as settlerKeypair does and the acceptor secret as acceptance does', () => {
-    for (const value of [
-      SETTLER.secret(),
-      ` ${SETTLER.secret()}\n`,
-      `${SETTLER.secret().slice(0, -1)}A`,
+    const seed = SETTLER.secret()
+    const hostile = [
+      seed,
+      ` ${seed}\n`,
+      `\t${seed}\r\n`,
+      `\u00a0${seed}\ufeff`,
+      `${seed}\u200b`,
+      `"${seed}"`,
+      `'${seed}'`,
+      seed.toLowerCase(),
+      `${seed.slice(0, -1)}${seed.endsWith('A') ? 'B' : 'A'}`,
+      seed.slice(0, 55),
+      `${seed}A`,
+      SETTLER.publicKey(),
+      Buffer.from(SETTLER.rawSecretKey()).toString('hex'),
+      `0x${Buffer.from(SETTLER.rawSecretKey()).toString('hex')}`,
       'SABC',
+      '   ',
+      '',
       ACCEPTOR_SEED,
-    ]) {
+    ]
+    for (const value of hostile) {
       let node: string | null
       try {
         node = settlerKeypair({ TAB_SETTLER_SECRET: value }).publicKey()
@@ -390,6 +412,37 @@ describe('tab tip readiness (#692)', () => {
       }
       const ours = settlerAddressOf(value)
       expect(ours.status === 'ok' ? ours.value : null, value).toBe(node)
+    }
+    // The acceptor: readiness and acceptance (`loadAcceptor`) agree on every
+    // value, through the one derivation they share.
+    // The vector's acceptor seed is 64 hex characters; also try its `S…` form.
+    const acceptorHex = ACCEPTOR_SEED.toLowerCase()
+    const acceptorS = StrKey.encodeEd25519SecretSeed(
+      Buffer.from(acceptorHex, 'hex')
+    )
+    for (const value of [
+      ...hostile,
+      acceptorS,
+      ` ${acceptorS}\n`,
+      acceptorS.toLowerCase(),
+      acceptorHex,
+      acceptorHex.toUpperCase(),
+      ` ${acceptorHex} `,
+      `0x${acceptorHex}`,
+      acceptorHex.slice(0, 63),
+    ]) {
+      let accepted: string | null
+      try {
+        accepted = loadAcceptor({
+          ...process.env,
+          SETTLEMENT_ENABLED: 'true',
+          TAB_ACCEPTOR_SECRET: value,
+        }).publicKey
+      } catch {
+        accepted = null
+      }
+      const ours = acceptorKeyOf(value)
+      expect(ours.status === 'ok' ? ours.value : null, value).toBe(accepted)
     }
     expect(acceptorKeyOf(ACCEPTOR_SEED)).toEqual({
       status: 'ok',
