@@ -1,5 +1,6 @@
 import type { NextConfig } from 'next'
 import bundleAnalyzer from '@next/bundle-analyzer'
+import { imageRemotePatterns } from './lib/security/imageSources'
 import { walletConnectProjectId } from './lib/stellar/v2/walletconnect-gate'
 
 // WalletConnect is on with a Reown project ID and off without one
@@ -44,52 +45,10 @@ const nextConfig: NextConfig = {
     ...(process.env.NODE_ENV === 'development' && {
       dangerouslyAllowLocalIP: true,
     }),
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '*.convex.cloud',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: '*.convex.site',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'img.youtube.com',
-        port: '',
-        pathname: '/vi/**',
-      },
-      // Local Convex dev server
-      {
-        protocol: 'http',
-        hostname: '127.0.0.1',
-        port: '3210',
-        pathname: '/api/storage/**',
-      },
-      // Temporary: Allow Unsplash for legacy content
-      {
-        protocol: 'https',
-        hostname: 'images.unsplash.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'plus.unsplash.com',
-        port: '',
-        pathname: '/**',
-      },
-      {
-        protocol: 'https',
-        hostname: 'arweave.net',
-        port: '',
-        pathname: '/**',
-      },
-    ],
+    // This deployment's own origin and the listed hosts, from the same list
+    // as the page image policy and the article renderers
+    // (lib/security/imageSources.ts).
+    remotePatterns: imageRemotePatterns(process.env.NEXT_PUBLIC_CONVEX_URL),
   },
 }
 

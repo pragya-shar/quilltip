@@ -124,6 +124,8 @@ export default function ArticleNftV2({
         <FlowView
           flow={flow}
           status={status}
+          // Under the panel's h5 title: results and refusals are h6.
+          headingLevel={6}
           onRetry={
             flowAction === 'mint'
               ? () => {

@@ -37,6 +37,7 @@ import {
 } from './lib/readingRoomIndex'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
 import { storedArticleContent } from './lib/articleContent'
+import { assertPublishableImages, withShownCover } from './lib/articleImages'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import {
   permanentStorageEnabled,
@@ -126,9 +127,10 @@ function validateArticleInput(args: {
 }
 
 function assertAuthorCanReceiveTips(user: Doc<'users'>) {
-  // Readers can tip only a wallet the writer proved control of.
+  // Readers can tip only a wallet the writer proved control of. A refusal for
+  // the writer: a ConvexError, so production keeps its text (#633).
   if (!verifiedStellarAddress(user)) {
-    throw new Error(PUBLISH_RECEIVING_WALLET_ERROR)
+    throw new ConvexError(PUBLISH_RECEIVING_WALLET_ERROR)
   }
 }
 
@@ -172,7 +174,7 @@ async function loadReadingRoomArticle(
     authors.set(article.authorId, await enrichWithUser(ctx, article.authorId))
   }
   return {
-    ...stripWriterNotes(article),
+    ...withShownCover(stripWriterNotes(article)),
     readTime: estimateArticleReadingMinutes(article.content),
     author: authors.get(article.authorId) ?? null,
   }
@@ -376,7 +378,7 @@ export const listArticles = query({
     )
     const enrichedArticles = await Promise.all(
       slice.map(async (article) => ({
-        ...stripWriterNotes(article),
+        ...withShownCover(stripWriterNotes(article)),
         readTime: estimateArticleReadingMinutes(article.content),
         author: writers.has(article.authorId)
           ? (writers.get(article.authorId) ?? null)
@@ -716,7 +718,7 @@ export const getArticleBySlug = query({
     }
 
     return {
-      ...stripWriterNotes(article),
+      ...withShownCover(stripWriterNotes(article)),
       arweaveStatus: readableArweaveStatus(article.arweaveStatus),
       author: {
         id: author._id,
@@ -796,7 +798,11 @@ export const getArticleById = query({
 
     const author = await ctx.db.get(article.authorId)
     return {
-      ...stripWriterNotes(article),
+      // The author's editor reads the cover as stored; readers do not get
+      // one from another host (#633).
+      ...(isAuthor
+        ? stripWriterNotes(article)
+        : withShownCover(stripWriterNotes(article))),
       ...(isAuthor ? { writerNotes: article.writerNotes } : {}),
       author: author
         ? {
@@ -908,8 +914,9 @@ export const createArticle = mutation({
     if (args.published) {
       assertPublishableArticleTitle(args.title)
       if (!tiptapJsonHasNonEmptyText(content)) {
-        throw new Error('Cannot publish: article body is empty')
+        throw new ConvexError('Cannot publish: article body is empty')
       }
+      assertPublishableImages({ content, coverImage: args.coverImage })
     }
 
     const user = await ctx.db.get(userId)
@@ -1164,11 +1171,12 @@ export const publishArticle = mutation({
     // Validate article has required content before publishing
     assertPublishableArticleTitle(article.title)
     if (!article.content) {
-      throw new Error('Cannot publish: content is required')
+      throw new ConvexError('Cannot publish: content is required')
     }
     if (!tiptapJsonHasNonEmptyText(article.content)) {
-      throw new Error('Cannot publish: article body is empty')
+      throw new ConvexError('Cannot publish: article body is empty')
     }
+    assertPublishableImages(article)
 
     assertArticleListingReady({
       title: article.title,

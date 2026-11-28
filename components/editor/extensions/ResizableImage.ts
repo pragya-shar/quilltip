@@ -2,6 +2,11 @@ import { Node, mergeAttributes } from '@tiptap/core'
 import { ReactNodeViewRenderer } from '@tiptap/react'
 import type { Editor } from '@tiptap/core'
 import { NodeSelection } from '@tiptap/pm/state'
+import type { DOMOutputSpec } from '@tiptap/pm/model'
+import {
+  HIDDEN_ARTICLE_IMAGE,
+  isArticleImageShown,
+} from '@/lib/tiptap/articleImage'
 import ResizableImageComponent from './ResizableImageComponent'
 
 export interface ImageOptions {
@@ -139,6 +144,10 @@ export const ResizableImage = Node.create<ImageOptions>({
   },
 
   renderHTML({ HTMLAttributes }) {
+    // Only this deployment's storage and the listed hosts (#615).
+    if (!isArticleImageShown(HTMLAttributes.src)) {
+      return [...HIDDEN_ARTICLE_IMAGE] as DOMOutputSpec
+    }
     return ['img', mergeAttributes(this.options.HTMLAttributes, HTMLAttributes)]
   },
 

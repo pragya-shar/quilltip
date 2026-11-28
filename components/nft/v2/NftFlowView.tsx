@@ -62,14 +62,19 @@ export function FlowView({
   onRetry: () => void
   onDone: () => void
   ownerUpdating: string
-  headingLevel?: 2 | 3 | 4
+  headingLevel?: 2 | 3 | 4 | 5 | 6
 }) {
   const now = useNow(flow.kind === 'tracking' ? 5_000 : null)
   if (flow.kind === 'idle' || flow.kind === 'review') return null
   if (flow.kind === 'refused') {
     return (
       <div className="nft-v2-flow">
-        <PaymentNotice kind="refused" copy={flow.copy} announce />
+        <PaymentNotice
+          kind="refused"
+          copy={flow.copy}
+          announce
+          headingLevel={headingLevel}
+        />
         <Button
           type="button"
           variant="outline"
@@ -104,9 +109,15 @@ export function FlowView({
             kind="paused"
             copy={NFT_PAUSED_COPY[flow.action]}
             announce
+            headingLevel={headingLevel}
           />
         ) : (
-          <PaymentNotice kind="insufficient-balance" source="wallet" announce />
+          <PaymentNotice
+            kind="insufficient-balance"
+            source="wallet"
+            announce
+            headingLevel={headingLevel}
+          />
         )}
         <Button
           type="button"

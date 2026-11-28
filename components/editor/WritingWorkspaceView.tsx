@@ -39,6 +39,8 @@ import {
   estimateArticleReadingMinutes,
   estimateReadingMinutesFromWordCount,
 } from '@/lib/reading-time'
+import { shownCoverImage } from '@/lib/tiptap/articleImage'
+import { publishFeedbackPlace } from '@/lib/editor/publish-feedback'
 
 export function WritingWorkspaceView({
   workspace: w,
@@ -53,6 +55,11 @@ export function WritingWorkspaceView({
   const [link, setLink] = useState('')
   const [linkError, setLinkError] = useState('')
   const [leaving, setLeaving] = useState(false)
+  // A publish message shows in one place at a time, so it is read once.
+  const feedbackPlace = publishFeedbackPlace({
+    confirmOpen: w.publishConfirmOpen,
+    drawerOpen: panel === 'publish' && !w.publishSuccessVisible,
+  })
   const insertTrigger = useRef<HTMLButtonElement>(null)
   const formatTrigger = useRef<HTMLButtonElement>(null)
   const formatTools = useRef<HTMLDivElement>(null)
@@ -129,7 +136,7 @@ export function WritingWorkspaceView({
     const article = doc.createElement('article')
     article.innerHTML = w.editor?.getHTML() || ''
     doc.body.append(title, subtitle, article)
-    if (w.coverImage) {
+    if (shownCoverImage(w.coverImage)) {
       const cover = doc.createElement('img')
       cover.src = w.coverImage
       cover.alt = style.coverAlt
@@ -389,7 +396,7 @@ export function WritingWorkspaceView({
           {w.bodyUploadAnnouncement.text}
         </div>
       )}
-      {w.publishFeedback && (
+      {w.publishFeedback && feedbackPlace === 'notice' && (
         <div className="writer-notice" role="alert">
           <strong>{w.publishFeedback.title}</strong>
           <p>{w.publishFeedback.detail}</p>
@@ -811,7 +818,16 @@ export function WritingWorkspaceView({
             }}
           />
           <div id="cover-preview">
-            {w.coverImage && <img src={w.coverImage} alt={style.coverAlt} />}
+            {shownCoverImage(w.coverImage) ? (
+              <img src={w.coverImage} alt={style.coverAlt} />
+            ) : (
+              w.coverImage && (
+                <p className="writing-image-hidden">
+                  This cover is not shown. Covers must be uploaded or come from
+                  an allowed host.
+                </p>
+              )
+            )}
           </div>
           <button
             type="button"
@@ -855,7 +871,7 @@ export function WritingWorkspaceView({
             <WritingWallet onSaved={w.setReceivingWalletAddress} />
           )}
           {w.titleError && <p role="alert">{w.titleError}</p>}
-          {w.publishFeedback && (
+          {w.publishFeedback && feedbackPlace === 'drawer' && (
             <p role="alert">
               {w.publishFeedback.title} {w.publishFeedback.detail}
             </p>
@@ -890,7 +906,7 @@ export function WritingWorkspaceView({
           {w.permanentStorageEnabled !== undefined &&
             'You can’t edit the article after you publish it.'}
         </p>
-        {w.publishFeedback && (
+        {w.publishFeedback && feedbackPlace === 'confirm' && (
           <p role="alert">
             {w.publishFeedback.title} {w.publishFeedback.detail}
           </p>

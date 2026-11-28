@@ -31,7 +31,7 @@ Production, with the Convex deployment and Stellar testnet values from
 | `default-src`     | `'self'`                                                                                                                          |
 | `script-src`      | `'self'` `'nonce-…'` (Vercel previews add `https://vercel.live`)                                                                  |
 | `style-src`       | `'self'` `'unsafe-inline'`                                                                                                        |
-| `img-src`         | `'self'` `data:` `blob:`, the Convex deployment, `*.convex.cloud` `*.convex.site`, article image hosts, the wallet icon CDN       |
+| `img-src`         | `'self'` `data:` `blob:`, the Convex deployment, the listed image hosts, the wallet icon CDN                                      |
 | `font-src`        | `'self'`                                                                                                                          |
 | `connect-src`     | `'self'`, the Convex deployment (HTTPS and WebSocket), Stellar testnet Horizon, RPC and Friendbot, the configured Horizon and RPC |
 | `frame-src`       | `'self'`, YouTube, `https://albedo.link`                                                                                          |
@@ -79,13 +79,32 @@ session in an iframe, so it is in `frame-src`. The wallet picker's icons load
 from `stellar.creit.tech`; D'CENT's is a `data:` URL, and Scopuly, whose icon
 is on its own host, shows its initial instead. See [wallets](../wallets.md).
 
+## Images
+
+Images load only from this deployment's own file storage (its Convex
+origin, path `/api/storage/`) and the listed hosts (`lib/security/imageSources.ts`): `img.youtube.com/vi/` (video
+thumbnails in the older editor's video dialog), and `images.unsplash.com`,
+`plus.unsplash.com` and `arweave.net` (images in existing articles; no code
+adds them). The same list sets `img-src`, the image optimizer's
+`remotePatterns` in `next.config.ts`, the article renderers and the publish
+check in Convex. Uploads, covers and profile photos are `ctx.storage.getUrl`
+addresses, `<CONVEX_CLOUD_URL>/api/storage/<id>`. Profile photos are uploaded
+only: `users.updateProfile` accepts an address in this deployment's storage
+and nothing else, and `UserAvatar` shows the initials for a stored photo
+outside the list. The app reads that
+origin from `NEXT_PUBLIC_CONVEX_URL`, so the two must name the same
+deployment. An article image from another host is not rendered, and an
+article holding one cannot be published until the image is uploaded or
+replaced; drafts save as they are. A cover from another host counts as no
+cover in the article cards and the article page's metadata.
+`articleImageHosts:countImageHosts` reports image, cover and profile photo
+hosts across a deployment.
+
 ## Not tightened
 
 - **`style-src 'unsafe-inline'`.** React `style` attributes, Motion and the
   wallet picker's web components set inline styles. Nonces do not apply to
   style attributes. Styles cannot run script.
-- **`img-src *.convex.cloud` and `*.convex.site`.** Older articles reference
-  storage URLs of other Convex deployments.
 - **Trusted Types.** Not required by the issue. The app renders article HTML
   through React and Tiptap; a Trusted Types policy is a separate change.
 

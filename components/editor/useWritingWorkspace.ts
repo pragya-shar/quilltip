@@ -23,9 +23,11 @@ import { api } from '@/convex/_generated/api'
 import { useArticleById } from '@/hooks/convex'
 import type { Id } from '@/types/convex'
 import { toast } from 'sonner'
+import { convexErrorMessage } from '@/lib/feedback/convexErrorMessage'
 import type { FlowFeedback } from '@/lib/feedback/flow-feedback'
 import {
   PUBLISH_EMPTY_CONTENT_FEEDBACK,
+  publishBlockedFeedback,
   publishErrorFeedback,
 } from '@/lib/editor/publish-feedback'
 import {
@@ -690,12 +692,18 @@ export function useWritingWorkspace() {
     try {
       const savedDraft = await saveNow()
       if (hasUnsavedChanges && !savedDraft) {
-        throw new Error('Save your latest changes before publishing')
+        setPublishFeedback(
+          publishBlockedFeedback('Save your latest changes before publishing.')
+        )
+        return
       }
 
       const targetArticleId = savedDraft?.id ?? articleId
       if (!targetArticleId) {
-        throw new Error('Save your draft before publishing')
+        setPublishFeedback(
+          publishBlockedFeedback('Save your draft before publishing.')
+        )
+        return
       }
 
       const published = await publishArticleMutation({
@@ -720,18 +728,15 @@ export function useWritingWorkspace() {
       setPublishSuccessVisible(true)
     } catch (error) {
       console.error('Publish error:', error)
-      const message = error instanceof Error ? error.message : 'Unknown error'
-      if (message.toLowerCase().includes('title')) {
+      // The refusal's own words (a ConvexError's data); the raw client
+      // message is never read, and a production deployment redacts it.
+      const refusal = convexErrorMessage(error) ?? ''
+      if (refusal.toLowerCase().includes('add a title')) {
         setTitleError(TITLE_PUBLISH_ERROR)
         focusTitleField()
       } else {
-        const feedback = publishErrorFeedback(error)
-        setPublishFeedback(feedback)
-        toast.error(
-          feedback.detail
-            ? `${feedback.title}: ${feedback.detail}`
-            : feedback.title
-        )
+        // One alert, in the place the writer is (WritingWorkspaceView).
+        setPublishFeedback(publishErrorFeedback(error))
       }
     } finally {
       publishingRef.current = false
@@ -836,10 +841,7 @@ export function useWritingWorkspace() {
           return
         }
         console.error('Error uploading image:', err)
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Upload failed. Please try again.'
+        const message = 'The upload failed. Try again.'
         setBodyUploadAnnouncement({ type: 'error', text: message })
         toast.error(message)
       } finally {

@@ -1,3 +1,5 @@
+import { ConvexError } from 'convex/values'
+
 const MIN_PUBLISHABLE_TITLE_LENGTH = 3
 
 export function isPlaceholderArticleTitle(title: string): boolean {
@@ -14,8 +16,10 @@ export function isPublishBlockedArticleTitle(title: string): boolean {
   return false
 }
 
+// Refusals for the writer are ConvexErrors: a production deployment redacts a
+// plain Error's message, and the page shows a ConvexError's data (#633).
 export function assertPublishableArticleTitle(title: string): void {
   if (isPublishBlockedArticleTitle(title)) {
-    throw new Error('Cannot publish: add a title before publishing')
+    throw new ConvexError('Cannot publish: add a title before publishing')
   }
 }

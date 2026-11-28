@@ -10,6 +10,7 @@
  * complete set of third-party origins the browser talks to.
  */
 
+import { imagePolicySources } from '@/lib/security/imageSources'
 import { STELLAR_NETWORK_DEFAULTS } from '@/lib/stellar/network'
 import { WALLETCONNECT_PROJECT_ID_PATTERN } from '@/lib/stellar/v2/walletconnect-gate'
 
@@ -68,16 +69,6 @@ export const WALLETCONNECT_FRAME_ORIGINS = [
 function walletConnectOn(projectId: string | undefined): boolean {
   return WALLETCONNECT_PROJECT_ID_PATTERN.test(projectId?.trim() ?? '')
 }
-
-/** Hosts of images in articles, covers and avatars. */
-const CONTENT_IMAGE_SOURCES = [
-  '*.convex.cloud',
-  '*.convex.site',
-  'img.youtube.com',
-  'images.unsplash.com',
-  'plus.unsplash.com',
-  'arweave.net',
-]
 
 const VIDEO_FRAME_ORIGINS = [
   'https://www.youtube.com',
@@ -157,8 +148,9 @@ export function buildContentSecurityPolicy(
         "'self'",
         'data:',
         'blob:',
-        ...configuredOrigin(env.NEXT_PUBLIC_CONVEX_URL),
-        ...CONTENT_IMAGE_SOURCES,
+        // Articles, covers and avatars: this deployment's own origin and the
+        // listed hosts (lib/security/imageSources.ts).
+        ...imagePolicySources(env.NEXT_PUBLIC_CONVEX_URL),
         ...WALLET_IMAGE_ORIGINS,
       ]),
     ],

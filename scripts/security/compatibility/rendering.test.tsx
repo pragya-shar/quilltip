@@ -31,7 +31,8 @@ const content: JSONContent = {
     {
       type: 'resizableImage',
       attrs: {
-        src: 'https://example.com/image.png',
+        // A listed image host: other hosts do not render (#615).
+        src: 'https://images.unsplash.com/photo-1?w=640',
         alt: 'Accessible image',
         title: 'A caption & <text>',
         width: 640,

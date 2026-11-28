@@ -1,15 +1,25 @@
-// Only the Convex boundary is replaced; the editor and Radix focus scopes are real.
+// Only the Convex boundary is replaced; the editor, the upload request and
+// Radix focus scopes are real (#633: photos are uploaded, never pasted).
 export const api = {
-  users: { updateProfile: 'updateProfile', clearAvatar: 'clearAvatar' },
-  wikimedia: { resolveWikimediaFileUrl: 'resolveWikimediaFileUrl' },
+  users: { clearAvatar: 'clearAvatar' },
+  uploadIngress: { issueTicket: 'issueTicket' },
+  uploads: { updateUserAvatar: 'updateUserAvatar' },
 }
-export const useConvex = () => ({})
-export const useAction = () => async () => ({ kind: 'not_file_page' })
-export const useMutation = () => async (args: { avatar: string }) => {
-  const response = await fetch('/save', {
-    method: 'POST',
-    body: JSON.stringify(args),
-  })
-  if (!response.ok) throw new Error('Could not save image URL')
-  window.dispatchEvent(new CustomEvent('avatar-saved', { detail: args.avatar }))
+export class ConvexReactClient {}
+
+/** The upload ticket, then the saved photo's storage address. */
+export const useConvex = () => ({
+  action: async () => ({ url: '/upload', token: 'fixture-token' }),
+  mutation: async () => {
+    const avatarUrl = `${location.origin}/api/storage/uploaded.svg`
+    window.dispatchEvent(new CustomEvent('avatar-saved', { detail: avatarUrl }))
+    return { avatarUrl }
+  },
+})
+
+/** Removing the photo. */
+export const useMutation = () => async () => {
+  const response = await fetch('/remove', { method: 'POST' })
+  if (!response.ok) throw new Error('Could not remove profile photo')
+  window.dispatchEvent(new CustomEvent('avatar-saved', { detail: '' }))
 }

@@ -14,6 +14,7 @@ import {
   profilePath,
   toMetaDescription,
 } from '@/lib/seo/siteMetadata'
+import { shownAvatar } from '@/lib/profile/shownAvatar'
 
 interface ProfilePageProps {
   params: Promise<{
@@ -36,7 +37,9 @@ export async function generateMetadata({
     profile.bio?.trim() || `Articles by ${displayName} on ${SITE_NAME}.`
   )
   const url = profilePath(profile.username)
-  const images = profile.avatar ? [{ url: profile.avatar }] : undefined
+  // A photo from another host counts as none (#633).
+  const avatar = shownAvatar(profile.avatar)
+  const images = avatar ? [{ url: avatar }] : undefined
 
   return {
     title: `${displayName} · ${SITE_NAME}`,

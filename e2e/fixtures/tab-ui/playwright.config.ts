@@ -5,7 +5,8 @@ import { defineConfig, devices } from '@playwright/test'
 //   bun e2e/fixtures/tab-ui/server.mjs
 // Chromium runs every state and flow; Firefox and WebKit run the session-key
 // and voucher paths, where the engines differ. WebKit also runs the tab tip's
-// keyboard and focus test, where Safari's focus differs.
+// keyboard and focus tests and the refusal focus tests, where Safari's focus
+// differs.
 export default defineConfig({
   testDir: '../..',
   globalSetup: '../../global-setup.ts',
@@ -34,8 +35,8 @@ export default defineConfig({
     },
     {
       name: 'webkit-focus',
-      testMatch: /tab-tip-dialog\.spec\.ts/,
-      grep: /keyboard and screen readers/,
+      testMatch: /(tab-tip-dialog|tab-ui)\.spec\.ts/,
+      grep: /keyboard and screen readers|refusal focus/,
       use: { ...devices['Desktop Safari'] },
     },
   ],

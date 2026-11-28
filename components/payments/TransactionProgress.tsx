@@ -49,6 +49,7 @@ import {
 } from '@/lib/payments/ui-state'
 import type { PaymentFailure } from '@/lib/payments/failures'
 import { cn } from '@/lib/utils'
+import { focusLost } from './focus'
 import { ExplorerLink } from './ExplorerLink'
 import { NoticeActionButton } from './NoticeActionButton'
 import { PaymentPanel } from './PaymentPanel'
@@ -110,7 +111,7 @@ interface TransactionProgressProps {
   doneAction?: NoticeAction
   /** Extra content under a result. */
   resultDetail?: ReactNode
-  headingLevel?: 2 | 3 | 4
+  headingLevel?: 2 | 3 | 4 | 5 | 6
   className?: string
 }
 
@@ -205,20 +206,6 @@ function runningSentence(
       : STEP_COPY.checking(place)
   }
   return STEP_COPY[phase]
-}
-
-/**
- * True when nothing more specific than the progress holds focus: the page,
- * the progress itself, or a container around it. Safari does not focus a
- * button on click, so after "Send tip" focus stays on the dialog around it.
- */
-function focusLost(root: HTMLElement | null): boolean {
-  const active = document.activeElement
-  return (
-    !active ||
-    active === document.body ||
-    (!!root && (root.contains(active) || active.contains(root)))
-  )
 }
 
 /**

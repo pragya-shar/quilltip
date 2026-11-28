@@ -52,8 +52,14 @@ export type PaymentNoticeProps = {
    * The notice appears because of something the user just did (a refused
    * prepare, a pause hit while starting). Announced once after mount. Leave
    * it off for a condition that is there when the page loads.
+   *
+   * An announced notice's title is a heading (`headingLevel`). It takes focus
+   * when nothing more specific holds it (`focusLost`); then the focused title
+   * reads the notice and the live region stays empty.
    */
   announce?: boolean
+  /** The announced title's heading level, as on `TransactionProgress`. */
+  headingLevel?: 2 | 3 | 4 | 5 | 6
 } & (
   | {
       kind: 'paused'

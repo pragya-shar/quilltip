@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as articleImageHosts from "../articleImageHosts.js";
 import type * as articles from "../articles.js";
 import type * as arweave from "../arweave.js";
 import type * as arweaveHelpers from "../arweaveHelpers.js";
@@ -32,6 +33,7 @@ import type * as http from "../http.js";
 import type * as legacyTipCleanup from "../legacyTipCleanup.js";
 import type * as lib_articleBrowseSort from "../lib/articleBrowseSort.js";
 import type * as lib_articleContent from "../lib/articleContent.js";
+import type * as lib_articleImages from "../lib/articleImages.js";
 import type * as lib_articleListing from "../lib/articleListing.js";
 import type * as lib_articleListingReady from "../lib/articleListingReady.js";
 import type * as lib_articlePreview from "../lib/articlePreview.js";
@@ -87,7 +89,6 @@ import type * as lib_v2Earnings from "../lib/v2Earnings.js";
 import type * as lib_verifiedTips from "../lib/verifiedTips.js";
 import type * as lib_walletChallenge from "../lib/walletChallenge.js";
 import type * as lib_walletVerification from "../lib/walletVerification.js";
-import type * as lib_wikimediaFileUrl from "../lib/wikimediaFileUrl.js";
 import type * as lib_xlmPrice from "../lib/xlmPrice.js";
 import type * as nfts from "../nfts.js";
 import type * as nftsV2 from "../nftsV2.js";
@@ -110,7 +111,6 @@ import type * as uploads from "../uploads.js";
 import type * as users from "../users.js";
 import type * as waitlist from "../waitlist.js";
 import type * as walletLink from "../walletLink.js";
-import type * as wikimedia from "../wikimedia.js";
 import type * as xlmPrice from "../xlmPrice.js";
 
 import type {
@@ -120,6 +120,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  articleImageHosts: typeof articleImageHosts;
   articles: typeof articles;
   arweave: typeof arweave;
   arweaveHelpers: typeof arweaveHelpers;
@@ -144,6 +145,7 @@ declare const fullApi: ApiFromModules<{
   legacyTipCleanup: typeof legacyTipCleanup;
   "lib/articleBrowseSort": typeof lib_articleBrowseSort;
   "lib/articleContent": typeof lib_articleContent;
+  "lib/articleImages": typeof lib_articleImages;
   "lib/articleListing": typeof lib_articleListing;
   "lib/articleListingReady": typeof lib_articleListingReady;
   "lib/articlePreview": typeof lib_articlePreview;
@@ -199,7 +201,6 @@ declare const fullApi: ApiFromModules<{
   "lib/verifiedTips": typeof lib_verifiedTips;
   "lib/walletChallenge": typeof lib_walletChallenge;
   "lib/walletVerification": typeof lib_walletVerification;
-  "lib/wikimediaFileUrl": typeof lib_wikimediaFileUrl;
   "lib/xlmPrice": typeof lib_xlmPrice;
   nfts: typeof nfts;
   nftsV2: typeof nftsV2;
@@ -222,7 +223,6 @@ declare const fullApi: ApiFromModules<{
   users: typeof users;
   waitlist: typeof waitlist;
   walletLink: typeof walletLink;
-  wikimedia: typeof wikimedia;
   xlmPrice: typeof xlmPrice;
 }>;
 

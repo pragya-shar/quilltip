@@ -95,6 +95,17 @@ export const FIXTURES = [
     env: {},
   },
   {
+    // Article images (#615): the server HTML, the readers and the writing
+    // editor, and each protection alone (no policy header; renderer check
+    // off). Chromium and WebKit (its own config). Storage stands on 4187.
+    name: 'article-images',
+    server: 'e2e/fixtures/article-images/server.mjs',
+    port: 4186,
+    spec: 'e2e/article-images.spec.ts',
+    config: 'e2e/fixtures/article-images/playwright.config.ts',
+    env: { ARTICLE_IMAGES_FIXTURES: '1' },
+  },
+  {
     // Tab screens (#449) and the tip dialog's tab section (#546): every
     // state in Chromium, the session-key and voucher paths in Chromium,
     // Firefox and WebKit (its own config).

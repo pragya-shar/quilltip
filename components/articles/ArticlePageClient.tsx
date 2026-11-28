@@ -139,6 +139,8 @@ export function ArticlePageClient({
     title: article.title,
     content: article.content,
     excerpt: article.excerpt,
+    // No outside cover reaches here: getArticleBySlug leaves it out for
+    // readers and the server page scrubs initialArticle (#633).
     coverImage: article.coverImage,
     publishedAt: article.publishedAt ? new Date(article.publishedAt) : null,
     author: {

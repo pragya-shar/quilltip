@@ -101,6 +101,8 @@ export const SCENARIO = {
   /** confirmed | author | review | late-event | expired | failed | never | batch-review | batch-author */
   result: params.get('result') ?? 'confirmed',
   delay: Number(params.get('delay') ?? 600),
+  /** Milliseconds before prepare answers, so a test can move focus first. */
+  prepareDelay: Number(params.get('prepareDelay') ?? 0),
   /** prepared | prepared-hash | submitted | slow | confirmed (a stored tip at load) */
   reload: params.get('reload'),
   /** a number of basket items, or full | transfers */
@@ -620,6 +622,7 @@ export function useMutation(ref: unknown) {
   return async (args: Record<string, unknown>) => {
     if (PREPARES.has(name)) {
       window.__tipsV2.prepared.push({ name, args })
+      if (SCENARIO.prepareDelay) await wait(SCENARIO.prepareDelay)
       return prepareTip(name, args)
     }
     if (name === 'tipsV2.recordSubmitted') {

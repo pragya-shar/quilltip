@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 
 import { installVarialEmulator } from './helpers/varialEmulator'
+import { expectNoticeTookFocus } from './helpers/noticeFocus'
 
 /**
  * The tab tip section of the article and passage tip dialogs (issue #546),
@@ -554,6 +555,34 @@ test.describe('keyboard and screen readers', () => {
       })
     ).toBeFocused()
   })
+
+  for (const how of ['click', 'Enter'] as const) {
+    test(`a refused tab tip takes focus on the refusal title (${how})`, async ({
+      page,
+    }) => {
+      // The server refuses every quick tip with its daily limit.
+      await open(page, 'tip-daily-limit')
+      const dialog = await openDialog(page, 'article')
+      const send = tabSection(dialog).getByRole('button', {
+        name: /^Send \$\d+\.\d\d from your tab$/,
+      })
+      await expect(send).toBeVisible()
+      if (how === 'click') await send.click()
+      else {
+        await send.focus()
+        await page.keyboard.press('Enter')
+      }
+      await expectNoticeTookFocus(
+        page,
+        tabSection(dialog),
+        'Daily quick-tip limit reached',
+        {
+          level: 4,
+          description: 'Tip from your wallet, or try again tomorrow.',
+        }
+      )
+    })
+  }
 
   test('the dialog cannot close while a tab tip is sending', async ({
     page,

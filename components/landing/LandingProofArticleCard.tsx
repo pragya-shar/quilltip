@@ -2,6 +2,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import type { ArticleForDisplay } from '@/types/index'
+import { shownCoverImage } from '@/lib/tiptap/articleImage'
 
 interface LandingProofArticleCardProps {
   article: ArticleForDisplay
@@ -14,16 +15,18 @@ export function LandingProofArticleCard({
 }: LandingProofArticleCardProps) {
   const authorName = article.author.name || article.author.username
   const href = `/${article.author.username}/${article.slug}`
+  // A cover from another host counts as none (#615).
+  const coverImage = shownCoverImage(article.coverImage)
 
   return (
     <Link
       href={href}
       className="focus-ring flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left shadow-[var(--card-shadow)] transition-shadow hover:shadow-md"
     >
-      {article.coverImage ? (
+      {coverImage ? (
         <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-md">
           <Image
-            src={article.coverImage}
+            src={coverImage}
             alt=""
             fill
             sizes="48px"
