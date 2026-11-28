@@ -1,7 +1,12 @@
 'use client'
 
 import { AppLink as Link } from './AppLink'
-import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
+import {
+  useId,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+  type Ref,
+} from 'react'
 import { cx } from '../cx'
 import { Icon, type IconGlyph } from './Icon'
 import { Spinner } from './Spinner'
@@ -17,6 +22,10 @@ type Common = {
   icon?: IconGlyph
   /** Busy: the label stays (no width jump), a spinner shows, presses are ignored. */
   loading?: boolean
+  /** Shown but not usable now, and still focusable: `aria-disabled`, a
+   * press does nothing. A string is the reason, given as the button's
+   * description. A caller's own `aria-disabled` counts too. */
+  unavailable?: boolean | string
   className?: string
   children: ReactNode
   ref?: Ref<HTMLButtonElement & HTMLAnchorElement>
@@ -49,10 +58,14 @@ export function Button(props: ButtonProps) {
     block,
     icon,
     loading,
+    unavailable,
     className,
     children,
     ref,
   } = props
+  const reasonId = useId()
+  const reason =
+    typeof unavailable === 'string' && unavailable ? unavailable : null
   const inner = (
     <>
       {loading ? <Spinner /> : icon ? <Icon icon={icon} size={20} /> : null}
@@ -79,6 +92,7 @@ export function Button(props: ButtonProps) {
     block: _b,
     icon: _i,
     loading: _l,
+    unavailable: _u,
     className: _c,
     children: _ch,
     ref: _r,
@@ -86,21 +100,40 @@ export function Button(props: ButtonProps) {
     type = 'button',
     onClick,
     disabled,
+    'aria-disabled': callerDisabled,
+    'aria-describedby': callerDescribedBy,
     ...rest
   } = props
+  // Busy, unavailable, or marked so by the caller: it stays focusable (focus
+  // is not lost) but ignores presses.
+  const blocked =
+    Boolean(loading) ||
+    Boolean(unavailable) ||
+    callerDisabled === true ||
+    callerDisabled === 'true'
+  const describedBy =
+    [callerDescribedBy, reason ? reasonId : null].filter(Boolean).join(' ') ||
+    undefined
   return (
-    <button
-      {...rest}
-      {...data}
-      ref={ref}
-      type={type}
-      disabled={disabled}
-      aria-busy={loading || undefined}
-      // A busy button stays focusable (focus is not lost) but ignores presses.
-      aria-disabled={loading || undefined}
-      onClick={loading ? (event) => event.preventDefault() : onClick}
-    >
-      {inner}
-    </button>
+    <>
+      <button
+        {...rest}
+        {...data}
+        ref={ref}
+        type={type}
+        disabled={disabled}
+        aria-busy={loading || undefined}
+        aria-disabled={blocked || undefined}
+        aria-describedby={describedBy}
+        onClick={blocked ? (event) => event.preventDefault() : onClick}
+      >
+        {inner}
+      </button>
+      {reason ? (
+        <span id={reasonId} className="qt-visually-hidden">
+          {reason}
+        </span>
+      ) : null}
+    </>
   )
 }

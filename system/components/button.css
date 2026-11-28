@@ -75,6 +75,12 @@
   .qt-button:not(:disabled, [aria-disabled='true']):active {
     transform: scale(0.97);
   }
+  /* Unavailable but focusable: quieter, and no press feedback. */
+  .qt-button[aria-disabled='true']:not([data-loading]),
+  .qt-icon-button[aria-disabled='true']:not([aria-busy='true']) {
+    color: var(--qt-ink-3);
+    cursor: not-allowed;
+  }
   .qt-button:disabled {
     background: var(--qt-sunk);
     border-color: var(--qt-line);

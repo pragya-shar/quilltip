@@ -1139,3 +1139,35 @@ test('Enter held on an amount chooses once and leaves the tray closed', async ({
   await expect(amount).toBeFocused()
   await expect(group.locator('.qt-tip__button')).toHaveText('Tip Tomás $2')
 })
+
+test('a control can be unavailable and still focusable, with its reason', async ({
+  page,
+}) => {
+  await open(page)
+  const specimen = page.locator(
+    '[data-specimen="Not available now, still focusable"]'
+  )
+  const image = specimen.getByRole('button', {
+    name: 'Add an image. Not available yet',
+  })
+  const withdraw = specimen.getByRole('button', { name: 'Withdraw' })
+  const share = specimen.getByRole('button', { name: 'Share' })
+  await expect(withdraw).toHaveAccessibleDescription(
+    'Your balance is below $1.'
+  )
+  for (const control of [image, withdraw, share]) {
+    await expect(control).toHaveAttribute('aria-disabled', 'true')
+    await control.focus()
+    await expect(control).toBeFocused()
+    await page.keyboard.press('Enter')
+    // A press where it is drawn: Playwright waits for an aria-disabled
+    // control to become usable, so press its place as a finger would.
+    const box = (await control.boundingBox())!
+    const x = box.x + box.width / 2
+    const y = box.y + box.height / 2
+    if (hasTouch()) await page.touchscreen.tap(x, y)
+    else await page.mouse.click(x, y)
+  }
+  await page.waitForTimeout(300)
+  await expect(page.getByText('Pressed (should not be)')).toHaveCount(0)
+})
