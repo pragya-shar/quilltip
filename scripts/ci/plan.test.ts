@@ -9,6 +9,7 @@ import {
   matches,
   outputs,
   serverLiterals,
+  withStringInputs,
   type Change,
   type Context,
   type Inputs,
@@ -37,15 +38,15 @@ const SUITE_INPUTS = new Map<string, Inputs | undefined>([
   ['b', inputs(['lib/b.ts', 'lib/shared.ts'], ['e2e/fixtures/b/**'])],
   ['c', inputs(['lib/c.ts'], ['public/**'])],
 ])
-const INTEGRATION = new Set(['lib/stellar/v2/client.ts'])
+const INTEGRATION = inputs(['lib/stellar/v2/client.ts'])
 
 const changed = (...paths: string[]): Change[] =>
   paths.map((p) => ({ path: p, deleted: false }))
-const SHARED_FILES = new Set(['lib/routing/atHandle.ts'])
+const SHARED_FILES = inputs(['lib/routing/atHandle.ts'])
 const context = (more: Partial<Context> = {}): Context => ({
   suiteInputs: SUITE_INPUTS,
-  integrationFiles: INTEGRATION,
-  sharedFiles: SHARED_FILES,
+  integration: INTEGRATION,
+  shared: SHARED_FILES,
   shards: TEST_SHARDS,
   allSuites: SUITES,
   ...more,
@@ -154,7 +155,7 @@ describe('decide', () => {
   })
 
   it('runs every shard when the shared inputs are unknown', () => {
-    const p = decide(changed('lib/b.ts'), context({ sharedFiles: undefined }))
+    const p = decide(changed('lib/b.ts'), context({ shared: undefined }))
     expect(shards(p)).toEqual(['ab:a,b', 'c:c'])
   })
 
@@ -180,10 +181,7 @@ describe('decide', () => {
     const unknown = new Map(SUITE_INPUTS)
     unknown.set('c', undefined)
     expect(shards(plan(changed('docs/a.md'), unknown))).toEqual(['c:c'])
-    const p = decide(
-      changed('docs/a.md'),
-      context({ integrationFiles: undefined })
-    )
+    const p = decide(changed('docs/a.md'), context({ integration: undefined }))
     expect(p.contractsIntegration.run).toBe(true)
   })
 
@@ -325,5 +323,69 @@ describe('Required in ci.yml', () => {
   it('fails when What changed did not pass', () => {
     expect(required({ CHANGES_RESULT: 'failure' })).toBe(1)
     expect(required({ CHANGES_RESULT: 'cancelled' })).toBe(1)
+  })
+})
+
+describe('inputs named as strings', () => {
+  const sources: Record<string, string> = {
+    'scripts/integration/tab-ui-flow.test.ts':
+      "const modules = import.meta.glob('../../convex/**/*.ts')",
+    'scripts/integration/tab-ui.config.mts':
+      "setupFiles: ['scripts/lib/edge-runtime-uint8array.ts']",
+    'scripts/contracts/bindings.ts': 'readdirSync(dir)',
+    'scripts/integration/client.ts': 'export const a = 1',
+    'scripts/integration/new-helper.ts': "readFileSync('contracts/x.json')",
+  }
+  const read = (file: string) => sources[file]
+
+  it('runs the local-network job for Convex, its setup file and new bindings', () => {
+    const integration = withStringInputs(
+      inputs([
+        'scripts/integration/tab-ui-flow.test.ts',
+        'scripts/integration/tab-ui.config.mts',
+        'scripts/contracts/bindings.ts',
+      ]),
+      read
+    )
+    expect(integration.uncovered).toEqual([])
+    for (const file of [
+      'convex/tabs.ts',
+      'convex/chain/indexer.ts',
+      'scripts/lib/edge-runtime-uint8array.ts',
+      'lib/stellar/v2/bindings/new/index.ts',
+    ]) {
+      const p = decide(
+        changed(file),
+        context({ integration: integration.inputs })
+      )
+      expect(p.contractsIntegration.run, file).toBe(true)
+    }
+  })
+
+  it('does not run the local-network job for Convex without the glob', () => {
+    const p = decide(
+      changed('convex/tabs.ts'),
+      context({ integration: inputs(['scripts/integration/client.ts']) })
+    )
+    expect(p.contractsIntegration.run).toBe(false)
+  })
+
+  it('lists a file that names an input with no entry', () => {
+    const result = withStringInputs(
+      inputs([
+        'scripts/integration/client.ts',
+        'scripts/integration/new-helper.ts',
+      ]),
+      read
+    )
+    expect(result.uncovered).toEqual(['scripts/integration/new-helper.ts'])
+  })
+
+  it('runs everything for a dependency patch', () => {
+    const p = plan(changed('patches/some-package@1.0.0.patch'))
+    expect(p.app.run && p.contracts.run && p.contractsIntegration.run).toBe(
+      true
+    )
+    expect(shards(p)).toEqual(['ab:a,b', 'c:c'])
   })
 })

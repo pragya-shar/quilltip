@@ -24,8 +24,8 @@
  * Load: `--light` (Lint & Typecheck, Dependency Audit) uses CPU but builds
  * nothing and starts no browser. Every other job is heavy: a production
  * build, browsers, a perf or font check, or the Rust and Docker builds. On a
- * shared machine, run a heavy selection under the machine's lock for heavy
- * jobs, and `--light` under its lock for medium jobs. Steps run with `CI=1`,
+ * machine shared by several people or agents, run one heavy selection at a
+ * time; `--light` can run beside other light work. Steps run with `CI=1`,
  * as on a runner, so each Playwright config uses its CI worker count (one or
  * two) and retries; `--workers` caps the unit-test workers.
  *

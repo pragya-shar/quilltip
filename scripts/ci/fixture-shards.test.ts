@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -96,6 +97,46 @@ describe('What changed in CI', () => {
         "!cancelled() && (needs.changes.result != 'success' ||"
       )
     }
+  })
+})
+
+describe('Forcing the full plan', () => {
+  // The planning step's script, run with \`bun\` replaced by an echo.
+  const changes = workflow.slice(
+    workflow.indexOf('\n  changes:'),
+    workflow.indexOf('\n  quality:')
+  )
+  const step = changes.slice(changes.indexOf('id: plan'))
+  const lines = step.split('\n')
+  const start = lines.findIndex((l) => l.trim() === 'run: |')
+  const indent = lines[start]!.indexOf('run:') + 2
+  const body: string[] = []
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() !== '' && line.search(/\S/) < indent) break
+    body.push(line.slice(indent))
+  }
+  const plan = (env: Record<string, string>) =>
+    spawnSync('bash', ['-c', `bun() { echo "$*"; }\n${body.join('\n')}`], {
+      encoding: 'utf8',
+      env: { ...process.env, ...env },
+    }).stdout.trim()
+  const pr = {
+    EVENT_NAME: 'pull_request',
+    FULL_LABEL: 'false',
+    RUN_ATTEMPT: '1',
+  }
+
+  it('reads the ci-full label from the pull request', () => {
+    expect(step).toContain(
+      "FULL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci-full') }}"
+    )
+  })
+
+  it('plans everything for the label, a re-run of every job and a push', () => {
+    expect(plan(pr)).toContain('--base HEAD^1 --head HEAD')
+    expect(plan({ ...pr, FULL_LABEL: 'true' })).toContain('--full')
+    expect(plan({ ...pr, RUN_ATTEMPT: '2' })).toContain('--full')
+    expect(plan({ ...pr, EVENT_NAME: 'push' })).toContain('--full')
   })
 })
 

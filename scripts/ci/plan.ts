@@ -32,6 +32,7 @@ import path from 'node:path'
 import { SURFACE_SUITES } from '../../e2e/suites'
 import { FIXTURES, SURFACES_GROUP, type Fixture } from '../fixture-suites'
 import { SHARDS, type Shard } from './shards'
+import { STRING_CONSTRUCTS, entriesFor } from './string-inputs'
 
 const root = path.resolve(import.meta.dirname, '../..')
 
@@ -43,6 +44,8 @@ export const EVERYTHING = [
   'tsconfig.json',
   '.github/workflows/ci.yml',
   'scripts/ci/**',
+  // Patched dependencies: a patch changes a package every job may load.
+  'patches/**',
 ]
 
 /**
@@ -126,7 +129,8 @@ export type Plan = {
 
 /**
  * A glob as a regular expression: `*` is any run of characters but `/`,
- * `**` any run of path segments (`a/**` also matches `a`, `**\/x` also `x`).
+ * `**` any run of path segments (`a/**` also matches `a`, `**\/x` also `x`),
+ * `{a,b}` either word; every other character stands for itself.
  */
 export function globToRegExp(glob: string): RegExp {
   let out = ''
@@ -143,6 +147,11 @@ export function globToRegExp(glob: string): RegExp {
       i += 1
     } else if (c === '*') {
       out += '[^/]*'
+    } else if (c === '{' && glob.indexOf('}', i) > i) {
+      const end = glob.indexOf('}', i)
+      const options = glob.slice(i + 1, end).split(',')
+      out += `(?:${options.map((o) => o.replace(/[.+?^${}()|[\]\\]/g, '\\$&')).join('|')})`
+      i = end
     } else {
       out += c.replace(/[.+?^${}()|[\]\\]/g, '\\$&')
     }
@@ -170,8 +179,10 @@ const skip = (reason: string): Decision => ({ run: false, reason })
 /** What `decide` knows besides the changes; `undefined` when not computed. */
 export type Context = {
   suiteInputs: ReadonlyMap<string, Inputs | undefined>
-  integrationFiles: ReadonlySet<string> | undefined
-  sharedFiles: ReadonlySet<string> | undefined
+  /** The local-network job's inputs besides `CONTRACTS_INTEGRATION`. */
+  integration: Inputs | undefined
+  /** Shared inputs besides `SHARED`: what `SHARED_ENTRIES` import. */
+  shared: Inputs | undefined
   knownRoots?: ReadonlySet<string>
   shards?: readonly Shard[]
   allSuites?: readonly Fixture[]
@@ -184,8 +195,8 @@ export type Context = {
 export function decide(changes: readonly Change[], context: Context): Plan {
   const {
     suiteInputs,
-    integrationFiles,
-    sharedFiles,
+    integration,
+    shared: sharedSet,
     knownRoots,
     shards = SHARDS,
     allSuites = FIXTURES,
@@ -207,7 +218,8 @@ export function decide(changes: readonly Change[], context: Context): Plan {
   const shared = changes.find(
     (c) =>
       !c.path.endsWith('.md') &&
-      (matches(c.path, SHARED) || sharedFiles?.has(c.path) === true)
+      (matches(c.path, SHARED) ||
+        (sharedSet !== undefined && hit([c], sharedSet) !== undefined))
   )
 
   const appChange = changes.find((c) => !matches(c.path, OUTSIDE_APP))
@@ -224,12 +236,15 @@ export function decide(changes: readonly Change[], context: Context): Plan {
       ? run(why(contractsHit))
       : skip('no contract file changed')
 
-  const integrationHit = integrationFiles
-    ? hit(changes, { files: integrationFiles, patterns: CONTRACTS_INTEGRATION })
+  const integrationHit = integration
+    ? hit(changes, {
+        files: integration.files,
+        patterns: [...CONTRACTS_INTEGRATION, ...integration.patterns],
+      })
     : undefined
   const contractsIntegration = forced
     ? run(why(forced))
-    : !integrationFiles
+    : !integration
       ? run('inputs unknown')
       : integrationHit
         ? run(why(integrationHit))
@@ -241,7 +256,7 @@ export function decide(changes: readonly Change[], context: Context): Plan {
       return { shard, decision: skip('no suites'), suites: [] }
     }
     if (forced) return { shard, decision: run(why(forced)), suites: names }
-    if (!sharedFiles) {
+    if (!sharedSet) {
       return { shard, decision: run('shared inputs unknown'), suites: names }
     }
     if (shared)
@@ -465,7 +480,8 @@ async function suiteInputs(fixture: Fixture, scratch: string): Promise<Inputs> {
   if (specs.length === 0) throw new Error(`${fixture.name} lists no specs`)
   const configFile =
     list.config.configFile ?? path.join(root, 'playwright.config.ts')
-  const entries = [...specs, configFile]
+  // The server process's own imports too, not only what it bundles.
+  const entries = [...specs, configFile, path.join(root, fixture.server)]
   if (list.config.globalSetup) entries.push(list.config.globalSetup)
 
   const source = readFileSync(path.join(root, fixture.server), 'utf8')
@@ -577,21 +593,77 @@ export function topLevel(rev: string): Set<string> {
   return new Set(r.stdout.split('\0').filter(Boolean))
 }
 
+/**
+ * `inputs` with the inputs its files name as strings (`string-inputs.ts`).
+ * `uncovered` lists the files that have such a construct and no entry; the
+ * caller treats those inputs as unknown.
+ */
+export function withStringInputs(
+  inputs: Inputs,
+  source: (file: string) => string | undefined = readSource
+): { inputs: Inputs; uncovered: string[] } {
+  const patterns = [...inputs.patterns]
+  const uncovered: string[] = []
+  for (const file of inputs.files) {
+    const text = source(file)
+    if (text === undefined || !STRING_CONSTRUCTS.test(text)) continue
+    const entries = entriesFor(file, matches)
+    if (!entries) uncovered.push(file)
+    else for (const e of entries) patterns.push(...e.to)
+  }
+  return {
+    inputs: { files: inputs.files, patterns },
+    uncovered: uncovered.sort(),
+  }
+}
+
+function readSource(file: string): string | undefined {
+  try {
+    return /\.(m?[jt]sx?|cjs)$/.test(file)
+      ? readFileSync(path.join(root, file), 'utf8')
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/** Files with a string-named input and no entry, by input set. */
+export type Uncovered = Map<string, string[]>
+
 /** Everything `decide` needs from the code; a part that fails is `undefined`. */
-export async function computeContext(base: string): Promise<Context> {
+export async function computeContext(
+  base: string,
+  uncovered: Uncovered = new Map()
+): Promise<Context> {
   const unknown = (what: string) => (error: unknown) => {
     console.error(`${what}: ${error instanceof Error ? error.message : error}`)
     return undefined
   }
-  const [suiteInputs, integrationFiles, sharedFiles] = await Promise.all([
+  const [suites, integrationFiles, sharedFiles] = await Promise.all([
     allSuiteInputs(),
     integrationInputs().catch(unknown('local network inputs')),
     sharedInputs().catch(unknown('shared inputs')),
   ])
+  // A string-named input with no entry: that set is unknown, so its job runs.
+  const checked = (name: string, inputs: Inputs | undefined) => {
+    if (!inputs) return undefined
+    const result = withStringInputs(inputs)
+    if (result.uncovered.length === 0) return result.inputs
+    uncovered.set(name, result.uncovered)
+    console.error(
+      `${name}: inputs named as strings in ${result.uncovered.join(', ')} have no entry in scripts/ci/string-inputs.ts`
+    )
+    return undefined
+  }
+  const suiteInputs = new Map(
+    [...suites].map(([name, inputs]) => [name, checked(name, inputs)] as const)
+  )
+  const asInputs = (files: Set<string> | undefined) =>
+    files && { files, patterns: [] }
   return {
     suiteInputs,
-    integrationFiles,
-    sharedFiles,
+    integration: checked('contracts-integration', asInputs(integrationFiles)),
+    shared: checked('shared', asInputs(sharedFiles)),
     knownRoots: topLevel(base),
   }
 }
@@ -639,6 +711,14 @@ async function main(argv: string[]): Promise<void> {
   const value = (flag: string) => {
     const at = argv.indexOf(flag)
     return at === -1 ? undefined : argv[at + 1]
+  }
+  if (argv.includes('--check-string-inputs')) {
+    const uncovered: Uncovered = new Map()
+    await computeContext('HEAD', uncovered)
+    for (const [name, files] of uncovered)
+      console.log(`${name}: ${files.join(' ')}`)
+    if (uncovered.size > 0) process.exitCode = 1
+    return
   }
   if (argv.includes('--inputs')) {
     const suites = await allSuiteInputs()
