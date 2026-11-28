@@ -5,6 +5,7 @@
 // replaced by plain stand-ins. No backend, no secrets.
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
+import { buildIconSprite } from '../../../system/iconSprite.ts'
 
 const PORT = Number(process.env.SYSTEM_FIXTURE_PORT ?? 4185)
 const here = import.meta.dirname
@@ -43,6 +44,7 @@ const outputs = new Map(
     result.outputs.map(async (o) => [path.basename(o.path), await o.text()])
   )
 )
+const sprite = buildIconSprite()
 const jsName = [...outputs.keys()].find((n) => n.endsWith('.js'))
 const cssName = [...outputs.keys()].find((n) => n.endsWith('.css'))
 
@@ -62,6 +64,11 @@ Bun.serve({
         ),
         { headers: { 'Content-Type': 'font/woff2' } }
       )
+    // The icon sprite, as the app serves it (app/icons.svg/route.ts).
+    if (url.pathname === '/icons.svg')
+      return new Response(sprite, {
+        headers: { 'Content-Type': 'image/svg+xml; charset=utf-8' },
+      })
     const output = outputs.get(url.pathname.slice(1))
     if (output)
       return new Response(output, {
