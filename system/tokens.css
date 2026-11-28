@@ -81,13 +81,10 @@
   --qt-font-read-italic:
     var(--qt-face-read-italic, 'Literata'), Charter, 'Iowan Old Style', Georgia,
     serif;
-  /* The same face with the display title's and the lead-in's own metric
-   * fallbacks (system/font-fallbacks.css). */
+  /* The same face with the display title's own metric fallbacks
+   * (system/font-fallbacks.css). */
   --qt-font-display:
     var(--qt-face-display, var(--qt-face-read, 'Literata')), Charter,
-    'Iowan Old Style', Georgia, serif;
-  --qt-font-read-caps:
-    var(--qt-face-read-caps, var(--qt-face-read, 'Literata')), Charter,
     'Iowan Old Style', Georgia, serif;
 
   /* Type scale (phone; desktop steps below) */
@@ -128,10 +125,12 @@
   /* Reading craft (NEW) */
   --qt-read-para-gap: 1em; /* space between paragraphs; no indents */
   --qt-read-lead-in: all-small-caps; /* the first line of an article's first paragraph */
-  --qt-read-lead-in-track: 0.03em;
-  /* How the lead-in draws it in every face: capitals at this size (what
-   * all-small-caps makes of a face with no small caps). */
-  --qt-read-lead-in-size: 0.7em;
+  --qt-read-lead-in-track: 0.04em;
+  /* How the lead-in draws in every face: the first line a little smaller
+   * and tracked, in lower case, so it is the same in Chromium and WebKit and
+   * the reading fallback matches it (text-transform on ::first-line is not
+   * applied by WebKit). The design's all-small-caps above is the intent. */
+  --qt-read-lead-in-size: 0.92em;
   --qt-figure-bleed: calc(
     -1 * var(--qt-gutter-read)
   ); /* figures run edge to edge on a phone */
