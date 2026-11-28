@@ -22,31 +22,6 @@ const FOCUSABLE = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',')
 
-/**
- * Brings the focused field into view inside the modal's scrolling body,
- * with a little room, and nothing else: the page behind never moves. When
- * the field is inside a `[data-sheet-keep]` block (a field with the buttons
- * that act on it, in a sheet whose buttons live in its body), the whole
- * block is brought into view if it fits, else the field.
- */
-function revealFocused(dialog: HTMLDialogElement) {
-  const field = document.activeElement
-  if (!(field instanceof HTMLElement) || !dialog.contains(field)) return
-  const body = field.closest<HTMLElement>('.qt-modal__body')
-  if (!body) return
-  const room = 16
-  const box = body.getBoundingClientRect()
-  const keep = field.closest<HTMLElement>('[data-sheet-keep]')
-  const block = keep?.getBoundingClientRect()
-  const at =
-    block && block.height + 2 * room <= box.height
-      ? block
-      : field.getBoundingClientRect()
-  if (at.bottom > box.bottom - room)
-    body.scrollTop += at.bottom - box.bottom + room
-  else if (at.top < box.top + room) body.scrollTop -= box.top + room - at.top
-}
-
 /** Every control in a modal, in order, that can take focus now. */
 export function focusables(root: HTMLElement): HTMLElement[] {
   return Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE)).filter(
@@ -150,30 +125,18 @@ export function useModal(
           : at + 1
       items[next]?.focus()
     }
-    // The visible area, above the on-screen keyboard. iOS Safari leaves the
-    // layout as it is when the keyboard opens and covers its bottom (it
-    // ignores interactive-widget); the visual viewport says what is still
-    // visible. The dialog fills exactly that, so a sheet's bottom edge sits
-    // on the keyboard, its body scrolls inside, and the focused field is
-    // brought into view in the body, never by moving the page.
-    const viewport = window.visualViewport
-    const fit = () => {
-      if (!viewport) return
-      dialog.style.top = `${Math.round(viewport.offsetTop)}px`
-      dialog.style.height = `${Math.round(viewport.height)}px`
-      revealFocused(dialog)
-    }
-    const onFocusIn = () => revealFocused(dialog)
-    fit()
-    viewport?.addEventListener('resize', fit)
-    viewport?.addEventListener('scroll', fit)
-    dialog.addEventListener('focusin', onFocusIn)
+    // The visible area, above the on-screen keyboard
+    // (system/components/modalViewport.ts), loaded when a modal opens.
+    let unfit: (() => void) | undefined
+    let gone = false
+    void import('./modalViewport').then(({ fitToViewport }) => {
+      if (!gone) unfit = fitToViewport(dialog)
+    })
     dialog.addEventListener('cancel', onCancel)
     dialog.addEventListener('keydown', onKey)
     return () => {
-      viewport?.removeEventListener('resize', fit)
-      viewport?.removeEventListener('scroll', fit)
-      dialog.removeEventListener('focusin', onFocusIn)
+      gone = true
+      unfit?.()
       dialog.removeEventListener('cancel', onCancel)
       dialog.removeEventListener('keydown', onKey)
       openCount -= 1

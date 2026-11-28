@@ -293,21 +293,26 @@ test('an address change inside the view keeps the sheet open and the history ent
 })
 
 /** Every text block's place in the page's layout (not on screen). */
-/** The sample article ends within one screen at 768 and 1440: more text,
- * so a scroll stays clear of the page's end, where the header shows. */
+/** The sample article ends within one screen at 768 and 1440: more text
+ * in the article, before its dock (sticky to the article's end), so a
+ * scroll stays clear of the page's end, where the header shows. */
 const lengthen = (page: Page) =>
   page.evaluate(() => {
+    const dock = document.querySelector('.qt-dock')
     const main = document.querySelector('main')!
     for (let i = 0; i < 12; i += 1) {
       const p = document.createElement('p')
       p.textContent = 'More of the article, for room to scroll. '.repeat(20)
-      main.append(p)
+      if (dock) dock.before(p)
+      else main.append(p)
     }
   })
 
 const textLayout = (page: Page) =>
   page.evaluate(() =>
     [...document.querySelectorAll<HTMLElement>('main p, main h1, main h2')]
+      // The text of the page, not the header that slides over it.
+      .filter((el) => !el.closest('.qt-pushed__header'))
       .map((el) => {
         let top = 0
         for (
@@ -389,7 +394,9 @@ test('a scroll by script never brings the pushed header back', async ({
   await page.mouse.move(200, 400)
   await page.mouse.wheel(0, 1200)
   await expect(header).toHaveAttribute('data-hidden', '')
-  // A place restored or an anchor landed, above where the reader is.
+  // Later than the reader's own input counts (INTENT_MS, 300 ms): a place
+  // restored or an anchor landed, above where the reader is.
+  await page.waitForTimeout(400)
   await page.evaluate(() => window.scrollTo(0, window.scrollY - 400))
   await page.waitForTimeout(400)
   await expect(header).toHaveAttribute('data-hidden', '')
@@ -405,8 +412,21 @@ test('the way back is reachable by keyboard at any depth', async ({
   await page.mouse.wheel(0, 1500)
   await expect(header).toHaveAttribute('data-hidden', '')
   const y = await page.evaluate(() => window.scrollY)
-  // From the content, one step back: the header's last control.
-  await page.locator('#content').focus()
+  // From the first control after the header, one step back: the header's
+  // last control.
+  await page.evaluate(() => {
+    const header = document.querySelector('.qt-pushed__header')!
+    const next = [
+      ...document.querySelectorAll<HTMLElement>(
+        'a[href], button:not(:disabled)'
+      ),
+    ].find(
+      (el) =>
+        !header.contains(el) &&
+        header.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING
+    )!
+    next.focus({ preventScroll: true })
+  })
   await page.keyboard.press(
     browserName === 'webkit' ? 'Shift+Alt+Tab' : 'Shift+Tab'
   )
