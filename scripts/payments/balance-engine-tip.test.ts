@@ -75,8 +75,12 @@ const answers = vi.hoisted(() => {
     recentRequestIds: [],
     onChain: true,
   })
+  /** Per-test answers by function name, over the defaults. */
+  const overrides = new Map<string, unknown>()
   return {
+    overrides,
     of(name: string, user: string): unknown {
+      if (overrides.has(name)) return overrides.get(name)
       const key = name === 'balance:session' ? `${name}:${user}` : name
       if (!cache.has(key))
         cache.set(
@@ -197,9 +201,91 @@ afterEach(async () => {
   for (const id of Object.keys(paymentsStore.get().registrations))
     paymentsStore.unregister(id)
   paymentsStore.setAuth('loading')
+  answers.overrides.clear()
+  answers.auth.isAuthenticated = true
   detach?.()
   detach = null
   document.body.innerHTML = ''
+})
+
+/** The engine's controller for `id` once it has decided, ready or not. */
+async function decided(id: string): Promise<TipController> {
+  await vi.waitFor(
+    () => expect(paymentsStore.get().tips[id]?.ready).toBe(true),
+    {
+      timeout: 3000,
+    }
+  )
+  return paymentsStore.get().tips[id]!
+}
+
+const NOT_REGISTERED = {
+  tippable: false,
+  reason: 'not-tippable',
+  ownArticle: false,
+}
+
+describe('an article that is not registered on chain', () => {
+  it('is not tippable before any press, and a tap sends nothing', async () => {
+    start()
+    answers.overrides.set('balance:tipContext', NOT_REGISTERED)
+    paymentsStore.register('control', { target: line('Line A', 0), meta })
+    await mountEngine()
+    const tip = await decided('control')
+    expect(tip.unavailable).toBe('not-tippable')
+    await act(async () => tip.tip())
+    expect(await settle()).toHaveLength(0)
+  })
+
+  it('says so before anything about the reader’s own balance', async () => {
+    start()
+    answers.overrides.set('balance:tipContext', NOT_REGISTERED)
+    answers.overrides.set('balance:session', {
+      ...(answers.of('balance:session', fake.user) as object),
+      status: 'none',
+    })
+    paymentsStore.register('control', { target: line('Line A', 0), meta })
+    await mountEngine()
+    expect((await decided('control')).unavailable).toBe('not-tippable')
+  })
+
+  it('offers no tip to a signed-out visitor either', async () => {
+    start()
+    answers.auth.isAuthenticated = false
+    paymentsStore.setAuth('signed-out')
+    answers.overrides.set('balance:tipContext', NOT_REGISTERED)
+    answers.overrides.set('balance:publicTipTerms', {
+      perTipCents: 500,
+      minTipCents: 10,
+      quickTipMaxCents: 500,
+      defaultTipCents: 100,
+      priceUsd: 0.127328,
+    })
+    paymentsStore.register('control', { target: line('Line A', 0), meta })
+    await mountEngine()
+    const tip = await decided('control')
+    expect(tip.unavailable).toBe('not-tippable')
+    expect(tip.signedOut).toBeNull()
+  })
+
+  it('turns the control on when registration arrives, with no reload and nothing sent', async () => {
+    start()
+    answers.overrides.set('balance:tipContext', NOT_REGISTERED)
+    paymentsStore.register('control', { target: line('Line A', 0), meta })
+    await mountEngine()
+    expect((await decided('control')).unavailable).toBe('not-tippable')
+    // The live query answers again once the article is registered.
+    answers.overrides.set('balance:tipContext', {
+      tippable: true,
+      reason: null,
+      ownArticle: false,
+    })
+    await act(async () => root!.render(h(PaymentsEngine)))
+    await vi.waitFor(() =>
+      expect(paymentsStore.get().tips.control?.unavailable).toBeNull()
+    )
+    expect(await settle()).toHaveLength(0)
+  })
 })
 
 describe('PaymentsEngine tip()', () => {

@@ -1530,6 +1530,17 @@ describe('balance session', () => {
       })
     ).toMatchObject({ tippable: false, ownArticle: true })
   })
+
+  it('answers a signed-out visitor with public facts only', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    expect(
+      await t.query(api.balance.tipContext, { articleId: s.unregisteredId })
+    ).toEqual({ tippable: false, reason: 'not-tippable', ownArticle: false })
+    expect(
+      await t.query(api.balance.tipContext, { articleId: s.articleId })
+    ).toEqual({ tippable: true, reason: null, ownArticle: false })
+  })
 })
 
 describe('settlement soon after acceptance', () => {

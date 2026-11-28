@@ -515,12 +515,14 @@ export function PaymentsEngine() {
         balance.status === 'closing' ||
         balance.device === 'unavailable' ||
         balance.device === 'needs-setup'
-      const ready = signedOut
-        ? publicTerms !== undefined
-        : early ||
-          (balance.status === 'ready' &&
-            balance.device !== 'loading' &&
-            context !== undefined)
+      // Whether the article can take a tip at all comes first, for everyone:
+      // no control is offered until it is known.
+      const ready =
+        context !== undefined &&
+        (signedOut
+          ? publicTerms !== undefined
+          : early ||
+            (balance.status === 'ready' && balance.device !== 'loading'))
       const unavailable = ready ? unavailableOf(balance, context) : null
       const setPhase = (phase: TipPhase) =>
         setTipState((all) => ({
@@ -563,7 +565,7 @@ export function PaymentsEngine() {
         blocked: signedOut ? null : blocked,
         amounts: signedOut ? [] : balance.amounts,
         signedOut:
-          signedOut && cents !== null
+          signedOut && cents !== null && unavailable === 'signed-out'
             ? {
                 signedOut: true,
                 amount: tipAmount(cents),
@@ -645,7 +647,9 @@ export function PaymentsEngine() {
         <TipContextWatch
           key={articleId}
           articleId={articleId as Id<'articles'>}
-          enabled={balance.status === 'ready'}
+          // Public facts about the article (registered, split, the
+          // caller's own): asked for signed in or out, once auth is known.
+          enabled={!isLoading}
           onValue={(value) =>
             setContexts((all) =>
               all[articleId] === value ? all : { ...all, [articleId]: value }
@@ -672,12 +676,15 @@ function unavailableOf(
   balance: BalanceView,
   context: { tippable: boolean; reason: string | null } | undefined
 ): UnavailableReason | null {
+  // The article first: one that cannot take a tip (not registered on
+  // chain, split, or the reader's own) says so before anything about the
+  // reader, so no tip is offered that the server would refuse.
+  if (context && !context.tippable)
+    return context.reason === 'own-article' ? 'own-article' : 'not-tippable'
   if (balance.status === 'signed-out') return 'signed-out'
   if (balance.status === 'none') return 'no-balance'
   if (balance.status === 'closing') return 'closing'
   if (!balance.settlement.enabled) return 'settlement-off'
   if (!balance.deviceReady) return 'device'
-  if (context && !context.tippable)
-    return context.reason === 'own-article' ? 'own-article' : 'not-tippable'
   return null
 }
