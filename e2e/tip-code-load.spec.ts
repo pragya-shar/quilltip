@@ -111,9 +111,115 @@ test('tip buttons that fail to load at page load leave the article, and Try agai
   }
   await expect(notices).toHaveCount(0)
   await expect(page.getByRole('button', { name: 'Tip article' })).toBeVisible()
-  // Focus went to a control that replaced Try again, not to the page body.
-  expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe(
-    'BODY'
-  )
   await expect(page.getByText(/^Opening line\./)).toBeVisible()
+})
+
+// Focus after Try again, by keyboard. In this fixture WebKit does not re-fetch
+// the chunks a failed chunk imports (native module cache), so a retry that
+// succeeds only loads in Chromium; the real-build check covers WebKit.
+const focused = (page: Page) =>
+  page.evaluate(() => {
+    const active = document.activeElement as HTMLElement | null
+    if (!active || active === document.body) return 'BODY'
+    return (active.getAttribute('aria-label') ?? active.textContent ?? '')
+      .trim()
+      .slice(0, 40)
+  })
+
+async function blockedAtLoad(page: Page) {
+  await page.addInitScript(installVarialEmulator, {
+    mode: 'connected' as const,
+    address: UNUSED,
+  })
+  const keep = await staticChunks(page)
+  await page.route('**/chunk-*.js', (route) =>
+    keep.has(new URL(route.request().url()).pathname)
+      ? route.continue()
+      : route.abort('internetdisconnected')
+  )
+  await page.goto('/')
+  await expect(page.locator('h1')).toBeVisible()
+  const notices = page
+    .getByRole('alert')
+    .filter({ hasText: 'Tips couldn’t load.' })
+  await expect(notices.first()).toBeVisible()
+  return notices
+}
+
+test('keyboard: a retry that succeeds moves focus to the restored control', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName === 'webkit', 'Fixture-only: see the note above.')
+  const notices = await blockedAtLoad(page)
+  const before = await notices.count()
+  await page.unroute('**/chunk-*.js')
+  await notices.first().getByRole('button', { name: 'Try again' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(notices).toHaveCount(before - 1)
+  await expect.poll(() => focused(page)).not.toBe('BODY')
+  expect(await focused(page)).not.toBe('Try again')
+})
+
+test('keyboard: a retry that fails again moves focus to the new Try again', async ({
+  page,
+}) => {
+  const notices = await blockedAtLoad(page)
+  await notices.first().getByRole('button', { name: 'Try again' }).focus()
+  await page.keyboard.press('Enter')
+  await expect.poll(() => focused(page)).toBe('Try again')
+})
+
+test('keyboard: focus stays where the reader moved it while the retry loads', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName === 'webkit', 'Fixture-only: see the note above.')
+  const notices = await blockedAtLoad(page)
+  await page.unroute('**/chunk-*.js')
+  let release!: () => void
+  const held = new Promise<void>((resolve) => (release = resolve))
+  await page.route('**/chunk-*.js', async (route) => {
+    await held
+    await route.continue()
+  })
+  await notices.first().getByRole('button', { name: 'Try again' }).focus()
+  await page.keyboard.press('Enter')
+  // The reader moves on before the code arrives.
+  await page.locator('h1').evaluate((heading) => {
+    heading.setAttribute('tabindex', '-1')
+    ;(heading as HTMLElement).focus()
+  })
+  release()
+  await page.waitForTimeout(1500)
+  expect(await page.evaluate(() => document.activeElement?.tagName)).toBe('H1')
+})
+
+test('keyboard: a retry in the tip dialog keeps focus in the dialog', async ({
+  page,
+  browserName,
+}) => {
+  test.skip(browserName === 'webkit', 'Fixture-only: see the note above.')
+  await page.addInitScript(installVarialEmulator, {
+    mode: 'connected' as const,
+    address: UNUSED,
+  })
+  await page.goto('/')
+  const tip = page.getByRole('button', { name: 'Tip article' })
+  await expect(tip).toBeVisible()
+  await page.route('**/chunk-*.js', (route) =>
+    route.abort('internetdisconnected')
+  )
+  await tip.click()
+  const dialog = page.getByRole('dialog', { name: 'Tip this article' })
+  await expect(dialog.getByRole('alert')).toBeVisible()
+  await page.unroute('**/chunk-*.js')
+  await dialog.getByRole('button', { name: 'Try again' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(dialog.getByLabel('Other amount')).toBeVisible()
+  expect(
+    await page.evaluate(
+      () => !!document.activeElement?.closest('[role="dialog"]')
+    )
+  ).toBe(true)
 })
