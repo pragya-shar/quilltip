@@ -67,15 +67,31 @@ The inputs come from the code, computed on every run:
 
 ## A full run on a pull request
 
-- **Re-run all jobs** on the run's page: from attempt 2 on, What changed plans
-  everything. **Re-run failed jobs** keeps the first plan.
+- **Re-run failed jobs** keeps the first plan, so it is not a full run.
 - The `ci-full` label: every later push to the pull request runs everything,
-  until the label is removed. Adding the label starts no run by itself.
+  until the label is removed. Adding the label starts no run by itself, so
+  push or choose Re-run all jobs after adding it.
+- **Re-run all jobs** on the run's page, for one run: from attempt 2 on, What
+  changed plans everything.
 
 Recommended practice: use a full run before merging a pull request that
 changes `proxy.ts`, a routing registry, or the shell's sheet and focus code,
 and one whose filtered runs passed while a job it skipped failed on the base
 branch's push run.
+
+## Inputs named as strings
+
+A bundler follows `import` statements only. Some inputs are named as strings
+instead: an `import.meta.glob('../../convex/**/*.ts')` in a test, a vitest
+`setupFiles` entry, a Playwright `globalSetup`, a file-set check that lists a
+folder (the bindings check), or a route tree read with `node:fs`. The planner
+scans every file in a filtered job's inputs for these constructs
+(`STRING_CONSTRUCTS` in `scripts/ci/string-inputs.ts`). Each file that has one
+needs an entry in `STRING_INPUTS`, which names what it reads as globs; those
+globs become inputs of every job whose inputs hold the file. A file with a
+construct and no entry makes its job's inputs unknown, so the job runs, and
+`scripts/ci/string-inputs.test.ts` fails in Lint & Typecheck until someone adds
+the entry.
 
 ## What the filter does not see
 
@@ -85,6 +101,9 @@ branch's push run.
   input. A class name built at run time from parts is the exception.
 - A server that builds more code after it starts serving is not recorded. No
   server does so today.
+- A string-named input the constructs above do not match: a path built from
+  parts and handed to a child process, for example. Such an input needs an
+  entry in `STRING_INPUTS` by hand.
 
 ## Run the same steps locally
 
@@ -99,9 +118,9 @@ each Playwright config uses its CI worker count (one or two), and
 `--workers` caps the unit-test workers (default 1). It leaves out runner setup:
 actions, "Install ..." steps, `bun install` and failure-only steps; no CI step
 reads a secret. The script's header lists what the machine needs for the
-result to mean what CI's does. On a shared machine, run `--light` under the
-machine's lock for medium jobs and anything else under its lock for heavy
-jobs.
+result to mean what CI's does. On a machine shared by several people or
+agents, run one heavy selection at a time; `--light` builds nothing and starts
+no browser, so it can run beside other light work.
 
 ## Failure output
 
