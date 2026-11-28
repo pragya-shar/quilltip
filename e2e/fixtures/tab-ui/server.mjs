@@ -144,7 +144,10 @@ async function api(url, request) {
         chainConfig: state.chainConfig,
         tab: state.tab,
         activity: activity(state),
-        settlement: { settlementEnabled: state.settlementEnabled },
+        settlement: {
+          settlementEnabled: state.settlementEnabled,
+          tabReady: state.tabReady,
+        },
         earnings: state.earnings,
         claimable: state.claimable,
         clock: { ...state.clock, closedAt: Date.now() },
