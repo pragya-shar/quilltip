@@ -363,7 +363,10 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
    press is safe, a doubled press can send money. Not covered: a control
    that acts on `pointerdown` instead of `click`; a change of content inside
    a modal that stays open (hold your own presses there); a second finger
-   held down across the close on a touch screen (not checked on a phone).
+   held down across the close on a touch screen (not checked on a phone);
+   the balance item when its session state really changes under a press (a
+   stored token the backend rejects, a sign-in or sign-out in another tab):
+   its two links switch, and that one press is lost without acting.
 
    Drop a guard of your own; `pressesHeld()` says whether a hold is in
    force. The tests: `scripts/system/sheet-press-guard.test.ts` (the real
