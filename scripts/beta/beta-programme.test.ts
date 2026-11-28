@@ -360,6 +360,70 @@ test('usage metrics count real activity and exclude test accounts by default', a
   })
 })
 
+test('usage metrics count settled tab tips as verified, and still exclude test accounts (#707)', async () => {
+  const t = newTest()
+  const writer = await seedUser(t, { email: 'writer@example.test' })
+  const reader = await seedUser(t, { email: 'reader@example.test' })
+  const qa = await seedUser(t, {
+    email: 'qa@example.test',
+    isTestAccount: true,
+  })
+  await t.run(async (ctx) => {
+    const articleId = await ctx.db.insert('articles', {
+      slug: 'words',
+      title: 'Words',
+      content: {},
+      published: true,
+      authorId: writer,
+      authorUsername: 'writer',
+      createdAt: 1,
+      updatedAt: 1,
+    })
+    const tabTip = (
+      tipperId: typeof writer,
+      status: string,
+      earningsAppliedAt?: number
+    ) =>
+      ctx.db.insert('tips', {
+        articleId,
+        tipperId,
+        authorId: writer,
+        articleTitle: 'Words',
+        articleSlug: 'words',
+        amountUsd: 0.1,
+        amountCents: 10,
+        status,
+        contractVersion: 'v2',
+        channel: 'tab',
+        ...(earningsAppliedAt ? { earningsAppliedAt } : {}),
+        createdAt: 1,
+        updatedAt: 1,
+      })
+    await tabTip(reader, 'SETTLED', 10)
+    await tabTip(reader, 'ACCEPTED')
+    await tabTip(reader, 'EXPIRED')
+    await tabTip(qa, 'SETTLED', 10)
+  })
+  const metrics = await t.action(internal.betaMetrics.getUsageMetrics, {})
+  expect(metrics).toMatchObject({
+    testAccountsExcluded: 1,
+    tips: {
+      article: {
+        total: 3,
+        verified: 1,
+        byStatus: { SETTLED: 1, ACCEPTED: 1, EXPIRED: 1 },
+      },
+      distinctVerifiedTippers: 1,
+    },
+  })
+  const all = await t.action(internal.betaMetrics.getUsageMetrics, {
+    excludeTestAccounts: false,
+  })
+  expect(all).toMatchObject({
+    tips: { article: { total: 4, verified: 2 }, distinctVerifiedTippers: 2 },
+  })
+})
+
 test('only waitlist join and feedback submit are callable from clients', async () => {
   const modules = {
     waitlist: await import('../../convex/waitlist'),

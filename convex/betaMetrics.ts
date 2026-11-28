@@ -13,8 +13,9 @@ import { verifiedStellarAddress } from './lib/walletVerification'
 //
 // Test accounts are excluded by default. A tip is excluded when either the
 // tipper or the writer is a test account. Tip counts are reported by status;
-// `verified` counts paid rows that carry a server verification time: v1
-// CONFIRMED, and v2 CONFIRMED or MISMATCH. `byVersion` splits rows by
+// `verified` counts paid rows as `countsAsPaid` does: v1 CONFIRMED and v2
+// CONFIRMED or MISMATCH with a server verification time, and tab tips whose
+// receipt settled on chain (SETTLED, #707). `byVersion` splits rows by
 // `contractVersion` (a row without it is v1).
 // Each table is read in pages by a separate query, so no single query reads a
 // whole table. The result is a near-snapshot, not a single transaction.
@@ -83,7 +84,7 @@ export const countPage = internalQuery({
         out.tippers.push(tip.tipperId)
         add(`${prefix}.byVersion.${contractVersionOf(tip)}`)
         // v1: CONFIRMED with verifiedAt. v2: CONFIRMED or MISMATCH with
-        // verifiedAt (the payment happened on chain).
+        // verifiedAt, or a tab tip settled on chain (the payment happened).
         if (countsAsPaid(tip)) {
           add(`${prefix}.verified`)
           out.verifiedTippers.push(tip.tipperId)
