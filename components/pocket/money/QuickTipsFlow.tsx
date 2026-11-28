@@ -10,6 +10,7 @@ import { showToast } from '@/system/toast'
 import { baseUnitsToCents, formatMoney } from '@/lib/payments/money'
 import type { Money } from '@/lib/payments/types'
 import { consentFigures } from '@/lib/addMoney/consent'
+import { quickTipsOperation } from '@/lib/addMoney/operation'
 import { failureView, type FailureView } from '@/lib/addMoney/failures'
 import { quickTipsVariant, type QuickTipsVariant } from '@/lib/addMoney/plan'
 import {
@@ -115,14 +116,7 @@ export function QuickTipsFlow({
     if (!reading?.address) return
     setStep({ at: 'checking' })
     services
-      .prepare(
-        {
-          kind: 'quick-tips',
-          balance: reading.confirmed,
-          priceUsd: reading.priceUsd,
-        },
-        reading.address
-      )
+      .prepare(quickTipsOperation(reading), reading.address)
       .then((prepared) => {
         if (cancelled.current) return
         lastPrepared.current = prepared

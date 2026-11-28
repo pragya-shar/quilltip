@@ -59,6 +59,7 @@ import {
 import type { DeviceKind } from '../plan'
 import { stepFailureFromWallet } from '../walletFailure'
 import { FEE_CEILING_STROOPS } from '../fee'
+import { readingFromSession } from '../operation'
 import { noteRetiredKeyIds, retiredKeyIds } from '../forgetKeys'
 
 /** Ledgers close about every 5 seconds. */
@@ -254,22 +255,14 @@ function useLiveReading(): Reading | undefined {
         deviceKeyId: null,
         ledger: null,
       }
-    const quote = session.prices.find((p) => p.token === 'xlm') ?? null
     let retired: number[] = []
     try {
       retired = address ? retiredKeyIds(config().tabContractId, address) : []
     } catch {
       retired = []
     }
-    return {
-      userId: session.userId,
+    return readingFromSession(session, {
       address,
-      status: session.status === 'closing' ? 'closing' : session.status,
-      confirmed: session.tokens[0]?.confirmed ?? '0',
-      available: session.tokens[0]?.available ?? '0',
-      priceUsd: quote?.usd ?? null,
-      priceAt: quote?.at ?? null,
-      accepting: session.settlement.enabled,
       keys: (tab?.keys ?? []).map((k) => ({
         keyId: k.keyId,
         publicKey: k.publicKey,
@@ -280,11 +273,10 @@ function useLiveReading(): Reading | undefined {
         here: device.here.includes(k.keyId),
         retired: retired.includes(k.keyId),
       })),
-      device: address ? device.kind : null,
+      device: device.kind,
       deviceKeyId: device.keyId,
-      ledger,
-    } satisfies Reading
-  }, [session, tab, address, ledger, device])
+    })
+  }, [session, tab, address, device])
 }
 
 /** The Tab call for an operation, with the server's prepare. */

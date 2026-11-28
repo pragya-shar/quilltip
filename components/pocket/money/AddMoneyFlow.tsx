@@ -16,12 +16,9 @@ import {
 } from '@/lib/payments/money'
 import type { Money } from '@/lib/payments/types'
 import { shortAddress } from '@/lib/payments/format'
-import {
-  amountOffer,
-  depositStroops,
-  type AmountOffer,
-} from '@/lib/addMoney/amounts'
+import { amountOffer, type AmountOffer } from '@/lib/addMoney/amounts'
 import { consentFigures, keyUntil } from '@/lib/addMoney/consent'
+import { addOperation } from '@/lib/addMoney/operation'
 import { failureView, type FailureView } from '@/lib/addMoney/failures'
 import {
   addMoneyPlan,
@@ -227,22 +224,12 @@ export function AddMoneyFlow({
 
   const prepare = useCallback(
     (request: Request) => {
-      if (!reading?.address || !reading.priceUsd) return
-      const amount = depositStroops(request.cents, reading.priceUsd)
+      if (!reading?.address) return
+      const op = addOperation(reading, request.cents, request.withQuickTips)
+      if (!op) return
       setStep({ at: 'preparing', request })
       services
-        .prepare(
-          {
-            kind: 'add',
-            priceUsd: reading.priceUsd,
-            amount,
-            withQuickTips: request.withQuickTips,
-            balanceAfter: (
-              BigInt(reading.confirmed) + BigInt(amount)
-            ).toString(),
-          },
-          reading.address
-        )
+        .prepare(op, reading.address)
         .then((prepared) => {
           if (cancelled.current) return
           setStep({
