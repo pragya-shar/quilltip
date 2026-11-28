@@ -26,7 +26,8 @@ later work.
 
 1. The release tag is on a commit that contains each payment and sign-up
    fix: #583, #565, #577, #596 (the fix for #584), #597 and #572, all merged.
-   The release commit also contains the v1 client removal (#559). The checks in
+   The release commit also contains the content limits for article image
+   sources (#615, open) and the v1 client removal (#559). The checks in
    section 1.3 pass on that commit. The tab debit fix (#585) is merged and
    needs no operator step: its table and field ship with the stage 1 push,
    and its test variables `TAB_DEBIT_SCAN_LIMIT` and `TAB_DEBIT_READ_BUDGET`
@@ -227,7 +228,7 @@ Record each answer in the cutover tracking issue.
 2. **v1 maintenance jobs.** Whether `legacyTipCleanup:run` and
    `authorEarningsBackfill:run` were applied on the live deployment before is
    not recorded. Do not assume either way. After stage 1, run both as dry runs
-   (stage 1, step 5). Their output shows what needs correcting on that day.
+   (stage 1, step 6). Their output shows what needs correcting on that day.
    Apply them only if the operator decides to, and record the decision.
 3. **Release scope.** One combined release of `overhaul/v2`, with the v1
    client removal (#559), in one announced window: backend first, site
@@ -653,12 +654,26 @@ the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
    records it before step 3.
 3. The operator pushes the tagged release commit's functions and schema with
    the procedure in section 5.0.2 (dry run, confirm the target, push).
-4. Merge the release PR (`overhaul/v2` into `main`) right after the push, and
+4. Image sources check. Run the read-only query that lists the published
+   articles with an image from a source outside the release's allowed image
+   sources (#615):
+
+   ```bash
+   # PENDING: the query name and invocation follow from the change for #615.
+   ```
+
+   **Pending:** this step is complete only when the command above is filled
+   in. The query exists only in the release code, so it runs after the push
+   and before the merge in step 5. Send the list to the owner before step 5:
+   after the merge, images from other sources stop rendering in those
+   articles. The owner decides whether the window continues. Record the list.
+
+5. Merge the release PR (`overhaul/v2` into `main`) right after step 4, and
    continue with stage 2. With the default plan, Vercel builds and promotes
    `main` on merge, so the site follows within minutes. Never merge before
    the push: the release frontend fails against `main`'s backend
    (section 2.4).
-5. Run the v1 maintenance jobs as dry runs (section 1.6, item 2):
+6. Run the v1 maintenance jobs as dry runs (section 1.6, item 2):
 
    ```bash
    bunx convex run legacyTipCleanup:run '{"table":"tips"}'
@@ -925,7 +940,7 @@ the net its receipt has been paid on chain. The rebuild writes only
 `authorEarnings` (`convex/earningsTotalsBackfill.ts`).
 
 Run this stage after the stage 5 drain, so that every v1 tip has its final
-state, and after any `authorEarningsBackfill:run` apply from stage 1, step 5
+state, and after any `authorEarningsBackfill:run` apply from stage 1, step 6
 has completed. Finish it before stage 6. The two jobs write different fields:
 `authorEarningsBackfill:run` rewrites the earlier cent totals, which the
 rebuild does not read, so the code itself does not need this order; it keeps
@@ -1338,7 +1353,8 @@ Set `CHAIN_V2_ENABLED=true` only when all of these are true. Leave
    and `events.error: 0`. In the **Data** view, the `chainEvents` rows with
    `handled` `orphan` and `pending` are the same as in the second export.
    Some are normal: the deploy's smoke-flow events stay `orphan`, and events
-   that no handler records (Core and Tab role grants) stay `pending`. A new
+   that no handler records (role grants, pauses and Tab settings changes,
+   for example) stay `pending`. A new
    `orphan` means a restored row is missing. (The `/ops/chain` counts stop
    at 100.)
 3. `authorEarnings` equals the second export, apart from the corrections
@@ -1405,9 +1421,18 @@ bunx convex run chain/indexer:redispatch
 
 The result gives `checked` and `resolved`. One run checks at most `limit`
 pending rows (default 200, at most 500; for example `'{"limit":500}'`).
-Core and Tab `role_granted` events have no handler and stay `pending` by
-design, so they count in `checked`. NFT `role_granted` events are recorded
-as `done`.
+Events that no handler records stay `pending` by design, so they count in
+`checked`:
+
+- Core and Tab: `role_granted`, `role_revoked`, `role_admin_changed`,
+  `admin_transfer_initiated`, `admin_transfer_completed`, `paused` and
+  `unpaused`. The contract deploy emits the role grants.
+- Tab only: `limits_set`, `treasury_set`, `acceptor_set` and `migrated`.
+
+The NFT contract's events of these kinds have handlers and are recorded as
+`done`. `redispatch` reads the oldest `pending` rows first, so rows at rest
+stay at the front. If `checked` equals the limit, run again with
+`'{"limit":500}'`.
 
 ### 7.3 Settler run
 
