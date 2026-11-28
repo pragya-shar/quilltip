@@ -140,6 +140,8 @@ export default [
       ...nextPlugin.configs.recommended.rules,
       ...nextPlugin.configs['core-web-vitals'].rules,
       ...jsxA11yPlugin.flatConfigs.recommended.rules,
+      // A `//` comment in JSX text renders as words on the page.
+      'react/jsx-no-comment-textnodes': 'error',
       'react-hooks/rules-of-hooks': 'error',
       'react-hooks/exhaustive-deps': 'warn',
       '@typescript-eslint/no-unused-vars': [
