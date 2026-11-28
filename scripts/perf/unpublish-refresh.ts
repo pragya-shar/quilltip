@@ -299,12 +299,13 @@ async function main() {
       wrongRouteCheck(stillWrong)
       await expectLoad(`${slug} hidden, ${when}`, path, kind, {
         // Still wrong: the page cannot tell missing from moved, so it shows
-        // its readable fallback (the payload carries its retry link). Once
+        // its readable fallback (the payload carries it, rendered on the
+        // server). Once
         // the check answers, the proxy says "missing": the not-found screen.
         ...(stillWrong
           ? kind === 'page'
             ? { status: 200, has: [FALLBACK_TEXT] }
-            : { has: ['"unavailableRetryHref":'] }
+            : { has: [FALLBACK_TEXT] }
           : kind === 'page'
             ? { status: 404 }
             : { has: ['NEXT_HTTP_ERROR_FALLBACK;404'] }),

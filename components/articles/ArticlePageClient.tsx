@@ -3,7 +3,7 @@
 import { notFound } from 'next/navigation'
 import Link from 'next/link'
 import { ArticleReadNext } from '@/components/articles/ArticleReadNext'
-import { lazy, Suspense, useMemo } from 'react'
+import { lazy, Suspense, useMemo, type ReactNode } from 'react'
 import type { FunctionReturnType } from 'convex/server'
 import type { api } from '@/convex/_generated/api'
 import {
@@ -31,7 +31,6 @@ import { extractH2HeadingsFromTiptapJson } from '@/lib/tiptap/headings'
 import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
 import { useRouter } from 'next/navigation'
-import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
 
 // The collapsed details panel sits below the article. The server renders it
 // into the HTML; its accordion, highlight notes and date code load while the
@@ -52,10 +51,11 @@ interface ArticlePageClientProps {
   /** Server-rendered HTML of `initialArticle`'s body. */
   initialBodyHtml?: string
   /**
-   * Set when the server could not read the article in time: until the live
-   * query answers, show a fallback that reads without scripts.
+   * The readable fallback, rendered on the server (#609), when the server
+   * could not read the article in time: shown until the live query answers.
+   * It is a server component, so it adds nothing to the client bundle.
    */
-  unavailableRetryHref?: string
+  unavailable?: ReactNode
 }
 
 export function ArticlePageClient({
@@ -63,7 +63,7 @@ export function ArticlePageClient({
   slug,
   initialArticle,
   initialBodyHtml,
-  unavailableRetryHref,
+  unavailable,
 }: ArticlePageClientProps) {
   const { user } = useAuth()
   const router = useRouter()
@@ -100,15 +100,11 @@ export function ArticlePageClient({
 
   // The server could not read the article in time. Outside LoadingRegion,
   // which hides its fallback from assistive technology.
-  if (article === undefined && unavailableRetryHref) {
+  if (article === undefined && unavailable) {
     return (
       <div className="min-h-screen reader-surface">
         <AppNavigation />
-        <ReadingUnavailable
-          what="article"
-          retryHref={unavailableRetryHref}
-          headingLevel={1}
-        />
+        {unavailable}
       </div>
     )
   }

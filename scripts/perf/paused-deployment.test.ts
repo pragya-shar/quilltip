@@ -32,12 +32,12 @@ vi.mock('next/cache', () => ({
 }))
 vi.mock('convex/react', async (original) => ({
   ...(await original<typeof import('convex/react')>()),
-  useQueries: () => ({ result: state.liveResult }),
+  useQueries: () => ({ r: state.liveResult }),
 }))
 
 const { getPublishedArticle, getPublicProfile, getReadingRoomList } =
   await import('../../lib/seo/publicContent')
-const { keepThroughPause, useReadingQuery } =
+const { readThroughPause, useReadingQuery } =
   await import('../../hooks/convex/useReadingQuery')
 
 /** The same text as a live subscription reports it. */
@@ -123,29 +123,31 @@ describe('the page’s reads on a paused deployment', () => {
 describe('a live subscription on a paused deployment', () => {
   const paused = new Error(SUBSCRIPTION_MESSAGE)
 
-  it('keeps the last value, or nothing, instead of throwing', () => {
-    expect(keepThroughPause(paused, { title: 'Live copy' })).toEqual({
-      title: 'Live copy',
-    })
-    expect(keepThroughPause(paused, undefined)).toBeUndefined()
-    expect(keepThroughPause({ title: 'New' }, { title: 'Old' })).toEqual({
-      title: 'New',
-    })
+  it('shows nothing new instead of throwing', () => {
+    expect(readThroughPause(paused)).toBeUndefined()
+    expect(readThroughPause({ title: 'New' })).toEqual({ title: 'New' })
+    expect(readThroughPause(undefined)).toBeUndefined()
   })
 
   it('still throws any other error', () => {
     expect(() =>
-      keepThroughPause(new Error(NEAR_MISS_BODY.errorMessage), undefined)
+      readThroughPause(new Error(NEAR_MISS_BODY.errorMessage))
     ).toThrow('paused for maintenance')
   })
 
   // A signed-out reader on an article: the page shows the server copy until
   // live data arrives. When the subscription reports the pause, the reader
   // keeps reading that copy; nothing throws into the page's error boundary.
-  function Article({ serverTitle }: { serverTitle: string }) {
+  function Article({
+    slug = 'lamp',
+    serverTitle,
+  }: {
+    slug?: string
+    serverTitle: string
+  }) {
     const live = useReadingQuery(api.articles.getArticleBySlug, {
       username: 'writer',
-      slug: 'lamp',
+      slug,
     }) as { title: string } | null | undefined
     const article = live === undefined ? { title: serverTitle } : live
     return createElement('h1', null, article?.title ?? 'Not found')
@@ -156,6 +158,22 @@ describe('a live subscription on a paused deployment', () => {
     expect(
       renderToStaticMarkup(createElement(Article, { serverTitle: 'The Lamp' }))
     ).toBe('<h1>The Lamp</h1>')
+  })
+
+  it('after a change of article during a pause, shows that article’s own server copy', () => {
+    // The hook keeps no live value, so a value read for the first article
+    // can never appear on the second.
+    state.liveResult = { title: 'The Lamp, live' }
+    renderToStaticMarkup(createElement(Article, { serverTitle: 'The Lamp' }))
+    state.liveResult = paused
+    expect(
+      renderToStaticMarkup(
+        createElement(Article, {
+          slug: 'the-quiet-street',
+          serverTitle: 'The Quiet Street',
+        })
+      )
+    ).toBe('<h1>The Quiet Street</h1>')
   })
 
   it('shows live data when it answers', () => {

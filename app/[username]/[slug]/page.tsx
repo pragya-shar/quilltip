@@ -7,7 +7,10 @@ import {
   proxyAnsweredMissing,
 } from '@/lib/seo/publicContent'
 import { renderArticleHtml } from '@/lib/tiptap/renderArticleHtml'
-import { retryHrefFor } from '@/components/articles/ReadingUnavailable'
+import {
+  ReadingUnavailable,
+  retryHrefFor,
+} from '@/components/articles/ReadingUnavailable'
 import {
   SITE_NAME,
   articleMetaDescription,
@@ -88,13 +91,17 @@ export default async function ArticlePage({
       slug={slug}
       initialArticle={initialArticle ?? undefined}
       initialBodyHtml={renderArticleHtml(initialArticle?.content)}
-      unavailableRetryHref={
-        !initialArticle
-          ? retryHrefFor(
+      unavailable={
+        !initialArticle ? (
+          <ReadingUnavailable
+            what="article"
+            headingLevel={1}
+            retryHref={retryHrefFor(
               `/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`,
               query
-            )
-          : undefined
+            )}
+          />
+        ) : undefined
       }
     />
   )

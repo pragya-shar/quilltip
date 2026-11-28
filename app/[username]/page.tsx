@@ -7,7 +7,10 @@ import {
   movedPublicPath,
   proxyAnsweredMissing,
 } from '@/lib/seo/publicContent'
-import { retryHrefFor } from '@/components/articles/ReadingUnavailable'
+import {
+  ReadingUnavailable,
+  retryHrefFor,
+} from '@/components/articles/ReadingUnavailable'
 import { parseProfilePage } from '@/lib/profile/profileArticles'
 import { parseProfileTab } from '@/lib/profile/profileTab'
 import {
@@ -93,17 +96,27 @@ export default async function ProfilePage({
   const initialArticles = profile ? articles : undefined
   // Out of time or unreachable: the writer (or the moved-handle lookup), or
   // their articles on this tab.
-  const unavailable =
-    !profile || (onArticlesTab && initialArticles === undefined)
+  // The fallbacks are rendered here, on the server, so they add nothing to
+  // the client bundle (#609).
+  const retryHref = retryHrefFor(`/${encodeURIComponent(username)}`, query)
   return (
     <ProfilePageClient
       username={username}
       initialProfile={profile ?? undefined}
       initialArticles={initialArticles}
-      unavailableRetryHref={
-        unavailable
-          ? retryHrefFor(`/${encodeURIComponent(username)}`, query)
-          : undefined
+      unavailable={
+        !profile ? (
+          <ReadingUnavailable
+            what="writer"
+            retryHref={retryHref}
+            headingLevel={1}
+          />
+        ) : undefined
+      }
+      articlesUnavailable={
+        onArticlesTab && initialArticles === undefined ? (
+          <ReadingUnavailable what="articles" retryHref={retryHref} />
+        ) : undefined
       }
     />
   )

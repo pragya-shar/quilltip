@@ -6,6 +6,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ReactNode,
 } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
@@ -38,24 +39,23 @@ import {
   readingRoomListKey,
 } from '@/lib/articles/readingRoomListArgs'
 import { getBrowseContextMessage } from './ArticlesBrowseDiscoveryHeader'
-import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
 
 type ReadingRoomList = NonNullable<ReturnType<typeof useReadingRoomArticles>>
 
 export function ReadingRoom({
   initialList,
   initialListKey,
-  unavailableRetryHref,
+  unavailable,
 }: {
   /** Server copy of the list, used until the live query answers. */
   initialList?: ReadingRoomList
   /** `readingRoomListKey` of the arguments `initialList` was loaded with. */
   initialListKey?: string
   /**
-   * Set when the server could not read the list in time: until the live
-   * query answers, show a fallback that reads without scripts.
+   * The readable fallback, rendered on the server (#609), when the server
+   * could not read the list in time: shown until the live query answers.
    */
-  unavailableRetryHref?: string
+  unavailable?: ReactNode
 } = {}) {
   const router = useRouter()
   const pathname = usePathname()
@@ -335,8 +335,8 @@ export function ReadingRoom({
             Sign in or create an account
           </Link>
         </section>
-      ) : !result && unavailableRetryHref ? (
-        <ReadingUnavailable what="articles" retryHref={unavailableRetryHref} />
+      ) : !result && unavailable ? (
+        unavailable
       ) : !result ? (
         <div className="reading-room-loading" role="status" aria-live="polite">
           <span>Loading articles…</span>
