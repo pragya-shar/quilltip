@@ -13,6 +13,11 @@ import {
 } from './helpers/varialEmulator'
 import { SEND_TIP, sendBasket } from './helpers/sendButton'
 import {
+  ESTIMATE,
+  TESTNET_LABEL_DETAIL,
+  quoteCopy,
+} from '../lib/copy/payment-states'
+import {
   expectNoticeAnnounced,
   expectNoticeQuiet,
   expectNoticeTookFocus,
@@ -193,8 +198,11 @@ const STATES: State[] = [
         dialog.getByRole('button', { name: '$1', exact: true })
       ).toHaveAttribute('aria-pressed', 'true')
       await expect(dialog.getByText('About 4 XLM')).toBeVisible()
+      await expect(dialog.getByText(quoteCopy('$1.00'))).toBeVisible()
+      await expect(dialog.getByText(ESTIMATE.caption)).toBeVisible()
+      // With an amount chosen, the label keeps its detail (#670).
       await expect(
-        dialog.getByText('Final amount shown before you approve')
+        dialog.locator('.pay-amount-caption').getByText(TESTNET_LABEL_DETAIL)
       ).toBeVisible()
       await expectTestnetLabel(dialog)
       await expect(

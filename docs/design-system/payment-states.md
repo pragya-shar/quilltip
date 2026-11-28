@@ -613,20 +613,32 @@ Notes:
 ## Amounts
 
 - **Primary:** XLM from base units, through `formatXlm` (`formatXlmFromStroops`).
-  Full stroop precision, grouped thousands, no trailing zeros: `0.975 XLM`,
-  `0.0000039 XLM`, `12,345,678,901.2345678 XLM`. Invalid input shows "–", never
-  a wrong number. Inline amounts use `XlmAmount`, which keeps the unit on the
-  same line.
+  An exact figure (a prepare response, a receipt, history, settled balances)
+  keeps full stroop precision, grouped thousands, no trailing zeros:
+  `0.975 XLM`, `0.0000039 XLM`, `12,345,678,901.2345678 XLM`. Never round a
+  figure that is stated as exact. Invalid input shows "–", never a wrong
+  number. Inline amounts use `XlmAmount`, which keeps the unit on the same
+  line.
 - **Secondary:** the cents quote, when the caller has one, after the testnet
-  label: "About {usd} in real XLM", for example "About $0.12 in real XLM", or
-  "Under $0.01 in real XLM". It says what the same amount of real XLM is
-  worth; it is not the amount paid.
+  label: "Worth about {usd} if this were real XLM", for example
+  "Worth about $0.12 if this were real XLM", or
+  "Worth under $0.01 if this were real XLM". It says what the same amount
+  would be worth as real XLM; it is not the price, and the testnet amount
+  has no value.
 - **Estimates:** before prepare returns, the XLM figure is a conversion from
-  the chosen cents. Pass `estimate`: every figure reads "About …" and the
-  caption adds "Final amount shown before you approve". `coreTipSplit`
-  mirrors the Core rule for that preview only: the fee is
-  `floor(gross × 250 / 10,000)` and the author side gets the remainder (I-1).
-  A 40-stroop tip splits 39 and 1.
+  the chosen cents. Pass `estimate`: every figure reads "About …", rounded
+  by `roundXlmEstimate` to two decimals from 1 XLM and three below it, half
+  up ("About 8.11 XLM", "About 0.203 XLM"). A non-zero figure that rounds to
+  0 reads "Under 0.001 XLM". The testnet label adds its detail, and the
+  caption says where the exact amount comes from:
+  "Your wallet shows the exact amount before you approve." While a tab can
+  send the same amount, which has no wallet prompt, pass
+  `estimateCaption={ESTIMATE.tabCaption}`:
+  "The exact amount shows once you send." Once prepare returns, show its
+  exact figures instead: never an estimate where an exact figure exists.
+  `coreTipSplit` mirrors the Core rule for that preview only: the fee is
+  `floor(gross × 250 / 10,000)` and the author side gets the remainder
+  (I-1). A 40-stroop tip splits 39 and 1.
 - **Breakdown:** pass the author share and the platform fee as values from
   Convex (the prepare response) or the `Tipped` event, labelled "To the
   author" and "Platform fee". The 97.5% belongs in the trust section, not in
@@ -644,7 +656,8 @@ Notes:
   testnet"): `AmountSummary` always, a result with a summary or a link, the
   checking step with a link, and notices that show an amount.
   `TestnetLabel detail` adds "Practice funds only" where a reader first meets
-  an amount, such as the first tip dialog step.
+  an amount: the first tip dialog step, and every estimate in
+  `AmountSummary` (the dialog and the basket once an amount is chosen).
 - Step sentences do not repeat the network ("Sending…"); result details name
   it where a payment is recorded.
 - Amounts read "XLM", not "test XLM": the label beside them carries the

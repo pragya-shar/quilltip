@@ -10,6 +10,7 @@ import {
 import {
   CHECKING_SLOW,
   ESTIMATE,
+  estimateXlmCopy,
   FAILURE_COPY,
   FLOW_COPY,
   GATE_BUSY,
@@ -52,6 +53,7 @@ import {
   formatCentsQuote,
   formatDay,
   formatXlm,
+  roundXlmEstimate,
   shortAddress,
 } from '../../lib/payments/format'
 import {
@@ -875,14 +877,74 @@ describe('amounts and dates', () => {
     expect(formatXlm('1.5')).toBe('–')
   })
 
-  test('the cents quote is optional and reads as real XLM', () => {
+  test('the cents quote is optional and says the XLM is not real (#670)', () => {
     expect(formatCentsQuote(50)).toBe('$0.50')
     expect(formatCentsQuote(null)).toBeNull()
     expect(formatCentsQuote(Number.NaN)).toBeNull()
     expect(formatCentsQuote(0)).toBeNull()
     expect(formatCentsQuote(0.4)).toBe('under-a-cent')
-    expect(quoteCopy('$0.12')).toBe('About $0.12 in real XLM')
-    expect(quoteCopy('under-a-cent')).toBe('Under $0.01 in real XLM')
+    expect(quoteCopy('$1.00')).toBe('Worth about $1.00 if this were real XLM')
+    expect(quoteCopy('$0.12')).toBe('Worth about $0.12 if this were real XLM')
+    expect(quoteCopy('under-a-cent')).toBe(
+      'Worth under $0.01 if this were real XLM'
+    )
+    // The caption names where the exact amount shows; a tab tip has no
+    // wallet prompt, so its line does not mention the wallet.
+    expect(ESTIMATE.caption).toBe(
+      'Your wallet shows the exact amount before you approve.'
+    )
+    expect(ESTIMATE.tabCaption).toBe('The exact amount shows once you send.')
+    expect(ESTIMATE.tabCaption).not.toMatch(/wallet/i)
+    // No kit string states that testnet funds are real XLM.
+    const strings: string[] = []
+    const add = (value: unknown): void => {
+      if (typeof value === 'string') strings.push(value)
+      else if (typeof value === 'function') {
+        try {
+          add(value('{a}', '{b}', '{c}'))
+        } catch {
+          // A template that needs real arguments.
+        }
+      } else if (value && typeof value === 'object')
+        for (const inner of Object.values(value)) add(inner)
+    }
+    add(kitCopyModule)
+    add(tabCopyModule)
+    expect(strings.filter((text) => /\bin real XLM\b/i.test(text))).toEqual([])
+  })
+
+  test('an estimate rounds to 2 decimals from 1 XLM, 3 below (#670)', () => {
+    const at = (xlm: string) => {
+      const [whole = '0', fraction = ''] = xlm.split('.')
+      return estimateXlmCopy(
+        (
+          BigInt(whole) * BigInt(10_000_000) +
+          BigInt(fraction.padEnd(7, '0'))
+        ).toString()
+      )
+    }
+    // The figures from the audit.
+    expect(at('8.1052384')).toBe('About 8.11 XLM')
+    expect(at('7.9026075')).toBe('About 7.9 XLM')
+    expect(at('0.2026309')).toBe('About 0.203 XLM')
+    // The 1 XLM boundary: three decimals below it, two from it.
+    expect(at('0.9994999')).toBe('About 0.999 XLM')
+    expect(at('0.9995')).toBe('About 1 XLM')
+    expect(at('1')).toBe('About 1 XLM')
+    expect(at('1.0049999')).toBe('About 1 XLM')
+    expect(at('1.005')).toBe('About 1.01 XLM')
+    // Half up at three decimals; a non-zero amount never reads as 0.
+    expect(at('0.0005')).toBe('About 0.001 XLM')
+    expect(at('0.0004999')).toBe('Under 0.001 XLM')
+    expect(estimateXlmCopy('1')).toBe('Under 0.001 XLM')
+    expect(estimateXlmCopy('0')).toBe('About 0 XLM')
+    expect(at('12345678901.2345678')).toBe('About 12,345,678,901.23 XLM')
+    expect(estimateXlmCopy('1.5')).toBe('–')
+    expect(roundXlmEstimate('-5')).toBeNull()
+    expect(roundXlmEstimate('4999')).toEqual({ text: '0.001 XLM', under: true })
+    // An exact figure keeps every stroop.
+    expect(formatXlm('81052384')).toBe('8.1052384 XLM')
+    expect(formatXlm('4999')).toBe('0.0004999 XLM')
   })
 
   test('the Core split rounds the fee down and gives the writer the rest', () => {

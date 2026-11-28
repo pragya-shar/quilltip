@@ -21,6 +21,29 @@ export function formatXlm(stroops: string, maxDecimals = 7): string {
   return isBaseUnits(stroops) ? formatXlmFromStroops(stroops, maxDecimals) : '–'
 }
 
+const ONE_XLM = BigInt(10_000_000)
+
+/**
+ * An estimated XLM figure, rounded to what an estimate can claim (#670): two
+ * decimals from 1 XLM, three below it, half up. `under` is true when a
+ * non-zero amount rounds to 0 at three decimals; `text` is then the smallest
+ * step, "0.001 XLM". Exact, server-verified figures (receipts, history,
+ * settled balances) keep full precision through `formatXlm`. `null` for
+ * invalid input.
+ */
+export function roundXlmEstimate(
+  stroops: string
+): { text: string; under: boolean } | null {
+  if (!isBaseUnits(stroops)) return null
+  const raw = BigInt(stroops)
+  const decimals = raw >= ONE_XLM ? 2 : 3
+  const text = formatXlmFromStroops(stroops, decimals)
+  if (raw > BigInt(0) && text === '0 XLM') {
+    return { text: formatXlmFromStroops('10000', 3), under: true }
+  }
+  return { text, under: false }
+}
+
 /**
  * "$0.50" from 50, `under-a-cent` for a fraction of a cent. `null` when no
  * quote is available, so the caller shows nothing rather than "$0.00".

@@ -28,12 +28,17 @@ interface AmountSummaryProps {
    * before the wallet prompt.
    */
   estimate?: boolean
+  /**
+   * The line under an estimate. Defaults to the wallet sentence; pass
+   * `ESTIMATE.tabCaption` while a tab can send the same amount.
+   */
+  estimateCaption?: string
   className?: string
 }
 
 /**
  * The amount and its split. XLM is primary; the cents quote is secondary.
- * Every summary carries the testnet label.
+ * Every summary carries the testnet label; an estimate adds its detail.
  */
 export function AmountSummary({
   label = 'Tip amount',
@@ -42,6 +47,7 @@ export function AmountSummary({
   items = [],
   quoteCents,
   estimate = false,
+  estimateCaption = ESTIMATE.caption,
   className,
 }: AmountSummaryProps) {
   const labelId = useId()
@@ -87,9 +93,10 @@ export function AmountSummary({
         </strong>
       </p>
       <p className="pay-amount-caption">
-        <TestnetLabel />
+        {/* An estimate is where a reader first meets the amount (#670). */}
+        <TestnetLabel detail={estimate} />
         {quote ? <span>{quoteCopy(quote)}</span> : null}
-        {estimate ? <span>{ESTIMATE.caption}</span> : null}
+        {estimate ? <span>{estimateCaption}</span> : null}
       </p>
       {breakdown.length > 0 ? (
         <dl className="pay-amount-breakdown">
