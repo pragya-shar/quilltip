@@ -102,14 +102,25 @@ async function stopApp(app: Awaited<ReturnType<typeof startProductionApp>>) {
     /* No process group of its own. */
   }
   app.kill()
-  for (let i = 0; i < 100; i++) {
-    const answering = await fetch(BASE_URL + '/login')
+  await waitUntilStopped(BASE_URL)
+}
+
+/**
+ * Waits until nothing answers on `baseUrl` (at most `tries` × 100 ms of
+ * answers). Each probe gives up after 1 s, so a stopping server that accepts
+ * the connection but never answers ends the wait too.
+ */
+export async function waitUntilStopped(baseUrl: string, tries = 100) {
+  for (let i = 0; i < tries; i++) {
+    const answering = await fetch(baseUrl + '/login', {
+      signal: AbortSignal.timeout(1000),
+    })
       .then(() => true)
       .catch(() => false)
     if (!answering) return
     await sleep(100)
   }
-  throw new Error(`The app on ${BASE_URL} still answers after it was stopped`)
+  throw new Error(`The app on ${baseUrl} still answers after it was stopped`)
 }
 
 async function main() {
