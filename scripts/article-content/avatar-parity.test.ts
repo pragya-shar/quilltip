@@ -29,6 +29,8 @@ const DEPLOYMENTS = [
   '',
   'not a url',
   'ftp://own-deployment-123.convex.cloud',
+  // Not http or https: no own storage, whatever the address.
+  'ws://own-deployment-123.convex.cloud',
 ]
 
 const onOrigin = (origin: string) => [
@@ -53,6 +55,9 @@ const ADDRESSES = [
   // Credentials.
   'https://user@own-deployment-123.convex.cloud/api/storage/x',
   'https://user:pass@own-deployment-123.convex.cloud/api/storage/x',
+  // A password without a user name.
+  'https://:pw@own-deployment-123.convex.cloud/api/storage/x',
+  'http://:pw@127.0.0.1:3210/api/storage/x',
   'http://user@127.0.0.1:3210/api/storage/x',
   // Another deployment, and hosts that only look like this one.
   'https://someone-else-456.convex.cloud/api/storage/x',
@@ -68,6 +73,7 @@ const ADDRESSES = [
   'https://convex.example.org/api/storage/x',
   'https://convex.example.org:8444/api/storage/x',
   'blob:https://own-deployment-123.convex.cloud/api/storage/x',
+  'ws://own-deployment-123.convex.cloud/api/storage/x',
   'data:image/png;base64,iVBORw0KGgo=',
   'javascript:alert(1)',
   '/api/storage/relative',
