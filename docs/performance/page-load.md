@@ -802,6 +802,28 @@ profile, for comparing builds on a quiet machine: TTFB, and the time until the
 first reading link (`/`, `/articles`, a writer) or the first paragraph of prose
 (an article) is on screen, with scripts delayed, blocked or off.
 
+## Link prefetches and backend reads (#630)
+
+Article and writer links in the v2 components do not prefetch
+(`prefetch={ARTICLE_LINK_PREFETCH}`, `lib/articles/linkPrefetch.ts`). Their
+pages are dynamic and have no loading boundary, so a prefetch fetched almost
+nothing a click could reuse (#597), while each one ran the proxy's route check
+and rendered the page.
+
+- A view of `/articles` with every card in view and the pointer over each link
+  makes no backend read for those links. A click makes one route check and at
+  most one article read. `bun run perf:prefetch-reads`
+  (`scripts/perf/prefetch-reads.ts`) checks this in Chromium and WebKit in the
+  Page-load Budget job, from the fixture backend's read counts.
+- The proxy keeps at most one route check in flight and one queued per path
+  (`lib/seo/oneReadAtATime.ts`). A request that arrives while a check runs
+  waits for the next one, which starts after it arrived, so an article hidden
+  in between is never seen as visible.
+- A later option, not taken: `skipProxyUrlNormalize: true` would let the proxy
+  see prefetch requests and answer them without a backend read for every
+  link, including links the new shell adds. It changes what every proxy rule
+  sees (raw URLs and the flight headers), so it needs its own tests first.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without

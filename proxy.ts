@@ -12,7 +12,8 @@ import {
   formatArticleRoute,
   formatWriterRoute,
 } from '@/lib/seo/articleRoute'
-import { countsAsOutage, publicQuery } from '@/lib/seo/publicQuery'
+import { countsAsOutage, publicQuery, ReadTimeout } from '@/lib/seo/publicQuery'
+import { oneReadAtATime } from '@/lib/seo/oneReadAtATime'
 import { readingListState } from '@/lib/seo/readingListState'
 import {
   READ_DEADLINE_HEADER,
@@ -144,6 +145,46 @@ function rememberFound(key: string) {
   recentlyFound.set(key, Date.now() + FOUND_TTL_MS)
 }
 
+/**
+ * Route checks for one path: at most one read in flight and one queued
+ * (lib/seo/oneReadAtATime.ts, #630). A request that arrives while a read
+ * runs waits for the next read, which starts after it arrived.
+ */
+const routeChecks = oneReadAtATime<RouteCheck>()
+
+/**
+ * One attempt of a request's route check: it joins its path's reads and gives
+ * up after one read limit, measured from the attempt's start, which includes
+ * the wait for a running read. A timeout is a failed attempt (ReadTimeout
+ * counts as an outage), so checkWithRetry tries once more and then declares
+ * the outage: the worst case for one request is two limits, 3 s, as for any
+ * slow check (#609).
+ */
+function routeCheckAttempt(target: {
+  username: string
+  slug?: string
+}): Promise<RouteCheck> {
+  const read = routeChecks(foundKey(target), () =>
+    publicQuery(
+      ROUTE_CHECK_TIMEOUT_MS,
+      api.publicRoutes.resolvePublicRoute,
+      target
+    )
+  )
+  // Other waiters may still use this read; this attempt has stopped waiting.
+  read.catch(() => {})
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    read,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () => reject(new ReadTimeout(ROUTE_CHECK_TIMEOUT_MS)),
+        ROUTE_CHECK_TIMEOUT_MS
+      )
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
+
 async function checkPublicContent(
   request: NextRequest
 ): Promise<RouteCheck | null> {
@@ -171,13 +212,7 @@ async function checkPublicContent(
   const key = target.slug === undefined ? foundKey(target) : null
   if (key && wasRecentlyFound(key)) return { kind: 'found' }
 
-  const check = await checkWithRetry(() =>
-    publicQuery(
-      ROUTE_CHECK_TIMEOUT_MS,
-      api.publicRoutes.resolvePublicRoute,
-      target
-    )
-  )
+  const check = await checkWithRetry(() => routeCheckAttempt(target))
   if (check === WRONG) return null
   if (check === FAILED) return { kind: 'outage' }
   if (key && check.kind === 'found') rememberFound(key)
