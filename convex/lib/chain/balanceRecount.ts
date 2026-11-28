@@ -40,6 +40,7 @@ import {
   CENTS_FIELD,
   COUNT_FIELD,
   earningsRow,
+  reservedHeld,
   reserves,
   unpaidCents,
   type Bucket,
@@ -258,7 +259,10 @@ export async function resyncWriterPage(
 /**
  * Recounts one reader's reserved cents (unpaid parts) in this mutation when
  * their receipts fit in one page; `paged` when they do not (nothing written:
- * page with `resyncReaderPage`).
+ * page with `resyncReaderPage`). Each receipt's `moneyReservedCents` is set
+ * to what it now reserves, as `recountWriter` sets the writer markers: a
+ * settlement before the writer pass then takes out exactly that, so the
+ * account is right after one run.
  */
 export async function recountReader(
   ctx: MutationCtx,
@@ -272,8 +276,12 @@ export async function recountReader(
   if (receipts.length > RECOUNT_PAGE) return 'paged'
   const paidOf = pairPaid(ctx)
   let reserved = 0
-  for (const r of receipts)
-    reserved = roundCents(reserved + (await targetOf(ctx, r, paidOf)).reserved)
+  for (const r of receipts) {
+    const target = await targetOf(ctx, r, paidOf)
+    reserved = roundCents(reserved + target.reserved)
+    if (r.moneyReservedCents !== target.reserved)
+      await ctx.db.patch(r._id, { moneyReservedCents: target.reserved })
+  }
   if (account.reservedCents !== reserved)
     await ctx.db.patch(account._id, { reservedCents: reserved, updatedAt: now })
   return receipts.length ? 'done' : 'none'
@@ -282,7 +290,7 @@ export async function recountReader(
 /**
  * One page of a reader's receipts: each moves its own difference in
  * reserved cents and records it on `moneyReservedCents`, as the live path
- * does (an unmarked receipt holds its whole cents while it reserves).
+ * does (an unmarked receipt: `reservedHeld`).
  */
 export async function resyncReaderPage(
   ctx: MutationCtx,
@@ -298,9 +306,7 @@ export async function resyncReaderPage(
   let delta = 0
   for (const r of page.page) {
     const target = await targetOf(ctx, r, paidOf)
-    const held =
-      r.moneyReservedCents ??
-      (reserves(r.moneyAppliedStatus) ? target.amountCents : 0)
+    const held = reservedHeld(r, target.amountCents)
     if (held === target.reserved && r.moneyReservedCents !== undefined) continue
     delta = roundCents(delta + target.reserved - held)
     await ctx.db.patch(r._id, { moneyReservedCents: target.reserved })

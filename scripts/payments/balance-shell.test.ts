@@ -51,6 +51,7 @@ describe('the views before the engine writes them', () => {
 
   it('shows nothing of one reader to the next', () => {
     paymentsStore.setAuth('signed-in')
+    paymentsStore.claim('reader-1')
     const ready = { status: 'ready' } as BalanceView
     paymentsStore.set({ balance: ready })
     expect(viewsOf(paymentsStore.get()).balance).toBe(ready)
@@ -134,6 +135,8 @@ describe('a press before the engine loads', () => {
     paymentsStore.register('passage', { target: lineB, meta })
     await shellController('passage').tip()
 
+    // The engine claims the store for this reader, then takes the press.
+    paymentsStore.claim('reader-1')
     const tap = paymentsStore.takeTap('passage')
     expect(tap?.target).toEqual(lineA)
     expect(tap?.cents).toBe(100)

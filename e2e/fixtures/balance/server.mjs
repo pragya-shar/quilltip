@@ -28,6 +28,10 @@ const result = await Bun.build({
         build.onResolve({ filter: /^next\/navigation$/ }, () => ({
           path: path.join(here, 'navigation.ts'),
         }))
+        // The old dashboard's section row (screen=account) links with it.
+        build.onResolve({ filter: /^next\/link$/ }, () => ({
+          path: path.join(root, 'e2e/fixtures/system/link.tsx'),
+        }))
         // The shell loads the engine through a wrapper that can delay it.
         build.onResolve({ filter: /^\.\/PaymentsEngine$/ }, (args) =>
           args.importer.endsWith('PaymentsShell.tsx')

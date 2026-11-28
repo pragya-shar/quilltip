@@ -19,19 +19,21 @@ import {
   useId,
   useSyncExternalStore,
 } from 'react'
-import { paymentsStore, type PaymentsState } from './store'
+import { tipAmount } from './money'
+import { figuresShown, paymentsStore, type PaymentsState } from './store'
 import type {
   ActivityView,
   BalanceView,
   EarningsView,
   Money,
+  OwnTipsView,
   PaymentsRuntime,
   TipController,
   TipMeta,
   TipTarget,
 } from './types'
 
-const ONE: Money = { cents: 100, display: '$1.00' }
+const ONE: Money = tipAmount(100)
 
 type Blank = 'loading' | 'signed-out' | 'unavailable'
 
@@ -85,6 +87,7 @@ const ACTIVITY: Record<Blank, ActivityView> = {
 
 const LOADING_EARNINGS: EarningsView = {
   status: 'loading',
+  isWriter: null,
   pending: null,
   available: null,
   collected: null,
@@ -101,13 +104,26 @@ const EARNINGS: Record<Blank, EarningsView> = {
   unavailable: { ...LOADING_EARNINGS, status: 'unavailable' },
 }
 
-/** The views the hooks read: the engine's, else the blank one (stable). */
-export const viewsOf = (s: PaymentsState) => ({
-  balance: s.balance ?? BALANCE[blankOf(s)],
-  readerActivity: s.readerActivity ?? ACTIVITY[blankOf(s)],
-  writerActivity: s.writerActivity ?? ACTIVITY[blankOf(s)],
-  earnings: s.earnings ?? EARNINGS[blankOf(s)],
-})
+const OWN_TIPS: Record<Blank, OwnTipsView> = {
+  loading: { status: 'loading', tips: [], complete: true },
+  'signed-out': { status: 'signed-out', tips: [], complete: true },
+  unavailable: { status: 'unavailable', tips: [], complete: true },
+}
+
+/**
+ * The views the hooks read: the engine's, else the blank one (stable). The
+ * engine's views show only while they are held for the user in this
+ * session (`figuresShown`).
+ */
+export const viewsOf = (s: PaymentsState) => {
+  const shown = figuresShown(s)
+  return {
+    balance: (shown && s.balance) || BALANCE[blankOf(s)],
+    readerActivity: (shown && s.readerActivity) || ACTIVITY[blankOf(s)],
+    writerActivity: (shown && s.writerActivity) || ACTIVITY[blankOf(s)],
+    earnings: (shown && s.earnings) || EARNINGS[blankOf(s)],
+  }
+}
 
 /**
  * The controller a control shows before the engine computed one. With no
@@ -172,7 +188,7 @@ function useShellTip(target: TipTarget, meta: TipMeta) {
     [id, target, meta]
   )
   return useStore((s) => {
-    const computed = s.tips[id]
+    const computed = figuresShown(s) ? s.tips[id] : undefined
     if (computed) return computed
     const key = `${s.shells > 0}:${s.auth}:${s.engine}:${id in s.queuedTaps}`
     const cached = shellControllers.get(id)
@@ -199,6 +215,11 @@ export const shellRuntime: PaymentsRuntime = {
     useEffect(() => paymentsStore.watch('earnings'), [])
     return useStore((s) => viewsOf(s).earnings)
   },
+  // The engine reads it for each article with a tip control on the page.
+  useOwnTips: (articleId) =>
+    useStore(
+      (s) => (figuresShown(s) && s.ownTips[articleId]) || OWN_TIPS[blankOf(s)]
+    ),
 }
 
 export const PaymentsRuntimeContext =
