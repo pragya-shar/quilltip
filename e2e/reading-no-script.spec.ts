@@ -109,7 +109,7 @@ test('/shelf: the bar is plain links with no script', async ({ page }) => {
     ['Today', '/'],
     ['Shelf', '/shelf'],
     ['Write', '/write'],
-    ['Sign in', '/login'],
+    ['Sign in', signInPathFromRoutes()],
   ] as const)
     await expect(nav.getByRole('link', { name })).toHaveAttribute('href', href)
 })
@@ -143,7 +143,7 @@ test('/pocket: with no script, the page asks to sign in, with no waiting figure'
   ).toBeVisible()
   await expect(main.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
     'href',
-    '/login'
+    signInPathFromRoutes()
   )
   await expect(main.locator('[aria-busy="true"]')).toBeHidden()
 })

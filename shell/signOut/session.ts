@@ -14,7 +14,8 @@
  *    sends a signed-out reader to sign in writes no return path
  *    (`signInHref`): the reader asked to leave, not to come back.
  */
-import { buildLoginHref } from '@/lib/auth/safeReturnPath'
+import { getSafeReturnPath } from '@/lib/auth/safeReturnPath'
+import { SIGN_IN_PATH } from '../navigation'
 import { forgetAllRememberedWallets } from '@/lib/wallet/remembered-wallet'
 import { hasAuthToken } from '../prePaint'
 import { runSignOutCleanups } from './index'
@@ -104,12 +105,13 @@ export async function signOutHere(
 }
 
 /**
- * Where a guard sends a signed-out reader: the sign-in page with the way
- * back, or with none while a sign-out runs.
+ * Where a guard sends a signed-out reader: the sign-in page (`SIGN_IN_PATH`)
+ * with the way back, or with none while a sign-out runs.
  */
 export function signInHref(
   returnPath: string,
   storage: MarkerStorage | null = null
 ): string {
-  return isSigningOut(storage) ? '/login' : buildLoginHref(returnPath)
+  if (isSigningOut(storage)) return SIGN_IN_PATH
+  return `${SIGN_IN_PATH}?returnTo=${encodeURIComponent(getSafeReturnPath(returnPath))}`
 }
