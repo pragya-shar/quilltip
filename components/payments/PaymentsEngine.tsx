@@ -663,18 +663,20 @@ export function PaymentsEngine() {
     if (!live) return
     paymentsStore.set({ tips: controllers })
     // A tap made before the engine was ready: send it once, for what was
-    // pressed (its own target, request id and amount, never raised), not
-    // for whatever the control shows now.
+    // pressed (its own target, request id and amount), not for whatever
+    // the control shows now. A press never sends an amount other than the
+    // one on the button: if the reader's ladder does not offer it, nothing
+    // is sent and the control says so (`missed`).
     for (const [id, controller] of Object.entries(controllers)) {
       if (!(id in queuedTaps)) continue
       if (!controller.ready) continue
       const tap = paymentsStore.takeTap(id, pair)
       if (!tap || controller.unavailable) continue
-      const cents = effectiveChoice(
-        tap.cents,
-        controller.amounts.map((a) => a.cents)
-      )
-      if (cents === null) continue
+      if (!controller.amounts.some((a) => a.cents === tap.cents)) {
+        paymentsStore.missTap(id)
+        continue
+      }
+      const cents = tap.cents
       const b = balanceRef.current
       const decision = tapOnce(
         phases.current,
