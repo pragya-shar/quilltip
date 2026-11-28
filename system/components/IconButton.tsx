@@ -13,11 +13,6 @@ type Common = {
   /** plain: no fill. sunk: a quiet round fill. action: the ink fill. */
   variant?: 'plain' | 'sunk' | 'action'
   loading?: boolean
-  /** Shown but not usable now, and still focusable: `aria-disabled`, a
-   * press does nothing. A string is the reason, heard after the name
-   * ("Add an image. Not available yet"). A caller's own `aria-disabled`
-   * counts too. */
-  unavailable?: boolean | string
   className?: string
   ref?: Ref<HTMLButtonElement & HTMLAnchorElement>
 }
@@ -26,9 +21,20 @@ type AsButton = Common &
   Omit<
     ButtonHTMLAttributes<HTMLButtonElement>,
     'children' | 'className' | 'aria-label'
-  > & { href?: undefined }
+  > & {
+    href?: undefined
+    /** Shown but not usable now, and still focusable: `aria-disabled`, a
+     * press does nothing. A string is the reason, heard after the name
+     * ("Add an image. Not available yet"). A caller's own `aria-disabled`
+     * counts too. Buttons only: a link that goes nowhere is not drawn. */
+    unavailable?: boolean | string
+  }
 
-type AsLink = Common & { href: string; onClick?: () => void }
+type AsLink = Common & {
+  href: string
+  onClick?: () => void
+  unavailable?: undefined
+}
 
 export type IconButtonProps = AsButton | AsLink
 

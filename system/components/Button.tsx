@@ -22,10 +22,6 @@ type Common = {
   icon?: IconGlyph
   /** Busy: the label stays (no width jump), a spinner shows, presses are ignored. */
   loading?: boolean
-  /** Shown but not usable now, and still focusable: `aria-disabled`, a
-   * press does nothing. A string is the reason, given as the button's
-   * description. A caller's own `aria-disabled` counts too. */
-  unavailable?: boolean | string
   className?: string
   children: ReactNode
   ref?: Ref<HTMLButtonElement & HTMLAnchorElement>
@@ -34,11 +30,17 @@ type Common = {
 type AsButton = Common &
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'className'> & {
     href?: undefined
+    /** Shown but not usable now, and still focusable: `aria-disabled`, a
+     * press does nothing. A string is the reason, given as the button's
+     * description. A caller's own `aria-disabled` counts too. Buttons
+     * only: a link that goes nowhere is not drawn. */
+    unavailable?: boolean | string
   }
 
 type AsLink = Common & {
   /** Renders a link that looks like a button: navigation, not an action. */
   href: string
+  unavailable?: undefined
   onClick?: () => void
   disabled?: undefined
   type?: undefined
