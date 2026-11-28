@@ -1,3 +1,33 @@
 # Paths the signin package deleted, one per line, relative to the
 # repository root (a file or a directory). Owned by that package.
 # scripts/rebuild/deleted-paths.test.ts fails if any of them exists again.
+app/(legacy)/(auth)/login
+app/(legacy)/(auth)/register
+app/(legacy)/(auth)/forgot-password
+app/(legacy)/(auth)/reset-password
+components/auth/LoginForm.tsx
+components/auth/RegisterForm.tsx
+components/auth/ForgotPasswordForm.tsx
+components/auth/ResetPasswordForm.tsx
+components/auth/AccountScreen.tsx
+components/auth/AccountScreenView.tsx
+components/auth/AccountPasswordToggle.tsx
+components/auth/PasswordRequirements.tsx
+components/auth/useAuthReturnPath.ts
+components/auth/AuthIntentHeading.tsx
+components/auth/AuthReturnLinks.tsx
+components/auth/AuthReturnLinksInner.tsx
+components/auth/AuthAlternateLink.tsx
+components/auth/AuthShellHeader.tsx
+components/auth/RegisterFormField.tsx
+components/auth/recovery.css
+lib/auth/map-register-error.ts
+lib/auth/postAuthNavigation.ts
+lib/auth/prototypeSignup.ts
+lib/auth/register-form-a11y.ts
+lib/auth/auth-links.ts
+lib/copy/auth-intent.ts
+e2e/password-reset.spec.ts
+lib/validations/auth.ts
+e2e/intent-chooser-retirement.spec.ts
+e2e/profile-setup.spec.ts
