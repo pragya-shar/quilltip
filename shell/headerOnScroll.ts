@@ -13,7 +13,8 @@
  * - At the top and at the end of the page it shows.
  * - While a pointer is down with text selected (a selection being dragged),
  *   it does not show: it would cover the handles.
- * - Focus inside it shows it, whatever the scroll.
+ * - Focus inside it shows it, whatever the scroll, at once and with
+ *   nothing to scroll into view: the page stays where it was.
  */
 export const DOWN_PX = 8
 /** With no `scrollend` event: how long the page must stay still after a
@@ -61,14 +62,15 @@ export function createHeaderOnScroll() {
 /** Past this scroll the header carries the screen's title. */
 export const TITLE_AFTER_PX = 140
 
-const SCROLL_KEYS = new Set([
-  'ArrowUp',
-  'ArrowDown',
-  'PageUp',
-  'PageDown',
-  'Home',
-  'End',
-  ' ',
+/** The keys that scroll the page, and the way each one goes (-1 up). */
+const SCROLL_KEYS = new Map([
+  ['ArrowUp', -1],
+  ['ArrowDown', 1],
+  ['PageUp', -1],
+  ['PageDown', 1],
+  ['Home', -1],
+  ['End', 1],
+  [' ', 1],
 ])
 
 /**
@@ -95,11 +97,23 @@ export function watchHeader(
       on ? `${Math.round(node.offsetHeight)}px` : '0px'
     )
   }
-  // Where the page was at its last scroll event: a focus moved into the
-  // header scrolls nothing (WebKit reveals a control by its slid-away box).
+  // Where the page was at its last scroll event, and where focus coming
+  // into the header found it.
   let seenY = window.scrollY
+  let pinned: number | null = null
   const onScroll = () => {
     const y = window.scrollY
+    // A browser that still scrolled to reveal the focused control (it
+    // should find nothing to scroll): put the page back, once. Never
+    // during the reader's own gesture.
+    if (pinned !== null && !gesturing) {
+      const keep = pinned
+      pinned = null
+      if (Math.round(y) !== Math.round(keep)) {
+        window.scrollTo(0, keep)
+        return
+      }
+    }
     seenY = y
     report.titled(y > TITLE_AFTER_PX)
     publish(
@@ -127,6 +141,7 @@ export function watchHeader(
     delete node.dataset.scrolling
   }
   const intent = () => {
+    pinned = null
     clearTimeout(quiet)
     if (gesturing) return
     gesturing = true
@@ -140,13 +155,29 @@ export function watchHeader(
   publish(true)
   window.addEventListener('scroll', onScroll, passive)
   if (hasScrollEnd) window.addEventListener('scrollend', endGesture, passive)
-  window.addEventListener('wheel', intent, passive)
+  // An input that cannot scroll the page (up at the top, down at the end,
+  // or sideways) is no gesture: it would stay open with no scroll to end it.
+  const canScroll = (way: number) =>
+    way < 0
+      ? window.scrollY > 0
+      : way > 0 && window.scrollY < root.scrollHeight - window.innerHeight - 1
+  window.addEventListener(
+    'wheel',
+    (event) => {
+      if (canScroll(Math.sign(event.deltaY))) intent()
+    },
+    passive
+  )
   window.addEventListener('touchmove', intent, passive)
   window.addEventListener(
     'keydown',
     (event) => {
-      if (SCROLL_KEYS.has(event.key)) intent()
-      else endGesture()
+      const way = SCROLL_KEYS.get(event.key)
+      if (way === undefined) {
+        pinned = null
+        endGesture()
+      } else if (canScroll(event.key === ' ' && event.shiftKey ? -1 : way))
+        intent()
     },
     { signal: stop.signal }
   )
@@ -166,6 +197,7 @@ export function watchHeader(
     'pointerdown',
     () => {
       pointerDown = true
+      pinned = null
       // A press is not a scroll: a scroll it causes (an anchor) is not
       // the reader's gesture.
       endGesture()
@@ -177,13 +209,18 @@ export function watchHeader(
   node.addEventListener(
     'focusin',
     () => {
-      const keep = seenY
+      // Back in the same step as the focus, with no slide, before the
+      // browser looks for the control: its box is where it is drawn, in
+      // view, so there is nothing to scroll.
+      if (node.hasAttribute('data-hidden')) {
+        node.dataset.revealing = ''
+        node.removeAttribute('data-hidden')
+        void node.offsetHeight
+        requestAnimationFrame(() => delete node.dataset.revealing)
+      }
+      pinned = seenY
       model.focus(true)
       publish(true)
-      requestAnimationFrame(() => {
-        if (Math.round(window.scrollY) !== Math.round(keep))
-          window.scrollTo(0, keep)
-      })
     },
     { signal: stop.signal }
   )
@@ -191,6 +228,7 @@ export function watchHeader(
     'focusout',
     (event) => {
       if (node.contains(event.relatedTarget as Node | null)) return
+      pinned = null
       model.focus(false)
       onScroll()
     },

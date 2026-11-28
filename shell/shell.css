@@ -189,16 +189,27 @@
    * brings it back. */
   /* Focus on a control in the header (Shift+Tab from the page) needs no
    * scroll: the header is at the top already, and shows on focus. Without
-   * this the page's scroll-padding-top moves the page by its own room. */
+   * this the page's scroll-padding-top (its own room and the header's
+   * height) would move the page by that much. */
   .qt-pushed__header * {
     scroll-margin-block-start: calc(
-      -1 * (var(--qt-safe-top) + var(--qt-space-4))
+      -1 *
+        (
+          var(--qt-safe-top) + var(--qt-space-4) +
+            var(--qt-pushed-header-h, 0px)
+        )
     );
   }
   .qt-pushed__header[data-hidden] {
     transform: translateY(-100%);
     transition-duration: 200ms;
     pointer-events: none;
+  }
+  /* Focus came in while it was hidden: it is back at once, in the same step,
+   * so the control's box is where it is drawn and the browser has nothing
+   * to scroll into view. */
+  .qt-pushed__header[data-revealing] {
+    transition: none;
   }
   .qt-pushed__title {
     flex: 1;
