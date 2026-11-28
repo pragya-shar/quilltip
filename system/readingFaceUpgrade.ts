@@ -23,6 +23,13 @@ import { readingStack } from './readingStack'
 type PairName = keyof ReadingFaceUpgrade['pairs']
 
 let data: ReadingFaceUpgrade | null | undefined
+
+/** For tests: forget the loaded faces and the data. */
+export function resetReadingFaces() {
+  loaded.clear()
+  data = undefined
+  started = false
+}
 function faces(): ReadingFaceUpgrade | null {
   if (data !== undefined) return data
   try {
@@ -102,9 +109,23 @@ export function prepareReadingFaces() {
 }
 
 /**
- * At a change of page, before it paints: lead each reading variable with
- * the second names that loaded. Called only when no sheet or panel is on
- * screen, so nothing visible changes face. Returns whether it changed one.
+ * The shell's call at each commit of a page (SheetHost, before it paints):
+ * the faces switch only at a change of path, and only with no sheet or
+ * panel on screen, whose text would change face where the reader sees it
+ * (the next change of page does it). Returns whether a variable changed.
+ */
+export function upgradeAtPageChange(
+  pathChanged: boolean,
+  sheetsOnScreen: boolean
+): boolean {
+  if (!pathChanged || sheetsOnScreen) return false
+  return upgradeReadingFaces()
+}
+
+/**
+ * Lead each reading variable with the second names that loaded; a face
+ * whose second name has not loaded keeps its first name. Returns whether it
+ * changed one.
  */
 export function upgradeReadingFaces(): boolean {
   const known = faces()

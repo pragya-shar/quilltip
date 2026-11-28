@@ -6,7 +6,7 @@ import { Sheet } from '@/system/components/Sheet'
 import { watchInputModality } from '@/system/inputModality'
 import {
   prepareReadingFaces,
-  upgradeReadingFaces,
+  upgradeAtPageChange,
 } from '@/system/readingFaceUpgrade'
 import { appHistory } from './appHistory'
 import { firstPage } from './firstPage'
@@ -47,8 +47,7 @@ export function SheetHost() {
   const sheetsOnScreen = useRef(entries.length > 0)
   sheetsOnScreen.current = entries.length > 0
   useLayoutEffect(() => {
-    if (pathname !== lastPath.current && !sheetsOnScreen.current)
-      upgradeReadingFaces()
+    upgradeAtPageChange(pathname !== lastPath.current, sheetsOnScreen.current)
   }, [pathname])
   useEffect(() => prepareReadingFaces(), [pathname])
   useEffect(() => {
