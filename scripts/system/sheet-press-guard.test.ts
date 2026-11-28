@@ -225,11 +225,17 @@ describe('the hold', () => {
     // leaves the DOM, before React's passive effects run.
     const env = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
     env.IS_REACT_ACT_ENVIRONMENT = false
-    const settle = () => new Promise((done) => setTimeout(done, 30))
+    // Waits for a state, never for a fixed time (a loaded machine is slow).
+    const until = async (ok: () => boolean) => {
+      const end = Date.now() + 5000
+      while (!ok()) {
+        if (Date.now() > end) throw new Error('The state never came')
+        await new Promise((done) => setTimeout(done, 5))
+      }
+    }
     try {
       root.render(createElement(Modals, { kind: 'sheet' }))
-      await settle()
-      expect(document.querySelector('dialog[open]')).not.toBeNull()
+      await until(() => document.querySelector('dialog[open]') !== null)
       resetPresses()
       later(PRESS_HOLD_MS + 1)
       let clickedAtRemoval = false
@@ -246,7 +252,7 @@ describe('the hold', () => {
       })
       observer.observe(host, { childList: true, subtree: true })
       root.render(null)
-      await settle()
+      await until(() => clickedAtRemoval)
       observer.disconnect()
       expect(clickedAtRemoval).toBe(true)
       expect(pagePresses).toBe(0)

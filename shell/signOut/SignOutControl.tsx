@@ -4,13 +4,7 @@ import { useRef, useState } from 'react'
 import { Button } from '@/system/components/Button'
 import { Dialog } from '@/system/components/Dialog'
 import { browserStorage } from '@/lib/wallet/remembered-wallet'
-import {
-  SIGN_OUT_BEFORE,
-  WARNING_LIMIT_MS,
-  runBeforeSignOut,
-  signOutWarnings,
-  type SignOutWarning,
-} from './index'
+import { WARNING_LIMIT_MS, signOutWarnings, type SignOutWarning } from './index'
 import { signOutHere } from './session'
 import { useSignOutViewer, type SignOutViewer } from './viewer'
 
@@ -69,14 +63,7 @@ export function SignOutControl({
   const leave = async () => {
     setLeaving(true)
     try {
-      await signOutHere(
-        signOut,
-        browserStorage(),
-        undefined,
-        SIGN_OUT_BEFORE.length > 0
-          ? () => runBeforeSignOut(undefined, { userId: who.current })
-          : null
-      )
+      await signOutHere(signOut, browserStorage(), { userId: who.current })
       onSignedOut?.()
     } finally {
       setLeaving(false)

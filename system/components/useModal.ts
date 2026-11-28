@@ -125,9 +125,18 @@ export function useModal(
           : at + 1
       items[next]?.focus()
     }
+    // The visible area, above the on-screen keyboard
+    // (system/components/modalViewport.ts), loaded when a modal opens.
+    let unfit: (() => void) | undefined
+    let gone = false
+    void import('./modalViewport').then(({ fitToViewport }) => {
+      if (!gone) unfit = fitToViewport(dialog)
+    })
     dialog.addEventListener('cancel', onCancel)
     dialog.addEventListener('keydown', onKey)
     return () => {
+      gone = true
+      unfit?.()
       dialog.removeEventListener('cancel', onCancel)
       dialog.removeEventListener('keydown', onKey)
       openCount -= 1

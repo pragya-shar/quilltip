@@ -9,7 +9,20 @@
  */
 export type SignOutCleanup = {
   name: string
-  run: () => void | Promise<void>
+  run: (after: SignOutAfter) => void | Promise<void>
+}
+
+/** What the cleanups learn about the sign-out that just ran. */
+export type SignOutAfter = {
+  /**
+   * The names of the actions before sign-out that did not finish on this
+   * page (they threw or ran past the limit): a package marks that work
+   * "not confirmed" and tries again at the next sign-in. Empty when every
+   * action finished, when none ran (no session token held), and when the
+   * cleanups run on a later page (a page change mid sign-out, another tab,
+   * a legacy page), which cannot know.
+   */
+  unfinished: readonly string[]
 }
 
 /**
@@ -30,10 +43,13 @@ export type SignOutAction = {
   run: (who: SignOutWho) => Promise<void>
 }
 
-/** Who is signing out, given to every warning check. */
+/** Who is signing out, given to every warning check and every action
+ * before sign-out. */
 export type SignOutWho = {
   /** The signed-in user's id, asked when the sign-out starts; null when it
-   * is not known (no answer in time, or no one signed in). */
+   * is not known (no answer in time, or no one signed in). A check or an
+   * action that gets null does nothing rather than guess whose things to
+   * act on: a check answers null, an action returns at once. */
   userId: string | null
 }
 

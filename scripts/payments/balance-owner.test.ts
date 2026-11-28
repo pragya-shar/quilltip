@@ -149,7 +149,9 @@ describe('the last reader’s figures', () => {
   it('go on sign-out, with whether the last person writes', async () => {
     detaches.push(readerA())
     writerMemory.set(A, true)
-    await Promise.all(cleanups.map((cleanup) => cleanup.run()))
+    await Promise.all(
+      cleanups.map((cleanup) => cleanup.run({ unfinished: [] }))
+    )
     expect(paymentsStore.get().auth).toBe('signed-out')
     expect(shown()).toEqual({ balance: null, earnings: null })
     expect(writerMemory.get(A)).toBeNull()
