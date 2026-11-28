@@ -4,13 +4,21 @@ import { ArrowRight } from 'lucide-react'
 import type { TipActivityItem } from '@/lib/account/tipActivity'
 import {
   recordedUsd,
+  shownTipStatus,
   TipReceiptDialog,
   tipGenerationLabel,
   tipStatusLabel,
 } from './TipReceiptDialog'
 
 type Filter = 'all' | 'received' | 'sent'
-export function WalletTipHistory({ items }: { items: TipActivityItem[] }) {
+export function WalletTipHistory({
+  items,
+  readerTabShort = false,
+}: {
+  items: TipActivityItem[]
+  /** The reader's open tab is short: their accepted tab tips wait (#643). */
+  readerTabShort?: boolean
+}) {
   const [filter, setFilter] = useState<Filter>('all')
   const [limit, setLimit] = useState(20)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -81,7 +89,10 @@ export function WalletTipHistory({ items }: { items: TipActivityItem[] }) {
                     ? item.direction === 'sent'
                       ? 'Sent'
                       : 'Received'
-                    : tipStatusLabel(item.status, item.mismatchReason)}
+                    : tipStatusLabel(
+                        shownTipStatus(item, readerTabShort),
+                        item.mismatchReason
+                      )}
                 </span>
                 {tipGenerationLabel(item) ? (
                   <span>{tipGenerationLabel(item)}</span>
@@ -134,6 +145,7 @@ export function WalletTipHistory({ items }: { items: TipActivityItem[] }) {
         item={selected}
         onClose={() => setSelectedKey(null)}
         returnFocusTo={returnFocusTo}
+        readerTabShort={readerTabShort}
       />
     </section>
   )

@@ -240,6 +240,13 @@ stays for an hour means a `TabSettled` the indexer has not applied.
    amount it would mark as indexed. Add `"keyId"` and `"writer"` to limit
    it to one pair.
 
+   The RPC reads the contract only at the newest ledger, and the indexer
+   applies the newest ledger once a minute. So the command waits until the
+   indexer has applied the ledger it read: up to 2.5 minutes in all,
+   usually under one. If the account changes in the meantime (`CHANGED`,
+   `STALE_READ`), it reads again, up to 3 times. The checks below do not
+   change.
+
 3. Apply, with a note for the record:
 
    ```bash
@@ -256,10 +263,10 @@ It refuses, and writes nothing, when it cannot prove the release:
 
 | Refusal            | Meaning and next step                                                                                                                                                                                       |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `CHANGED`          | The account changed between the snapshot and the write (a tip or an event). Run it again.                                                                                                                   |
-| `INDEXER_BEHIND`   | The indexer has not applied the ledger the chain was read at. Wait, or fix the indexer.                                                                                                                     |
+| `CHANGED`          | The account changed between the snapshot and the write (a tip or an event) on each of 3 reads. Run it again when the account is quiet.                                                                      |
+| `INDEXER_BEHIND`   | The indexer did not apply the ledger the chain was read at within 2.5 minutes, or it is stopped. Check `/ops/chain` and fix the indexer.                                                                    |
 | `EVENTS_UNHANDLED` | A Tab event for this reader at or before that ledger is `pending` or `error`. Dispatch it first (`chain/indexer:redispatch`).                                                                               |
-| `STALE_READ`       | The stored balance, or a settlement debit applied to it, comes from after the ledger read. Run it again.                                                                                                    |
+| `STALE_READ`       | The stored balance, or a settlement debit applied to it, comes from after the ledger read, on each of 3 reads (an RPC node behind the indexer). Run it again.                                               |
 | `MISSING_READ`     | A pair in the snapshot has no row or no chain read (the pair list changed). Run it again.                                                                                                                   |
 | `MISMATCH_PAID`    | The contract shows less paid than stored. Do not correct by hand: review the pair's settlements.                                                                                                            |
 | `BALANCE_MISMATCH` | The difference between the stored and on-chain balance is not explained by the unindexed payments (for example, a lost deposit or withdrawal event). Backfill the missing range instead, then run it again. |

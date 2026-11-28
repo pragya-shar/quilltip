@@ -57,6 +57,22 @@ export function tipGenerationLabel(
     : null
 }
 
+/**
+ * The status to show for a row. An accepted tab tip that its reader sent
+ * from a short tab waits for a top-up, like one a settlement attempt has
+ * parked (#643), so it shows as SHORTFALL. Writers' rows are unchanged.
+ */
+export function shownTipStatus(
+  item: Pick<TipActivityItem, 'status' | 'direction'>,
+  readerTabShort = false
+): string {
+  return readerTabShort &&
+    item.direction === 'sent' &&
+    item.status === 'ACCEPTED'
+    ? 'SHORTFALL'
+    : item.status
+}
+
 /** What a receipt says about a row that is not a confirmed payment. */
 export function receiptStatusNote(
   item: Pick<TipActivityItem, 'status' | 'mismatchReason'> & {
@@ -107,11 +123,16 @@ export function TipReceiptDialog({
   item,
   onClose,
   returnFocusTo,
+  readerTabShort = false,
 }: {
   item: TipActivityItem | null
   onClose: () => void
   returnFocusTo?: HTMLElement | null
+  /** The reader's open tab is short (`tabIsShort`, #643). */
+  readerTabShort?: boolean
 }) {
+  const status = item ? shownTipStatus(item, readerTabShort) : null
+  const note = item && status ? receiptStatusNote({ ...item, status }) : null
   const network =
     item?.stellarNetwork === 'MAINNET'
       ? 'public'
@@ -137,7 +158,7 @@ export function TipReceiptDialog({
         >
           <DialogTitle>Tip receipt</DialogTitle>
           <DialogDescription className="account-muted">
-            {tipStatusLabel(item.status, item.mismatchReason)} ·{' '}
+            {tipStatusLabel(status!, item.mismatchReason)} ·{' '}
             {new Date(item.createdAt).toLocaleDateString('en-US', {
               dateStyle: 'long',
             })}
@@ -169,7 +190,7 @@ export function TipReceiptDialog({
             )}
             <div>
               <dt>Status</dt>
-              <dd>{tipStatusLabel(item.status, item.mismatchReason)}</dd>
+              <dd>{tipStatusLabel(status!, item.mismatchReason)}</dd>
             </div>
             {tipGenerationLabel(item) && (
               <div>
@@ -191,9 +212,7 @@ export function TipReceiptDialog({
               </div>
             )}
           </dl>
-          {receiptStatusNote(item) && (
-            <p className="account-muted">{receiptStatusNote(item)}</p>
-          )}
+          {note && <p className="account-muted">{note}</p>}
           {item.failureReason && (
             <p className="account-notice">{item.failureReason}</p>
           )}

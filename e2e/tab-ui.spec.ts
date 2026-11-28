@@ -52,6 +52,10 @@ const EXPECT: Record<string, string | RegExp> = {
   'home-settlement-off-open': 'Quick tips are paused on Stellar testnet',
   'home-closing': /Your balance unlocks around/,
   'home-short': 'Your tab is short',
+  'wallet-short': 'Waiting for balance',
+  'wallet-funded': 'Settling',
+  'wallet-zero': 'Settling',
+  'wallet-short-tab-loading': 'Loading your tips…',
   'home-withdraw-ready': 'Your balance is ready to withdraw',
   'home-closed': 'Your tab is closed',
   'key-none': 'Quick tips aren’t set up on this device',
@@ -507,6 +511,119 @@ test('recent tab tips label every receipt status', async ({ page }) => {
     'Cleared by reset',
   ])
 })
+
+// --- Accepted tips on a short tab (#643) --------------------------------------
+// While the tab is short, an accepted tip waits for a top-up: it reads like a
+// parked one, with no amount or time. The WebKit project runs this block too
+// (its name matches "keyboard and screen readers").
+
+const WAITING = 'Waiting for balance'
+const TIMED = 'Settles at 5 XLM to this writer, or after 6 hours'
+const ACCEPTED_TITLE = 'The quiet economics of attention'
+const SETTLED_TITLE = 'Why marginalia matter'
+
+for (const width of [375, 1440]) {
+  test.describe(`short-tab wording at ${width}px, keyboard and screen readers`, () => {
+    test.use({ viewport: { width, height: 900 } })
+
+    test('a short tab: the accepted tip waits for a top-up, the settled one is settled', async ({
+      page,
+    }) => {
+      await open(page, 'home-short')
+      const accepted = page
+        .locator('.tab-tip-row')
+        .filter({ hasText: ACCEPTED_TITLE })
+      await expect(accepted.locator('.pay-status')).toHaveText(WAITING)
+      expect(await accepted.ariaSnapshot()).toContain(WAITING)
+      const history = page.locator(
+        'section[aria-labelledby="tab-history-title"]'
+      )
+      expect(await history.ariaSnapshot()).not.toContain(TIMED)
+      await expect(history.getByText(TIMED)).toHaveCount(0)
+      await expect(
+        page
+          .locator('.tab-tip-row')
+          .filter({ hasText: SETTLED_TITLE })
+          .locator('.pay-status')
+      ).toHaveText('Settled')
+    })
+
+    test('a funded tab: the accepted tip keeps its settling time', async ({
+      page,
+    }) => {
+      await open(page, 'home-open')
+      const accepted = page
+        .locator('.tab-tip-row')
+        .filter({ hasText: ACCEPTED_TITLE })
+      await expect(accepted.locator('.pay-status')).toHaveText('Settling')
+      expect(await accepted.ariaSnapshot()).toContain(TIMED)
+      // In this state the settled tip is the second row.
+      await expect(
+        page
+          .locator('.tab-tip-row')
+          .filter({ hasText: 'Notes on slow reading' })
+          .locator('.pay-status')
+      ).toHaveText('Settled')
+    })
+
+    for (const [id, label, note] of [
+      [
+        'wallet-short',
+        WAITING,
+        'This tip is recorded, but the tab ran short. It settles after the next top-up.',
+      ],
+      [
+        'wallet-funded',
+        'Settling',
+        `Sent from a tab and not settled yet. ${TIMED}.`,
+      ],
+      // Available exactly 0: the tab covers its tips, so it is not short.
+      [
+        'wallet-zero',
+        'Settling',
+        `Sent from a tab and not settled yet. ${TIMED}.`,
+      ],
+    ] as const) {
+      test(`${id}: the history row and its receipt agree`, async ({ page }) => {
+        await open(page, id)
+        const row = page
+          .locator('.account-tip-row')
+          .filter({ hasText: ACCEPTED_TITLE })
+        await expect(row).toContainText(label)
+        await row.getByRole('button', { name: /^Receipt for/ }).press('Enter')
+        const receipt = page.getByRole('dialog', { name: 'Tip receipt' })
+        await expect(receipt).toBeVisible()
+        const tree = await receipt.ariaSnapshot()
+        expect(tree).toContain(label)
+        expect(tree).toContain(note)
+        if (id === 'wallet-short') expect(tree).not.toContain(TIMED)
+        await page.keyboard.press('Escape')
+        await expect(receipt).toBeHidden()
+        const settled = page
+          .locator('.account-tip-row')
+          .filter({ hasText: SETTLED_TITLE })
+        await expect(settled).toContainText('Settled')
+      })
+    }
+
+    test('while the tab is still loading, the history waits and shows no timed wording', async ({
+      page,
+    }) => {
+      await open(page, 'wallet-short-tab-loading')
+      const loading = page.getByRole('status').filter({
+        hasText: 'Loading your tips…',
+      })
+      await expect(loading).toBeVisible()
+      // The tips are known; only the tab is not. Nothing renders early.
+      await page.waitForTimeout(500)
+      await expect(page.locator('.account-tip-row')).toHaveCount(0)
+      await expect(page.getByText(/Settles at 5 XLM/)).toHaveCount(0)
+      expect(await page.locator('.tab-ui').ariaSnapshot()).not.toContain(
+        'Settles at 5 XLM'
+      )
+    })
+  })
+}
 
 test('Read more links have a 44px hit area at 375px', async ({ page }) => {
   await page.setViewportSize({ width: 375, height: 900 })
