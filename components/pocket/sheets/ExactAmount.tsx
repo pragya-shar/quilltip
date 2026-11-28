@@ -4,7 +4,6 @@ import '../pocket.css'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TestnetNote } from '@/system/components/TestnetNote'
 import type { SheetBodyProps } from '@/shell/sheets/types'
-import { notePress } from './notePress'
 import { usePocketSource } from '@/lib/pocket/source'
 
 /**
@@ -23,14 +22,14 @@ export default function ExactAmountBody(_: SheetBodyProps<unknown>) {
       : null
   if (!exact)
     return (
-      <div className="qt-pocket__sheet" onPointerDownCapture={notePress}>
+      <div className="qt-pocket__sheet">
         <p className="qt-pocket__plain">
           The exact amount cannot be shown right now.
         </p>
       </div>
     )
   return (
-    <div className="qt-pocket__sheet" onPointerDownCapture={notePress}>
+    <div className="qt-pocket__sheet">
       <p className="qt-pocket__token-figure">
         {source.format.token(exact.available)}
       </p>

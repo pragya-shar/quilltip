@@ -5,7 +5,6 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TextLink } from '@/system/components/TextLink'
 import { sheetStack } from '@/shell/sheetStack'
 import type { SheetBodyProps } from '@/shell/sheets/types'
-import { notePress } from './notePress'
 import { usePocketSource } from '@/lib/pocket/source'
 import type { ActivityItem } from '@/lib/pocket/types'
 import { recordHref, rowWords, whenLong } from '../copy'
@@ -38,7 +37,7 @@ export default function ReceiptBody({
   const accepted = item.status !== 'sending'
   const token = item.exact ? (reader ? item.exact.gross : item.exact.net) : null
   return (
-    <div className="qt-pocket__receipt" onPointerDownCapture={notePress}>
+    <div className="qt-pocket__receipt">
       <div className="qt-pocket__slip">
         <MoneyFigure
           value={rowAmount(item)}

@@ -684,9 +684,23 @@ test.describe('receipts and money sheets', () => {
     const add = page.getByRole('button', { name: 'Add money' })
     await press(add)
     const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await press(sheet.getByRole('button', { name: 'Add $10' }))
+    // The act changes the sheet in place (its button becomes the status,
+    // then the result and Done below it): a double press on it starts it
+    // once, and the second press never reaches Done.
+    const act = (await sheet
+      .getByRole('button', { name: 'Add $10' })
+      .boundingBox())!
+    const actAt = () => {
+      const x = act.x + act.width / 2
+      const y = act.y + act.height / 2
+      return hasTouch() ? page.touchscreen.tap(x, y) : page.mouse.click(x, y)
+    }
+    await actAt()
+    await actAt()
     const done = sheet.getByRole('button', { name: 'Done' })
     await expect(done).toBeVisible()
+    await expect(sheet).toBeVisible()
+    await expect(sheet.getByText('$10 added to your balance')).toHaveCount(1)
     const beforeDone = await under()
     await twice(done, sheet)
     expect(await under()).toBe(beforeDone)
