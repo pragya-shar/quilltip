@@ -131,6 +131,10 @@ export function TipControl({
   // Safari a press on plain text leaves focus there too, and the control
   // must not pull it back.
   const owned = useRef(false)
+  // A press that began inside the control. Safari moves focus to the
+  // nearest focusable box (the page's main) when a button that takes no
+  // focus is pressed, before its click: that blur is not focus leaving.
+  const pressingInside = useRef(false)
   const wasBusy = useRef(false)
   const amountButton = useRef<HTMLButtonElement>(null)
   const tipButton = useRef<HTMLButtonElement>(null)
@@ -193,10 +197,24 @@ export function TipControl({
   useEffect(() => {
     // A press anywhere else takes focus back from the control.
     const onDown = (event: PointerEvent) => {
-      if (!root.current?.contains(event.target as Node)) owned.current = false
+      const inside = Boolean(root.current?.contains(event.target as Node))
+      pressingInside.current = inside
+      if (!inside) owned.current = false
+    }
+    // Cleared after the press's click has run.
+    const onEnd = () => {
+      window.setTimeout(() => {
+        pressingInside.current = false
+      }, 0)
     }
     document.addEventListener('pointerdown', onDown, true)
-    return () => document.removeEventListener('pointerdown', onDown, true)
+    document.addEventListener('click', onEnd, true)
+    document.addEventListener('pointercancel', onEnd, true)
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true)
+      document.removeEventListener('click', onEnd, true)
+      document.removeEventListener('pointercancel', onEnd, true)
+    }
   }, [])
 
   // Escape ends a hold while focus is in the control (the hold puts it on
@@ -285,6 +303,7 @@ export function TipControl({
         owned.current = true
       }}
       onBlur={(event) => {
+        if (pressingInside.current) return
         const outside =
           event.relatedTarget !== null &&
           !event.currentTarget.contains(event.relatedTarget)
