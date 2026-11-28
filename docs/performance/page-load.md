@@ -738,7 +738,7 @@ secrets:
 1. Build with `NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299`.
 2. The script starts a stand-in for the public queries on port 3299, serving
    synthetic data (`scripts/perf/convex-fixture.ts`), and `next start` on
-   port 3199.
+   `PERF_APP_PORT` or a free port. See [Starting the app](#starting-the-app).
 3. For each route it reads the server HTML, then loads the page in Chromium on
    mobile (Slow 4G and 4x CPU applied through the DevTools protocol) and on
    desktop: one unmeasured warm-up load, then three measured loads.
@@ -788,6 +788,43 @@ secrets:
 The same CI job first runs `bun run perf:first-load`, which budgets each
 route's first-load JavaScript and refuses wallet, SDK and contract code there.
 See [First-load JavaScript](#first-load-javascript).
+
+### Starting the app
+
+The perf checks, `bun run test:e2e:csp`, `bun run test:e2e:early-taps` and the
+sign-in suite (`bun run test:e2e:auth`) start `next start` through one helper,
+`scripts/perf/production-app.ts`. It:
+
+1. uses the port in the check's variable (`PERF_APP_PORT`, `CSP_APP_PORT`,
+   `EARLY_TAPS_APP_PORT` or `AUTH_E2E_PORT`), or a free port;
+2. stops when that port already answers, when `next start` exits before it
+   answers, when the server serves another build than `.next/BUILD_ID`, or
+   when the app does not answer at `localhost`, where Next.js requests its
+   own rewrites;
+3. for a check with the fixture backend, stops unless the app queries that
+   backend;
+4. gives each request to the starting app 2 s, and stops the app's whole
+   process group when the check ends, fails, or gets SIGINT or SIGTERM.
+
+With `PERF_BASE_URL` set, `perf:budget`, `perf:font-fallbacks` and
+`perf:unpublish-refresh` start no app and use the server at that address. The
+sign-in suite always starts its own.
+
+#### Two checks at once
+
+Each check takes a free app port, so two checks on one machine do not share
+an app. The fixture backend's address is part of the build
+(`NEXT_PUBLIC_CONVEX_URL`), so two checks with a fixture backend need two
+builds, each in its own checkout, for two backend ports. Give each check the
+port its build uses in `PERF_CONVEX_PORT`:
+
+```bash
+NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3301 bun run build
+PERF_CONVEX_PORT=3301 bun run perf:unpublish-refresh
+```
+
+A check whose `PERF_CONVEX_PORT` is not the backend port of its build stops
+with that reason before it measures.
 
 ### Why LCP time is not gated
 

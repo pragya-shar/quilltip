@@ -10,6 +10,8 @@ export default defineConfig({
       'scripts/profile/*.test.ts',
       // Protected-route auth gate (lib/auth/sessionConfirmation).
       'scripts/auth/*.test.ts',
+      // The sign-in suite's runner: start-up and stop (scripts/auth-e2e/run.ts).
+      'scripts/auth-e2e/*.test.ts',
       'scripts/health/*.test.ts',
       'scripts/wallet/*.test.ts',
       'scripts/stellar/*.test.ts',

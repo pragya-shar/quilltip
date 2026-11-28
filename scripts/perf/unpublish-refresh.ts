@@ -7,6 +7,9 @@
 //   NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
 //   bun run perf:unpublish-refresh
 //
+// The app runs on PERF_APP_PORT, or a free port, and the fixture backend on
+// PERF_CONVEX_PORT (3299), through scripts/perf/production-app.ts.
+//
 // Each article is first loaded twice, so its copy is cached and the proxy has
 // seen it. Then, well inside the cache time, on a full page load and on a
 // client navigation (an RSC request):
@@ -34,12 +37,16 @@ import {
 import { ARTICLE_ROUTE_HEADER } from '../../lib/seo/articleRoute'
 import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
 import { fixtureBackendBehaviour, startFixtureBackend } from './fixture-backend'
-import { startProductionApp } from './production-app'
+import {
+  fixtureBackendPort,
+  perfPort,
+  startProductionApp,
+} from './production-app'
 import { READING } from './no-script-reading'
 
-const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
-const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
-const BASE_URL = `http://127.0.0.1:${APP_PORT}`
+const CONVEX_PORT = fixtureBackendPort()
+const APP_PORT = await perfPort('PERF_APP_PORT')
+const BASE_URL = process.env.PERF_BASE_URL ?? `http://127.0.0.1:${APP_PORT}`
 /** The cache time in lib/seo/publicContent.ts. */
 const CACHE_SECONDS = 60
 
@@ -160,9 +167,10 @@ async function main() {
     force: true,
   })
   const backend = startFixtureBackend(CONVEX_PORT)
-  const app = await startProductionApp(APP_PORT, BASE_URL)
-  started = Date.now()
+  let app: Awaited<ReturnType<typeof startProductionApp>>
   try {
+    app = await startProductionApp(APP_PORT, BASE_URL, { backend })
+    started = Date.now()
     // Unpublished, then published again.
     const hidden = fixtureArticlePath(4)
     await warm('unpublish', hidden)
