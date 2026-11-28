@@ -22,6 +22,8 @@ import path from 'path'
 import { gzipSync } from 'zlib'
 import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
+import { SURFACE_PAGE_LOAD } from './routes'
+import type { PageLoadRoute } from './routes/types'
 import { startProductionApp } from './production-app'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -43,7 +45,7 @@ const OUTPUT = process.env.PERF_OUTPUT ?? 'perf-budget-results.json'
  * - `fontKb`: compressed fonts the page requests, the larger of mobile and
  *   desktop. The smallest face is 12 KB.
  */
-const ROUTES = [
+const ROUTES: readonly PageLoadRoute[] = [
   {
     name: 'landing',
     path: '/',
@@ -68,7 +70,9 @@ const ROUTES = [
     // Measured: HTML 40 KB, stylesheets 26 KB, fonts 98 KB.
     budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
   },
-] as const
+  // The rebuilt routes, one file per package (scripts/perf/routes).
+  ...SURFACE_PAGE_LOAD,
+]
 
 type DeviceName = 'mobile' | 'desktop'
 
@@ -143,6 +147,8 @@ type Run = {
   scriptKb: number
   cssKb: number
   fontKb: number
+  /** Each font file the page loaded, with its size. */
+  fontFiles: string[]
   lateScriptKb: number
   lcpElement: string
   lcpInServerHtml: boolean
@@ -231,7 +237,7 @@ async function throttle(page: Page, device: DeviceName) {
 
 async function measure(
   browser: Browser,
-  route: (typeof ROUTES)[number],
+  route: PageLoadRoute,
   device: DeviceName,
   refs: HtmlRefs
 ): Promise<Run> {
@@ -310,6 +316,14 @@ async function measure(
       scriptKb: Math.round(kb((p) => refs.scripts.has(p))),
       cssKb: Math.round(kb((p) => refs.stylesheets.has(p))),
       fontKb: Math.round(kb((p) => /\.woff2?$/.test(p))),
+      // Each font file and its size, so a failure names what loaded.
+      fontFiles: [
+        ...new Map(
+          result.resources
+            .filter((resource) => /\.woff2?$/.test(resource.path))
+            .map((resource) => [resource.path, resource.bytes] as const)
+        ),
+      ].map(([file, bytes]) => `${file} (${(bytes / 1024).toFixed(1)} KB)`),
       lateScriptKb: Math.round(kb((p) => isScript(p) && !refs.scripts.has(p))),
       lcpElement: `${result.element} "${result.text.slice(0, 40)}"`,
       lcpInServerHtml: isImage
@@ -371,6 +385,7 @@ async function main() {
           htmlKb: refs.htmlKb,
           htmlGzipKb: refs.htmlGzipKb,
           lcpElement: runs[0]?.lcpElement ?? '',
+          fontFiles: runs[0]?.fontFiles ?? [],
           lcpElements: runs.map((run) => run.lcpElement),
           lcpInServerHtml: mostRuns(runs, (run) => run.lcpInServerHtml),
           lcpImageInServerHtml: mostRuns(
@@ -390,10 +405,21 @@ async function main() {
           )
         if (summary.fontKb > route.budget.fontKb)
           failures.push(
-            `${label}: ${summary.fontKb} KB of fonts > ${route.budget.fontKb}`
+            `${label}: ${summary.fontKb} KB of fonts > ${route.budget.fontKb}: ${summary.fontFiles.join(', ')}`
           )
-        if (summary.cls > BUDGETS.cls)
-          failures.push(`${label}: CLS ${summary.cls} > ${BUDGETS.cls}`)
+        const clsLimit = route.budget.cls ?? BUDGETS.cls
+        if (summary.cls > clsLimit)
+          failures.push(`${label}: CLS ${summary.cls} > ${clsLimit}`)
+        // A route's own LCP limit gates the phone profile.
+        const lcpLimit = route.budget.lcpMobileMs
+        if (
+          lcpLimit !== undefined &&
+          device === 'mobile' &&
+          summary.lcpMs > lcpLimit
+        )
+          failures.push(
+            `${label}: median LCP ${summary.lcpMs} ms > ${lcpLimit} ms`
+          )
         if (!summary.lcpInServerHtml)
           failures.push(
             `${label}: LCP element is not in the server HTML in most runs:\n    ${summary.lcpElements.join('\n    ')}`

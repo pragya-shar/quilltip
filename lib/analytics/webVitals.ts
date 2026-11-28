@@ -4,6 +4,7 @@
 // kind of page and the device class. The measured number itself, the page's
 // query string and anything a visitor wrote are never sent.
 
+import { APP_ROUTE_SEGMENTS } from '../routing/publicContentPath'
 export const WEB_VITAL_METRICS = ['LCP', 'CLS', 'INP', 'FCP', 'TTFB'] as const
 export type WebVitalMetric = (typeof WEB_VITAL_METRICS)[number]
 
@@ -67,13 +68,10 @@ export function webVitalRoute(
   return 'other'
 }
 
-// App routes with two segments that are not articles.
-const RESERVED_FIRST_SEGMENTS = new Set([
-  'dashboard',
-  'settings',
-  'wallet',
-  'demo',
-  'ops',
+// A first segment that is an app route (every top-level route, from the
+// one list the proxy and the handle rules use) is never a writer.
+const RESERVED_FIRST_SEGMENTS: ReadonlySet<string> = new Set([
+  ...APP_ROUTE_SEGMENTS,
   'api',
 ])
 

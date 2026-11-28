@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
 import { publicContentPath } from '@/lib/routing/publicContentPath'
+import { redirectFor } from '@/lib/routing/redirects'
 import {
   buildContentSecurityPolicy,
   createNonce,
@@ -107,6 +108,10 @@ function movedUrl(request: NextRequest, username: string) {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  // A legacy path a rebuilt surface replaced: one permanent redirect from
+  // the table in lib/routing/redirects (one file per package).
+  const redirected = redirectFor(new URL(request.nextUrl.href))
+  if (redirected) return NextResponse.redirect(redirected, 308)
   const check = await checkPublicContent(request)
 
   // Production pages get a per-request nonce. Next.js reads it from the

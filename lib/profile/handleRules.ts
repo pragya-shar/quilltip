@@ -16,6 +16,14 @@ const RESERVED_HANDLES = new Set([
   'root',
   'staff',
   'system',
+  // Paths of the application's structure, reserved before they ship.
+  'lines',
+  'pocket',
+  'search',
+  'shelf',
+  'signin',
+  'today',
+  'you',
 ])
 
 // Handles given to new accounts until the writer picks one (see convex/auth.ts).
