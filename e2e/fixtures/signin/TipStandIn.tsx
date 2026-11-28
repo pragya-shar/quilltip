@@ -10,11 +10,20 @@ import { SignOutButton } from './SignOutButton'
 // intent and sends nothing. After sign-in it takes its own intent back,
 // shows the line chosen and an amount within the intent's ceiling, and
 // waits: only a new press sends. `data-sends` counts every send.
-const LINE = {
-  text: 'She wrote down every coin she ever gave away.',
-  startOffset: 0,
-  endOffset: 45,
-}
+const params0 = new URLSearchParams(location.search)
+// ?long-line: a 300-character line, as a long sentence chosen in an article.
+const LONG =
+  `${'She wrote down every coin she ever gave away, '.repeat(7)}and kept the book.`.slice(
+    0,
+    300
+  )
+const LINE = params0.has('long-line')
+  ? { text: LONG, startOffset: 0, endOffset: LONG.length }
+  : {
+      text: 'She wrote down every coin she ever gave away.',
+      startOffset: 0,
+      endOffset: 45,
+    }
 const CHOICES = [10, 25, 50, 100, 500]
 const params = new URLSearchParams(location.search)
 const ceiling = Number(params.get('ceiling') ?? 100)

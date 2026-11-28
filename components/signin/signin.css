@@ -71,6 +71,13 @@
     line-height: var(--qt-lh-line);
     color: var(--qt-ink);
     overflow-wrap: anywhere;
+    /* Three rows at most: the whole line is on the page behind the sheet,
+       and the form must stay in view. */
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    line-clamp: 3;
+    overflow: hidden;
   }
   .qt-signin-sheet__line > span {
     text-decoration: underline;
@@ -118,5 +125,22 @@
     opacity: 0.65;
     pointer-events: none;
     cursor: wait;
+  }
+}
+
+@layer surfaces {
+  /* Show or hide the password, in the password label's row, where a thumb
+     looks for it; its hit area is centred on that row. */
+  .qt-signin__password {
+    position: relative;
+  }
+  .qt-signin__reveal {
+    position: absolute;
+    inset-block-start: calc(
+      (var(--qt-text-ui) * var(--qt-lh-ui) - var(--qt-hit)) / 2
+    );
+    inset-inline-end: 0;
+    padding-inline: var(--qt-space-2);
+    margin-inline-end: calc(-1 * var(--qt-space-2));
   }
 }

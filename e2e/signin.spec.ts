@@ -179,7 +179,8 @@ test.describe('above a keyboard', () => {
     }) => {
       test.skip(!hasTouch(), 'phone widths')
       await page.setViewportSize(size)
-      const dialog = await openFromTip(page, '/article', false)
+      // The longest line a reader may choose, clamped in the sheet.
+      const dialog = await openFromTip(page, '/article?long-line', false)
       await dialog.getByLabel('Email').fill('new.reader@example.com')
       await dialog.getByLabel('Email').press('Enter')
       const password = dialog.getByLabel('Password', { exact: true })
@@ -193,10 +194,12 @@ test.describe('above a keyboard', () => {
       const keep = dialog.locator('[data-sheet-keep]')
       await expect(keep).toHaveCount(1)
       await expect(keep.getByLabel('Password', { exact: true })).toHaveCount(1)
-      await expect(keep.getByRole('button')).toHaveText(
-        ['Create account', 'I have an account'],
-        { useInnerText: true }
-      )
+      for (const name of [
+        'Show password',
+        'Create account',
+        'I have an account',
+      ])
+        await expect(keep.getByRole('button', { name })).toHaveCount(1)
       // Enter on the email moved on; it sent nothing and said nothing.
       await expect(dialog.getByText('Enter your password.')).toHaveCount(0)
       await page.waitForTimeout(300)
@@ -213,6 +216,52 @@ test.describe('above a keyboard', () => {
         expect(box.y + box.height).toBeLessThanOrEqual(size.height)
       }
     })
+})
+
+test('a long line takes three rows, and the form and both buttons stay in view at 360 x 640', async ({
+  page,
+}) => {
+  test.skip(!hasTouch(), 'phone widths')
+  await page.setViewportSize({ width: 360, height: 640 })
+  const dialog = await openFromTip(page, '/article?long-line', false)
+  const line = dialog.locator('.qt-signin-sheet__line')
+  // The whole line is there for a screen reader; three rows are shown.
+  expect((await line.textContent())!.length).toBe(300)
+  const rows = await line.evaluate(
+    (el) => el.clientHeight / parseFloat(getComputedStyle(el).lineHeight)
+  )
+  expect(Math.round(rows)).toBe(3)
+  for (const target of [
+    dialog.getByLabel('Email'),
+    dialog.getByLabel('Password', { exact: true }),
+    dialog.getByRole('button', { name: 'Show password' }),
+    dialog.getByRole('button', { name: 'Create account' }),
+    dialog.getByRole('button', { name: 'I have an account' }),
+  ]) {
+    const box = (await target.boundingBox())!
+    expect(box.y).toBeGreaterThanOrEqual(0)
+    expect(box.y + box.height).toBeLessThanOrEqual(640)
+  }
+})
+
+test('show password sits on the password field, and shows it', async ({
+  page,
+}) => {
+  const dialog = await openFromTip(page)
+  const password = dialog.getByLabel('Password', { exact: true })
+  const show = dialog.getByRole('button', { name: 'Show password' })
+  const field = (await password.boundingBox())!
+  const toggle = (await show.boundingBox())!
+  // In the label's row, just above the field, at its trailing edge.
+  expect(toggle.y + toggle.height).toBeLessThanOrEqual(field.y + 4)
+  expect(toggle.y + toggle.height).toBeGreaterThan(field.y - 30)
+  expect(toggle.x + toggle.width).toBeCloseTo(field.x + field.width, -1)
+  await password.fill('Correct1horse')
+  await press(show)
+  await expect(password).toHaveAttribute('type', 'text')
+  await expect(
+    dialog.getByRole('button', { name: 'Hide password' })
+  ).toHaveAttribute('aria-pressed', 'true')
 })
 
 test.describe('a newcomer from a tip creates an account first', () => {

@@ -253,30 +253,41 @@ export function SignInForm({
             together above a keyboard: the shell's sheet keeps a
             data-sheet-keep block visible while focus is inside it. */}
         <div className="qt-signin__keep" data-sheet-keep="">
-          <TextField
-            ref={password}
-            id={`${idPrefix}-password`}
-            label="Password"
-            name="password"
-            type={showPassword ? 'text' : 'password'}
-            autoComplete={
-              mode === 'create' ? 'new-password' : 'current-password'
-            }
-            enterKeyHint="go"
-            onFocus={keepButtonsInView}
-            {...(mode === 'create' ? PASSWORD_RULES : null)}
-            // The rule shows once: an error about it takes the hint's place.
-            hint={
-              mode === 'create' && !errors.password
-                ? 'At least 8 characters. A few words make a good one.'
-                : undefined
-            }
-            error={errors.password}
-            onChange={() =>
-              errors.password &&
-              setErrors((e) => ({ ...e, password: undefined }))
-            }
-          />
+          <div className="qt-signin__password">
+            <TextField
+              ref={password}
+              id={`${idPrefix}-password`}
+              label="Password"
+              name="password"
+              type={showPassword ? 'text' : 'password'}
+              autoComplete={
+                mode === 'create' ? 'new-password' : 'current-password'
+              }
+              enterKeyHint="go"
+              onFocus={keepButtonsInView}
+              {...(mode === 'create' ? PASSWORD_RULES : null)}
+              // The rule shows once: an error about it takes the hint's place.
+              hint={
+                mode === 'create' && !errors.password
+                  ? 'At least 8 characters. A few words make a good one.'
+                  : undefined
+              }
+              error={errors.password}
+              onChange={() =>
+                errors.password &&
+                setErrors((e) => ({ ...e, password: undefined }))
+              }
+            />
+            <button
+              type="button"
+              className="qt-signin__text-button qt-signin__reveal"
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((on) => !on)}
+            >
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
           <Button
             type="submit"
             variant="primary"
@@ -304,18 +315,10 @@ export function SignInForm({
       </form>
       {waiting ? null : (
         <>
-          <div className="qt-signin__row">
-            <button
-              type="button"
-              className="qt-signin__text-button"
-              aria-pressed={showPassword}
-              onClick={() => setShowPassword((on) => !on)}
-            >
-              {showPassword ? 'Hide password' : 'Show password'}
-            </button>
-            {mode === 'sign-in' ? (
-              // The email typed here fills the reset page (kept in this tab,
-              // never in an address).
+          {mode === 'sign-in' ? (
+            <div className="qt-signin__row">
+              // The email typed here fills the reset page (kept in this tab, //
+              never in an address).
               <span
                 onClickCapture={() =>
                   rememberResetEmail(email.current?.value ?? '')
@@ -325,8 +328,8 @@ export function SignInForm({
                   Forgot your password?
                 </TextLink>
               </span>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
           {mode === 'create' ? (
             <p className="qt-signin__fine">
               Creating an account sends no money.
