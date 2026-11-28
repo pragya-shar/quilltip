@@ -73,8 +73,12 @@ cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nf
 job; its severity/exception rules are defined in the
 [audit policy](../../security/dependency-review.md). PR hygiene runs on PRs.
 `bun scripts/ci/local.ts --jobs app --shards <shards>` runs the same steps
-locally, read from the workflow, on one production build per build setting;
-`--list` prints them, `--all` runs everything.
+locally, read from the workflow, on one production build per build setting
+(`--jobs build,csp,no-script,early-taps` for only the production-build
+checks; `--list` prints the steps, `--all` runs everything). It leaves out
+runner setup (actions, installs, failure-only steps) and needs Bun 1.4.4, the
+installed dependencies and the Playwright browsers; its header lists the rest.
+Run it under a shared machine's lock for heavy jobs.
 Local success does not establish remote CI or deployment success.
 
 ## Using Codex and Claude Code
