@@ -6417,6 +6417,129 @@ describe('spendable balance across settler records and indexed events', () => {
     )
   }, 30_000)
 
+  // Review of #650: events the indexer applies while `run` waits.
+
+  it('review #650: a deposit at or below the read ledger lands during the wait; the read is not used with the old snapshot', async () => {
+    const flagged = negatives()
+    const { t, s } = await lostSettlement()
+    const L = LEDGER + 2 + PERIOD_LEDGERS
+    // Chain at L: the lost settlement and a later deposit of 0.20 (L - 1).
+    const read: ChainAt = {
+      ledger: L,
+      balance: BigInt(25) * CENT,
+      paid: new Map([[WRITER, BigInt(10) * CENT]]),
+    }
+    let indexed = false
+    const r = runSteps(t, {
+      reads: [read, read, read],
+      apply: true,
+      indexer: async (waited) => {
+        if (!indexed && waited >= PERIOD_MS) {
+          indexed = true
+          await ingest(
+            t,
+            ev.deposited(READER, BigInt(20) * CENT, BigInt(25) * CENT, {
+              ledger: L - 1,
+            })
+          )
+          await caughtUp(t, L)
+        }
+      },
+    })
+    const result = await r.result
+    // The deposit's absolute balance is after the payment's ledger, so it
+    // released the reserve itself; the second attempt finds nothing to do.
+    expect(result).toMatchObject({ status: 'nothing_to_do', ledger: L })
+    expect(r.log.reads).toBe(2)
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(25) * CENT).toString(),
+      settledUnindexed: '0',
+      balanceLedger: L - 1,
+    })
+    expect(await spendable(t, s)).toBe(BigInt(25) * CENT)
+    expect(await releases(t)).toMatchObject([{ source: 'balance_event' }])
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  }, 30_000)
+
+  it('review #650: an absolute balance after the read ledger lands during the wait; the old read is refused and a fresh one applies', async () => {
+    const flagged = negatives()
+    const { t, s } = await lostSettlement()
+    const L = LEDGER + 2 + PERIOD_LEDGERS
+    const old = chainAfterSettlement(L)
+    // Chain at L + 3: a withdrawal starts, balance 0.05 (absolute).
+    const fresh: ChainAt = { ...chainAfterSettlement(L + 4) }
+    let step = 0
+    const r = runSteps(t, {
+      reads: [old, fresh, fresh],
+      apply: true,
+      indexer: async () => {
+        step++
+        if (step === 1) {
+          await ingest(
+            t,
+            ev.withdrawStarted(BigInt(5) * CENT, L + 100, { ledger: L + 3 })
+          )
+          await caughtUp(t, L + 3)
+        } else {
+          await caughtUp(t, L + 4)
+        }
+      },
+    })
+    const result = await r.result
+    expect(result.status).not.toBe('refused')
+    expect(r.log.reads).toBe(2)
+    const acct = await account(t)
+    expect(acct.confirmedBalance).toBe((BigInt(5) * CENT).toString())
+    expect(acct.settledUnindexed ?? '0').toBe('0')
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    // Exactly one release of the 0.10, whichever path made it.
+    const rel = await releases(t)
+    expect(rel).toHaveLength(1)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  }, 30_000)
+
+  it('review #650: the lost event itself arrives during the wait; nothing is counted twice', async () => {
+    const flagged = negatives()
+    const { t, s } = await lostSettlement()
+    const L = LEDGER + 2 + PERIOD_LEDGERS
+    const read = chainAfterSettlement(L)
+    const lost = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    let indexed = false
+    const r = runSteps(t, {
+      reads: [read, read, read],
+      apply: true,
+      indexer: async (waited) => {
+        if (!indexed && waited >= PERIOD_MS) {
+          indexed = true
+          await ingest(t, settledEvent(lost, { ledger: LEDGER + 1 }))
+          await caughtUp(t, L)
+        }
+      },
+    })
+    expect(await r.result).toMatchObject({ status: 'nothing_to_do' })
+    expect(r.log.reads).toBe(2)
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      settledUnindexed: '0',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect(await releases(t)).toHaveLength(0)
+    // A second run afterwards changes nothing.
+    const again = runSteps(t, { reads: [read], apply: true })
+    expect(await again.result).toMatchObject({ status: 'nothing_to_do' })
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  }, 30_000)
+
   /** Everything a release can change, for "nothing was written" checks. */
   async function ledgerState(t: T) {
     return t.run(async (ctx) => ({
