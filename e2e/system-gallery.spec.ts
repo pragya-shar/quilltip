@@ -1023,3 +1023,46 @@ test("a task screen's Close stores first, and never waits long", async ({
   // The bound (800 ms), not the five seconds the store asked for.
   expect(Date.now() - started).toBeLessThan(3000)
 })
+
+test('a toast lets every tap through but its action', async ({ page }) => {
+  await open(page)
+  await press(page, page.getByRole('button', { name: 'Sent', exact: true }))
+  const toast = page.locator('.qt-toast', { hasText: 'You tipped Tomás $3' })
+  await expect(toast).toBeVisible()
+  // A point on the card, away from its action: what is under it gets it.
+  const under = await toast.evaluate((card) => {
+    const r = card.getBoundingClientRect()
+    const x = r.left + 12
+    const y = r.top + r.height / 2
+    const hit = document.elementFromPoint(x, y)
+    return { x, y, onCard: Boolean(hit?.closest('.qt-toast')) }
+  })
+  expect(under.onCard).toBe(false)
+  await page.evaluate(({ x, y }) => {
+    const hit = document.elementFromPoint(x, y)!
+    hit.addEventListener(
+      'click',
+      () => ((window as unknown as { __under: boolean }).__under = true),
+      { once: true }
+    )
+  }, under)
+  if (hasTouch()) await page.touchscreen.tap(under.x, under.y)
+  else await page.mouse.click(under.x, under.y)
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __under?: boolean }).__under
+    )
+  ).toBe(true)
+  await expect(toast).toBeVisible()
+
+  // The action by tap, and by keyboard.
+  await press(page, toast.getByRole('button', { name: 'Share' }))
+  await expect(
+    page.locator('.qt-toast', { hasText: 'Share opens here' })
+  ).toBeVisible()
+  await press(page, page.getByRole('button', { name: 'Sent', exact: true }))
+  const again = page.locator('.qt-toast', { hasText: 'You tipped Tomás $3' })
+  await again.getByRole('button', { name: 'Share' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(again).toHaveCount(0)
+})

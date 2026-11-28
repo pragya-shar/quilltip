@@ -127,7 +127,10 @@ export function OverlaysSection() {
                 tone: 'done',
                 title: 'You tipped Tomás $3',
                 description: 'You are supporter #88. Only you see this.',
-                action: { label: 'Share', onAction: () => {} },
+                action: {
+                  label: 'Share',
+                  onAction: () => showToast({ title: 'Share opens here' }),
+                },
               })
             }
           >

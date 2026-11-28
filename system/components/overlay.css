@@ -272,7 +272,9 @@
     background: var(--qt-toast-bg);
     color: var(--qt-toast-ink);
     box-shadow: var(--qt-shadow-float);
-    pointer-events: auto;
+    /* Taps pass through the card to what is under it; only the action
+     * takes them (below). */
+    pointer-events: none;
     animation: qt-rise var(--qt-dur-base) var(--qt-ease-out);
   }
   .qt-toast__glyph {
@@ -299,6 +301,7 @@
     line-height: var(--qt-lh-ui-s);
   }
   .qt-toast__action {
+    pointer-events: auto;
     min-height: var(--qt-hit);
     padding-inline: var(--qt-space-3);
     border-radius: var(--qt-radius-pill);

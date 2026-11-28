@@ -222,6 +222,16 @@ surface edits only its own file; it never edits `proxy.ts`,
 - The tip control, menus, sheets and the payments runtime attach to text
   that is already there. They never wrap it.
 
+## Signed-in routes need no server guard
+
+`app/(app)/(signed-in)/` has no server-side check, and needs none: no route
+in the shell reads an auth cookie or queries account data on the server.
+The rule is on the client: nothing with a name, a figure or a row renders
+before auth answers (a neutral skeleton while it loads, the sign-in prompt
+when signed out), and with no script a signed-in page asks the person to
+sign in (`/pocket`). A route that ever reads account data on the server
+needs a server guard first.
+
 ## Landmarks on a public page
 
 What a test or an assistive technology finds, so selectors are written
@@ -285,7 +295,8 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
    page. Open a sheet after navigating, not before.
 8. **Toasts survive a modal.** The toast region is one element that moves
    into the top modal and back; a toast keeps its time and is announced
-   once.
+   once. Every tap passes through a toast to what is under it, except on
+   its one action; focus on the action pauses it (no hover needed).
 
 9. **A field error is read once.** On submit, move focus to the first
    invalid `TextField`; its error comes with it (`aria-describedby`,
