@@ -10,6 +10,7 @@ import { sheetStack } from '@/shell/sheetStack'
 import { warmSheet } from '@/shell/sheets/preload'
 import { ADD_MONEY_PAGE, ADD_MONEY_SHEET, EXACT_AMOUNT_SHEET } from './sheetIds'
 import { usePocketSource } from '@/lib/pocket/source'
+import { QuickTipsSection } from './money/QuickTipsSection'
 import type { BalanceView } from '@/lib/pocket/types'
 
 /**
@@ -127,6 +128,7 @@ export function SpendableSection({
           <TextLink href={ADD_MONEY_PAGE}>Add testnet money</TextLink>
         </p>
       ) : null}
+      {addMoney && status === 'ready' ? <QuickTipsSection /> : null}
     </section>
   )
 }
