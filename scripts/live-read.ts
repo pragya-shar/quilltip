@@ -26,7 +26,7 @@ import {
   LIVE_READ_FUNCTIONS,
   LIVE_READ_FUNCTION_NAMES,
   describeLiveReadArgs,
-  envFilesAssigningOperationalApproval,
+  envFilesWithLiveAccess,
   evaluateLiveRead,
   liveReadBuildRoot,
   liveReadWarning,
@@ -67,10 +67,7 @@ export function readLiveReadFacts(env: EnvLike): LiveReadFacts {
     ...(base.dirtyPaths ? { dirtyPaths: base.dirtyPaths } : {}),
     checkoutRoot: base.checkoutRoot,
     cwdRoot: base.cwdRoot,
-    envFileHits: envFilesAssigningOperationalApproval([
-      base.checkoutRoot,
-      process.cwd(),
-    ]),
+    envFileHits: envFilesWithLiveAccess([base.checkoutRoot, process.cwd()]),
   }
 }
 

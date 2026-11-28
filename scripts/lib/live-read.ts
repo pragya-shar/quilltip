@@ -250,12 +250,27 @@ export type LiveReadFacts = {
   checkoutRoot: string
   /** Top level of the checkout the command runs from, or null. */
   cwdRoot: string | null
-  /** `.env*` files (by path) that assign the operational approval. */
+  /**
+   * `.env*` files (by path) that assign the operational approval or a deploy
+   * key for a live deployment. Bun loads them on its own.
+   */
   envFileHits: string[]
 }
 
 const APPROVAL_ASSIGNMENT = new RegExp(
   `^\\s*(export\\s+)?${LIVE_BACKEND_APPROVAL_ENV}\\s*[=:]`,
+  'm'
+)
+
+/**
+ * `CONVEX_DEPLOY_KEY` set to a key whose prefix names a live deployment
+ * (`<type>:<name>|…`). Matched on the prefix only; the key is never read
+ * further, printed or logged.
+ */
+const LIVE_KEY_ASSIGNMENT = new RegExp(
+  `^\\s*(export\\s+)?CONVEX_DEPLOY_KEY\\s*[=:]\\s*["']?[a-z]+:(${LIVE_CONVEX_DEPLOYMENTS.map(
+    (name) => name.replace(/[^a-z0-9]/g, (c) => `\\${c}`)
+  ).join('|')})\\|`,
   'm'
 )
 
@@ -267,10 +282,14 @@ function realpath(dir: string): string {
   }
 }
 
-/** `.env*` files in `dirs` that assign the operational approval. */
-export function envFilesAssigningOperationalApproval(
-  dirs: readonly string[]
-): string[] {
+/**
+ * `.env*` files in `dirs` that assign the operational approval or a deploy
+ * key for a live deployment. Bun loads `.env` files into every command run
+ * from that folder, so either would outlive the run: the approval would open
+ * the live deployment to every operational tool, and the key would give any
+ * `convex` command in the checkout admin access to it.
+ */
+export function envFilesWithLiveAccess(dirs: readonly string[]): string[] {
   const hits: string[] = []
   for (const dir of new Set(dirs.map(realpath))) {
     let names: string[] = []
@@ -283,7 +302,8 @@ export function envFilesAssigningOperationalApproval(
       const file = path.join(dir, name)
       try {
         if (!fs.statSync(file).isFile()) continue
-        if (APPROVAL_ASSIGNMENT.test(fs.readFileSync(file, 'utf8'))) {
+        const text = fs.readFileSync(file, 'utf8')
+        if (APPROVAL_ASSIGNMENT.test(text) || LIVE_KEY_ASSIGNMENT.test(text)) {
           hits.push(file)
         }
       } catch {
@@ -424,7 +444,7 @@ export function evaluateLiveRead(
     refusals.push(
       refusal(
         'LIVE_READ_IN_FILE',
-        `${LIVE_BACKEND_APPROVAL_ENV} is assigned in ${facts.envFileHits.join(', ')}. Set it in the shell for the run only and remove it from the file.`
+        `${LIVE_BACKEND_APPROVAL_ENV} or a deploy key for the live deployment is assigned in ${facts.envFileHits.join(', ')}. Remove it from the file, and give both on the command line for the run only.`
       )
     )
   }

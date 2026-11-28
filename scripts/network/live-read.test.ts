@@ -20,7 +20,7 @@ import {
   LIVE_READ_FUNCTIONS,
   LIVE_READ_FUNCTION_NAMES,
   LIVE_READ_OTHER_TARGETS,
-  envFilesAssigningOperationalApproval,
+  envFilesWithLiveAccess,
   evaluateLiveRead,
   parseLiveReadRequest,
   pruneOtherCaches,
@@ -663,6 +663,41 @@ describe('read-only path: helpers', () => {
     }
   })
 
+  it('finds a live deploy key in .env files, by its prefix only', () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'live-read-key-'))
+    const write = (name: string, text: string) =>
+      fs.writeFileSync(path.join(dir, name), text)
+    const real = (name: string) => path.join(fs.realpathSync(dir), name)
+    try {
+      write('.env.local', `X=1\nCONVEX_DEPLOY_KEY=${DEPLOY_KEY}\n`)
+      write('.env.live', `export CONVEX_DEPLOY_KEY="prod:${LIVE}|abc"\n`)
+      write('.env.dev', `CONVEX_DEPLOY_KEY=dev:${INTEGRATION}|abc\n`)
+      write('.env.note', `# CONVEX_DEPLOY_KEY=${DEPLOY_KEY}\n`)
+      write('.env.prefix', `CONVEX_DEPLOY_KEY=dev:${LIVE}-copy|abc\n`)
+      expect(envFilesWithLiveAccess([dir])).toEqual([
+        real('.env.live'),
+        real('.env.local'),
+      ])
+      // The refusal names the file, never the key.
+      const message = (() => {
+        try {
+          evaluateLiveRead(null, READ_ENV, {
+            ...READ_FACTS,
+            envFileHits: envFilesWithLiveAccess([dir]),
+          })
+          return ''
+        } catch (error) {
+          return (error as Error).message
+        }
+      })()
+      expect(message).toContain(real('.env.local'))
+      expect(message).not.toContain('key-material-that-must-not-leak')
+      expect(message).not.toContain('abc')
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   it('finds the operational approval in .env files only', () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'live-read-env-'))
     try {
@@ -678,7 +713,7 @@ describe('read-only path: helpers', () => {
         path.join(dir, 'notes.txt'),
         `${LIVE_BACKEND_APPROVAL_ENV}=${LIVE}\n`
       )
-      expect(envFilesAssigningOperationalApproval([dir, dir])).toEqual([
+      expect(envFilesWithLiveAccess([dir, dir])).toEqual([
         path.join(fs.realpathSync(dir), '.env.local'),
       ])
     } finally {
