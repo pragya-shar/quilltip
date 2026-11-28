@@ -19,6 +19,7 @@ import {
   centsToBaseUnits,
   convertedMoney,
   formatMoney,
+  money,
   spokenMoney,
   tipAmount,
 } from '../../lib/payments/money'
@@ -453,6 +454,31 @@ describe('the spoken form and the conversion price', () => {
       // Tip-time figures need no price.
       expect(v.pending).toMatchObject({ cents: 0, display: '$0.00' })
     }
+  })
+
+  it('writes an empty balance as an exact zero, never a conversion', () => {
+    const empty = {
+      token: 'xlm',
+      contractId: 'C',
+      confirmed: '0',
+      outstanding: '0',
+      available: '0',
+      availableCents: 0,
+    }
+    const v = balance({
+      ...session(),
+      tokens: [empty],
+      availableCents: 0,
+    } as NonNullable<SessionRead>)
+    expect(v.status).toBe('ready')
+    expect(v.available).toEqual(money(0))
+    expect(v.available?.display).toBe('$0.00')
+    // A few base units are still a conversion: the exact amount is real.
+    const dust = balance({
+      ...session(),
+      tokens: [{ ...empty, confirmed: '5', available: '5' }],
+    } as NonNullable<SessionRead>)
+    expect(dust.available?.converted).toBe(true)
   })
 
   it('says no price as the server sends it: with no limits', () => {

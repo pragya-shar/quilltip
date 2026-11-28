@@ -499,7 +499,8 @@ test.describe('states the ledger can reach', () => {
     page,
   }) => {
     await open(page, 'balance', 'reader-overdrawn')
-    await expect(page.getByTestId('balance-available')).toHaveText('≈ $0.00')
+    // Nothing left to tip is an exact zero, never a conversion.
+    await expect(page.getByTestId('balance-available')).toHaveText('$0.00')
     await open(page, 'tip', 'reader-overdrawn')
     const bar = await choosePassage(page)
     await expect(bar.getByRole('status')).toContainText(

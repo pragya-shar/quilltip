@@ -251,7 +251,12 @@ export function balanceViewOf(input: {
     status: session.status === 'closing' ? 'closing' : 'ready',
     // Converted from the token at today's price: an estimate. With no price
     // there is no dollar figure, never "≈ $0.00": `exact` holds the amount.
-    available: read ? convertedMoney(availableCents) : null,
+    // An empty balance is an exact zero, never "≈ $0.00".
+    available: read
+      ? left > BigInt(0)
+        ? convertedMoney(availableCents)
+        : money(0)
+      : null,
     exact: {
       token: 'XLM',
       available: (left > BigInt(0) ? left : BigInt(0)).toString(),
