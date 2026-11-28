@@ -10,9 +10,10 @@
  * that arrives with a longer history was pushed; with the same length it
  * replaced the current entry (a replace, or a push after going back that
  * dropped the forward entries); after popstate it went back, to the
- * page's first place in the stack, when the page is in it, else forward.
- * When unsure, the stack is shorter, never longer: back may fall back to
- * the link, but never leaves the site.
+ * page's first place in the stack, when the page is in it; else what is
+ * behind it is unknown and it starts the stack. When unsure, the stack is
+ * shorter, never longer: the header shows the link form, never
+ * `router.back()`, so back never leaves the site.
  */
 export function createAppHistory() {
   let stack: string[] = []
@@ -37,10 +38,11 @@ export function createAppHistory() {
       if (wasPopped) {
         // Back (one step or several) to a page this visit passed through:
         // the stack ends at its first visit. With the page there more than
-        // once, the first is the shorter answer, which may fall back to the
-        // link but never leaves the site. Not in the stack: forward.
+        // once, the first is the shorter answer. A page not in the stack
+        // (forward, Back after a reload, a hash-only step): what is behind
+        // it is unknown, so it starts the stack, and back is the link form.
         const at = stack.indexOf(path)
-        stack = at >= 0 ? stack.slice(0, at + 1) : [...stack, path]
+        stack = at >= 0 ? stack.slice(0, at + 1) : [path]
         return
       }
       stack = grew ? [...stack, path] : [...stack.slice(0, -1), path]
