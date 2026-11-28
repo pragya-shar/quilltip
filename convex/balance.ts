@@ -140,10 +140,9 @@ export const session = query({
             perTipCents: maxCentsWithin(l.tipMax, price.usd),
             dailyCents: maxCentsWithin(l.dailyLimit, price.usd),
             acceptedDay: account.acceptedDay,
-            acceptedTodayCents: centsFromBaseUnits(
-              BigInt(account.acceptedToday),
-              price.usd
-            ),
+            acceptedTodayCents:
+              account.acceptedTodayCents ??
+              centsFromBaseUnits(BigInt(account.acceptedToday), price.usd),
             minTipCents: minTip ? minimumTipCents(minTip, price.usd) : null,
             quickTipMaxCents: QUICK_TIP_MAX_CENTS,
             defaultTipCents: DEFAULT_TIP_CENTS,

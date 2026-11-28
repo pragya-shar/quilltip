@@ -51,6 +51,22 @@ bunx convex env set SITE_URL https://quilltip.me --prod
 Use [setup](SETUP.md) for configuration responsibilities. Verify the frontend
 points to the intended backend; align tipping contract IDs and Stellar networks.
 
+### Balance tip limits
+
+A reader's balance tip limits are set in dollars and converted to XLM at the
+price each tip is quoted at:
+
+- `TAB_TIP_MAX_CENTS`: the most one tip may be. Default `500` ($5).
+- `TAB_DAILY_LIMIT_CENTS`: the most a reader's tips may add up to in a UTC
+  day, counted in the tips' own cents. Default `2000` ($20).
+
+`TAB_TIP_MAX` and `TAB_DAILY_LIMIT` (XLM base units) are guards against a
+broken price only. Their defaults are 1000 XLM and 5000 XLM. A deployment
+that sets them to small values, such as the former 5 XLM and 20 XLM, keeps
+those as the limits a reader meets (about $0.62 and $2.47 at $0.1235 a
+Lumen). Unset them, or set them to guard values, when this version deploys.
+With no current price, no tip is priced or accepted.
+
 ## Soroban contracts
 
 Contract deployment is a separate operation from deploying the web app/backend.
