@@ -11,21 +11,24 @@
  *   signed-in share gets a personal code per sharer. Both kinds can exist for
  *   one line and resolve alike; neither says who shared. Signed-out and
  *   signed-in sharing have separate budgets.
- * - `resolve` is called by the `/p/[code]` server component. It answers
- *   `exact` or `moved` with the line's current text, `changed` when the line
- *   still exists but occurs more than once, and the same `null` for an unknown
- *   code, a line that is gone, and an unpublished or deleted article. It never
- *   returns the stored quote or the sharer.
+ * - `resolve` is the query the `/p/[code]` page reads: link previews and
+ *   crawlers fetch that page, so it reads a bounded number of documents and
+ *   writes nothing. It answers `exact` or `moved` with the line's current
+ *   text and place, `changed` when the line still exists but occurs more
+ *   than once, and the same `null` for an unknown code, a line that is gone,
+ *   and an unpublished or deleted article. It never returns the stored quote
+ *   or the sharer.
  * - The stored quote exists only to find the sentence again. It is cleared
  *   (with the passage fields) once the line is gone or the article is not
  *   public: by `reconcileArticle`, which the article's publish, edit, unpublish
- *   and delete paths schedule; by `clearIfStale`, which `resolve` schedules;
- *   and by `sweep`, the safety net for a path that missed its call. The sweep
+ *   and delete paths schedule, and by `sweep`, the safety net for a path that
+ *   missed its call. Until then `resolve` still answers from the current
+ *   text only, so a stored quote is never shown. The sweep
  *   deletes a cleared row `CLEARED_SHARE_RETENTION_MS` after it was cleared
  *   and keeps its code in `retiredShareCodes`, so neither the random codes
  *   nor another line's canonical code can ever reuse it.
  * - Every path that reads an article's text (`create`, `resolve`,
- *   `clearIfStale`, `reconcileArticle`, `sweep`) first checks its size
+ *   `reconcileArticle`, `sweep`) first checks its size
  *   (`readShareable`): past `MAX_SHAREABLE_CHARACTERS`,
  *   `MAX_SHAREABLE_BREAKS` or `MAX_SHAREABLE_SENTENCES`, or with a run of
  *   more than `MAX_COMBINING_MARK_RUN` combining marks, the article is not
@@ -39,6 +42,7 @@ import type { Doc, Id } from './_generated/dataModel'
 import {
   internalMutation,
   mutation,
+  query,
   type MutationCtx,
 } from './_generated/server'
 import { consumeFixedWindow } from './lib/fixedWindowLimit'
@@ -480,15 +484,17 @@ export const create = mutation({
 })
 
 /**
- * Resolves a share code for the `/p/[code]` server component. It returns
- * nothing that the public page does not show, and the same `null` for an
- * unknown or malformed code, a line that is gone, and an unpublished or
- * deleted article. A cleared row is read as an unknown code: the same reads,
- * and no article work. It writes nothing; for a line it finds gone it
- * schedules `clearIfStale` (the hooks and the sweep clear shares of hidden
- * articles). An article past the size limits answers null and is not cleared.
+ * Resolves a share code for the `/p/[code]` page. A query: it reads the
+ * code's row, its article and the article's writer, and writes and
+ * schedules nothing, so a page load or a link preview changes no state. It
+ * returns nothing that the public page does not show, and the same `null`
+ * for an unknown or malformed code, a line that is gone, and an unpublished
+ * or deleted article. A cleared row is read as an unknown code: the same
+ * reads, and no article work. The text it returns is always the current
+ * article's, never the stored quote, also before the article's clean-up has
+ * run. An article past the size limits answers null.
  */
-export const resolve = mutation({
+export const resolve = query({
   args: { code: v.string() },
   returns: resolvedValidator,
   handler: async (ctx, args) => {
@@ -513,12 +519,8 @@ export const resolve = mutation({
     if (!text) return null
     const { canonical, sentences, index } = text
     const located = locate(share, article, text)
-    if (located.status === 'gone') {
-      await ctx.scheduler.runAfter(0, internal.shares.clearIfStale, {
-        shareId: share._id,
-      })
-      return null
-    }
+    // Gone: `reconcileArticle` and `sweep` clear the row.
+    if (located.status === 'gone') return null
 
     const author = await ctx.db.get(article.authorId)
     const username = author?.username ?? article.authorUsername
@@ -556,23 +558,6 @@ export const resolve = mutation({
         ).slice(0, MAX_SHARE_QUOTE),
       },
     }
-  },
-})
-
-/** Clears one share when its line is gone or its article is not public. */
-export const clearIfStale = internalMutation({
-  args: { shareId: v.id('shares') },
-  returns: v.boolean(),
-  handler: async (ctx, args) => {
-    const share = await ctx.db.get(args.shareId)
-    if (!share) return false
-    const article = await ctx.db.get(share.articleId)
-    if (isPublic(article)) {
-      const text = readShareable(article.content)
-      // Past the size limits: left as it is, like every other path.
-      if (!text || locate(share, article, text).status !== 'gone') return false
-    }
-    return clearShare(ctx, share, Date.now())
   },
 })
 
