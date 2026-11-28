@@ -317,8 +317,8 @@ export function SignInForm({
         <>
           {mode === 'sign-in' ? (
             <div className="qt-signin__row">
-              // The email typed here fills the reset page (kept in this tab, //
-              never in an address).
+              {/* The email typed here fills the reset page (kept in this
+                  tab, never in an address). */}
               <span
                 onClickCapture={() =>
                   rememberResetEmail(email.current?.value ?? '')

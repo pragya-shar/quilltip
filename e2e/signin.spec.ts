@@ -180,8 +180,9 @@ test.describe('a kept intent comes back, and nothing is sent', () => {
 test('the first open draws the sheet with its form in the same frame', async ({
   page,
 }) => {
-  // Recorded by order, as the page changes (animation frames are held back
-  // for a background page when workers run in parallel): when the dialog
+  // Recorded by order, as the page changes, not by animation frames:
+  // Chromium holds animation frames back for a page it treats as in the
+  // background, which it does when test workers run in parallel. when the dialog
   // opens, is the form already in it; was a loading placeholder ever put
   // in an open dialog; and when was the pressed mark on the tip set and removed?
   await page.addInitScript(() => {
@@ -723,6 +724,15 @@ test.describe('nothing moves under the pointer', () => {
       page.getByText('Use at least 8 characters.')
     )
   })
+})
+
+test('the page shows only its words, in both forms', async ({ page }) => {
+  // No source text (a comment, a stray brace) ever reaches the reader.
+  for (const path of ['/signin', '/signin?mode=create', '/signin/reset']) {
+    await page.goto(path)
+    const text = await page.locator('#root').innerText()
+    expect(text, path).not.toMatch(/\/\/|\/\*|\{|\}/)
+  }
 })
 
 test.describe('the way back is returnTo', () => {
