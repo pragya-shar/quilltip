@@ -4,7 +4,7 @@ import {
   XlmAmount,
 } from '@/components/payments'
 import { TAB_HISTORY } from '@/lib/copy/tab'
-import { phaseFromTabTip } from '@/lib/payments/ui-state'
+import { readerTabTipPhase } from '@/lib/tab-ui/tab-short'
 import type { TabTipRow as Row } from '@/lib/tab-ui/types'
 
 const time = new Intl.DateTimeFormat(undefined, {
@@ -14,9 +14,18 @@ const time = new Intl.DateTimeFormat(undefined, {
   minute: '2-digit',
 })
 
-/** One tab tip: article, writer, when, amount and its receipt status. */
-export function TabTipRow({ tip }: { tip: Row }) {
-  const phase = phaseFromTabTip(tip.status)
+/**
+ * One tab tip: article, writer, when, amount and its receipt status. On a
+ * short tab an accepted tip waits for a top-up (#643).
+ */
+export function TabTipRow({
+  tip,
+  tabShort = false,
+}: {
+  tip: Row
+  tabShort?: boolean
+}) {
+  const phase = readerTabTipPhase(tip.status, tabShort)
   const href =
     tip.authorUsername && tip.articleSlug
       ? `/${tip.authorUsername}/${tip.articleSlug}`
@@ -48,7 +57,7 @@ export function TabTipRow({ tip }: { tip: Row }) {
           <XlmAmount amount={tip.amount} />
         </span>
         <PaymentStatusLabel phase={phase} />
-        {tip.status === 'ACCEPTED' ? (
+        {phase === 'accepted' ? (
           <span className="tab-subtle">{TAB_HISTORY.accepted}</span>
         ) : null}
         {tip.settledTxHash ? <ExplorerLink hash={tip.settledTxHash} /> : null}
