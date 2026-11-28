@@ -74,7 +74,10 @@ that is not fails the tip, with nothing charged.
   request id, fixed at the press. A later change of target (the reader
   selects another line) or of amount does not change it, and a second press
   while it waits is ignored. When it is sent, its amount is a ceiling
-  against the reader's own ladder, as a tip intent below: never raised.
+  against the reader's own ladder, as a tip intent below: never raised. It
+  waits at most 3 s: past that it is dropped, nothing is sent, and `missed`
+  is true until the control is pressed again. Say so in place ("Nothing
+  sent. Tap to tip.").
 - `unavailable` (not `null`): this reader cannot tip here from the balance
   (`signed-out`, `no-balance`, `closing`, `device`, `own-article`,
   `not-tippable`, `settlement-off`, `not-loaded`, `absent`). Keep any other

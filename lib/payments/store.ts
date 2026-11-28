@@ -12,8 +12,10 @@
  * the auth and engine state in its place.
  *
  * A tap before the engine is ready is queued per control and acted on once
- * when the engine is ready (`takeTap`), so it is never lost and never sent
- * twice. Nothing here imports Convex, the outbox, the tip machine or the
+ * when the engine is ready (`takeTap`), so it is never sent twice. It waits
+ * at most `TAP_WAIT_MS`: past that it is dropped, and the control says
+ * nothing was sent until the next press (`missedTaps`), so a tip never goes
+ * seconds after the reader moved on. Nothing here imports Convex, the outbox, the tip machine or the
  * signer.
  */
 import type {
@@ -25,14 +27,25 @@ import type {
   TipMeta,
   TipTarget,
 } from './types'
+import { tokenPair } from './owner'
 
 export type EngineState = 'idle' | 'loading' | 'ready' | 'failed'
 export type AuthState = 'loading' | 'signed-out' | 'signed-in'
 
 export type TipRegistration = { target: TipTarget; meta: TipMeta }
 
-/** A press made before the engine was ready, as it was at press time. */
-export type QueuedTap = TipRegistration & { cents: number; requestId: string }
+/** A press made before the engine was ready, as it was at press time
+ * (`at`, from `Date.now()`), and the user and session it was made in
+ * (`pair`, from the session token). */
+export type QueuedTap = TipRegistration & {
+  cents: number
+  requestId: string
+  at: number
+  pair: string
+}
+
+/** How long a press made before the engine was ready may wait for it. */
+export const TAP_WAIT_MS = 3000
 
 export type PaymentsState = {
   auth: AuthState
@@ -50,13 +63,17 @@ export type PaymentsState = {
   registrations: Record<string, TipRegistration>
   /** Taps made before the engine was ready, by control id. */
   queuedTaps: Record<string, QueuedTap>
+  /** Controls whose early tap waited too long and was dropped: nothing was
+   * sent, and the control says so until its next press. */
+  missedTaps: Record<string, true>
   watches: { writer: number; earnings: number }
   /** Mounted payments shells (the root layout mounts one). */
   shells: number
-  /** The user the figures above were read for; null when none are held. */
+  /** The user and session the server answered for, `<userId>|<sessionId>`,
+   * claimed by the engine (`claim`) before it publishes; null when none. */
   owner: string | null
-  /** The user in this browser's session token now, as the shell last read
-   * it; null when there is none or it cannot be read. */
+  /** The pair in this deployment's session token, as last read
+   * (`readSession`); null when there is none or it cannot be read. */
   session: string | null
 }
 
@@ -69,6 +86,7 @@ const CLEARED = {
   ownTips: {},
   tips: {},
   queuedTaps: {},
+  missedTaps: {},
   owner: null,
 }
 
@@ -83,25 +101,53 @@ let state: PaymentsState = {
 }
 
 const listeners = new Set<() => void>()
+const tapTimers = new Map<string, ReturnType<typeof setTimeout>>()
 let engineWanted: (() => void) | null = null
 let retryLoad: (() => void) | null = null
 
 /**
- * Whether the figures in `s` may be shown, and its queued taps sent. Signed
- * in, they must have been claimed for a user (`claim`), and that user must
- * be the one in this browser's session token, when it can be read: after
- * another tab signs in as someone else, the last reader's figures stay
- * hidden until the engine claims the store for the new one. Signed out or
+ * Whether the figures in `s` may be shown. Signed in, they must have been
+ * claimed for the pair the server answered for (`claim`), and this
+ * deployment's session token must name the same pair. No token, a token
+ * that does not parse, or another pair: hidden, so after another tab signs
+ * in as someone else (or signs in again), the last figures stay hidden
+ * until the engine claims the store for the new pair. Signed out or
  * loading, the store holds no one's figures.
  */
 export function figuresShown(s: PaymentsState): boolean {
   if (s.auth !== 'signed-in') return true
-  return s.owner !== null && (s.session === null || s.session === s.owner)
+  return s.owner !== null && s.session === s.owner
+}
+
+/**
+ * Whether the engine answering for `pair` (null: no one signed in) may
+ * publish, send and take taps now. Signed in: the store is claimed for that
+ * pair and the session token names it. Otherwise only for no one.
+ */
+export function bindingHolds(s: PaymentsState, pair: string | null): boolean {
+  if (s.auth !== 'signed-in') return pair === null
+  return pair !== null && s.owner === pair && s.session === pair
+}
+
+/** Taps made in `pair`'s session; the others are dropped. */
+function tapsOf(pair: string | null) {
+  const queuedTaps: Record<string, QueuedTap> = {}
+  for (const [id, tap] of Object.entries(state.queuedTaps))
+    if (tap.pair === pair) queuedTaps[id] = tap
+  return queuedTaps
 }
 
 function set(patch: Partial<PaymentsState>) {
   state = { ...state, ...patch }
   for (const listener of listeners) listener()
+}
+
+/** Drops a queued tap that waited past `TAP_WAIT_MS`, and marks it missed. */
+function dropLate(id: string, requestId: string) {
+  const tap = state.queuedTaps[id]
+  if (!tap || tap.requestId !== requestId) return
+  const { [id]: _late, ...queuedTaps } = state.queuedTaps
+  set({ queuedTaps, missedTaps: { ...state.missedTaps, [id]: true } })
 }
 
 /** A signed-out visitor's tip control needs the engine for its amounts. */
@@ -125,29 +171,48 @@ export const paymentsStore = {
     return () => set({ shells: state.shells - 1 })
   },
   /**
-   * The user in this browser's session token, read by `PaymentsShell` on
-   * mount, on every auth change and when another tab changes the token.
-   * Figures held for anyone else go at once, before the auth library or the
-   * engine has caught up, so nobody reads the last person's figures.
+   * The pair in this deployment's session token now. Figures held for any
+   * other pair go at once, before the auth library or the engine has caught
+   * up, and so do taps made in another session.
    */
   setSession(session: string | null) {
     if (session === state.session) return
     const stale = state.owner !== null && state.owner !== session
-    set({ ...(stale ? CLEARED : {}), session })
+    set({
+      ...(stale ? CLEARED : {}),
+      queuedTaps: tapsOf(session),
+      session,
+    })
   },
   /**
-   * The engine is about to publish figures for `owner`. Anything held for
-   * someone else goes first; taps queued before the engine was ready stay
-   * only when they were made in this user's session.
+   * Reads the session token now (`setSession`). `PaymentsShell` calls it on
+   * mount, on each auth change, when another tab changes the token, on focus,
+   * when the page is shown again; the engine and the store call it before
+   * every send and every taken tap.
+   */
+  readSession() {
+    paymentsStore.setSession(tokenPair())
+  },
+  /**
+   * Whether the engine answering for `pair` may send now: the token is read
+   * again first, so a change no event announced is seen.
+   */
+  bound(pair: string | null): boolean {
+    paymentsStore.readSession()
+    return bindingHolds(state, pair)
+  },
+  /**
+   * The engine is about to publish figures for the pair the server answered
+   * for. Anything held for another pair goes first; taps stay only when
+   * they were made in this pair's session.
    */
   claim(owner: string) {
     if (state.owner === owner) return
-    const keepTaps =
-      state.owner === null &&
-      (state.session === null || state.session === owner)
+    const queuedTaps = tapsOf(owner)
     set({
       ...CLEARED,
-      ...(keepTaps ? { queuedTaps: state.queuedTaps } : {}),
+      queuedTaps,
+      missedTaps: state.owner === null ? state.missedTaps : {},
       owner,
     })
   },
@@ -192,21 +257,58 @@ export const paymentsStore = {
     const { [id]: _gone, ...rest } = state.registrations
     const { [id]: _tip, ...tips } = state.tips
     const { [id]: _tap, ...queuedTaps } = state.queuedTaps
-    set({ registrations: rest, tips, queuedTaps })
+    const { [id]: _missed, ...missedTaps } = state.missedTaps
+    clearTimeout(tapTimers.get(id))
+    tapTimers.delete(id)
+    set({ registrations: rest, tips, queuedTaps, missedTaps })
   },
-  /** Queues a press once per control; the engine takes it when ready. */
+  /**
+   * Queues a press once per control; the engine takes it when ready, within
+   * `TAP_WAIT_MS`. A second press while one waits does nothing.
+   */
   queueTap(id: string, tap: QueuedTap) {
     if (id in state.queuedTaps) return
-    set({ queuedTaps: { ...state.queuedTaps, [id]: tap } })
+    const { [id]: _missed, ...missedTaps } = state.missedTaps
+    set({ queuedTaps: { ...state.queuedTaps, [id]: tap }, missedTaps })
+    clearTimeout(tapTimers.get(id))
+    tapTimers.set(
+      id,
+      setTimeout(
+        () => dropLate(id, tap.requestId),
+        Math.max(0, tap.at + TAP_WAIT_MS - Date.now())
+      )
+    )
     engineWanted?.()
   },
-  /** Takes a queued tap once; the engine calls it when a control is ready. */
-  takeTap(id: string): QueuedTap | undefined {
+  /**
+   * Takes a queued tap once, for the engine answering for `pair`, when a
+   * control is ready: only while the binding holds (the token is read again
+   * first) and only a tap made in that pair's session; one made in another
+   * is dropped. A late one is dropped and marked missed (a timer can run
+   * late in a hidden tab).
+   */
+  takeTap(id: string, pair: string | null): QueuedTap | undefined {
+    if (!paymentsStore.bound(pair)) return undefined
     const tap = state.queuedTaps[id]
-    if (!tap || !figuresShown(state)) return undefined
+    if (!tap) return undefined
+    if (tap.pair !== pair) {
+      const { [id]: _other, ...rest } = state.queuedTaps
+      set({ queuedTaps: rest })
+      return undefined
+    }
+    if (Date.now() - tap.at > TAP_WAIT_MS) {
+      dropLate(id, tap.requestId)
+      return undefined
+    }
     const { [id]: _taken, ...rest } = state.queuedTaps
     set({ queuedTaps: rest })
     return tap
+  },
+  /** The control was pressed again: it no longer says nothing was sent. */
+  clearMissed(id: string) {
+    if (!(id in state.missedTaps)) return
+    const { [id]: _missed, ...missedTaps } = state.missedTaps
+    set({ missedTaps })
   },
   watch(kind: 'writer' | 'earnings') {
     set({ watches: { ...state.watches, [kind]: state.watches[kind] + 1 } })

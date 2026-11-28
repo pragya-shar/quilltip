@@ -174,6 +174,7 @@ function tipControl(over: Partial<TipController> = {}): TipController {
     ready: true,
     warming: false,
     queued: false,
+    missed: false,
     unavailable: null,
     signedOut: null,
     ...over,

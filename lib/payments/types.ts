@@ -230,8 +230,12 @@ export type TipController = {
   ready: boolean
   /** Signed in and the payments code is still loading: show the control. */
   warming: boolean
-  /** A tap waits for the payments code; it is sent once, when ready. */
+  /** A tap waits for the payments code; it is sent once, when ready, if
+   * that is within 3 s. */
   queued: boolean
+  /** A tap waited more than 3 s for the payments code and was dropped:
+   * nothing was sent. True until the control is pressed again. */
+  missed: boolean
   /** Null when this reader can tip here from the balance. */
   unavailable: UnavailableReason | null
   /**

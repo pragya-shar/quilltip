@@ -12,6 +12,7 @@ import { PaymentsShell } from '../../components/payments/PaymentsShell'
 import { viewsOf } from '../../lib/payments/runtime'
 import { paymentsStore } from '../../lib/payments/store'
 import type { BalanceView } from '../../lib/payments/types'
+import { A, B, storageEvent, writeToken } from './sessionToken'
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
@@ -30,10 +31,6 @@ vi.mock('../../components/payments/PaymentsEngine', () => {
   if (load.engineFails) throw new Error('chunk failed to load')
   return { PaymentsEngine: () => null }
 })
-
-const TOKEN_KEY = '__convexAuthJWT_example'
-const jwt = (user: string) =>
-  `x.${Buffer.from(JSON.stringify({ sub: `${user}|session` })).toString('base64url')}.y`
 
 const READY = { status: 'ready' } as BalanceView
 
@@ -69,37 +66,75 @@ describe('Try again', () => {
 })
 
 describe('the payments shell and the session token', () => {
-  it('drops the last reader’s figures when another tab signs in as someone else', async () => {
-    window.localStorage.setItem(TOKEN_KEY, jwt('user-a'))
+  /** A's figures, published by an engine claimed for A. */
+  async function readerA() {
+    writeToken(A)
     await mountShell()
-    expect(paymentsStore.get().session).toBe('user-a')
+    expect(paymentsStore.get().session).toBe(A)
     await act(async () => {
-      paymentsStore.claim('user-a')
+      paymentsStore.claim(A)
       paymentsStore.set({ balance: READY })
     })
     expect(viewsOf(paymentsStore.get()).balance).toBe(READY)
-
-    // Another tab writes B's token; this tab hears a storage event.
-    await act(async () => {
-      window.localStorage.setItem(TOKEN_KEY, jwt('user-b'))
-      window.dispatchEvent(
-        new StorageEvent('storage', {
-          key: TOKEN_KEY,
-          storageArea: window.localStorage,
-        })
-      )
-    })
-    expect(paymentsStore.get().session).toBe('user-b')
+  }
+  const hidden = () => {
+    expect(paymentsStore.get().session).toBe(B)
     expect(paymentsStore.get().owner).toBeNull()
     expect(viewsOf(paymentsStore.get()).balance.status).toBe('loading')
+  }
+
+  it('drops the last reader’s figures when another tab signs in as someone else', async () => {
+    await readerA()
+    // Another tab writes B's token; this tab hears a storage event.
+    await act(async () => {
+      writeToken(B)
+      storageEvent()
+    })
+    hidden()
   })
 
-  it('reads the token again when the engine claims a user it did not name', async () => {
+  it('ignores a storage event for another deployment’s key', async () => {
+    await readerA()
+    await act(async () => storageEvent('__convexAuthJWT_aaaolddeployment'))
+    expect(viewsOf(paymentsStore.get()).balance).toBe(READY)
+  })
+
+  it('reads the token again on focus, with no storage event', async () => {
+    await readerA()
+    writeToken(B)
+    await act(async () => window.dispatchEvent(new Event('focus')))
+    hidden()
+  })
+
+  it('reads the token again when the page becomes visible', async () => {
+    await readerA()
+    writeToken(B)
+    await act(async () => document.dispatchEvent(new Event('visibilitychange')))
+    hidden()
+  })
+
+  it('reads the token again when the page is shown from the back-forward cache', async () => {
+    await readerA()
+    writeToken(B)
+    await act(async () => window.dispatchEvent(new Event('pageshow')))
+    hidden()
+  })
+
+  it('reads the token again when the engine claims a pair it did not name', async () => {
     await mountShell()
     expect(paymentsStore.get().session).toBeNull()
-    // A sign-in in this tab writes the token; the engine claims that user.
-    window.localStorage.setItem(TOKEN_KEY, jwt('user-a'))
-    await act(async () => paymentsStore.claim('user-a'))
-    expect(paymentsStore.get().session).toBe('user-a')
+    // A sign-in in this tab writes the token; the engine claims that pair.
+    writeToken(A)
+    await act(async () => paymentsStore.claim(A))
+    expect(paymentsStore.get().session).toBe(A)
+  })
+
+  it('stops reading once unmounted', async () => {
+    await readerA()
+    await act(async () => root?.unmount())
+    root = null
+    writeToken(B)
+    window.dispatchEvent(new Event('focus'))
+    expect(paymentsStore.get().session).toBe(A)
   })
 })

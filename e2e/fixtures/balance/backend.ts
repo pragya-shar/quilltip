@@ -5,8 +5,12 @@
  * shapes and the same exactly-once rules as Convex (`convex/balance.ts`,
  * `convex/activity.ts`, `convex/earnings.ts`, `tabs.prepareTip` idempotent on
  * `requestId`, `tabs.submitTip` idempotent on the prepared tip). Tests drive
- * it through `window.__fixture`.
+ * it through `window.__fixture`. Signed in, it keeps a session token for the
+ * user under the deployment's key, as Convex Auth does, whose pair matches
+ * `balance.session`'s `userId` and `sessionId`.
  */
+import { tokenKey } from '../../../lib/payments/owner'
+
 type User = 'a' | 'b' | 'w'
 type Status = 'ACCEPTED' | 'SETTLED' | 'SHORTFALL' | 'UNPAID' | 'REJECTED'
 
@@ -68,6 +72,7 @@ const ARTICLE_TITLE = 'Leave It Overnight'
 const listeners = new Set<() => void>()
 let version = 0
 let state: FixtureState = load()
+writeToken()
 
 function fresh(seed: string): FixtureState {
   return {
@@ -99,12 +104,33 @@ function load(): FixtureState {
   return fresh('none')
 }
 
+/** The session token Convex Auth would keep for the signed-in user. */
+function writeToken() {
+  const key = tokenKey()
+  if (!key) return
+  try {
+    if (!state.user) {
+      localStorage.removeItem(key)
+      return
+    }
+    const sub = `user-${state.user}|session-${state.user}`
+    const payload = btoa(JSON.stringify({ sub }))
+      .replace(/\+/g, '-')
+      .replace(/\//g, '_')
+      .replace(/=+$/, '')
+    localStorage.setItem(key, `fixture.${payload}.token`)
+  } catch {
+    // Memory only.
+  }
+}
+
 function save() {
   try {
     localStorage.setItem(KEY, JSON.stringify(state))
   } catch {
     // Memory only.
   }
+  writeToken()
   version++
   cache.clear()
   for (const l of listeners) l()
@@ -150,6 +176,7 @@ const reserves = (s: Status) => s === 'ACCEPTED' || s === 'SHORTFALL'
 function session(user: User) {
   const base = {
     userId: `user-${user}`,
+    sessionId: `session-${user}`,
     accountAddress: ADDRESS[user],
     network: 'testnet' as const,
     wallet: { address: ADDRESS[user], verifiedAt: 1 },

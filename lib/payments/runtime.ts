@@ -144,18 +144,25 @@ export function shellController(id: string): TipController {
     tip: async () => {
       const reg = paymentsStore.get().registrations[id]
       if (absent || signedOut || failed || !reg) return
-      // Not lost: the engine sends it once, when ready, for what was pressed:
-      // this target and amount, under this request id.
+      // Made in the session the token names now; none, and it is refused.
+      paymentsStore.readSession()
+      const pair = paymentsStore.get().session
+      if (pair === null) return
+      // The engine sends it once, when ready, for what was pressed: this
+      // target and amount, under this request id, and only for this pair.
       paymentsStore.queueTap(id, {
         ...reg,
         cents: ONE.cents,
         requestId: crypto.randomUUID(),
+        at: Date.now(),
+        pair,
       })
     },
     reset: () => {},
     ready: absent || signedOut || failed,
     warming: !absent && state.auth === 'signed-in' && !failed,
     queued: id in state.queuedTaps,
+    missed: id in state.missedTaps,
     signedOut: null,
     unavailable: absent
       ? 'absent'
@@ -190,7 +197,7 @@ function useShellTip(target: TipTarget, meta: TipMeta) {
   return useStore((s) => {
     const computed = figuresShown(s) ? s.tips[id] : undefined
     if (computed) return computed
-    const key = `${s.shells > 0}:${s.auth}:${s.engine}:${id in s.queuedTaps}`
+    const key = `${s.shells > 0}:${s.auth}:${s.engine}:${id in s.queuedTaps}:${id in s.missedTaps}`
     const cached = shellControllers.get(id)
     if (cached && cached.key === key) return cached.value
     const value = shellController(id)

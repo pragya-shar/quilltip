@@ -15,11 +15,14 @@
  * on "Try again" (`paymentsStore.retry`). No reload is needed when the
  * backend catches up.
  *
- * It tells the store who is in this browser's session token: on mount, on
- * each auth change, when another tab changes the token, and when the engine
- * claims the store for a user the token did not name. Figures held for
- * anyone else go at once, and none show until the engine claims the store
- * for the user in the token (`figuresShown`).
+ * It tells the store which user and session this deployment's session
+ * token names (`readSession`): on mount, on each auth change, when another
+ * tab changes the token, on focus, when the page becomes visible or is shown
+ * again from the back-forward cache, and when the engine claims the store
+ * for a pair the token did not name. The store and the engine read it again
+ * before every send. Figures held for another pair go at once, and none
+ * show until the engine claims the store for the pair in the token
+ * (`figuresShown`).
  */
 import {
   useCallback,
@@ -30,7 +33,7 @@ import {
 } from 'react'
 import { usePathname } from 'next/navigation'
 import { useConvexAuth } from 'convex/react'
-import { isTokenKey, tokenOwner } from '@/lib/payments/owner'
+import { isTokenKey } from '@/lib/payments/owner'
 import { paymentsStore } from '@/lib/payments/store'
 import { PaymentsBoundary } from './PaymentsBoundary'
 
@@ -48,12 +51,21 @@ export function PaymentsShell() {
   const delay = useRef(FIRST_RETRY_MS)
 
   useEffect(() => {
-    const read = () => paymentsStore.setSession(tokenOwner())
+    const read = () => paymentsStore.readSession()
     read()
     const onStorage = (event: StorageEvent) => {
       if (isTokenKey(event.key)) read()
     }
+    // A change no event announces (another tab whose write raced, a token
+    // replaced while this page was in the background) is seen when the
+    // reader comes back to it.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') read()
+    }
     window.addEventListener('storage', onStorage)
+    window.addEventListener('focus', read)
+    window.addEventListener('pageshow', read)
+    document.addEventListener('visibilitychange', onVisible)
     // The engine claimed the store for a user the token did not name: read
     // the token again (a sign-in in this tab writes it before auth says so),
     // once per claimed user.
@@ -69,6 +81,9 @@ export function PaymentsShell() {
       detach()
       off()
       window.removeEventListener('storage', onStorage)
+      window.removeEventListener('focus', read)
+      window.removeEventListener('pageshow', read)
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [])
 
@@ -77,7 +92,7 @@ export function PaymentsShell() {
   }, [])
 
   useEffect(() => {
-    paymentsStore.setSession(tokenOwner())
+    paymentsStore.readSession()
     paymentsStore.setAuth(
       isLoading ? 'loading' : isAuthenticated ? 'signed-in' : 'signed-out'
     )

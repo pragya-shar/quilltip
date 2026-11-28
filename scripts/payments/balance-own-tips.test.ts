@@ -7,6 +7,7 @@ import { money } from '../../lib/payments/money'
 import { paymentsStore } from '../../lib/payments/store'
 import type { OwnTipsView } from '../../lib/payments/types'
 import { ownTipsViewOf } from '../../lib/payments/views'
+import { A, B, tokenNames } from './sessionToken'
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
 ).IS_REACT_ACT_ENVIRONMENT = true
@@ -19,6 +20,8 @@ const LINE = { text: 'Leave it overnight.', startOffset: 40, endOffset: 59 }
 afterEach(() => {
   paymentsStore.set({ ownTips: {} })
   paymentsStore.setAuth('loading')
+  window.localStorage.clear()
+  paymentsStore.setSession(null)
 })
 
 describe("a reader's own tips on an article", () => {
@@ -77,8 +80,9 @@ describe("a reader's own tips on an article", () => {
     await act(async () => paymentsStore.setAuth('signed-out'))
     expect(seen.at(-1)?.status).toBe('signed-out')
     await act(async () => {
+      tokenNames(A)
       paymentsStore.setAuth('signed-in')
-      paymentsStore.claim('reader-1')
+      paymentsStore.claim(A)
       paymentsStore.set({
         ownTips: {
           'article-1': { status: 'ready', tips: [], complete: true },
@@ -86,6 +90,18 @@ describe("a reader's own tips on an article", () => {
       })
     })
     expect(seen.at(-1)?.status).toBe('ready')
+    // The token names someone else: the hook reads loading, not A's tips,
+    // even while the store still holds them for A.
+    await act(async () => {
+      tokenNames(B)
+      paymentsStore.claim(A)
+      paymentsStore.set({
+        ownTips: {
+          'article-1': { status: 'ready', tips: [], complete: true },
+        },
+      })
+    })
+    expect(seen.at(-1)?.status).toBe('loading')
     // Another reader's answer is not kept across a change of who is here.
     await act(async () => paymentsStore.setAuth('signed-out'))
     expect(seen.at(-1)?.status).toBe('signed-out')

@@ -1,35 +1,51 @@
 /**
- * Whose figures the payments store holds. Convex Auth keeps the session
- * token in localStorage under keys starting with `__convexAuthJWT`
- * (shell/prePaint.ts reads the same prefix); its `sub` is `<userId>|<session>`.
- * Read only to decide whether figures already in the store belong to the
- * person here now: nothing is trusted from it beyond that.
+ * Who this browser's session token names. Convex Auth keeps the token in
+ * localStorage under one key per deployment: `__convexAuthJWT_` and the
+ * deployment's URL with everything but letters and digits removed (its
+ * storage namespace is the client's address, `NEXT_PUBLIC_CONVEX_URL`). The
+ * token's `sub` is `<userId>|<sessionId>`. A key left by another deployment
+ * is never read. Read only to decide whether figures in the payments store
+ * belong to the person and session here now: nothing is trusted from it
+ * beyond that.
  */
-const TOKEN_PREFIX = '__convexAuthJWT'
+const TOKEN_PREFIX = '__convexAuthJWT_'
 
-/** Whether a `storage` event's key is the session token's (null: the
- * whole storage was cleared). */
-export function isTokenKey(key: string | null): boolean {
-  return key === null || key.startsWith(TOKEN_PREFIX)
+/** The token's key for a deployment, or null with no deployment URL. */
+export function tokenKey(
+  url: string | undefined = process.env.NEXT_PUBLIC_CONVEX_URL
+): string | null {
+  return url ? `${TOKEN_PREFIX}${url.replace(/[^a-zA-Z0-9]/g, '')}` : null
 }
 
-/** The user id in this browser's session token, or null when there is none
- * or it cannot be read. */
-export function tokenOwner(storage?: Storage): string | null {
+/** Whether a `storage` event's key is this deployment's token (null: the
+ * whole storage was cleared). */
+export function isTokenKey(key: string | null): boolean {
+  return key === null || key === tokenKey()
+}
+
+/**
+ * The `<userId>|<sessionId>` pair in this deployment's session token, or
+ * null when there is none, it does not parse, or its subject is not a pair.
+ */
+export function tokenPair(storage?: Storage): string | null {
   try {
-    const store = storage ?? window.localStorage
-    for (let i = 0; i < store.length; i++) {
-      const key = store.key(i)
-      if (!key?.startsWith(TOKEN_PREFIX)) continue
-      const token = store.getItem(key) ?? ''
-      const payload = token.split('.')[1]
-      if (!payload) continue
-      const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
-      const sub = (JSON.parse(json) as { sub?: unknown }).sub
-      if (typeof sub === 'string' && sub) return sub.split('|')[0] ?? null
-    }
+    const key = tokenKey()
+    if (!key) return null
+    const token = (storage ?? window.localStorage).getItem(key) ?? ''
+    const payload = token.split('.')[1]
+    if (!payload) return null
+    const json = atob(payload.replace(/-/g, '+').replace(/_/g, '/'))
+    const sub = (JSON.parse(json) as { sub?: unknown }).sub
+    if (typeof sub !== 'string') return null
+    const [userId, sessionId, ...rest] = sub.split('|')
+    return userId && sessionId && rest.length === 0 ? sub : null
   } catch {
     // No storage or an unreadable token: unknown.
+    return null
   }
-  return null
+}
+
+/** The pair the server answered for: `<userId>|<sessionId>`. */
+export function pairOf(userId: string, sessionId: string): string {
+  return `${userId}|${sessionId}`
 }
