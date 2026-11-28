@@ -1,4 +1,11 @@
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -23,6 +30,35 @@ describe('deleted paths stay deleted', () => {
       existsSync(path.join(root, entry.path))
     )
     expect(back, 'deleted by the rebuild, back after a merge').toEqual([])
+  })
+})
+
+describe('a deleted legacy file is listed', () => {
+  const snapshot = parseDeletedPaths(
+    readFileSync(path.join(__dirname, 'legacy-files.txt'), 'utf8')
+  )
+  const listedPaths = deletedPaths().map((entry) => entry.path)
+  /** Listed itself, or inside a listed directory. */
+  const covered = (file: string) =>
+    listedPaths.some(
+      (entry) =>
+        file === entry || file.startsWith(`${entry.replace(/\/$/, '')}/`)
+    )
+
+  it('lists every legacy file that is gone in a package file', () => {
+    const gone = snapshot.filter((file) => !existsSync(path.join(root, file)))
+    expect(
+      gone.filter((file) => !covered(file)),
+      'deleted, but not in scripts/rebuild/deleted/<package>.txt'
+    ).toEqual([])
+  })
+
+  it('adds no file under app/(legacy)', () => {
+    const now = execFileSync('git', ['ls-files', 'app/(legacy)'], { cwd: root })
+      .toString()
+      .split('\n')
+      .filter(Boolean)
+    expect(now.filter((file) => !snapshot.includes(file))).toEqual([])
   })
 })
 

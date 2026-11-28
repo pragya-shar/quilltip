@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next'
 import bundleAnalyzer from '@next/bundle-analyzer'
 import { legacyRouteTree } from './lib/routing/legacyRouteTree'
+import { signInPathFromRoutes } from './lib/routing/signInPath'
 import { walletConnectProjectId } from './lib/stellar/v2/walletconnect-gate'
 
 // WalletConnect is on with a Reown project ID and off without one
@@ -18,9 +19,14 @@ const nextConfig: NextConfig = {
   // replaces, app/(legacy). A URL that matches neither renders
   // app/global-not-found.tsx.
   experimental: { globalNotFound: true },
-  // The paths the legacy pages still serve: the shell's links to them never
-  // prefetch (lib/routing/legacyRoutes.ts).
-  env: { NEXT_PUBLIC_LEGACY_ROUTES: JSON.stringify(legacyRouteTree()) },
+  // The paths the legacy pages still serve, so the shell's links to them
+  // never prefetch (lib/routing/legacyRoutes.ts), and where the shell's
+  // "Sign in" goes: the shell's sign-in page once it is in the route tree,
+  // the legacy one until then (lib/routing/signInPath.ts).
+  env: {
+    NEXT_PUBLIC_LEGACY_ROUTES: JSON.stringify(legacyRouteTree()),
+    NEXT_PUBLIC_SIGN_IN_PATH: signInPathFromRoutes(),
+  },
   // Put page metadata in <head> for every client, not only Next's built-in bot
   // list, so all crawlers and link previews see article titles and tags. Pages
   // that set metadata already await the same data, so nothing is delayed.

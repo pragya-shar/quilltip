@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { signInPathFromRoutes } from '../lib/routing/signInPath'
 
 // The application shell around the gallery, the sample reading page
 // and the shell's own pages (e2e/fixtures/system): the bar or the rail with
@@ -61,7 +62,7 @@ test('signed out, the balance item reads Sign in', async ({ page }) => {
   await page.goto('/shelf?balance=signed-out')
   const item = nav(page).getByRole('link', { name: 'Sign in' })
   await expect(item).toBeVisible()
-  await expect(item).toHaveAttribute('href', '/login')
+  await expect(item).toHaveAttribute('href', signInPathFromRoutes())
 })
 
 test('the balance opens the Pocket over the page and gives focus back', async ({
