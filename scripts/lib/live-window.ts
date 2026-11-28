@@ -193,7 +193,7 @@ export const LIVE_WINDOW_OPERATIONS = [
 export type LiveWindowOperation = (typeof LIVE_WINDOW_OPERATIONS)[number]
 
 /** One argument check: null when the value is allowed, else the reason. */
-type ArgCheck = (value: unknown) => string | null
+export type ArgCheck = (value: unknown) => string | null
 
 type FunctionShape = {
   /** Arguments the function may take, each with a value check. */
@@ -232,10 +232,62 @@ const isDocumentId: ArgCheck = (v) =>
     ? null
     : 'must be a document ID'
 
-const isNote: ArgCheck = (v) =>
+export const isNote: ArgCheck = (v) =>
   typeof v === 'string' && /^[\x20-\x7e]{1,500}$/.test(v)
     ? null
     : 'must be a printable note of up to 500 characters'
+
+const BASE32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'
+
+/** CRC16-XModem, the checksum of a Stellar strkey. */
+function crc16Xmodem(bytes: Uint8Array): number {
+  let crc = 0
+  for (const byte of bytes) {
+    crc ^= byte << 8
+    for (let i = 0; i < 8; i++) {
+      crc = crc & 0x8000 ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff
+    }
+  }
+  return crc
+}
+
+/**
+ * True for a Stellar account address (`G…`): 56 base32 characters that
+ * decode to the account version byte, 32 key bytes and a matching CRC16
+ * checksum (SEP-23). Decoded here, so the guard loads no package code.
+ */
+export function isStellarAccountAddress(value: string): boolean {
+  if (!/^G[A-Z2-7]{55}$/.test(value)) return false
+  const bytes: number[] = []
+  let buffer = 0
+  let bits = 0
+  for (const char of value) {
+    buffer = (buffer << 5) | BASE32.indexOf(char)
+    bits += 5
+    if (bits >= 8) {
+      bits -= 8
+      bytes.push((buffer >> bits) & 0xff)
+    }
+  }
+  // 56 characters are 280 bits: 35 bytes and no bits left over.
+  if (bytes.length !== 35 || (buffer & ((1 << bits) - 1)) !== 0) return false
+  if (bytes[0] !== 6 << 3) return false
+  const body = Uint8Array.from(bytes.slice(0, 33))
+  const checksum = (bytes[33] as number) | ((bytes[34] as number) << 8)
+  return crc16Xmodem(body) === checksum
+}
+
+/**
+ * A Stellar account address. Muxed (`M…`), contract (`C…`) and secret
+ * (`S…`) keys, lower case and a wrong checksum are refused.
+ */
+export const isAccountAddress: ArgCheck = (v) =>
+  typeof v === 'string' && isStellarAccountAddress(v)
+    ? null
+    : 'must be a Stellar account address (G…)'
+
+/** Exactly `true`: an apply that must be asked for in so many words. */
+const isTrue: ArgCheck = (v) => (v === true ? null : 'must be true')
 
 const isEventList: ArgCheck = (v) =>
   Array.isArray(v) &&
@@ -299,9 +351,15 @@ export const LIVE_WINDOW_FUNCTION_SHAPES: Readonly<
     rule: (a) =>
       a.apply === true && a.note === undefined ? 'apply needs a note' : null,
   },
-  // Stage 5 drain (dashboard in the runbook; recorded here when run).
-  'reconcileTips:recoverStuckPendingArticleTips': NO_ARGS,
-  'reconcileTips:recoverStuckPendingHighlightTips': NO_ARGS,
+  // Chain runbook, "Stale settlement reserves", step 3: the apply only, with
+  // its note (kept on the reserve release record). The dry run is a
+  // read-only operation (scripts/lib/live-read.ts), never a window step.
+  // `keyId` and `writer` (one pair) are left out: the runbook applies per
+  // reader.
+  'chain/tabReconcile:run': {
+    args: { reader: isAccountAddress, apply: isTrue, note: isNote },
+    required: ['reader', 'apply', 'note'],
+  },
   // Stage 5A: writers' lifetime totals.
   'earningsTotalsBackfill:dryRun': {
     args: { cursor: isCursor, limit: integer(1, 50) },

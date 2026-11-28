@@ -158,6 +158,13 @@ export type NetworkGuardCode =
   | 'LIVE_WINDOW_LOG'
   | 'LIVE_WINDOW_RESTORE'
   | 'LIVE_WINDOW_BUILD'
+  // Read-only operations on the live backend (scripts/lib/live-read.ts).
+  | 'LIVE_READ_INVALID'
+  | 'LIVE_READ_OPERATION'
+  | 'LIVE_READ_OTHER_TARGET'
+  | 'LIVE_READ_CREDENTIAL'
+  | 'LIVE_READ_CHECKOUT'
+  | 'LIVE_READ_IN_FILE'
 
 export type NetworkGuardRefusal = {
   code: NetworkGuardCode
