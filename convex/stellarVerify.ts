@@ -11,6 +11,7 @@ import type { Doc } from './_generated/dataModel'
 import { verifyTipTransaction } from './lib/horizon'
 import { creditAuthorEarnings, writerShareCents } from './lib/authorEarnings'
 import { creditV1TipTotals } from './lib/lifetimeEarnings'
+import { syncTipCounts } from './lib/counts/sync'
 import {
   normalizeStellarTransactionHash,
   stellarTransactionHashLookupValues,
@@ -459,6 +460,7 @@ export const confirmVerifiedHighlightTip = internalMutation({
       amountUsdSuspicious: undefined,
       amountUsdSuspicionReason: undefined,
     })
+    await syncTipCounts(ctx, 'highlightTips', args.id, now)
     // The verified row, by the lifetime totals' rule (#552).
     const verified = await ctx.db.get(args.id)
     if (verified) {

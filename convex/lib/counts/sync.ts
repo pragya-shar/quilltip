@@ -14,10 +14,11 @@
  * count back exactly once, however often it is synced.
  *
  * What counts:
- * - a balance tip (`channel: 'tab'`) while its receipt is `ACCEPTED`,
- *   `SHORTFALL` or `SETTLED`: from acceptance, and as long as it can still be
- *   paid; it leaves the counts when it becomes `UNPAID`, `REJECTED` or
- *   `VOID_RESET`;
+ * - a balance tip (`channel: 'tab'`) in full while its receipt is `ACCEPTED`
+ *   or `SETTLED`; in any other state (`SHORTFALL`, `UNPAID`, `REJECTED`,
+ *   `VOID_RESET`) only the part the pair has paid on chain, at the tip's own
+ *   cents, and not at all when nothing of it was paid. So a paid part stays
+ *   counted when the rest of the tip is not paid;
  * - a wallet or v1 tip while `countsAsPaid` holds (the earnings rule), with
  *   an operator's `credit_decoded` resolution counted at the decoded amount.
  *
@@ -37,12 +38,34 @@ import {
 
 export type TipSource = 'tips' | 'highlightTips'
 
-/** Receipt statuses in which a balance tip counts. */
-export const COUNTED_TAB_STATUSES: ReadonlySet<string> = new Set([
+/** Receipt statuses in which a balance tip counts in full. */
+export const FULL_TAB_STATUSES: ReadonlySet<string> = new Set([
   'ACCEPTED',
-  'SHORTFALL',
   'SETTLED',
 ])
+
+/**
+ * The cents of a receipt that its pair's paid amount covers. The receipt
+ * spans `cumulativeAfter - amount` to `cumulativeAfter` of the pair's
+ * cumulative amount; the covered base units scale the tip's cents, rounded
+ * to the nearest cent.
+ */
+export function paidPartCents(
+  receipt: Pick<Doc<'tabReceipts'>, 'amount' | 'cumulativeAfter'>,
+  paidOnChain: bigint,
+  amountCents: number
+): { gross: bigint; cents: number } {
+  const amount = BigInt(receipt.amount)
+  const after = BigInt(receipt.cumulativeAfter)
+  const before = after - amount
+  if (amount <= BigInt(0) || paidOnChain <= before)
+    return { gross: BigInt(0), cents: 0 }
+  const gross = paidOnChain >= after ? amount : paidOnChain - before
+  if (gross >= amount) return { gross, cents: amountCents }
+  // Rounded half up in integers: no float error on large amounts.
+  const scaled = BigInt(Math.round(amountCents)) * gross * BigInt(2) + amount
+  return { gross, cents: Number(scaled / (amount * BigInt(2))) }
+}
 
 /** Longest passage text kept for finding the passage again. */
 export const PASSAGE_QUOTE_MAX = 2_000
@@ -55,7 +78,6 @@ type Identity = {
   authorId: Id<'users'> | null
   passageId: string | null
   readerKey: string | null
-  tipAt: number
   quote: string | null
 }
 
@@ -96,11 +118,27 @@ async function countedStateOf(
             )
             .first()
         : null
-    const status = receipt?.status ?? null
+    if (!receipt) {
+      return { counted: false, cents: 0, state: `tab:${row.status}` }
+    }
+    const cents = receipt.amountCents ?? row.amountCents
+    if (FULL_TAB_STATUSES.has(receipt.status)) {
+      return { counted: true, cents, state: `tab:${receipt.status}` }
+    }
+    const pair = await ctx.db
+      .query('tabVouchers')
+      .withIndex('by_pair', (q) =>
+        q
+          .eq('tabAccountId', receipt.tabAccountId)
+          .eq('keyId', receipt.keyId)
+          .eq('writerAddress', receipt.writerAddress)
+      )
+      .first()
+    const paid = paidPartCents(receipt, BigInt(pair?.paidOnChain ?? '0'), cents)
     return {
-      counted: status !== null && COUNTED_TAB_STATUSES.has(status),
-      cents: receipt?.amountCents ?? row.amountCents,
-      state: `tab:${status ?? row.status}`,
+      counted: paid.gross > BigInt(0),
+      cents: paid.cents,
+      state: `tab:${receipt.status}:paid=${paid.gross}`,
     }
   }
   return {
@@ -123,7 +161,6 @@ async function identityOf(
     articleId: row.articleId,
     authorId: row.authorId,
     readerKey: tipper ? `u:${row.tipperId}` : null,
-    tipAt: row.createdAt,
   }
   if (source !== 'highlightTips' || !('highlightId' in row)) {
     return { ...base, passageId: null, quote: null }
@@ -202,12 +239,7 @@ async function moveMembership(
 
 type Figures = Pick<
   Doc<'articleTipStats'>,
-  | 'tipCount'
-  | 'tipCents'
-  | 'distinctTippers'
-  | 'unidentifiedTipCount'
-  | 'firstTipAt'
-  | 'lastTipAt'
+  'tipCount' | 'tipCents' | 'distinctTippers' | 'unidentifiedTipCount'
 >
 
 const ZERO: Figures = {
@@ -219,7 +251,7 @@ const ZERO: Figures = {
 
 function moved(
   current: Figures,
-  c: { cents: number; readerKey: string | null; tipAt: number },
+  c: { cents: number; readerKey: string | null },
   sign: 1 | -1,
   readerDelta: number,
   label: string
@@ -237,14 +269,6 @@ function moved(
       c.readerKey === null ? sign : 0,
       `${label} unidentifiedTipCount`
     ),
-    firstTipAt:
-      sign > 0
-        ? Math.min(current.firstTipAt ?? c.tipAt, c.tipAt)
-        : current.firstTipAt,
-    lastTipAt:
-      sign > 0
-        ? Math.max(current.lastTipAt ?? c.tipAt, c.tipAt)
-        : current.lastTipAt,
   }
 }
 
@@ -347,7 +371,6 @@ export async function syncTipCounts(
         authorId: row?.authorId ?? null,
         passageId: entry.passageId,
         readerKey: entry.readerKey,
-        tipAt: entry.tipAt,
         quote: null,
       }
     : await identityOf(ctx, source, row!)
@@ -372,7 +395,6 @@ export async function syncTipCounts(
       articleId: identity.articleId,
       passageId: identity.passageId,
       readerKey: identity.readerKey,
-      tipAt: identity.tipAt,
       ...fields,
     })
   }

@@ -1,6 +1,10 @@
 /**
- * Lines readers paid for, read from the running figures (`passageStats`,
- * kept by `convex/lib/counts/sync.ts`).
+ * Lines readers paid for, read from the daily public copy of the figures
+ * (`passageTipSnapshots`, written by `convex/counts.ts` from the running
+ * figures that `convex/lib/counts/sync.ts` keeps).
+ *
+ * A line shows only from `MIN_LINE_TIPS` counted tips. No read returns when
+ * a line was tipped or who tipped it, and none orders lines by time.
  *
  * Current text only: a line is shown only where its text is in the
  * published article now, word for word, exactly once. A line the writer
@@ -36,11 +40,13 @@ export const MAX_WRITER_LINES = 20
 export const DEFAULT_WRITER_LINES = 10
 /** Distinct articles one read loads. */
 export const MAX_ARTICLES_PER_READ = 8
+/** Counted tips from which a line shows at all. */
+export const MIN_LINE_TIPS = 2
 
 export type CountLabel = 'tips' | 'readers'
 
 type Figures = Pick<
-  Doc<'passageStats'>,
+  Doc<'passageTipSnapshots'>,
   'tipCount' | 'tipCents' | 'distinctTippers' | 'unidentifiedTipCount'
 >
 
@@ -85,7 +91,7 @@ function articleReader(ctx: QueryCtx) {
 }
 
 /** Where a stats row's line is in the current text, or null (see header). */
-function currentLine(stats: Doc<'passageStats'>, text: Readable) {
+function currentLine(stats: Doc<'passageTipSnapshots'>, text: Readable) {
   if (stats.quote === null) return null
   const found = findPassage(text.index, stats.quote, 2)
   if (found.length !== 1) return null
@@ -125,7 +131,6 @@ const paidLineValidator = v.object({
   article: v.object({ title: v.string(), slug: v.string(), href: v.string() }),
   writer: v.object({ name: v.string(), username: v.string() }),
   ...figuresValidator,
-  lastTipAt: v.union(v.number(), v.null()),
 })
 
 /**
@@ -148,9 +153,9 @@ export const forArticle = query({
     const entry = await articleReader(ctx).get(args.articleId)
     if (!entry) return { lines: [] }
     const rows = await ctx.db
-      .query('passageStats')
+      .query('passageTipSnapshots')
       .withIndex('by_article_tipCount', (q) =>
-        q.eq('articleId', args.articleId).gt('tipCount', 0)
+        q.eq('articleId', args.articleId).gte('tipCount', MIN_LINE_TIPS)
       )
       .order('desc')
       .take(MAX_ARTICLE_LINES)
@@ -172,15 +177,13 @@ export const forArticle = query({
 
 /**
  * Paid lines across Quilltip, for Top lines and the mix: the most tipped
- * first (`order: 'top'`, the default; ties by the latest tip), or the most
- * recently tipped (`order: 'recent'`). A page reads at most
- * `MAX_PAID_LINES_PAGE` rows and can hold fewer items than it read, because
- * lines not in their article's current text are left out.
+ * first. A page reads at most `MAX_PAID_LINES_PAGE` rows and can hold fewer
+ * items than it read, because lines not in their article's current text are
+ * left out.
  */
 export const paidLines = query({
   args: {
     paginationOpts: paginationOptsValidator,
-    order: v.optional(v.union(v.literal('top'), v.literal('recent'))),
   },
   handler: async (ctx, args) => {
     const opts = {
@@ -190,22 +193,14 @@ export const paidLines = query({
         Math.min(MAX_PAID_LINES_PAGE, Math.floor(args.paginationOpts.numItems))
       ),
     }
-    const page =
-      args.order === 'recent'
-        ? await ctx.db
-            .query('passageStats')
-            .withIndex('by_lastTipAt')
-            .order('desc')
-            .paginate(opts)
-        : await ctx.db
-            .query('passageStats')
-            .withIndex('by_tipCount', (q) => q.gt('tipCount', 0))
-            .order('desc')
-            .paginate(opts)
+    const page = await ctx.db
+      .query('passageTipSnapshots')
+      .withIndex('by_tipCount', (q) => q.gte('tipCount', MIN_LINE_TIPS))
+      .order('desc')
+      .paginate(opts)
     const articles = articleReader(ctx)
     const items = []
     for (const stats of page.page) {
-      if (stats.tipCount <= 0) continue
       const entry = await articles.get(stats.articleId)
       if (!entry) continue
       const line = currentLine(stats, entry.text)
@@ -222,7 +217,6 @@ export const paidLines = query({
         },
         writer,
         ...figuresOf(stats),
-        lastTipAt: stats.lastTipAt ?? null,
       })
     }
     return { ...page, page: items }
@@ -243,9 +237,9 @@ export const byWriter = query({
       Math.min(MAX_WRITER_LINES, Math.floor(args.limit ?? DEFAULT_WRITER_LINES))
     )
     const rows = await ctx.db
-      .query('passageStats')
+      .query('passageTipSnapshots')
       .withIndex('by_author_tipCount', (q) =>
-        q.eq('authorId', args.userId).gt('tipCount', 0)
+        q.eq('authorId', args.userId).gte('tipCount', MIN_LINE_TIPS)
       )
       .order('desc')
       .take(limit * 2)
@@ -269,7 +263,6 @@ export const byWriter = query({
         },
         writer,
         ...figuresOf(stats),
-        lastTipAt: stats.lastTipAt ?? null,
       })
     }
     return items

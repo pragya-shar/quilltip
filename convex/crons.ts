@@ -147,4 +147,13 @@ crons.interval(
   {}
 )
 
+// Tip counts: public figures are a daily copy of the running ones
+// (convex/counts.ts), so nothing public moves at the moment a tip is made.
+crons.daily(
+  'publish tip counts',
+  { hourUTC: 0, minuteUTC: 15 },
+  internal.counts.startSnapshot,
+  {}
+)
+
 export default crons
