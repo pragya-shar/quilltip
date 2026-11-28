@@ -50,6 +50,10 @@ export default function SignInBody({
       ) : null}
       {words ? <p className="qt-signin-sheet__lead">{words}</p> : null}
       <SignInForm
+        // Opened from an act (a tip, a keep, a follow, a publish), the
+        // person is most likely new: the sheet starts with creating an
+        // account. Opened plainly, it starts with signing in.
+        initialMode={intent ? 'create' : 'sign-in'}
         onSignedIn={close}
         returnTo={`${window.location.pathname}${window.location.search}`}
       />

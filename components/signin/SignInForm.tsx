@@ -14,7 +14,7 @@ import { usePasswordAuth } from '@/hooks/auth/usePasswordAuth'
 import { runAfterSignIn } from '@/lib/auth/afterSignIn'
 import { afterSignInSheet } from './afterSignInSheet'
 import { resetHref } from './resetHref'
-import type { AuthMode } from '@/lib/auth/authErrors'
+import { AUTH_MESSAGES, type AuthMode } from '@/lib/auth/authErrors'
 import { rememberResetEmail } from '@/lib/auth/passwordReset'
 import { CONFIRM_MS, signInSession } from '@/lib/auth/session'
 import {
@@ -137,6 +137,24 @@ export function SignInForm({
     if (!result) return
     if (result.ok) {
       setWaiting(true)
+      return
+    }
+    // Creating an account with an email that has one: the password typed
+    // may be that account's (a returning reader who did not switch), so
+    // it signs in with it. If not, the form becomes the sign-in form with
+    // the email kept. Sign-up already says an email is taken, so this
+    // tells nobody more than that.
+    if (result.failure.code === 'email-in-use') {
+      setMode('sign-in')
+      onModeChange?.('sign-in')
+      const again = await submit('sign-in', values)
+      if (again?.ok) {
+        setWaiting(true)
+        return
+      }
+      if (password.current) password.current.value = ''
+      setErrors({ password: AUTH_MESSAGES.accountExists })
+      password.current?.focus()
       return
     }
     const { field, message } = result.failure
@@ -263,16 +281,11 @@ export function SignInForm({
       </form>
       {waiting ? null : (
         <>
-          <p className="qt-signin__switch">
-            {mode === 'sign-in' ? 'New here?' : 'Have an account?'}{' '}
-            <button
-              type="button"
-              className="qt-signin__text-button"
-              onClick={switchMode}
-            >
-              {mode === 'sign-in' ? 'Create an account' : 'Sign in'}
-            </button>
-          </p>
+          {/* The other way in is as easy to find as this one: most people
+              who meet the sheet from a first tip are new. */}
+          <Button variant="secondary" size="l" block onClick={switchMode}>
+            {mode === 'sign-in' ? 'Create an account' : 'I have an account'}
+          </Button>
           <p className="qt-signin__terms">
             By continuing you agree to the{' '}
             <TextLink href="/terms">Terms</TextLink>.

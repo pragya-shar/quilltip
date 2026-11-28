@@ -40,13 +40,17 @@ const activeId = (page: Page) =>
     }
   })
 
-async function openFromTip(page: Page, path = '/article') {
+/** Opens the sheet from the tip; it starts with creating an account, and
+ * `asReturning` switches it to signing in, as a returning reader does. */
+async function openFromTip(page: Page, path = '/article', asReturning = true) {
   await page.goto(path)
   await expect(tipButton(page)).toHaveAttribute('data-phase', 'signed-out')
   await tipButton(page).focus()
   await press(tipButton(page))
   const dialog = sheet(page, /^Tip this line/)
   await expect(dialog).toBeVisible()
+  if (asReturning)
+    await press(dialog.getByRole('button', { name: 'I have an account' }))
   return dialog
 }
 
@@ -157,6 +161,61 @@ test.describe('a kept intent comes back, and nothing is sent', () => {
     expect(await stored()).not.toBeNull()
     await press(page.locator('[data-fixture="sign-out"]'))
     await expect.poll(stored).toBeNull()
+  })
+})
+
+test.describe('a newcomer from a tip creates an account first', () => {
+  test('the sheet starts with creating an account; signing in is one full-size press away', async ({
+    page,
+  }) => {
+    const dialog = await openFromTip(page, '/article', false)
+    await expect(
+      dialog.getByRole('button', { name: 'Create account' })
+    ).toBeVisible()
+    await expect(
+      dialog.getByLabel('Password', { exact: true })
+    ).toHaveAttribute('autocomplete', 'new-password')
+    const other = dialog.getByRole('button', { name: 'I have an account' })
+    const box = (await other.boundingBox())!
+    expect(box.height).toBeGreaterThanOrEqual(44)
+    const submit = (await dialog
+      .getByRole('button', { name: 'Create account' })
+      .boundingBox())!
+    expect(box.width).toBeCloseTo(submit.width, 0)
+  })
+
+  test('a returning reader who types their password into it is signed in', async ({
+    page,
+  }) => {
+    const dialog = await openFromTip(page, '/article', false)
+    await fill(dialog, EMAIL, PASSWORD)
+    await press(dialog.getByRole('button', { name: 'Create account' }))
+    await expect(dialog).toBeHidden()
+    await expect(tipButton(page)).toHaveAttribute('data-phase', 'signed-in')
+    await expect(tipButton(page)).toHaveAttribute('data-sends', '0')
+  })
+
+  test('an email that has an account, with another password, turns the form into sign-in', async ({
+    page,
+  }) => {
+    const dialog = await openFromTip(page, '/article', false)
+    await fill(dialog, EMAIL, 'Another1password')
+    await press(dialog.getByRole('button', { name: 'Create account' }))
+    await expect(dialog).toContainText(
+      'You already have an account with this email. Enter its password to sign in.'
+    )
+    await expect(
+      dialog.getByRole('button', { name: 'Sign in', exact: true })
+    ).toBeVisible()
+    await expect(dialog.getByLabel('Email')).toHaveValue(EMAIL)
+    const password = dialog.getByLabel('Password', { exact: true })
+    await expect(password).toHaveValue('')
+    await expect(password).toBeFocused()
+    await expect(password).toHaveAttribute('autocomplete', 'current-password')
+    await password.fill(PASSWORD)
+    await press(dialog.getByRole('button', { name: 'Sign in', exact: true }))
+    await expect(dialog).toBeHidden()
+    await expect(tipButton(page)).toHaveAttribute('data-sends', '0')
   })
 })
 
@@ -345,7 +404,7 @@ test.describe('the page follows the person', () => {
     await expect(heading).toHaveText('Sign in to Quilltip')
     await press(page.getByRole('button', { name: 'Create an account' }))
     await expect(heading).toHaveText('Create your account')
-    await press(page.getByRole('button', { name: 'Sign in', exact: true }))
+    await press(page.getByRole('button', { name: 'I have an account' }))
     await expect(heading).toHaveText('Sign in to Quilltip')
     await page.goto('/signin?mode=create')
     await expect(heading).toHaveText('Create your account')

@@ -7,6 +7,8 @@ export type AuthMode = 'sign-in' | 'create'
 export type AuthFailure = {
   field: 'email' | 'password' | null
   message: string
+  /** Set when creating an account met an email that already has one. */
+  code?: 'email-in-use'
 }
 
 /**
@@ -22,6 +24,8 @@ export const AUTH_MESSAGES = {
   emailInUse:
     'An account with this email already exists, so no new account was made. Sign in with it instead.',
   weakPassword: 'Use at least 8 characters.',
+  accountExists:
+    'You already have an account with this email. Enter its password to sign in.',
   generic:
     'That did not work, so you are not signed in and nothing was sent. Try again in a moment.',
   genericCreate:
@@ -62,7 +66,11 @@ export function authFailure(
     }
   if (mode === 'create') {
     if (/already exists|already registered|in use|taken/.test(lower))
-      return { field: 'email', message: AUTH_MESSAGES.emailInUse }
+      return {
+        field: 'email',
+        message: AUTH_MESSAGES.emailInUse,
+        code: 'email-in-use',
+      }
     if (lower.includes('invalid_password') || lower.includes('password'))
       return { field: 'password', message: AUTH_MESSAGES.weakPassword }
     return { field: null, message: AUTH_MESSAGES.genericCreate }
