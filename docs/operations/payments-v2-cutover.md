@@ -28,12 +28,16 @@ later work.
    fix: #583, #565, #577, #596 (the fix for #584), #597 and #572, all merged.
    It also contains the v1 client removal (#559, `fd39cf71`), the short-paid
    pair fix (#619, `e650829f`), the short tab notice (#620, `3854cfd8`), the
-   live window tool (#593, `7b69c565`), and the content limits for article
-   image sources (#625 for #615, still open). The checks
+   live window tool (#593, `7b69c565`), the auth import change (#624,
+   `f4704e6d`) and the public copy refresh after an article leaves its
+   address (#627, `116e356e`). Still open: the content limits for article
+   image sources (#625 for #615) and for profile image sources (#633, PR to
+   follow). The checks
    in section 1.3 pass on that commit. The tab debit fix (#585) is merged and
    needs no operator step: its table and field ship with the stage 1 push,
    and its test variables `TAB_DEBIT_SCAN_LIMIT` and `TAB_DEBIT_READ_BUDGET`
-   stay unset on the live deployment. #619 and #620 need no operator step.
+   stay unset on the live deployment. #619, #620, #624 and #627 need no
+   operator step.
    #559 raises the page-load budgets of
    `/articles` and `/[username]/[slug]` by 1 KB, to 217 KB and 220 KB, for a
    bundler chunk split.
@@ -798,6 +802,13 @@ the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
      is a dry run unless `"dryRun": false`. It is not on the window tool's
      list (section 5.0.3), so it cannot run in this window without a
      reviewed change to that list.
+   - After an article is moved to draft (#627): its page answers 404 at
+     once. Its card can stay on `/articles` for up to 60 seconds, and the
+     card's link answers 404 (#628). Each article request makes one route
+     check in the proxy (#630).
+   - **Pending (#633):** the same command will also report profile image
+     (avatar) hosts once the change for #633 is merged. Its output fields
+     are added here after they are checked on that change.
 
 5. Merge the release PR (`overhaul/v2` into `main`) right after step 4, and
    continue with stage 2. With the default plan, Vercel builds and promotes
