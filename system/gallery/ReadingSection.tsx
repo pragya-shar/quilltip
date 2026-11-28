@@ -1,5 +1,4 @@
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
+import { AppLink as Link } from '../components/AppLink'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { Heading } from '../components/Heading'
@@ -8,6 +7,7 @@ import { Prose } from '../components/Prose'
 import { ReadingUnavailable } from '../components/ReadingUnavailable'
 import { Skeleton } from '../components/Skeleton'
 import { Text } from '../components/Text'
+import { TextLink } from '../components/TextLink'
 import { BalanceIcon } from '../icons'
 import { GallerySection } from './GallerySection'
 import { Specimen } from './Specimen'
@@ -56,7 +56,6 @@ export function ReadingSection() {
               <Link
                 className="qt-fn-ref"
                 href="/system/reading#fn-1"
-                prefetch={prefetchFor('/system/reading')}
                 id="fnref-1"
               >
                 1
@@ -75,7 +74,6 @@ export function ReadingSection() {
                 The ledger is now in a shoebox in my mother’s closet.{' '}
                 <Link
                   href="/system/reading#fnref-1"
-                  prefetch={prefetchFor('/system/reading')}
                   aria-label="Back to the text"
                 >
                   ↩
@@ -146,6 +144,17 @@ export function ReadingSection() {
           title="Nothing on your shelf yet."
           body="Keep an article and it waits here."
         />
+      </Specimen>
+      <Specimen name="Links to articles, prefetched on intent" wide>
+        <ul className="qt-gallery__stack" data-article-links="">
+          {['ledger', 'lamp', 'river', 'kitchen'].map((slug) => (
+            <li key={slug}>
+              <TextLink href={`/tomas/${slug}`} variant="standalone">
+                Read more
+              </TextLink>
+            </li>
+          ))}
+        </ul>
       </Specimen>
       <Specimen name="Lines in two states at once" wide>
         <Prose>

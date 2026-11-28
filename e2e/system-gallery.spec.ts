@@ -1077,3 +1077,29 @@ test('a toast lets every tap through but its action', async ({ page }) => {
   await page.keyboard.press('Enter')
   await expect(again).toHaveCount(0)
 })
+
+test('links to articles prefetch on intent, never on sight', async ({
+  page,
+}) => {
+  await open(page)
+  const links = page.locator('[data-article-links] a')
+  await links.first().scrollIntoViewIfNeeded()
+  await page.waitForTimeout(400)
+  const prefetched = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { __prefetched?: string[] }).__prefetched ?? []
+    )
+  // Four article links in view, and no route check for any of them.
+  expect((await prefetched()).filter((h) => h.startsWith('/tomas/'))).toEqual(
+    []
+  )
+  // Intent on one: that one, once.
+  if (hasTouch()) await links.nth(1).dispatchEvent('touchstart')
+  else await links.nth(1).hover()
+  await expect
+    .poll(async () =>
+      (await prefetched()).filter((h) => h.startsWith('/tomas/'))
+    )
+    .toEqual(['/tomas/lamp'])
+})

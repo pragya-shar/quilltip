@@ -8,6 +8,8 @@
  * legacy.
  */
 
+import { publicContentPath } from './publicContentPath'
+
 export type LegacyRouteTree = {
   /** app/(legacy)/page.tsx serves `/`. */
   home: boolean
@@ -64,10 +66,33 @@ function treeFromEnv(): LegacyRouteTree {
 const TREE = treeFromEnv()
 
 /**
+ * How a link from the shell prefetches its target (system/components/AppLink):
+ * - `never`: a legacy page. Crossing root layouts is a full page load, and a
+ *   prefetch would only pull the legacy layout's fonts and scripts here.
+ * - `intent`: a page behind the proxy's route check (a writer's page or an
+ *   article). A prefetch runs that check like a full load, so a list of
+ *   them in view would cost one backend check each: prefetch only when the
+ *   reader points at, touches or focuses the link.
+ * - `default`: the shell's own places (Today, Shelf, Write, the balance),
+ *   prefetched as Next.js does.
+ */
+export type PrefetchPolicy = 'never' | 'intent' | 'default'
+
+export function linkPrefetch(
+  href: string,
+  tree: LegacyRouteTree = TREE
+): PrefetchPolicy {
+  if (servedByLegacy(href, tree)) return 'never'
+  if (!href.startsWith('/') || href.startsWith('//')) return 'default'
+  const pathname = href.split(/[?#]/)[0] ?? '/'
+  return publicContentPath(pathname) ? 'intent' : 'default'
+}
+
+/**
  * The `prefetch` value for a link from the shell: false when a legacy page
- * serves `href`, otherwise undefined (Next.js's default). Every next/link in
- * system/ and shell/ passes it (scripts/system/legacy-routes.test.ts).
+ * serves `href` or the route check stands in front of it, otherwise
+ * undefined (Next.js's default). AppLink adds the prefetch on intent.
  */
 export function prefetchFor(href: string, tree: LegacyRouteTree = TREE) {
-  return servedByLegacy(href, tree) ? false : undefined
+  return linkPrefetch(href, tree) === 'default' ? undefined : false
 }

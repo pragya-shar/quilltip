@@ -19,5 +19,9 @@ export const useRouter = () => ({
   replace: (href: string) => location.replace(href),
   refresh: () => {},
   back: () => history.back(),
-  prefetch: () => {},
+  // Recorded, so a test sees which links prefetched and when.
+  prefetch: (href: string) => {
+    const page = window as unknown as { __prefetched?: string[] }
+    ;(page.__prefetched ??= []).push(href)
+  },
 })

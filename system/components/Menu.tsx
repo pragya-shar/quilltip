@@ -1,7 +1,6 @@
 'use client'
 
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
+import { AppLink as Link } from './AppLink'
 import {
   useEffect,
   useId,
@@ -155,7 +154,6 @@ export function Menu({ label, items, icon = MoreIcon, className }: MenuProps) {
                 key={item.id}
                 {...common}
                 href={item.href}
-                prefetch={prefetchFor(item.href)}
                 onClick={() => setOpen(false)}
               >
                 {inner}
