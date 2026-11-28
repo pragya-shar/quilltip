@@ -106,6 +106,16 @@ export const FIXTURES = [
     env: { ARTICLE_IMAGES_FIXTURES: '1' },
   },
   {
+    // Passage selection on a touch screen (#665): the real article reader,
+    // signed out, no backend. Chromium (Pixel 5) and WebKit (iPhone 13).
+    name: 'passage-touch',
+    server: 'e2e/fixtures/passage-touch/server.mjs',
+    port: 4192,
+    spec: 'e2e/touch-passage-offer.spec.ts',
+    config: 'e2e/fixtures/passage-touch/playwright.config.ts',
+    env: { PASSAGE_TOUCH_FIXTURES: '1' },
+  },
+  {
     // Tab screens (#449) and the tip dialog's tab section (#546): every
     // state in Chromium, the session-key and voucher paths in Chromium,
     // Firefox and WebKit (its own config).

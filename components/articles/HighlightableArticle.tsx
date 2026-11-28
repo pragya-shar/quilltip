@@ -134,6 +134,9 @@ export function HighlightableArticle({
   // the selection at that word, so touch input first offers a button that
   // opens the slip with the selection as it is when the reader taps it (#665).
   const touchInputRef = useRef(false)
+  // True from the press on the offer until its click: the browser may clear
+  // the native selection on that press, which must not withdraw the offer.
+  const offerPressRef = useRef(false)
   const [touchOffer, setTouchOffer] = useState<{
     text: string
     from: number
@@ -615,12 +618,17 @@ export function HighlightableArticle({
     })
     document.addEventListener('mouseup', handlePointerUp)
     document.addEventListener('touchend', handlePointerUp)
+    // A long press can end in a cancel (Android Chrome): treat it as the end.
+    document.addEventListener('touchcancel', handlePointerUp)
+    document.addEventListener('pointercancel', handlePointerUp)
 
     return () => {
       container.removeEventListener('mousedown', handlePointerDown)
       container.removeEventListener('touchstart', handlePointerDown)
       document.removeEventListener('mouseup', handlePointerUp)
       document.removeEventListener('touchend', handlePointerUp)
+      document.removeEventListener('touchcancel', handlePointerUp)
+      document.removeEventListener('pointercancel', handlePointerUp)
     }
   }, [
     editor,
@@ -631,6 +639,33 @@ export function HighlightableArticle({
     applySignedOutTextSelection,
     offerTouchSelection,
   ])
+
+  const releaseOfferPress = useCallback(() => {
+    window.setTimeout(() => {
+      offerPressRef.current = false
+    }, 500)
+  }, [])
+
+  // A tap outside the article clears the native selection, but the editor
+  // keeps its own, so the offer would open a slip for words no longer
+  // selected. Withdraw it when the page's selection leaves the article.
+  useEffect(() => {
+    if (!touchOffer) return
+    const withdrawIfGone = () => {
+      if (offerPressRef.current) return
+      const selection = window.getSelection()
+      const container = editorRef.current
+      const inside =
+        !!selection &&
+        !selection.isCollapsed &&
+        !!container &&
+        !!selection.anchorNode &&
+        container.contains(selection.anchorNode)
+      if (!inside) setTouchOffer(null)
+    }
+    document.addEventListener('selectionchange', withdrawIfGone)
+    return () => document.removeEventListener('selectionchange', withdrawIfGone)
+  }, [touchOffer])
 
   const handleCreateHighlight = useCallback(
     async (
@@ -798,7 +833,14 @@ export function HighlightableArticle({
           <button
             type="button"
             className="highlight-touch-offer"
+            onPointerDown={() => {
+              offerPressRef.current = true
+            }}
+            // A press that leaves without a click must not keep the guard.
+            onPointerUp={releaseOfferPress}
+            onPointerCancel={releaseOfferPress}
             onClick={() => {
+              offerPressRef.current = false
               setSelectedText({
                 text: touchOffer.text,
                 from: touchOffer.from,
