@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { api } from '@/convex/_generated/api'
 import { compressImage, uploadAvatarFile } from '@/lib/upload'
+import { convexErrorMessage } from '@/lib/feedback/convexErrorMessage'
 
 interface ProfileAvatarEditorProps {
   avatar?: string | null
@@ -66,7 +67,7 @@ export function ProfileAvatarEditor({
       toast.success('Profile photo removed')
     } catch (err) {
       toast.error(
-        err instanceof Error ? err.message : 'Could not remove profile photo'
+        convexErrorMessage(err) ?? 'Could not remove your photo. Try again.'
       )
     } finally {
       setIsRemoving(false)
