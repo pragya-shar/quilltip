@@ -1,24 +1,27 @@
-/* The reading face, served by the fixture server, in place of next/font. */
+/* The reading face, served by the fixture server, in place of next/font,
+ * with the same font-display as system/fonts.ts: optional for the reading
+ * faces, swap for their second names. The server preloads the roman file,
+ * as the app does. */
 @font-face {
   font-family: 'Literata Fixture';
   src: url('/fonts/literata-latin-normal.woff2') format('woff2');
   font-weight: 400 700;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
 }
 @font-face {
   font-family: 'Literata Fixture Italic';
   src: url('/fonts/literata-latin-italic.woff2') format('woff2');
   font-weight: 400 700;
   font-style: italic;
-  font-display: swap;
+  font-display: optional;
 }
 @font-face {
   font-family: 'Literata Fixture Ext';
   src: url('/fonts/literata-latin-ext-normal.woff2') format('woff2');
   font-weight: 400 700;
   font-style: normal;
-  font-display: swap;
+  font-display: optional;
   unicode-range:
     U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304,
     U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB,
