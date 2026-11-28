@@ -433,8 +433,15 @@
     font-size: var(--qt-text-ui-s);
     line-height: var(--qt-lh-ui-s);
   }
+  /* An empty live region stays in the accessibility tree, so the error
+   * that arrives in it is read; it takes no room until then. */
   .qt-field__error[data-empty] {
-    display: none;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
   }
   .qt-field__error {
     color: var(--qt-danger);

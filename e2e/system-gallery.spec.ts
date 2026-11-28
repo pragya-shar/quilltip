@@ -1019,6 +1019,14 @@ test('a field error is read once: by focus, or by a live region', async ({
   const region = live.locator('[aria-live="polite"]')
   await expect(region).toHaveCount(1)
   await expect(region).toHaveText('')
+  // Rendered before the error (display: none would take it out of the
+  // accessibility tree, and the error would not be read), with no room.
+  const empty = await region.evaluate((el) => ({
+    display: getComputedStyle(el).display,
+    height: el.getBoundingClientRect().height,
+  }))
+  expect(empty.display).not.toBe('none')
+  expect(empty.height).toBeLessThanOrEqual(1)
   await press(page, live.getByRole('button', { name: 'Check address' }))
   await expect(region).toHaveText('That address is taken. Try another.')
   await expect(
