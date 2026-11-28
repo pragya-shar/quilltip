@@ -65,6 +65,7 @@ import {
   TIP_LADDER,
   balanceViewOf,
   effectiveChoice,
+  sendablePressedAmount,
   tipBlocked,
   readerItemsOf,
   pageState,
@@ -163,6 +164,21 @@ export function PaymentsEngine() {
     rawSession?.userId && rawSession.sessionId
       ? pairOf(rawSession.userId, rawSession.sessionId)
       : null
+  const pairRef = useRef(pair)
+  pairRef.current = pair
+  // Signed in, but the server answers no session (no user row for this
+  // token): the views say payments are unavailable instead of loading for
+  // ever, and come back when an answer arrives (the query stays live).
+  const noSession = useRef(false)
+  useEffect(() => {
+    if (isAuthenticated && !isLoading && rawSession === null) {
+      noSession.current = true
+      paymentsStore.fail()
+    } else if (rawSession && noSession.current) {
+      noSession.current = false
+      paymentsStore.set({ engine: 'ready' })
+    }
+  }, [isAuthenticated, isLoading, rawSession])
   const owner = useStoreValue((s) => s.owner)
   const live = useStoreValue((s) => bindingHolds(s, pair))
   // Before any watcher publishes (their effects run after this layout
@@ -307,6 +323,9 @@ export function PaymentsEngine() {
       )
     return createSendQueue(binding, {
       context: () => latest.current,
+      // Read when each job starts: the token is read again, so a send
+      // queued behind one in flight never starts under another pair.
+      mayStart: () => paymentsStore.bound(pairRef.current),
       outbox,
       convex: {
         prepareTip: (args) =>
@@ -371,6 +390,8 @@ export function PaymentsEngine() {
   useEffect(() => {
     if (device !== 'ready' || !queue) return
     const resume = () => {
+      // An early exit only: each job checks the binding again when it
+      // starts (the queue's mayStart), which is the guard.
       if (!paymentsStore.bound(pair)) return
       for (const entry of unansweredEntries(entries, session))
         queue.enqueue(entry)
@@ -384,7 +405,10 @@ export function PaymentsEngine() {
     (target: TipTarget, cents: Cents, meta: TipMeta, requestId: string) => void
   >(
     (target, cents, meta, requestId) => {
-      // Never for a pair the session token does not name now.
+      // Never for a pair the session token does not name now. Its callers
+      // (a controller's tip() and a taken tap) check this first; this is
+      // the net under them, so the outbox never holds an entry made under
+      // another pair, and each job checks again when it starts.
       if (!session || !binding || !queue || !paymentsStore.bound(pair)) return
       const price = session.prices[0]?.usd ?? 0
       const entry: OutboxEntry = {
@@ -640,18 +664,23 @@ export function PaymentsEngine() {
     if (!live) return
     paymentsStore.set({ tips: controllers })
     // A tap made before the engine was ready: send it once, for what was
-    // pressed (its own target, request id and amount, never raised), not
-    // for whatever the control shows now.
+    // pressed (its own target, request id and amount), not for whatever
+    // the control shows now. A press never sends an amount other than the
+    // one on the button: if the reader's ladder does not offer it, nothing
+    // is sent and the control says so (`missed`).
     for (const [id, controller] of Object.entries(controllers)) {
       if (!(id in queuedTaps)) continue
       if (!controller.ready) continue
       const tap = paymentsStore.takeTap(id, pair)
       if (!tap || controller.unavailable) continue
-      const cents = effectiveChoice(
+      const cents = sendablePressedAmount(
         tap.cents,
         controller.amounts.map((a) => a.cents)
       )
-      if (cents === null) continue
+      if (cents === null) {
+        paymentsStore.missTap(id)
+        continue
+      }
       const b = balanceRef.current
       const decision = tapOnce(
         phases.current,

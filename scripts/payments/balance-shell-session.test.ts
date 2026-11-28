@@ -93,6 +93,17 @@ describe('the payments shell and the session token', () => {
     hidden()
   })
 
+  it('reads the token again when another tab clears all of storage (a null key)', async () => {
+    await readerA()
+    await act(async () => {
+      window.localStorage.clear()
+      storageEvent(null)
+    })
+    expect(paymentsStore.get().session).toBeNull()
+    expect(paymentsStore.get().owner).toBeNull()
+    expect(viewsOf(paymentsStore.get()).balance.status).toBe('loading')
+  })
+
   it('ignores a storage event for another deployment’s key', async () => {
     await readerA()
     await act(async () => storageEvent('__convexAuthJWT_aaaolddeployment'))

@@ -73,9 +73,10 @@ that is not fails the tip, with nothing charged.
   holds what was pressed: the target, the amount (the button's $1) and a
   request id, fixed at the press. A later change of target (the reader
   selects another line) or of amount does not change it, and a second press
-  while it waits is ignored. When it is sent, its amount is a ceiling
-  against the reader's own ladder, as a tip intent below: never raised. It
-  waits at most 3 s: past that it is dropped, nothing is sent, and `missed`
+  while it waits is ignored. It is sent only at the amount pressed: if the
+  reader's ladder does not offer that amount when the controller is ready,
+  nothing is sent and `missed` is true. A press never sends another
+  amount, lower or higher. It waits at most 3 s: past that it is dropped, nothing is sent, and `missed`
   is true until the control is pressed again. Say so in place ("Nothing
   sent. Tap to tip.").
 - `unavailable` (not `null`): this reader cannot tip here from the balance

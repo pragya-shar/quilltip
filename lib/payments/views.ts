@@ -83,6 +83,20 @@ export function defaultChoice(amounts: readonly number[]): number | null {
 }
 
 /**
+ * The amount a press made earlier may send now: exactly the cents on the
+ * button when it was pressed, if the reader's ladder offers them, else
+ * nothing. A press never sends another amount, lower or higher. The one
+ * rule for every early press: the engine's queued taps and the tip bar's
+ * own hand-off both call it.
+ */
+export function sendablePressedAmount(
+  pressedCents: number,
+  offered: readonly number[]
+): number | null {
+  return offered.includes(pressedCents) ? pressedCents : null
+}
+
+/**
  * The amount the button states and sends: the reader's choice while it is
  * offered, else the largest offered amount not above it, else none. Never
  * above the choice.

@@ -403,4 +403,28 @@ describe('PaymentsEngine tip()', () => {
     })
     expect(paymentsStore.get().queuedTaps.control).toBeUndefined()
   })
+
+  it('sends nothing for a press made before it loaded when the amount pressed is not offered, and says so', async () => {
+    start()
+    // The reader's ladder tops out below the $1 on the button.
+    const session = answers.of('balance:session', fake.user) as {
+      limits: Record<string, unknown>
+    }
+    answers.overrides.set('balance:session', {
+      ...session,
+      limits: { ...session.limits, perTipCents: 50 },
+    })
+    paymentsStore.register('control', { target: line('Line A', 0), meta })
+    await shellController('control').tip()
+    expect(paymentsStore.get().queuedTaps.control?.cents).toBe(100)
+
+    await mountEngine()
+    await vi.waitFor(
+      () => expect(paymentsStore.get().tips.control?.ready).toBe(true),
+      { timeout: 3000 }
+    )
+    expect(await settle()).toHaveLength(0)
+    expect(paymentsStore.get().queuedTaps.control).toBeUndefined()
+    expect(paymentsStore.get().tips.control?.missed).toBe(true)
+  })
 })

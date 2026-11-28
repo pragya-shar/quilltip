@@ -356,6 +356,11 @@ export const paymentsStore = {
     set({ queuedTaps: rest })
     return tap
   },
+  /** A taken tap was not sent (its amount is not offered): the control
+   * says nothing was sent until its next press. */
+  missTap(id: string) {
+    set({ missedTaps: { ...state.missedTaps, [id]: true } })
+  },
   /** The control was pressed again: it no longer says nothing was sent. */
   clearMissed(id: string) {
     if (!(id in state.missedTaps)) return

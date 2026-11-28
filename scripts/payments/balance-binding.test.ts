@@ -15,7 +15,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { Id } from '../../convex/_generated/dataModel'
 import { PaymentsShell } from '../../components/payments/PaymentsShell'
 import { convertedMoney, money } from '../../lib/payments/money'
-import type { OutboxEntry } from '../../lib/payments/outbox'
+import { createOutbox, type OutboxEntry } from '../../lib/payments/outbox'
 import {
   shellController,
   shellRuntime,
@@ -38,6 +38,10 @@ import { A, A_AGAIN, B, jwt, storageEvent, writeToken } from './sessionToken'
 const fake = vi.hoisted(() => ({
   pair: 'user-a|session-1',
   sends: [] as { requestId: string; userId: string }[],
+  /** When set, the signer's sends wait on it (one in flight). */
+  gate: null as Promise<unknown> | null,
+  /** The server answers no session (no user row for the token). */
+  noSession: false,
 }))
 
 const answers = vi.hoisted(() => {
@@ -114,7 +118,9 @@ vi.mock('convex/react', () => ({
   useQuery: (fn: unknown, args: unknown) =>
     args === 'skip'
       ? undefined
-      : answers.of(getFunctionName(fn as never), fake.pair),
+      : fake.noSession && getFunctionName(fn as never) === 'balance:session'
+        ? null
+        : answers.of(getFunctionName(fn as never), fake.pair),
   usePaginatedQuery: () => answers.page,
   useMutation: () => async () => {
     throw new Error('the stand-in signer never calls the server')
@@ -127,7 +133,7 @@ vi.mock('@/lib/payments/live/signer', () => ({
     deviceState: async () => ({ state: 'ready', keyId: 1, view: 'ready' }),
     send: (entry: OutboxEntry) => {
       fake.sends.push({ requestId: entry.requestId, userId: entry.userId })
-      return new Promise(() => {})
+      return fake.gate ?? new Promise(() => {})
     },
   }),
 }))
@@ -151,6 +157,8 @@ afterEach(async () => {
   paymentsStore.set({ engine: 'idle', balance: null, ownTips: {}, tips: {} })
   fake.pair = A
   fake.sends.length = 0
+  fake.gate = null
+  fake.noSession = false
   document.body.innerHTML = ''
 })
 
@@ -261,6 +269,104 @@ describe('the real shell and engine', () => {
     await pause(300)
     expect(paymentsStore.get().tips.control).toBeUndefined()
     expect(paymentsStore.get().balance).toBeNull()
+  })
+
+  it('start no send queued behind one in flight once the token names someone else', async () => {
+    let release!: (outcome: unknown) => void
+    fake.gate = new Promise((resolve) => (release = resolve))
+    await readyA()
+    const line: TipTarget = {
+      kind: 'passage',
+      articleId: ARTICLE,
+      passage: { text: 'A line', startOffset: 0, endOffset: 6 },
+    }
+    paymentsStore.register('second', { target: line, meta })
+    await vi.waitFor(
+      () => expect(paymentsStore.get().tips.second?.ready).toBe(true),
+      { timeout: 4000 }
+    )
+    await act(async () => paymentsStore.get().tips.control!.tip())
+    await act(async () => paymentsStore.get().tips.second!.tip())
+    await pause(100)
+    // The first is in flight; the second waits behind it.
+    expect(fake.sends).toHaveLength(1)
+    // Another tab signs B in; no event reaches this one.
+    writeToken(B)
+    await act(async () => release({ kind: 'accepted' }))
+    await pause(300)
+    expect(fake.sends).toHaveLength(1)
+  })
+
+  /** An unanswered tip of A's in this browser's outbox, as a reload finds. */
+  function unansweredOfA() {
+    createOutbox().put({
+      requestId: 'left-from-before',
+      userId: 'user-a',
+      articleId: ARTICLE,
+      passage: null,
+      amountCents: 100,
+      estimate: '7853732',
+      createdAt: Date.now(),
+      meta,
+    })
+  }
+
+  it('resume an unanswered tip of A’s under A', async () => {
+    unansweredOfA()
+    writeToken(A)
+    root = createRoot(document.body.appendChild(document.createElement('div')))
+    await act(async () => root!.render(h(PaymentsShell)))
+    await vi.waitFor(
+      () =>
+        expect(fake.sends.map((s) => s.requestId)).toContain(
+          'left-from-before'
+        ),
+      { timeout: 4000 }
+    )
+  })
+
+  it('never resume an unanswered tip of A’s while the token names B', async () => {
+    unansweredOfA()
+    writeToken(B)
+    root = createRoot(document.body.appendChild(document.createElement('div')))
+    await act(async () => root!.render(h(PaymentsShell)))
+    await vi.waitFor(() => expect(paymentsStore.get().owner).toBe(A), {
+      timeout: 4000,
+    })
+    await pause(1500)
+    expect(fake.sends).toHaveLength(0)
+  })
+
+  it('leave a held controller idle, not sending, when it is pressed under another pair', async () => {
+    const held = await readyA()
+    writeToken(B)
+    await act(async () => held.tip())
+    // The token names A again: the control is as it was, with nothing sent.
+    writeToken(A)
+    await act(async () => paymentsStore.readSession())
+    await vi.waitFor(() => expect(figure()).toBe('≈ $2.54'), {
+      timeout: 1500,
+    })
+    expect(paymentsStore.get().tips.control?.state.phase).toBe('idle')
+    expect(fake.sends).toHaveLength(0)
+  })
+
+  it('say payments are unavailable, not loading for ever, when the server answers no session, and recover', async () => {
+    fake.noSession = true
+    writeToken(A)
+    root = createRoot(document.body.appendChild(document.createElement('div')))
+    await act(async () => root!.render(h(PaymentsShell)))
+    await vi.waitFor(
+      () =>
+        expect(viewsOf(paymentsStore.get()).balance.status).toBe('unavailable'),
+      { timeout: 4000 }
+    )
+    await serverAnswersFor(A)
+    fake.noSession = false
+    await serverAnswersFor(A)
+    await vi.waitFor(() => expect(figure()).toBe('≈ $2.54'), {
+      timeout: 1500,
+    })
   })
 
   it('hide the figures when the token is removed while auth still reads signed in', async () => {
