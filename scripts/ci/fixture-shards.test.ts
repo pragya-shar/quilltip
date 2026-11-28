@@ -1,10 +1,10 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { FIXTURES, SURFACES_GROUP, selectFixtures } from '../fixture-suites'
 import { SURFACE_SUITES } from '../../e2e/suites'
-import { SHARDS } from './shards'
+import { SHARDS, shardProblems } from './shards'
 
 const workflow = readFileSync(
   path.join(__dirname, '../../.github/workflows/ci.yml'),
@@ -22,6 +22,39 @@ function shardSuites(): string[][] {
       )
   )
 }
+
+describe('the shard list', () => {
+  it('names only suites that exist, and every suite once', () => {
+    const problems = shardProblems(SHARDS, FIXTURES, SURFACE_SUITES, (file) =>
+      existsSync(path.join(__dirname, '../..', file))
+    )
+    expect(problems.join('\n')).toBe('')
+  })
+
+  it('says which entry to remove when a suite is deleted', () => {
+    const shards = [
+      { shard: 'tips', suites: 'tips-v2', browsers: 'chromium' },
+      { shard: 'mix', suites: 'wallet,nft', browsers: 'chromium' },
+    ]
+    const suites = [
+      { name: 'wallet', server: 'e2e/fixtures/wallet/server.mjs' },
+      { name: 'nft', server: 'e2e/fixtures/nft/server.mjs' },
+      { name: 'balance', server: 'e2e/fixtures/balance/server.mjs' },
+    ]
+    const problems = shardProblems(
+      shards,
+      suites,
+      [],
+      (f) => !f.includes('nft')
+    )
+    expect(problems).toEqual([
+      'Shard "tips" names suite "tips-v2", which scripts/fixture-suites.ts does not define: remove "tips-v2" from that shard in scripts/ci/shards.ts.',
+      'Shard "tips" has no suite left: remove it from scripts/ci/shards.ts.',
+      'Suite "nft" has no server at e2e/fixtures/nft/server.mjs: remove it from scripts/fixture-suites.ts and from shard "mix" in scripts/ci/shards.ts.',
+      'Suite "balance" is in no shard: add it to a shard in scripts/ci/shards.ts.',
+    ])
+  })
+})
 
 describe('fixture shards in CI', () => {
   it('run every fixture suite exactly once', () => {

@@ -1,5 +1,12 @@
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import type { Fixture } from '../fixture-suites'
@@ -220,29 +227,45 @@ describe('outputs', () => {
 
 describe('serverLiterals', () => {
   it('finds stand-in modules, public and font folders a server names', () => {
+    // A tree built here, so no real fixture suite has to exist.
+    const base = mkdtempSync(path.join(tmpdir(), 'plan-literals-'))
+    for (const file of [
+      'e2e/fixtures/x/page.tsx',
+      'e2e/fixtures/y/navigation.ts',
+      'e2e/fixtures/z/link.tsx',
+      'public/f.woff2',
+      'system/fonts/a.woff2',
+    ]) {
+      mkdirSync(path.join(base, path.dirname(file)), { recursive: true })
+      writeFileSync(path.join(base, file), '')
+    }
     const source = `
       const root = path.resolve(import.meta.dirname, '../../..')
       path.join(import.meta.dirname, 'page.tsx')
-      path.join(root, 'e2e/fixtures/wallet/navigation.ts')
-      path.join(root, 'e2e/fixtures/wallet/gone.ts')
-      path.join(import.meta.dirname, '../nft/link.tsx')
+      path.join(root, 'e2e/fixtures/y/navigation.ts')
+      path.join(root, 'e2e/fixtures/y/gone.ts')
+      path.join(import.meta.dirname, '../z/link.tsx')
       readFile(path.join(root, 'public', url.pathname))
       readFile(path.join(root, 'system/fonts', name))
       import postcss from 'postcss'
       import tailwind from '@tailwindcss/postcss'
     `
-    const found = serverLiterals('e2e/fixtures/tips-v2/server.mjs', source)
-    expect(found).toEqual(
-      expect.arrayContaining([
-        'e2e/fixtures/tips-v2/page.tsx',
-        'e2e/fixtures/wallet/navigation.ts',
-        'e2e/fixtures/wallet/gone.ts',
-        'e2e/fixtures/nft/link.tsx',
-        'public/**',
-        'system/fonts/**',
-      ])
-    )
-    expect(found.some((f) => f.includes('postcss'))).toBe(false)
+    try {
+      const found = serverLiterals('e2e/fixtures/x/server.mjs', source, base)
+      expect(found).toEqual(
+        expect.arrayContaining([
+          'e2e/fixtures/x/page.tsx',
+          'e2e/fixtures/y/navigation.ts',
+          'e2e/fixtures/y/gone.ts',
+          'e2e/fixtures/z/link.tsx',
+          'public/**',
+          'system/fonts/**',
+        ])
+      )
+      expect(found.some((f) => f.includes('postcss'))).toBe(false)
+    } finally {
+      rmSync(base, { recursive: true, force: true })
+    }
   })
 })
 

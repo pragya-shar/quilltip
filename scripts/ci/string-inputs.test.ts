@@ -39,7 +39,10 @@ describe('inputs named as strings', () => {
           matches(file, [entry.from]) &&
           STRING_CONSTRUCTS.test(readFileSync(path.join(root, file), 'utf8'))
       )
-      expect(named.length, entry.from).toBeGreaterThan(0)
+      expect(
+        named.length,
+        `The entry for "${entry.from}" in scripts/ci/string-inputs.ts matches no file that names an input: remove it.`
+      ).toBeGreaterThan(0)
     }
   })
 

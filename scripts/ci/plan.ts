@@ -392,8 +392,13 @@ export function cssClosure(
  * other fixtures, `public`, font folders it reads at request time). Folders
  * become patterns. Deleted paths still count, as a literal names them.
  */
-export function serverLiterals(server: string, source: string): string[] {
+export function serverLiterals(
+  server: string,
+  source: string,
+  base: string = root
+): string[] {
   const dir = path.dirname(server)
+  const rel = (file: string) => path.relative(base, path.resolve(base, file))
   const out = new Set<string>()
   for (const m of source.matchAll(/['"`]([\w@.-]+(?:\/[\w@.-]+)*)\/?['"`]/g)) {
     const literal = m[1]!
@@ -411,11 +416,11 @@ export function serverLiterals(server: string, source: string): string[] {
             ? [dir]
             : [dir, '.']
     if (!literal.includes('/') && !isFile && literal !== 'public') continue
-    for (const base of bases) {
-      const candidate = rel(path.join(root, base, literal))
+    for (const from of bases) {
+      const candidate = rel(path.join(base, from, literal))
       if (candidate === '' || candidate.startsWith('..')) continue
       if (candidate.startsWith('node_modules')) continue
-      const full = path.join(root, candidate)
+      const full = path.join(base, candidate)
       if (existsSync(full)) {
         out.add(statSync(full).isDirectory() ? `${candidate}/**` : candidate)
       } else if (isFile && literal.includes('/') && literal.length > 4) {
