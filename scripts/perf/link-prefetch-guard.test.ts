@@ -115,6 +115,38 @@ describe('the link prefetch guard', () => {
       'an object with a public pathname',
       '<Link href={{ pathname: `/${u}`, query: { tab: t } }}>x</Link>',
     ],
+    [
+      'a name bound to a helper call',
+      'const href = articleHref({\n  username: a.author.username,\n  slug: a.slug,\n})\nconst name = a.author.name\n<Link href={href}>x</Link>',
+    ],
+    [
+      'a name bound through a second name',
+      'const target = articleHref(a)\nconst href = target\n<Link href={href}>x</Link>',
+    ],
+    [
+      'a choice with a public branch',
+      "<Link href={draft ? '/write' : articleHref(a)}>x</Link>",
+    ],
+    [
+      'a fallback to a public path',
+      '<Link href={override ?? articleHref(a)}>x</Link>',
+    ],
+    [
+      'a name bound to a choice',
+      "const href = a.published\n  ? articleHref(a)\n  : '/write'\n<Link href={href}>x</Link>",
+    ],
+    [
+      'an object property bound to a helper call',
+      'const item = { title: a.title, href: articleHref(a) }\n<Link href={item.href}>x</Link>',
+    ],
+    [
+      'an arrow that returns a helper call',
+      'const toArticle = (a: A) => articleHref(a)\n<Link href={toArticle(x)}>x</Link>',
+    ],
+    [
+      'a function that returns a helper call',
+      'function workHref(i) {\n  if (!i) return undefined\n  return articleHref(i)\n}\n<Link href={workHref(item)}>x</Link>',
+    ],
   ])('finds %s without the flag', (_, source) => {
     expect(check(source)).toHaveLength(1)
     const flagged = source.replace(
@@ -133,6 +165,26 @@ describe('the link prefetch guard', () => {
     [
       'an object with a route pathname',
       "<Link href={{ pathname: '/settings', query }}>x</Link>",
+    ],
+    [
+      'a name bound to a non-article helper',
+      'const href = settingsHref(tab)\n<Link href={href}>x</Link>',
+    ],
+    [
+      'a choice between app routes',
+      "<Link href={signedIn ? '/library' : '/articles'}>x</Link>",
+    ],
+    [
+      'a name bound to an app route',
+      "const href = '/settings'\nconst other = articleHref(a)\n<Link href={href}>x</Link>",
+    ],
+    [
+      'a typed prop, not a binding',
+      'type P = { href: string }\n<Link href={props.href}>x</Link>',
+    ],
+    [
+      'a name that refers to itself',
+      'let href = href\n<Link href={href}>x</Link>',
     ],
   ])('leaves %s alone', (_, source) => {
     expect(check(source)).toEqual([])

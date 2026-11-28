@@ -6,15 +6,28 @@
 //
 // It scans app/, components/, lib/ and hooks/ (.ts and .tsx). It reads the
 // Link element under any default import name from `next/link`, and an href
-// that is a literal path, a template or a `'/' + …` concatenation starting
-// with a handle, an object with such a `pathname`, `articleHref(…)` and
-// similar helpers, or a name defined in the same file as such a template.
+// that is:
+// - a literal path, a template or a `'/' + …` concatenation starting with a
+//   handle, or an object with such a `pathname`;
+// - `articleHref(…)` and similar helpers (PUBLIC_NAME);
+// - a choice (`a ? b : c`, `a ?? b`, `a || b`) with such a branch;
+// - a name defined in the same file as such a value: `const href =
+//   articleHref(…)`, through further names (`const href = target`), a
+//   function or arrow that returns one, or, for a member path
+//   (`item.href`), an object property `href: …` in the file.
 //
 // Limits, by design of a text scan:
-// - an href built by a helper imported from another module
-//   (`href={toArticle(u, s)}`) is not seen;
-// - a component that wraps Link and forwards its href is not seen at its
-//   call sites, except the prop-fed files listed in HREF_PROP_FILES;
+// - an href built by a helper imported from another module and not in
+//   PUBLIC_NAME (`href={toArticle(u, s)}`) is not seen;
+// - an href that arrives as a prop (`href={href}` from `{ href }`) or from
+//   runtime data (the sign-in pages' Cancel link to `returnTo`) is not
+//   seen; a component that wraps Link and forwards its href is caught only
+//   in the prop-fed files listed in HREF_PROP_FILES;
+// - an href from a destructured binding (`const { href } = item`), an
+//   array, a spread (`<Link {...props}>`) or a reassigned `let` is not
+//   followed;
+// - a member path is matched by its last name only, so `item.href` takes
+//   any `href:` property in the file; this can flag too much, never less;
 // - a plain `<a>` is not scanned: Next.js does not prefetch it.
 
 import { readdirSync, readFileSync, statSync } from 'fs'
@@ -121,13 +134,18 @@ export const KNOWN_UNFLAGGED: Record<string, string> = {
 export function isPublicPagePath(
   href: string,
   source: string,
-  routes: ReadonlySet<string>
+  routes: ReadonlySet<string>,
+  seen: Set<string> = new Set()
 ): boolean {
-  href = href.trim()
+  href = unwrap(href)
+  // A choice (a ? b : c, a ?? b, a || b): public when any branch is.
+  const branches = alternatives(href)
+  if (branches.length > 1)
+    return branches.some((b) => isPublicPagePath(b, source, routes, seen))
   // An object href: its pathname decides.
   if (href.startsWith('{')) {
     const pathname = valueAfter(href, /\bpathname\s*:\s*/)
-    return pathname !== null && isPublicPagePath(pathname, source, routes)
+    return pathname !== null && isPublicPagePath(pathname, source, routes, seen)
   }
   // A literal path.
   const literal = /^["'](\/[^"']*)["']$/.exec(href)
@@ -147,16 +165,190 @@ export function isPublicPagePath(
   if (/^`\$\{\s*(?:articleHref|buildArticleHref)\s*\(/.test(href)) return true
   // A named helper or value: articleHref(b), getWorkHref(item), href, and
   // the last name of a member path (item.articleHref).
-  const name = /^(?:[A-Za-z_$][\w$]*\.)*([A-Za-z_$][\w$]*)\s*(?:\(|$)/.exec(
-    href
-  )?.[1]
+  const named =
+    /^((?:[A-Za-z_$][\w$]*\??\.)*)([A-Za-z_$][\w$]*)\s*(?:\(|$)/.exec(href)
+  const name = named?.[2]
   if (!name) return false
   if (PUBLIC_NAME.test(name)) return true
   // Defined in this file as such a template (const, let or function).
   const definition = new RegExp(
     `(?:const|let|function)\\s+${name}\\b[\\s\\S]{0,400}?\`\\/\\$\\{`
   )
-  return definition.test(source)
+  if (definition.test(source)) return true
+  // Bound in this file to another expression: const href = articleHref(…),
+  // const a = b, a function or arrow that returns one, and, for a member
+  // path (item.href), an object property `href: …`. Followed by name, once.
+  if (seen.has(name)) return false
+  seen.add(name)
+  const bound = [
+    ...bindingsOf(name, source),
+    ...(named![1] ? propertiesOf(name, source) : []),
+  ]
+  return bound.some((value) => isPublicPagePath(value, source, routes, seen))
+}
+
+/** `code` without surrounding parentheses or a trailing `as …` cast. */
+function unwrap(code: string): string {
+  code = code.trim().replace(/\s+as\s+[\w$.<>[\]| ]+$/, '')
+  while (code.startsWith('(') && closing(code, 0) === code.length - 1)
+    code = code.slice(1, -1).trim()
+  return code
+}
+
+/** The index of the bracket that closes the one at `open`, or -1. */
+function closing(code: string, open: number): number {
+  let depth = 0
+  let quote: string | null = null
+  for (let i = open; i < code.length; i++) {
+    const c = code[i]!
+    if (quote) {
+      if (c === '\\') i++
+      else if (c === quote) quote = null
+    } else if (c === '"' || c === "'" || c === '`') quote = c
+    else if (c === '(' || c === '{' || c === '[') depth++
+    else if ((c === ')' || c === '}' || c === ']') && --depth === 0) return i
+  }
+  return -1
+}
+
+/**
+ * The branches of a top-level choice: both results of `a ? b : c`, or each
+ * side of `a ?? b` and `a || b`. One element when there is no choice.
+ */
+export function alternatives(code: string): string[] {
+  const top: { at: number; op: string }[] = []
+  let depth = 0
+  let quote: string | null = null
+  for (let i = 0; i < code.length; i++) {
+    const c = code[i]!
+    if (quote) {
+      if (c === '\\') i++
+      else if (c === quote) quote = null
+      continue
+    }
+    if (c === '"' || c === "'" || c === '`') quote = c
+    else if (c === '(' || c === '{' || c === '[') depth++
+    else if (c === ')' || c === '}' || c === ']') depth--
+    else if (depth > 0) continue
+    else if (code.startsWith('??', i) || code.startsWith('||', i)) {
+      top.push({ at: i, op: code.slice(i, i + 2) })
+      i++
+    } else if (
+      c === '?' &&
+      code[i + 1] === '.' &&
+      !/\d/.test(code[i + 2] ?? '')
+    )
+      i++ // optional chaining
+    else if (c === '?' || c === ':') top.push({ at: i, op: c })
+  }
+  const ternary = top.findIndex((t) => t.op === '?')
+  if (ternary >= 0) {
+    // The `:` that matches this `?`, past any nested ternary.
+    let open = 0
+    for (const t of top.slice(ternary + 1)) {
+      if (t.op === '?') open++
+      else if (t.op === ':' && open-- === 0)
+        return [
+          ...alternatives(unwrap(code.slice(top[ternary]!.at + 1, t.at))),
+          ...alternatives(unwrap(code.slice(t.at + 1))),
+        ]
+    }
+    return [code]
+  }
+  const logical = top.filter((t) => t.op === '??' || t.op === '||')
+  if (!logical.length) return [code]
+  const parts: string[] = []
+  let from = 0
+  for (const t of logical) {
+    parts.push(code.slice(from, t.at))
+    from = t.at + 2
+  }
+  parts.push(code.slice(from))
+  return parts.flatMap((part) => alternatives(unwrap(part)))
+}
+
+/**
+ * What `name` is bound to in `source`: the value of `const|let|var name =`,
+ * and what a function or arrow of that name returns.
+ */
+export function bindingsOf(name: string, source: string): string[] {
+  const values: string[] = []
+  const binding = new RegExp(
+    `\\b(?:const|let|var)\\s+${name}\\s*(?::[^=]+)?=(?!=)\\s*`,
+    'g'
+  )
+  for (const match of source.matchAll(binding)) {
+    const value = expressionAt(source, match.index! + match[0].length)
+    // An arrow: its expression body, or the returns of its block body.
+    const arrow = /^(?:async\s*)?(?:\([^)]*\)|[\w$]+)\s*(?::[^=]+)?=>\s*/.exec(
+      value
+    )
+    if (!arrow) values.push(value)
+    else {
+      const body = value.slice(arrow[0].length)
+      values.push(...(body.startsWith('{') ? returnsOf(body) : [body]))
+    }
+  }
+  const declaration = new RegExp(`\\bfunction\\s+${name}\\s*\\(`, 'g')
+  for (const match of source.matchAll(declaration)) {
+    const params = match.index! + match[0].length - 1
+    const open = source.indexOf('{', closing(source, params))
+    const end = closing(source, open)
+    if (open >= 0 && end > open)
+      values.push(...returnsOf(source.slice(open, end + 1)))
+  }
+  return values
+}
+
+/** Object properties `name: value` in `source` (not type annotations). */
+export function propertiesOf(name: string, source: string): string[] {
+  const property = new RegExp(`[{,]\\s*${name}\\s*:\\s*`, 'g')
+  return [...source.matchAll(property)].map((match) =>
+    expressionAt(source, match.index! + match[0].length)
+  )
+}
+
+/** The expressions after each `return` in a block. */
+function returnsOf(block: string): string[] {
+  return [...block.matchAll(/\breturn\s+/g)].map((match) =>
+    expressionAt(block, match.index! + match[0].length)
+  )
+}
+
+/**
+ * The expression that starts at `begin`: up to a top-level `;` or `,`, the
+ * end of the enclosing brackets, or a line break after which it does not go
+ * on (the next line does not start with an operator, and this one does not
+ * end with one).
+ */
+export function expressionAt(code: string, begin: number): string {
+  let depth = 0
+  let quote: string | null = null
+  let i = begin
+  for (; i < code.length; i++) {
+    const c = code[i]!
+    if (quote) {
+      if (c === '\\') i++
+      else if (c === quote) quote = null
+    } else if (c === '"' || c === "'" || c === '`') quote = c
+    else if (c === '(' || c === '{' || c === '[') depth++
+    else if (c === ')' || c === '}' || c === ']') {
+      if (depth === 0) break
+      depth--
+    } else if (depth > 0) continue
+    else if (c === ';' || c === ',') break
+    else if (c === '\n') {
+      const before = code.slice(begin, i).trimEnd()
+      const after = code.slice(i + 1).trimStart()
+      if (
+        before !== '' &&
+        !/(?:[?:+|&=.(,]|=>)$/.test(before) &&
+        !/^(?:[?:.+|&]|\?\?)/.test(after)
+      )
+        break
+    }
+  }
+  return code.slice(begin, i).trim()
 }
 
 /**
