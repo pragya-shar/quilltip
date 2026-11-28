@@ -21,10 +21,16 @@ A change to `package.json`, `bun.lock`, `bunfig.toml`, `tsconfig.json`,
 `.github/workflows/ci.yml` or `scripts/ci/`, or to a path under a top-level
 entry that the base does not have, runs everything.
 
-A change to a shared input (`SHARED`: `shell/`, `system/`, the root layouts,
-`proxy.ts`, `next.config.ts`, `lib/payments/`, `lib/auth/`, `convex/`,
-`e2e/helpers/`, `e2e/global-setup.ts`) runs every fixture shard, whatever its
-bundle reads.
+A change to a shared input runs every fixture shard, whatever its bundle
+reads. The shared inputs (`SHARED` and `SHARED_ENTRIES`) are the files that
+change what every fixture suite sees but sit in no suite's bundle:
+`proxy.ts` and everything it imports, the routing registries
+(`lib/routing/redirects/`, `lib/routing/segments/`: a redirect or a reserved
+segment moves another suite's paths), `next.config.ts` and its imports, the
+CSP module, the TypeScript and Playwright configs, and the fixture runner
+with the suite registry (`scripts/fixture-suites.ts`, `e2e/suites/`). The
+shell, the layouts and the generated API types are not on the list: a suite
+that renders them has them in its bundle.
 
 ## A fixture suite's inputs
 
@@ -66,10 +72,10 @@ The inputs come from the code, computed on every run:
 - The `ci-full` label: every later push to the pull request runs everything,
   until the label is removed. Adding the label starts no run by itself.
 
-Use a full run before merging a change whose effect the filter cannot see: a
-dependency or tooling change that runs no job on its own, a change to how a
-fixture server or a check finds its files, or a pull request whose filtered
-runs passed while a job it skipped failed on the base branch's push run.
+Recommended practice: use a full run before merging a pull request that
+changes `proxy.ts`, a routing registry, or the shell's sheet and focus code,
+and one whose filtered runs passed while a job it skipped failed on the base
+branch's push run.
 
 ## What the filter does not see
 
@@ -86,12 +92,16 @@ runs passed while a job it skipped failed on the base branch's push run.
 the checkout's changes (commits and uncommitted files, against the merge base
 with `origin/overhaul/v3`) turn on, then prints a table of every step. It makes
 each production build once and runs every check that reads that build after
-it. `--all` runs everything; `--jobs` (ids, or `app`) and `--shards` choose;
-`--list` prints the steps without running them. It leaves out runner setup:
+it. `--all` runs everything; `--jobs` (ids, or `app`), `--shards` and
+`--light` (lint, typecheck, unit tests, audit: no build, no browser) choose;
+`--list` prints the steps without running them. Steps run with `CI=1`, so
+each Playwright config uses its CI worker count (one or two), and
+`--workers` caps the unit-test workers (default 1). It leaves out runner setup:
 actions, "Install ..." steps, `bun install` and failure-only steps; no CI step
 reads a secret. The script's header lists what the machine needs for the
-result to mean what CI's does. On a shared machine, run it under the machine's
-lock for heavy jobs.
+result to mean what CI's does. On a shared machine, run `--light` under the
+machine's lock for medium jobs and anything else under its lock for heavy
+jobs.
 
 ## Failure output
 

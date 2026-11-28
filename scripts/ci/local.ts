@@ -11,13 +11,23 @@
  *       every app job and the named shards, whatever changed
  *   bun scripts/ci/local.ts --jobs production
  *       only the production-build checks
+ *   bun scripts/ci/local.ts --light
+ *       only the light jobs: lint, typecheck, unit and regression tests, audit
  *   bun scripts/ci/local.ts --all            every job and every shard
  *   bun scripts/ci/local.ts ... --list       print the steps, run nothing
+ *   bun scripts/ci/local.ts ... --workers 2  unit-test workers (default 1)
  *
  * `--jobs` takes job ids from ci.yml, or `app` for every job that builds or
  * checks the app; `--shards` takes fixture shards (scripts/ci/shards.ts);
- * either one replaces the plan. On a shared machine, run it under the
- * machine's lock for heavy jobs: it builds the app and runs browsers.
+ * either one replaces the plan.
+ *
+ * Load: `--light` (Lint & Typecheck, Dependency Audit) uses CPU but builds
+ * nothing and starts no browser. Every other job is heavy: a production
+ * build, browsers, a perf or font check, or the Rust and Docker builds. On a
+ * shared machine, run a heavy selection under the machine's lock for heavy
+ * jobs, and `--light` under its lock for medium jobs. Steps run with `CI=1`,
+ * as on a runner, so each Playwright config uses its CI worker count (one or
+ * two) and retries; `--workers` caps the unit-test workers.
  *
  * Left out, because they set up a CI runner: `uses:` actions (checkout, Bun
  * setup, tool installs, artifact uploads), steps named "Install ..." (system
@@ -42,15 +52,12 @@ import { mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import {
-  allSuiteInputs,
   changedFiles,
+  computeContext,
   decide,
-  integrationInputs,
   outputs,
-  topLevel,
   type Plan,
 } from './plan'
-import { FIXTURES } from '../fixture-suites'
 import { SHARDS } from './shards'
 
 const root = path.resolve(import.meta.dirname, '../..')
@@ -291,6 +298,12 @@ const APP_JOBS = [
   'e2e-auth',
 ]
 
+/**
+ * Jobs that need no build and no browser (lint, typecheck, unit and
+ * regression tests, the dependency audit): `--light`.
+ */
+const LIGHT_JOBS = ['quality', 'audit']
+
 /** Jobs that only plan or report. */
 const NOT_RUN = ['changes', 'required']
 
@@ -367,9 +380,29 @@ async function readWorkflow(): Promise<Workflow> {
   ) as Workflow
 }
 
-function runAll(workflow: Workflow, instances: Instance[], list: boolean) {
+/**
+ * The environment every step gets, as on a CI runner: `CI` makes each
+ * Playwright config use its CI worker count (one or two) and retries, and
+ * `VITEST_MAX_WORKERS` caps the unit-test workers (default 1).
+ */
+export function runnerEnv(argv: readonly string[]): Record<string, string> {
+  const at = argv.indexOf('--workers')
+  const workers = at === -1 ? '1' : (argv[at + 1] ?? '')
+  if (!/^[1-9]\d*$/.test(workers)) {
+    throw new Error('--workers needs a whole number of 1 or more')
+  }
+  return { CI: '1', VITEST_MAX_WORKERS: workers }
+}
+
+function runAll(
+  workflow: Workflow,
+  instances: Instance[],
+  argv: readonly string[]
+) {
+  const list = argv.includes('--list')
   const temp = mkdtempSync(path.join(tmpdir(), 'ci-local-'))
   process.env.RUNNER_TEMP = temp
+  Object.assign(process.env, runnerEnv(argv))
   const steps = order(stepsOf(workflow, instances, temp))
   const results = execute(steps, list)
   console.log(`\n${summaryTable(results)}`)
@@ -412,12 +445,11 @@ async function main(argv: string[]): Promise<number> {
     jobs: listOf(argv, '--jobs'),
     shards: listOf(argv, '--shards'),
   }
+  if (argv.includes('--light')) {
+    options.jobs = [...(options.jobs ?? []), ...LIGHT_JOBS]
+  }
   if (options.all || options.jobs || options.shards) {
-    return runAll(
-      workflow,
-      chosen(workflow, options, SHARD_MATRIX),
-      argv.includes('--list')
-    )
+    return runAll(workflow, chosen(workflow, options, SHARD_MATRIX), argv)
   }
   const at = argv.indexOf('--base')
   const base =
@@ -429,20 +461,9 @@ async function main(argv: string[]): Promise<number> {
   if (!base)
     throw new Error('No merge base with origin/overhaul/v3; pass --base')
   const changes = changedFiles(base)
-  const [suites, integration] = await Promise.all([
-    allSuiteInputs(),
-    integrationInputs(),
-  ])
-  const plan = decide(
-    changes,
-    suites,
-    integration,
-    SHARDS,
-    FIXTURES,
-    topLevel(base)
-  )
+  const plan = decide(changes, await computeContext(base))
   console.log(`${changes.length} files changed since ${base.slice(0, 8)}.`)
-  return runAll(workflow, instancesOf(plan, workflow), argv.includes('--list'))
+  return runAll(workflow, instancesOf(plan, workflow), argv)
 }
 
 if (import.meta.main) {

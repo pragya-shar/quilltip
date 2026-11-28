@@ -77,7 +77,8 @@ rules are defined in the [audit policy](../../security/dependency-review.md).
 PR hygiene runs on PRs. `bun scripts/ci/local.ts` runs the steps CI would plan
 for the checkout's changes locally, read from the workflow, on one production
 build per build setting (`--jobs production` for only the production-build
-checks; `--list` prints the steps, `--all` runs everything). It leaves out
+checks, `--light` for lint, typecheck and unit tests; `--list` prints the
+steps, `--all` runs everything). It leaves out
 runner setup (actions, installs, failure-only steps) and needs Bun 1.4.4, the
 installed dependencies and the Playwright browsers; its header lists the rest.
 Run it under a shared machine's lock for heavy jobs.
@@ -99,6 +100,8 @@ Local success does not establish remote CI or deployment success.
   references on demand.
 - When parallel work is authorized, assign independent scopes and explicit
   ownership. Separate editing agents into worktrees; concurrent readers can share
-  a checkout. Give review work a correctness question and verification criteria.
+  a checkout. On macOS, add the worktrees' `node_modules` and `.next` folders
+  (or the folder that holds the worktrees) to Spotlight's privacy list, or
+  indexing them competes with builds and browsers for the CPU. Give review work a correctness question and verification criteria.
 
 Research and source-to-repo decisions: [agent workflow sources](agent-workflow-sources.md).

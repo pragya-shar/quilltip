@@ -10,6 +10,7 @@ import {
   outputs,
   serverLiterals,
   type Change,
+  type Context,
   type Inputs,
 } from './plan'
 import { SHARDS, type Shard } from './shards'
@@ -40,8 +41,17 @@ const INTEGRATION = new Set(['lib/stellar/v2/client.ts'])
 
 const changed = (...paths: string[]): Change[] =>
   paths.map((p) => ({ path: p, deleted: false }))
+const SHARED_FILES = new Set(['lib/routing/atHandle.ts'])
+const context = (more: Partial<Context> = {}): Context => ({
+  suiteInputs: SUITE_INPUTS,
+  integrationFiles: INTEGRATION,
+  sharedFiles: SHARED_FILES,
+  shards: TEST_SHARDS,
+  allSuites: SUITES,
+  ...more,
+})
 const plan = (changes: Change[], suites = SUITE_INPUTS) =>
-  decide(changes, suites, INTEGRATION, TEST_SHARDS, SUITES)
+  decide(changes, context({ suiteInputs: suites }))
 const shards = (p: ReturnType<typeof plan>) =>
   p.shards
     .filter((s) => s.decision.run)
@@ -117,41 +127,45 @@ describe('decide', () => {
     }
   })
 
-  it('runs every shard for a shared input, as the planner cannot see how it is used', () => {
+  it('runs every shard for a shared input the bundles do not read', () => {
     for (const file of [
-      'shell/AppShell.tsx',
-      'app/(legacy)/layout.tsx',
       'proxy.ts',
-      'lib/auth/x.ts',
-      'convex/tabs.ts',
+      'next.config.ts',
+      'lib/routing/redirects/today.ts',
+      'lib/routing/segments/read.ts',
+      'lib/routing/atHandle.ts',
+      'e2e/suites/today.ts',
+      'scripts/fixture-suites.ts',
+      'e2e/fixtures/system/crossing.config.ts',
     ]) {
       expect(shards(plan(changed(file)))).toEqual(['ab:a,b', 'c:c'])
     }
-    expect(shards(plan(changed('system/README.md')))).toEqual([])
+    expect(shards(plan(changed('lib/routing/README.md')))).toEqual([])
+  })
+
+  it('leaves the shell, layouts and backend to the graph', () => {
+    for (const file of [
+      'shell/AppShell.tsx',
+      'app/(app)/layout.tsx',
+      'convex/tabs.ts',
+    ]) {
+      expect(shards(plan(changed(file)))).toEqual([])
+    }
+  })
+
+  it('runs every shard when the shared inputs are unknown', () => {
+    const p = decide(changed('lib/b.ts'), context({ sharedFiles: undefined }))
+    expect(shards(p)).toEqual(['ab:a,b', 'c:c'])
   })
 
   it('runs everything for a path under a new top-level entry', () => {
     const roots = new Set(['lib', 'docs', 'e2e'])
-    const p = decide(
-      changed('newdir/x.ts'),
-      SUITE_INPUTS,
-      INTEGRATION,
-      TEST_SHARDS,
-      SUITES,
-      roots
-    )
+    const p = decide(changed('newdir/x.ts'), context({ knownRoots: roots }))
     expect(p.contracts.run && p.contractsIntegration.run && p.app.run).toBe(
       true
     )
     expect(shards(p)).toEqual(['ab:a,b', 'c:c'])
-    const known = decide(
-      changed('docs/x.md'),
-      SUITE_INPUTS,
-      INTEGRATION,
-      TEST_SHARDS,
-      SUITES,
-      roots
-    )
+    const known = decide(changed('docs/x.md'), context({ knownRoots: roots }))
     expect(shards(known)).toEqual([])
   })
 
@@ -168,10 +182,7 @@ describe('decide', () => {
     expect(shards(plan(changed('docs/a.md'), unknown))).toEqual(['c:c'])
     const p = decide(
       changed('docs/a.md'),
-      SUITE_INPUTS,
-      undefined,
-      TEST_SHARDS,
-      SUITES
+      context({ integrationFiles: undefined })
     )
     expect(p.contractsIntegration.run).toBe(true)
   })

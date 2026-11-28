@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { chosen, expand, isSetup, matrixOf, order, stepsOf } from './local'
+import {
+  runnerEnv,
+  chosen,
+  expand,
+  isSetup,
+  matrixOf,
+  order,
+  stepsOf,
+} from './local'
 
 const FIXTURE = {
   SKIP_ENV_VALIDATION: '1',
@@ -158,5 +166,12 @@ describe('local CI steps', () => {
     ])
     expect(() => chosen(wf, { shards: ['nope'] })).toThrow('Unknown shard nope')
     expect(() => chosen(wf, { jobs: ['nope'] })).toThrow('No job nope')
+  })
+
+  it('runs steps as on a runner, with few unit-test workers', () => {
+    expect(runnerEnv([])).toEqual({ CI: '1', VITEST_MAX_WORKERS: '1' })
+    expect(runnerEnv(['--workers', '3']).VITEST_MAX_WORKERS).toBe('3')
+    expect(() => runnerEnv(['--workers', '0'])).toThrow('whole number')
+    expect(() => runnerEnv(['--workers'])).toThrow('whole number')
   })
 })

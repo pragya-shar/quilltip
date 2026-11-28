@@ -84,23 +84,33 @@ export const FIXTURE_COMMON = [
 ]
 
 /**
- * Files every fixture shard counts as its input, whether or not its bundle
- * reads them: the shell, the root layouts, the request proxy and Next config,
- * payments and sign-in, the backend, and the test helpers.
+ * Files that change what every fixture suite sees but sit in no suite's
+ * bundle: the request proxy and the routing registries it reads (a redirect
+ * or reserved segment moves another suite's paths), the Next config, the CSP
+ * module, the TypeScript and Playwright configs, and the fixture runner with
+ * the suite registry. A change to one runs every fixture shard. The files
+ * `SHARED_ENTRIES` import count too (`sharedInputs`).
  */
 export const SHARED = [
-  'shell/**',
-  'system/**',
-  'app/layout.tsx',
-  'app/*/layout.tsx',
-  'app/global-not-found.tsx',
   'proxy.ts',
   'next.config.ts',
-  'lib/payments/**',
-  'lib/auth/**',
-  'convex/**',
-  'e2e/helpers/**',
-  'e2e/global-setup.ts',
+  'lib/routing/redirects/**',
+  'lib/routing/segments/**',
+  'lib/security/contentSecurityPolicy.ts',
+  'tsconfig*.json',
+  'playwright.config.ts',
+  'e2e/**/*.config.ts',
+  'scripts/fixture-suites.ts',
+  'scripts/run-fixture-e2e.ts',
+  'e2e/suites/**',
+]
+
+/** Entry points whose imports are shared inputs. */
+export const SHARED_ENTRIES = [
+  'proxy.ts',
+  'next.config.ts',
+  'scripts/fixture-suites.ts',
+  'scripts/run-fixture-e2e.ts',
 ]
 
 export type Change = { path: string; deleted: boolean }
@@ -157,18 +167,29 @@ function hit(changes: readonly Change[], inputs: Inputs): Change | undefined {
 const run = (reason: string): Decision => ({ run: true, reason })
 const skip = (reason: string): Decision => ({ run: false, reason })
 
+/** What `decide` knows besides the changes; `undefined` when not computed. */
+export type Context = {
+  suiteInputs: ReadonlyMap<string, Inputs | undefined>
+  integrationFiles: ReadonlySet<string> | undefined
+  sharedFiles: ReadonlySet<string> | undefined
+  knownRoots?: ReadonlySet<string>
+  shards?: readonly Shard[]
+  allSuites?: readonly Fixture[]
+}
+
 /**
  * The plan for a list of changes, given each suite's inputs (`undefined`
  * when they could not be computed). Pure, for the tests.
  */
-export function decide(
-  changes: readonly Change[],
-  suiteInputs: ReadonlyMap<string, Inputs | undefined>,
-  integrationFiles: ReadonlySet<string> | undefined,
-  shards: readonly Shard[] = SHARDS,
-  allSuites: readonly Fixture[] = FIXTURES,
-  knownRoots?: ReadonlySet<string>
-): Plan {
+export function decide(changes: readonly Change[], context: Context): Plan {
+  const {
+    suiteInputs,
+    integrationFiles,
+    sharedFiles,
+    knownRoots,
+    shards = SHARDS,
+    allSuites = FIXTURES,
+  } = context
   const why = (c: Change) =>
     c.deleted
       ? `${c.path} (deleted)`
@@ -184,7 +205,9 @@ export function decide(
     changes.find(unknownRoot)
   // A README in a shared folder is not an input.
   const shared = changes.find(
-    (c) => matches(c.path, SHARED) && !c.path.endsWith('.md')
+    (c) =>
+      !c.path.endsWith('.md') &&
+      (matches(c.path, SHARED) || sharedFiles?.has(c.path) === true)
   )
 
   const appChange = changes.find((c) => !matches(c.path, OUTSIDE_APP))
@@ -218,6 +241,9 @@ export function decide(
       return { shard, decision: skip('no suites'), suites: [] }
     }
     if (forced) return { shard, decision: run(why(forced)), suites: names }
+    if (!sharedFiles) {
+      return { shard, decision: run('shared inputs unknown'), suites: names }
+    }
     if (shared)
       return { shard, decision: run(`shared: ${why(shared)}`), suites: names }
     const reasons: string[] = []
@@ -492,6 +518,11 @@ export async function allSuiteInputs(
   }
 }
 
+/** The files `SHARED_ENTRIES` import. */
+export function sharedInputs(): Promise<Set<string>> {
+  return importClosure(SHARED_ENTRIES)
+}
+
 /** The local-network job's scripts and everything they import. */
 export async function integrationInputs(): Promise<Set<string>> {
   const glob = new Bun.Glob('scripts/integration/*.{ts,mts}')
@@ -544,6 +575,25 @@ export function topLevel(rev: string): Set<string> {
   })
   if (r.status !== 0) throw new Error(`git ls-tree ${rev} failed: ${r.stderr}`)
   return new Set(r.stdout.split('\0').filter(Boolean))
+}
+
+/** Everything `decide` needs from the code; a part that fails is `undefined`. */
+export async function computeContext(base: string): Promise<Context> {
+  const unknown = (what: string) => (error: unknown) => {
+    console.error(`${what}: ${error instanceof Error ? error.message : error}`)
+    return undefined
+  }
+  const [suiteInputs, integrationFiles, sharedFiles] = await Promise.all([
+    allSuiteInputs(),
+    integrationInputs().catch(unknown('local network inputs')),
+    sharedInputs().catch(unknown('shared inputs')),
+  ])
+  return {
+    suiteInputs,
+    integrationFiles,
+    sharedFiles,
+    knownRoots: topLevel(base),
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -624,23 +674,7 @@ async function main(argv: string[]): Promise<void> {
       )
     } else {
       changes = changedFiles(base, head)
-      const [suites, integration] = await Promise.all([
-        allSuiteInputs(),
-        integrationInputs().catch((error) => {
-          console.error(
-            `local network inputs: ${error instanceof Error ? error.message : error}`
-          )
-          return undefined
-        }),
-      ])
-      plan = decide(
-        changes,
-        suites,
-        integration,
-        SHARDS,
-        FIXTURES,
-        topLevel(base)
-      )
+      plan = decide(changes, await computeContext(base))
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : error)
