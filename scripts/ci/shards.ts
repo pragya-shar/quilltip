@@ -15,6 +15,57 @@ export type Shard = {
   browsers: string
 }
 
+/**
+ * What is wrong with a shard list, one sentence per problem: a shard that
+ * names a suite `scripts/fixture-suites.ts` does not define, a suite whose
+ * server file is gone, a shard left with no suite, a suite in no shard.
+ */
+export function shardProblems(
+  shards: readonly Shard[],
+  suites: readonly { name: string; server: string }[],
+  surfaces: readonly { name: string }[],
+  exists: (file: string) => boolean
+): string[] {
+  const problems: string[] = []
+  const named = new Set<string>()
+  for (const shard of shards) {
+    for (const name of shard.suites.split(',').map((n) => n.trim())) {
+      if (name === SURFACES_GROUP) {
+        for (const s of surfaces) named.add(s.name)
+        continue
+      }
+      named.add(name)
+      const suite = suites.find((s) => s.name === name)
+      if (!suite) {
+        problems.push(
+          `Shard "${shard.shard}" names suite "${name}", which scripts/fixture-suites.ts does not define: remove "${name}" from that shard in scripts/ci/shards.ts.`
+        )
+      } else if (!exists(suite.server)) {
+        problems.push(
+          `Suite "${name}" has no server at ${suite.server}: remove it from scripts/fixture-suites.ts and from shard "${shard.shard}" in scripts/ci/shards.ts.`
+        )
+      }
+    }
+    const kept = shard.suites
+      .split(',')
+      .map((n) => n.trim())
+      .filter((n) => n === SURFACES_GROUP || suites.some((s) => s.name === n))
+    if (kept.length === 0) {
+      problems.push(
+        `Shard "${shard.shard}" has no suite left: remove it from scripts/ci/shards.ts.`
+      )
+    }
+  }
+  for (const suite of suites) {
+    if (!named.has(suite.name)) {
+      problems.push(
+        `Suite "${suite.name}" is in no shard: add it to a shard in scripts/ci/shards.ts.`
+      )
+    }
+  }
+  return problems
+}
+
 export const SHARDS: readonly Shard[] = [
   {
     shard: 'presentation',

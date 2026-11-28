@@ -18,8 +18,8 @@ it runs, and the changed file that made it run.
 | Playwright (fixtures, _shard_), one job per shard in `scripts/ci/shards.ts` | an input of one of the shard's suites; the job runs only those suites                                           |
 
 A change to `package.json`, `bun.lock`, `bunfig.toml`, `tsconfig.json`,
-`.github/workflows/ci.yml` or `scripts/ci/`, or to a path under a top-level
-entry that the base does not have, runs everything.
+`.github/workflows/ci.yml`, `scripts/ci/` or `patches/`, or to a path under a
+top-level entry that the base does not have, runs everything.
 
 A change to a shared input runs every fixture shard, whatever its bundle
 reads. The shared inputs (`SHARED` and `SHARED_ENTRIES`) are the files that
@@ -67,15 +67,47 @@ The inputs come from the code, computed on every run:
 
 ## A full run on a pull request
 
-- **Re-run all jobs** on the run's page: from attempt 2 on, What changed plans
-  everything. **Re-run failed jobs** keeps the first plan.
+- **Re-run failed jobs** keeps the first plan, so it is not a full run.
 - The `ci-full` label: every later push to the pull request runs everything,
-  until the label is removed. Adding the label starts no run by itself.
+  until the label is removed. Adding the label starts no run by itself, so
+  push or choose Re-run all jobs after adding it.
+- **Re-run all jobs** on the run's page, for one run: from attempt 2 on, What
+  changed plans everything.
 
 Recommended practice: use a full run before merging a pull request that
 changes `proxy.ts`, a routing registry, or the shell's sheet and focus code,
 and one whose filtered runs passed while a job it skipped failed on the base
 branch's push run.
+
+## Inputs named as strings
+
+A bundler follows `import` statements only. Some inputs are named as strings
+instead: an `import.meta.glob('../../convex/**/*.ts')` in a test, a vitest
+`setupFiles` entry, a Playwright `globalSetup`, a file-set check that lists a
+folder (the bindings check), a route tree read with `node:fs`, a URL built
+from `import.meta.url`, a template `import()`, a child process.
+
+- The planner scans every code file in a filtered job's inputs for these
+  constructs (`STRING_CONSTRUCTS` in `scripts/ci/string-inputs.ts`).
+- Each file that has one needs an entry in `STRING_INPUTS` that names what it
+  reads, as globs, and says how many constructs the file has. A glob entry
+  covers files of one standard shape (every fixture server's one font read,
+  every Playwright config's `globalSetup`), with the same count for each.
+- An entry's `to` globs become inputs of every job whose inputs hold the file.
+  `paths` globs count only when a file there is added or deleted: the route
+  trees read which pages exist, not what they say.
+- An entry applies to its file whether or not the scan finds a construct, so a
+  read the constructs miss is listed by hand with an entry for that file.
+- The inputs grow to a fixed point: the code files a `to` glob reaches are
+  added with everything they import, and scanned in turn (the `lib/` files
+  that `convex/` imports are inputs of the local-network job this way).
+- A file with constructs and no entry, or a count that differs from its entry,
+  makes its job's inputs unknown, so the job runs.
+  `scripts/ci/string-inputs.test.ts` runs the same check in Lint & Typecheck
+  and fails with the file and the count; it also reports any job whose inputs
+  cannot be computed, which would otherwise run on every pull request
+  unnoticed. `scripts/ci/plan-wiring.test.ts` plans single-file changes
+  through the real planner.
 
 ## What the filter does not see
 
@@ -85,6 +117,11 @@ branch's push run.
   input. A class name built at run time from parts is the exception.
 - A server that builds more code after it starts serving is not recorded. No
   server does so today.
+- A read through a name the constructs leave out because it matches too much
+  else (`stat(`, `access(`, `exec(`), or a path built from parts and read
+  elsewhere. Such an input needs an entry in `STRING_INPUTS` by hand.
+- A file reached only through a `paths` glob is not followed: its contents are
+  not an input.
 
 ## Run the same steps locally
 
@@ -99,9 +136,9 @@ each Playwright config uses its CI worker count (one or two), and
 `--workers` caps the unit-test workers (default 1). It leaves out runner setup:
 actions, "Install ..." steps, `bun install` and failure-only steps; no CI step
 reads a secret. The script's header lists what the machine needs for the
-result to mean what CI's does. On a shared machine, run `--light` under the
-machine's lock for medium jobs and anything else under its lock for heavy
-jobs.
+result to mean what CI's does. On a machine shared by several people or
+agents, run one heavy selection at a time; `--light` builds nothing and starts
+no browser, so it can run beside other light work.
 
 ## Failure output
 

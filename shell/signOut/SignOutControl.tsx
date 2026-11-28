@@ -1,10 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { Button } from '@/system/components/Button'
 import { Dialog } from '@/system/components/Dialog'
 import { browserStorage } from '@/lib/wallet/remembered-wallet'
-import { WARNING_LIMIT_MS, signOutWarnings, type SignOutWarning } from './index'
+import {
+  SIGN_OUT_BEFORE,
+  WARNING_LIMIT_MS,
+  runBeforeSignOut,
+  signOutWarnings,
+  type SignOutWarning,
+} from './index'
 import { signOutHere } from './session'
 import { useSignOutViewer, type SignOutViewer } from './viewer'
 
@@ -53,6 +59,9 @@ export function SignOutControl({
   limitMs,
 }: SignOutControlProps) {
   const viewer = useSignOutViewer()
+  // Who is signing out, asked when the sign-out starts, for the actions
+  // that run before it too.
+  const who = useRef<string | null>(null)
   const [checking, setChecking] = useState(false)
   const [said, setSaid] = useState<string[] | null>(null)
   const [leaving, setLeaving] = useState(false)
@@ -60,7 +69,14 @@ export function SignOutControl({
   const leave = async () => {
     setLeaving(true)
     try {
-      await signOutHere(signOut, browserStorage())
+      await signOutHere(
+        signOut,
+        browserStorage(),
+        undefined,
+        SIGN_OUT_BEFORE.length > 0
+          ? () => runBeforeSignOut(undefined, { userId: who.current })
+          : null
+      )
       onSignedOut?.()
     } finally {
       setLeaving(false)
@@ -74,6 +90,7 @@ export function SignOutControl({
       // Who is signing out, from the shell, for every check.
       const limit = limitMs ?? WARNING_LIMIT_MS
       const userId = await whoIsSigningOut(viewer, limit)
+      who.current = userId
       const sentences = await signOutWarnings(warnings, limit, { userId })
       if (sentences.length > 0) setSaid(sentences)
       else await leave()

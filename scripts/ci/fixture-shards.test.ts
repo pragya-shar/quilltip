@@ -1,9 +1,10 @@
-import { readFileSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { FIXTURES, SURFACES_GROUP, selectFixtures } from '../fixture-suites'
 import { SURFACE_SUITES } from '../../e2e/suites'
-import { SHARDS } from './shards'
+import { SHARDS, shardProblems } from './shards'
 
 const workflow = readFileSync(
   path.join(__dirname, '../../.github/workflows/ci.yml'),
@@ -21,6 +22,47 @@ function shardSuites(): string[][] {
       )
   )
 }
+
+describe('concurrency', () => {
+  it('cancels an older run for pull requests only', () => {
+    expect(workflow).toContain(
+      "cancel-in-progress: ${{ github.event_name == 'pull_request' }}"
+    )
+  })
+})
+
+describe('the shard list', () => {
+  it('names only suites that exist, and every suite once', () => {
+    const problems = shardProblems(SHARDS, FIXTURES, SURFACE_SUITES, (file) =>
+      existsSync(path.join(__dirname, '../..', file))
+    )
+    expect(problems.join('\n')).toBe('')
+  })
+
+  it('says which entry to remove when a suite is deleted', () => {
+    const shards = [
+      { shard: 'tips', suites: 'tips-v2', browsers: 'chromium' },
+      { shard: 'mix', suites: 'wallet,nft', browsers: 'chromium' },
+    ]
+    const suites = [
+      { name: 'wallet', server: 'e2e/fixtures/wallet/server.mjs' },
+      { name: 'nft', server: 'e2e/fixtures/nft/server.mjs' },
+      { name: 'balance', server: 'e2e/fixtures/balance/server.mjs' },
+    ]
+    const problems = shardProblems(
+      shards,
+      suites,
+      [],
+      (f) => !f.includes('nft')
+    )
+    expect(problems).toEqual([
+      'Shard "tips" names suite "tips-v2", which scripts/fixture-suites.ts does not define: remove "tips-v2" from that shard in scripts/ci/shards.ts.',
+      'Shard "tips" has no suite left: remove it from scripts/ci/shards.ts.',
+      'Suite "nft" has no server at e2e/fixtures/nft/server.mjs: remove it from scripts/fixture-suites.ts and from shard "mix" in scripts/ci/shards.ts.',
+      'Suite "balance" is in no shard: add it to a shard in scripts/ci/shards.ts.',
+    ])
+  })
+})
 
 describe('fixture shards in CI', () => {
   it('run every fixture suite exactly once', () => {
@@ -96,6 +138,46 @@ describe('What changed in CI', () => {
         "!cancelled() && (needs.changes.result != 'success' ||"
       )
     }
+  })
+})
+
+describe('Forcing the full plan', () => {
+  // The planning step's script, run with \`bun\` replaced by an echo.
+  const changes = workflow.slice(
+    workflow.indexOf('\n  changes:'),
+    workflow.indexOf('\n  quality:')
+  )
+  const step = changes.slice(changes.indexOf('id: plan'))
+  const lines = step.split('\n')
+  const start = lines.findIndex((l) => l.trim() === 'run: |')
+  const indent = lines[start]!.indexOf('run:') + 2
+  const body: string[] = []
+  for (const line of lines.slice(start + 1)) {
+    if (line.trim() !== '' && line.search(/\S/) < indent) break
+    body.push(line.slice(indent))
+  }
+  const plan = (env: Record<string, string>) =>
+    spawnSync('bash', ['-c', `bun() { echo "$*"; }\n${body.join('\n')}`], {
+      encoding: 'utf8',
+      env: { ...process.env, ...env },
+    }).stdout.trim()
+  const pr = {
+    EVENT_NAME: 'pull_request',
+    FULL_LABEL: 'false',
+    RUN_ATTEMPT: '1',
+  }
+
+  it('reads the ci-full label from the pull request', () => {
+    expect(step).toContain(
+      "FULL_LABEL: ${{ contains(github.event.pull_request.labels.*.name, 'ci-full') }}"
+    )
+  })
+
+  it('plans everything for the label, a re-run of every job and a push', () => {
+    expect(plan(pr)).toContain('--base HEAD^1 --head HEAD')
+    expect(plan({ ...pr, FULL_LABEL: 'true' })).toContain('--full')
+    expect(plan({ ...pr, RUN_ATTEMPT: '2' })).toContain('--full')
+    expect(plan({ ...pr, EVENT_NAME: 'push' })).toContain('--full')
   })
 })
 
