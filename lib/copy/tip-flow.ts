@@ -17,7 +17,10 @@ export const TIP_DIALOG = {
   customHint: (min: string, max: string) =>
     `From ${min} to ${max}. The XLM amount is set when you send.`,
   messageLabel: 'Note to the writer (optional)',
+  /** The send button before the amount is valid. */
   send: 'Send tip',
+  /** The send button: the amount as the reader chose it (#645). */
+  sendAmount: (amount: string) => `Send ${amount} tip`,
   addToBasket: 'Add to tip basket',
   added: 'Added to your tip basket',
   openBasket: 'Open basket',
@@ -111,7 +114,9 @@ export const BASKET_COPY = {
   /** A basket row whose article title is not known. */
   untitled: (author: string) => `An article by ${author}`,
   empty: 'Your tip basket is empty. Add a tip from an article or a passage.',
-  pay: (count: number) => (count === 1 ? 'Send 1 tip' : `Send ${count} tips`),
+  /** The basket's send button: its total, then the count (#645). */
+  pay: (count: number, total: string) =>
+    `Send ${total} in ${count} ${count === 1 ? 'tip' : 'tips'}`,
   remove: 'Remove',
   removeLabel: (title: string) => `Remove the tip for ${title}`,
   clear: 'Clear basket',
