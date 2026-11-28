@@ -262,7 +262,11 @@ describe('errors are plain and specific', () => {
   it('says an email is in use, or a password is too weak, on sign-up', () => {
     expect(
       authFailure(new Error('Account test@x.com already exists'), 'create')
-    ).toEqual({ field: 'email', message: AUTH_MESSAGES.emailInUse })
+    ).toEqual({
+      field: 'email',
+      message: AUTH_MESSAGES.emailInUse,
+      code: 'email-in-use',
+    })
     expect(authFailure({ data: 'INVALID_PASSWORD' }, 'create')).toEqual({
       field: 'password',
       message: AUTH_MESSAGES.weakPassword,
