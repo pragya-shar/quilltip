@@ -3,15 +3,11 @@
 import { createContext, useEffect, useState, useSyncExternalStore } from 'react'
 import { useQuery } from 'convex/react'
 import { api } from '@/convex/_generated/api'
-import { figuresShown, paymentsStore } from '@/lib/payments/store'
+import { paymentsStore } from '@/lib/payments/store'
+import { draftToShow, type DraftSummary } from './draftRow'
 import { readPlaces, type ReadingPlace } from './readingPlace'
 
-/** The draft the "Your draft" row opens. */
-export type DraftSummary = {
-  id: string
-  title: string
-  words: number
-}
+export type { DraftSummary }
 
 /**
  * What the two rows read. `undefined` means not known yet; `null` means
@@ -45,9 +41,8 @@ function useStoredPlaces(): ReadingPlace[] | undefined {
 /**
  * The live source. Who is signed in comes from the payments store, the
  * shell's one reading of it (`PaymentsShell` keeps it in step with auth).
- * The draft is the person's own, so it shows only while the store is bound
- * to the session the token names (`figuresShown`), as the balance does:
- * until then it is not known yet, and with the engine failed there is none.
+ * The draft shows only while the store is bound to the session the token
+ * names (`draftToShow`).
  */
 export function useLiveTodayRows(): TodayRowsReading {
   const session = useSyncExternalStore(
@@ -62,22 +57,7 @@ export function useLiveTodayRows(): TodayRowsReading {
     auth === 'signed-in' ? {} : 'skip'
   )
   const places = useStoredPlaces()
-  const bound = figuresShown(session)
-  return {
-    auth,
-    places,
-    draft: !bound
-      ? session.engine === 'failed'
-        ? null
-        : undefined
-      : latest === undefined
-        ? undefined
-        : latest && {
-            id: latest.id,
-            title: latest.title || 'Untitled draft',
-            words: latest.words,
-          },
-  }
+  return { auth, places, draft: draftToShow(session, latest) }
 }
 
 /** Fixtures pass a fake source; the page uses the live one. */
