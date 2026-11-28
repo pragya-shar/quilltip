@@ -115,9 +115,29 @@ test('before scripts run, a press on the balance item goes where the marker says
 test('the first tap after a full page load is never lost', async ({ page }) => {
   // A same-origin full load (a reload, or a crossing from the legacy pages),
   // then a press at once where the balance item is drawn, with no wait for
-  // it to take input. Signed out, the item is the link to sign in.
+  // it to take input. Signed out, the item is the link to sign in. Two
+  // things are told apart: the press reached the link (its navigation
+  // started), and the sign-in page arrived, which a loaded runner may take
+  // seconds for.
+  await page.addInitScript(() => {
+    document.addEventListener(
+      'click',
+      (event) => {
+        const link = (event.target as Element | null)?.closest?.(
+          '[data-balance]'
+        )
+        if (link)
+          sessionStorage.setItem(
+            'balance-click',
+            `${link.getAttribute('data-when')}${event.defaultPrevented ? ' prevented' : ''}`
+          )
+      },
+      true
+    )
+  })
   for (let run = 0; run < 3; run++) {
     await page.goto('/system/reading')
+    await page.evaluate(() => sessionStorage.removeItem('balance-click'))
     await page.goto('/shelf', { waitUntil: 'commit' })
     const box = await page.waitForFunction(() => {
       const items = [...document.querySelectorAll('[data-balance]')]
@@ -127,9 +147,29 @@ test('the first tap after a full page load is never lost', async ({ page }) => {
       return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
     })
     const at = (await box.jsonValue())!
+    const started = page
+      .waitForRequest(
+        (request) =>
+          request.isNavigationRequest() &&
+          /\/(login|signin)/.test(request.url()),
+        { timeout: 5000 }
+      )
+      .then(
+        () => true,
+        () => false
+      )
     await page.mouse.click(at.x, at.y)
-    await expect(page, `run ${run + 1}`).toHaveURL(/\/(login|signin)/, {
-      timeout: 3000,
-    })
+    if (!(await started)) {
+      const clicked = await page.evaluate(() =>
+        sessionStorage.getItem('balance-click')
+      )
+      throw new Error(
+        `run ${run + 1}: the press was lost: no navigation to sign in started (click on the item: ${clicked ?? 'none'})`
+      )
+    }
+    await expect(page, `run ${run + 1}: the sign-in page arrives`).toHaveURL(
+      /\/(login|signin)/,
+      { timeout: 15_000 }
+    )
   }
 })
