@@ -129,6 +129,22 @@ export function HighlightableArticle({
   // the article body and the native selection collapses. Defer popover to pointerup.
   const isDraggingRef = useRef(false)
   const isKeyboardSelectingRef = useRef(false)
+  // A touch reader selects in two steps: a long press picks one word, then the
+  // handles extend it. Opening the passage slip at the first step would stop
+  // the selection at that word, so touch input first offers a button that
+  // opens the slip with the selection as it is when the reader taps it (#665).
+  const touchInputRef = useRef(false)
+  // True from the press on the offer until its click: the browser may clear
+  // the native selection on that press, which must not withdraw the offer.
+  const offerPressRef = useRef(false)
+  const [touchOffer, setTouchOffer] = useState<{
+    text: string
+    from: number
+    to: number
+    anchor: { top: number; left: number }
+    /** Where the offer sits: away from the selection and its handles. */
+    place: 'top' | 'bottom'
+  } | null>(null)
 
   const { user, isAuthenticated } = useAuth()
   const currentUserIdRef = useRef(user?._id)
@@ -169,10 +185,41 @@ export function HighlightableArticle({
     []
   )
 
+  const offerTouchSelection = useCallback((state: Editor['state']) => {
+    const { from, to } = state.selection
+    const text = state.doc.textBetween(from, to, ' ')
+    const domSelection = window.getSelection()
+    const range =
+      text.trim().length >= 3 && domSelection && domSelection.rangeCount > 0
+        ? domSelection.getRangeAt(0)
+        : null
+    const anchor = range ? getRangeTopCenterAnchor(range) : null
+    if (!range || !anchor) {
+      setTouchOffer(null)
+      return
+    }
+    // The offer goes to the side of the screen with more room, so it does not
+    // cover the words or their handles. Under pinch zoom the visual viewport
+    // is the visible area.
+    const box = range.getBoundingClientRect()
+    const viewport = window.visualViewport
+    const top = viewport ? viewport.offsetTop : 0
+    const height = viewport ? viewport.height : window.innerHeight
+    const place = box.top - top > top + height - box.bottom ? 'top' : 'bottom'
+    setTouchOffer({ text, from, to, anchor, place })
+  }, [])
+
   const presentSelection = useCallback(
     (state: Editor['state']) => {
       if (editable || isApplyingHighlightsRef.current) return
       if (!showHighlights) return
+      // Touch: follow the selection as it changes, also while a handle is
+      // dragged. iOS sends no touchend for a handle drag, so the offer cannot
+      // wait for one. A press on the offer may empty the selection; keep it.
+      if (touchInputRef.current) {
+        if (!offerPressRef.current) offerTouchSelection(state)
+        return
+      }
       // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
       if (isDraggingRef.current || isKeyboardSelectingRef.current) return
 
@@ -201,6 +248,7 @@ export function HighlightableArticle({
         setPopoverPosition(null)
         setSignInSelection(null)
         setSignInPromptPosition(null)
+        setTouchOffer(null)
       }
     },
     [
@@ -209,6 +257,7 @@ export function HighlightableArticle({
       signInPromptActive,
       highlightsActive,
       applySignedOutTextSelection,
+      offerTouchSelection,
     ]
   )
 
@@ -286,6 +335,7 @@ export function HighlightableArticle({
       editorProps: {
         handleDOMEvents: {
           keydown(view, event) {
+            touchInputRef.current = false
             if (
               editable ||
               !showHighlights ||
@@ -532,6 +582,7 @@ export function HighlightableArticle({
     if (!container || editable || !showHighlights) return
 
     const handlePointerDown = (e: MouseEvent | TouchEvent) => {
+      touchInputRef.current = e.type === 'touchstart'
       handleArticleHighlightOverlayPointerDown(e.target, {
         closeCreatePopover: () => {
           isDraggingRef.current = true
@@ -539,6 +590,7 @@ export function HighlightableArticle({
           setPopoverPosition(null)
           setSignInSelection(null)
           setSignInPromptPosition(null)
+          setTouchOffer(null)
         },
         closeDetailsPanel: () => setHighlightTooltip(null),
         closeSignInPrompt: () => {
@@ -554,6 +606,10 @@ export function HighlightableArticle({
       // Defer one frame so the browser and Tiptap commit the final selection.
       requestAnimationFrame(() => {
         if (!editor) return
+        if (touchInputRef.current) {
+          offerTouchSelection(editor.state)
+          return
+        }
         const { from, to } = editor.state.selection
         const text = editor.state.doc.textBetween(from, to, ' ')
         if (text.trim().length < 3) return
@@ -580,12 +636,17 @@ export function HighlightableArticle({
     })
     document.addEventListener('mouseup', handlePointerUp)
     document.addEventListener('touchend', handlePointerUp)
+    // A long press can end in a cancel (Android Chrome): treat it as the end.
+    document.addEventListener('touchcancel', handlePointerUp)
+    document.addEventListener('pointercancel', handlePointerUp)
 
     return () => {
       container.removeEventListener('mousedown', handlePointerDown)
       container.removeEventListener('touchstart', handlePointerDown)
       document.removeEventListener('mouseup', handlePointerUp)
       document.removeEventListener('touchend', handlePointerUp)
+      document.removeEventListener('touchcancel', handlePointerUp)
+      document.removeEventListener('pointercancel', handlePointerUp)
     }
   }, [
     editor,
@@ -594,7 +655,50 @@ export function HighlightableArticle({
     highlightsActive,
     signInPromptActive,
     applySignedOutTextSelection,
+    offerTouchSelection,
   ])
+
+  const releaseOfferPress = useCallback(() => {
+    window.setTimeout(() => {
+      offerPressRef.current = false
+    }, 500)
+  }, [])
+
+  // While an offer is up, follow the page's selection. A tap outside the
+  // article clears the native selection but the editor keeps its own, so the
+  // offer would open a slip for words no longer selected: withdraw it. A
+  // change inside the article refreshes the offer from the editor, because
+  // presentSelection skips updates while saved highlights are being applied.
+  const hasTouchOffer = touchOffer !== null
+  useEffect(() => {
+    if (!hasTouchOffer) return
+    let frame = 0
+    const follow = () => {
+      if (offerPressRef.current) return
+      const selection = window.getSelection()
+      const container = editorRef.current
+      const inside =
+        !!selection &&
+        !selection.isCollapsed &&
+        !!container &&
+        !!selection.anchorNode &&
+        container.contains(selection.anchorNode)
+      if (!inside) {
+        setTouchOffer(null)
+        return
+      }
+      // The editor reads the same event; read its state on the next frame.
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        if (editor && !offerPressRef.current) offerTouchSelection(editor.state)
+      })
+    }
+    document.addEventListener('selectionchange', follow)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('selectionchange', follow)
+    }
+  }, [hasTouchOffer, editor, offerTouchSelection])
 
   const handleCreateHighlight = useCallback(
     async (
@@ -753,6 +857,38 @@ export function HighlightableArticle({
             onActivate={focusPassage}
           />,
           passageRailTarget
+        )}
+
+      {touchOffer &&
+        !selectedText &&
+        (highlightsActive || signInPromptActive) &&
+        createPortal(
+          <button
+            type="button"
+            className="highlight-touch-offer"
+            data-place={touchOffer.place}
+            onPointerDown={() => {
+              offerPressRef.current = true
+            }}
+            // A press that leaves without a click must not keep the guard.
+            onPointerUp={releaseOfferPress}
+            onPointerCancel={releaseOfferPress}
+            onClick={() => {
+              offerPressRef.current = false
+              setSelectedText({
+                text: touchOffer.text,
+                from: touchOffer.from,
+                to: touchOffer.to,
+              })
+              setPopoverPosition(touchOffer.anchor)
+              setSignInSelection(null)
+              setSignInPromptPosition(null)
+              setTouchOffer(null)
+            }}
+          >
+            Keep these words
+          </button>,
+          document.body
         )}
 
       <AnimatePresence>
