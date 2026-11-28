@@ -687,6 +687,31 @@ test('an external link opens in place, and Back returns to the same passage', as
   expect((await server(page)).requests).toBe(0)
 })
 
+test('a page shown again from the back-forward cache keeps the reader where they were', async ({
+  page,
+}) => {
+  await open(page)
+  await pointAt(page, 'Read about the ledger tradition')
+  await placeHeld(page)
+  const place = () =>
+    page.evaluate(() => ({
+      scroll: window.scrollY,
+      saved: localStorage.getItem('quilltip:reading-position:v2'),
+    }))
+  const before = await place()
+  // The suite's engines never keep the article in the cache, so the event
+  // the cache sends is fired here: the one synthetic event in this suite.
+  await page.evaluate(() => {
+    dispatchEvent(new PageTransitionEvent('pagehide', { persisted: true }))
+    dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))
+  })
+  await settled(page)
+  expect(await place()).toEqual(before)
+  // Nothing chosen, and no place tick: the reader never left the page.
+  await expect(chosenTick(page)).toHaveCount(0)
+  await expect(page.locator('.qt-read__tick[data-kind="place"]')).toHaveCount(0)
+})
+
 test('a modified, middle or right click on an article link is left to the browser', async ({
   page,
 }) => {
