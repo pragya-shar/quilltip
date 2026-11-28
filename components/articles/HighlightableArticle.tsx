@@ -198,10 +198,14 @@ export function HighlightableArticle({
       setTouchOffer(null)
       return
     }
-    // A selection in the lower part of the screen gets the offer at the top,
-    // so the button never covers the words or their handles.
+    // The offer goes to the side of the screen with more room, so it does not
+    // cover the words or their handles. Under pinch zoom the visual viewport
+    // is the visible area.
     const box = range.getBoundingClientRect()
-    const place = box.bottom > window.innerHeight * 0.55 ? 'top' : 'bottom'
+    const viewport = window.visualViewport
+    const top = viewport ? viewport.offsetTop : 0
+    const height = viewport ? viewport.height : window.innerHeight
+    const place = box.top - top > top + height - box.bottom ? 'top' : 'bottom'
     setTouchOffer({ text, from, to, anchor, place })
   }, [])
 

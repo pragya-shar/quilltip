@@ -89,13 +89,28 @@ for (const [who, query] of [
   })
 }
 
-test('a long press that ends in a touch cancel still offers the passage', async ({
+// The offer follows each selection change, so it is up before any touch end.
+// A cancelled long press must still end the drag: otherwise the next keyboard
+// selection, which waits for the drag to end, never opens the slip.
+test('after a long press that ends in a touch cancel, a keyboard selection opens the slip', async ({
   page,
 }) => {
   const { paragraph, slip, offer } = await open(page)
   await longPress(paragraph, 'touchcancel')
-  await expect(slip).toBeHidden()
   await expect(offer).toBeVisible()
+  await expect(slip).toBeHidden()
+  const editor = page.locator('.highlightable-article .tiptap')
+  await editor.focus()
+  await paragraph.evaluate((element) => {
+    const range = document.createRange()
+    range.setStart(element.firstChild!, 0)
+    range.collapse(true)
+    const selection = window.getSelection()!
+    selection.removeAllRanges()
+    selection.addRange(range)
+  })
+  await page.keyboard.press('Shift+End')
+  await expect(slip).toBeVisible()
 })
 
 test('a tap in the article that clears the selection withdraws the offer', async ({
