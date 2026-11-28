@@ -53,7 +53,15 @@ export function TipStandIn({ place }: { place: 'article' | 'balance' }) {
             : 'Reading text that fills the page so the line sits in the middle of it.'}
         </p>
       ))}
-      <div style={{ position: 'fixed', insetInline: 16, insetBlockEnd: 16 }}>
+      {/* Above the phone's navigation bar, as the tip bar sits. */}
+      <div
+        style={{
+          position: 'fixed',
+          insetInline: 16,
+          insetBlockEnd: 'calc(var(--qt-nav-h, 64px) + 24px)',
+          zIndex: 1,
+        }}
+      >
         {checking ? (
           <p data-fixture="dock-line">
             Checking this device with Stellar testnet. Tipping waits a moment.

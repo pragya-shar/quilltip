@@ -15,7 +15,7 @@
  *   ?slow             the network takes 25 s to confirm
  *   ?closing          a withdrawal of the balance is under way
  *
- * `window.__wallet.next`: approve (default), decline, close, blocked,
+ * `window.__wallet.next`: approve (default), slow, decline, close, blocked,
  * wrong-network, wrong-account, offline, fail, locked.
  */
 import type { DeviceKind } from '../../../lib/addMoney/plan'
@@ -43,6 +43,8 @@ const xlm = (value: string | null, fallback: number) =>
 
 type Next =
   | 'approve'
+  /** Approves after 3 s, as a reader slow to answer. */
+  | 'slow'
   | 'decline'
   | 'close'
   | 'blocked'
@@ -279,7 +281,7 @@ export const emulatedServices: AddMoneyServices = {
   },
   async warm() {},
   async approve(prepared) {
-    await pause(400)
+    await pause(window.__wallet.next === 'slow' ? 3000 : 400)
     const failure = walletAnswer(connection?.walletName ?? 'Your wallet')
     if (failure) {
       window.__wallet.next = 'approve'

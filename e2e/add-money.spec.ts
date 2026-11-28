@@ -160,13 +160,15 @@ test.describe('cancelling in the wallet is a choice', () => {
   }) => {
     await open(page, 'balance=0&connected')
     await toReview(page)
+    await answer(page, 'slow')
     await press(
       sheet(page).getByRole('button', { name: 'Add $10 and set up quick tips' })
     )
     await expect(sheet(page)).toContainText('Approve in your wallet.')
     await press(sheet(page).getByRole('button', { name: 'Cancel' }))
     await expect(page.getByRole('dialog')).toHaveCount(0)
-    await page.waitForTimeout(800)
+    // The wallet answers 3 s after the press: still nothing is sent.
+    await page.waitForTimeout(3500)
     expect((await log(page)).sent).toEqual([])
   })
 
@@ -409,7 +411,7 @@ test.describe('turning quick tips off', () => {
       'Quilltip stops accepting tips from it at once.'
     )
     await press(s.getByRole('button', { name: 'Turn off quick tips' }))
-    expect((await log(page)).stopped).toEqual([1])
+    await expect.poll(async () => (await log(page)).stopped).toEqual([1])
     // No wallet connected: off in Quilltip, and the wallet confirms next.
     await connectAlbedo(page)
     await expect(s).toContainText(
