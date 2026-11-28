@@ -13,6 +13,11 @@ import { CreatorStatsPanel } from '../../../components/dashboard/CreatorStatsPan
 import { CompactEarningsFigures } from '../../../components/dashboard/CompactEarningsFigures'
 import { TabHome } from '../../../components/tab/TabHome'
 import { TabTipAction } from '../../../components/tab/TabTipAction'
+import { WalletTipHistory } from '../../../components/account/WalletTipHistory'
+import { useTabServices } from '../../../hooks/tab/TabServicesContext'
+import type { TipActivityItem } from '../../../lib/account/tipActivity'
+import { tabIsShort } from '../../../lib/tab-ui/tab-short'
+import type { MyTabTips } from '../../../lib/tab-ui/types'
 import '../../../components/account/account.css'
 import '../../../components/tab/tab.css'
 import { scenario, seedDevice, services, stateId } from './session'
@@ -20,6 +25,42 @@ import { scenario, seedDevice, services, stateId } from './session'
 const params = new URLSearchParams(location.search)
 if (params.get('theme') === 'dark')
   document.documentElement.classList.add('dark')
+
+/**
+ * The wallet page's tip history and receipt (#643), from the fixture's tab
+ * tips as the reader's sent tips. `WalletActivity` reads the same tab state
+ * from `getMyTab` and passes `tabIsShort(tab)` the same way.
+ */
+function walletItems(tips: MyTabTips['tips']): TipActivityItem[] {
+  return tips.map((tip) => ({
+    key: `tips:${tip.receiptId}:sent`,
+    kind: 'article',
+    id: tip.receiptId as TipActivityItem['id'] & string,
+    direction: 'sent',
+    status: tip.status,
+    createdAt: tip.acceptedAt,
+    amountCents: Math.round((Number(tip.amount) / 10_000_000) * 12),
+    counterpart: tip.authorName ?? 'Ada Lovelace',
+    articleTitle: tip.articleTitle ?? 'Untitled',
+    articleHref: null,
+    stellarNetwork: 'TESTNET',
+    stellarAmountXlm: (Number(tip.amount) / 10_000_000).toString(),
+    contractVersion: 'v2',
+  })) as TipActivityItem[]
+}
+
+function WalletFixture() {
+  const services = useTabServices()
+  const tab = services.useMyTab()
+  const activity = services.useMyTabTips()
+  if (tab === undefined || activity === undefined) return null
+  return (
+    <WalletTipHistory
+      items={walletItems(activity?.tips ?? [])}
+      readerTabShort={tabIsShort(tab)}
+    />
+  )
+}
 
 function Fixture() {
   const view = scenario?.view ?? 'home'
@@ -51,6 +92,10 @@ function Fixture() {
                   document.body.setAttribute('data-wallet-tip', 'opened')
                 }
               />
+            </div>
+          ) : view === 'wallet' ? (
+            <div className="tab-ui" style={{ paddingTop: 24 }}>
+              <WalletFixture />
             </div>
           ) : view === 'stats' && scenario?.stats ? (
             <div className="tab-ui" style={{ paddingTop: 24 }}>

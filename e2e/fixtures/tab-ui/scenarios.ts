@@ -17,7 +17,7 @@ import {
 } from './backend'
 import { FIXTURE_WRITER } from './constants'
 
-export type View = 'home' | 'tip' | 'collect' | 'stats'
+export type View = 'home' | 'tip' | 'collect' | 'stats' | 'wallet'
 
 export type DeviceSetup =
   | 'none'
@@ -159,6 +159,27 @@ const S: Scenario[] = [
     view: 'home',
     device: 'ready',
     seed: short,
+  },
+  {
+    id: 'wallet-short',
+    title: 'Wallet tip history and receipts, tab short (#643)',
+    view: 'wallet',
+    device: 'ready',
+    seed: short,
+  },
+  {
+    id: 'wallet-funded',
+    title: 'Wallet tip history and receipts, tab covers its tips (#643)',
+    view: 'wallet',
+    device: 'ready',
+    seed: (s) => {
+      open(s, 10)
+      s.tips = [
+        tipRow(0, 'ACCEPTED', { acceptedAt: NOW - 30 * 60_000 }),
+        tipRow(2, 'SETTLED'),
+      ]
+      recomputeTab(s)
+    },
   },
   {
     id: 'home-loading',
