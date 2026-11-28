@@ -56,7 +56,8 @@ test('sitemap falls back to static public pages without data', () => {
   const urls = buildSitemap(null).map((entry) => entry.url)
   expect(urls).toHaveLength(STATIC_SITEMAP_PATHS.length)
   expect(urls).toContain('https://www.quilltip.me')
-  expect(urls).toContain('https://www.quilltip.me/articles')
+  // /articles redirects to Today: a redirect is never listed.
+  expect(urls).not.toContain('https://www.quilltip.me/articles')
 })
 
 test('sitemap URLs are absolute and encoded', () => {

@@ -4,7 +4,6 @@ import { SITE_ORIGIN, articlePath, profilePath } from '@/lib/seo/siteMetadata'
 /** Public pages that do not come from the database. */
 export const STATIC_SITEMAP_PATHS = [
   '/',
-  '/articles',
   '/wallet/practice',
   '/support',
   '/contact',

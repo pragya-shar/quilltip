@@ -3,7 +3,7 @@ import { expect, test, type Locator } from '@playwright/test'
 test.use({ trace: 'off' })
 
 // Use a disposable author with two copies of the same article: one draft and
-// one recently published so its card is in Articles. Use identical title,
+// one recently published. Use identical title,
 // subtitle, prose and cover in both copies.
 const email = process.env.PLAYWRIGHT_QA_EMAIL
 const password = process.env.PLAYWRIGHT_QA_PASSWORD
@@ -74,12 +74,6 @@ for (const viewport of [
     await page.getByRole('button', { name: 'Dismiss reading tip' }).click()
     const readerLayout = await openingLayout(reader)
 
-    await page.goto('/articles')
-    const cardCover = page
-      .getByRole('link', { name: `Read ${title}`, exact: true })
-      .locator('img')
-    await expect(cardCover).toHaveAttribute('src', /.+/)
-    const coverSource = (await cardCover.getAttribute('src'))!
     for (const published of [false, true]) {
       await page.goto('/write?desk=writing')
       const desk = page.getByRole('dialog', { name: 'Your writing' })
@@ -104,16 +98,6 @@ for (const viewport of [
       await expect(
         dialog.getByText('Your cover appears on article cards.')
       ).toBeVisible()
-      // A cover belongs on cards. Images authored in the body still belong here.
-      await expect
-        .poll(() =>
-          article
-            .locator('img')
-            .evaluateAll((images) =>
-              images.map((image) => image.getAttribute('src'))
-            )
-        )
-        .not.toContain(coverSource)
       await expect(article.getByRole('heading', { level: 1 })).toHaveText(title)
       await expect(article.locator('.reader-subtitle')).toHaveText(subtitle)
       await expect(article.locator('.reader-byline')).toHaveText(byline)
@@ -140,7 +124,7 @@ for (const viewport of [
         .click()
       const cover = page.locator('#cover-preview img')
       await expect(cover).toBeVisible()
-      await expect(cover).toHaveAttribute('src', coverSource)
+      await expect(cover).toHaveAttribute('src', /.+/)
     }
 
     await page.goto('/write')

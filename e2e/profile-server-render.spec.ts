@@ -7,7 +7,7 @@ test('writer page renders the profile and articles on the server', async ({
   page,
   browser,
 }) => {
-  await page.goto('/articles')
+  await page.goto('/')
   const article = await publishedArticlePath(page)
   test.skip(!article, 'No published article on this backend to find a writer')
   const writer = `/${article!.split('/')[1]}`

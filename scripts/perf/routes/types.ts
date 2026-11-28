@@ -10,6 +10,8 @@
  * content within 2 s on a mid-range phone.
  */
 
+import type { Page } from '@playwright/test'
+
 /** The most a package's first-load budget may be, by access. */
 export const FIRST_LOAD_CEILING_KB = { public: 195, 'signed-in': 195 } as const
 
@@ -45,6 +47,10 @@ export type PageLoadRoute = {
   budget: PageLoadBudget
 }
 
+type Role = Parameters<Page['getByRole']>[0]
+/** A locator by role and accessible name, inside an optional landmark. */
+export type WayHome = { within?: Role; role: Role; name: string }
+
 export type PerfRoutes = {
   /** First-load JavaScript (scripts/perf/first-load.ts). `route` is the
    * route as Next.js names it: '/[username]/[slug]', '/shelf'. */
@@ -70,6 +76,11 @@ export type PerfRoutes = {
     path: string
     gateMovement: boolean
   }[]
+  /** How a reader finds the way home on this package's public pages at
+   * 375 px with no script, by `path` (a real URL on the fixture backend),
+   * when the page cannot read the backend (scripts/perf/slow-backend-reading.ts).
+   * A path not listed here keeps the legacy header's (READING.wayHome). */
+  wayHome?: readonly { path: string; wayHome: WayHome }[]
   /**
    * Protected old pages that now send a signed-out reader to a page of this
    * package instead of the sign-in page (scripts/perf/no-script-reading.ts),

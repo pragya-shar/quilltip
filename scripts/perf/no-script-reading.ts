@@ -32,9 +32,9 @@ import { startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
 import { SIGNED_OUT_LANDING } from './routes'
 
-type Role = Parameters<Page['getByRole']>[0]
-/** A locator by role and accessible name, inside an optional landmark. */
-export type WayHome = { within?: Role; role: Role; name: string }
+import type { WayHome } from './routes/types'
+
+export type { WayHome }
 
 /** The way-home locator of READING on a page. */
 export function wayHomeOn(page: Page, wayHome: WayHome) {
@@ -45,7 +45,9 @@ export function wayHomeOn(page: Page, wayHome: WayHome) {
 /** The public reading routes and what a reader must see on them. */
 export const READING = {
   home: '/',
-  list: '/articles',
+  /** Today (`/`) lists the articles: its opening and More to read link to
+   * them ("Read more: {title}"); the old list at /articles redirects here. */
+  list: '/',
   writer: `/${FIXTURE_WRITER}`,
   writerName: 'Fixture Writer',
   article: FIXTURE_ARTICLE_PATH,
@@ -116,9 +118,12 @@ const shown = (locator: ReturnType<Page['locator']>) =>
 async function check(page: Page, failures: string[], label: string) {
   const fail = (what: string) => failures.push(`${label}: ${what}`)
 
-  await page.goto(BASE_URL + READING.home, { waitUntil: 'load' })
-  if (!(await shown(page.locator(`a[href="${READING.list}"]`))))
-    fail(`${READING.home} shows no link to ${READING.list}`)
+  // A home that is not itself the list links to it.
+  if (READING.home !== READING.list) {
+    await page.goto(BASE_URL + READING.home, { waitUntil: 'load' })
+    if (!(await shown(page.locator(`a[href="${READING.list}"]`))))
+      fail(`${READING.home} shows no link to ${READING.list}`)
+  }
 
   await page.goto(BASE_URL + READING.list, { waitUntil: 'load' })
   const articleLink = page.getByRole('link', { name: READING.articleTitle })
