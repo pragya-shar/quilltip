@@ -38,10 +38,7 @@ import {
   tabShareCents,
   writerShareCents,
 } from '../../convex/lib/authorEarnings'
-import {
-  creditTabTipTotals,
-  creditV1TipTotals,
-} from '../../convex/lib/lifetimeEarnings'
+import { creditTabTipTotals } from '../../convex/lib/lifetimeEarnings'
 import { checkTabTipAmount, tabTipLimitsAt } from '../../lib/tab-ui/tip-limits'
 import { signEd25519 } from '../../lib/stellar/v2/tab/encoding'
 import {
@@ -1797,23 +1794,6 @@ describe('writer earnings summary with tab tips (#552)', () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)
     // A long writer: one pending v1 tip first, then 2,100 verified v1 tips.
-    const pendingId = await t.run(async (ctx) => {
-      const now = Date.now()
-      return ctx.db.insert('tips', {
-        articleId: s.articleId,
-        tipperId: s.readerId,
-        authorId: s.authorId,
-        articleTitle: 'Words',
-        articleSlug: 'words',
-        amountUsd: 0.1,
-        amountCents: 10,
-        expectedAmountStroops: '1000000',
-        stellarTxId: 'ef'.repeat(32),
-        status: 'PENDING',
-        createdAt: now,
-        updatedAt: now,
-      })
-    })
     await v1RowsBulk(t, s.authorId, s.articleId, 2_100)
     // A short writer queued behind.
     await v1Rows(t, s.otherAuthorId, s.otherArticleId, 3)
@@ -1827,9 +1807,9 @@ describe('writer earnings summary with tab tips (#552)', () => {
     })
     expect(await summaryOf(t, s.otherAuthorId)).toMatchObject(lifetime(3))
     // While the long row is rebuilt, the summary says so, with the previous
-    // figures: 2,000 rows read, the pending tip among them (a lower bound).
+    // figures: 2,000 rows read (a lower bound).
     expect(await summary(t, s)).toMatchObject({
-      tipCount: AGGREGATE_LIMIT - 1,
+      tipCount: AGGREGATE_LIMIT,
       complete: false,
       updating: true,
       source: 'previous',
@@ -1837,11 +1817,7 @@ describe('writer earnings summary with tab tips (#552)', () => {
     const progress = (await earningsRow(t, s.authorId))!.lifetimeRebuild!
     expect(progress.phase).toBe('tips')
 
-    // Tips arrive mid-rebuild: the pending v1 tip (a row it has read) is
-    // verified, and a tab tip (a row it has not read) settles.
-    await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
-      tipId: pendingId,
-    })
+    // A tab tip (a row it has not read) settles mid-rebuild.
     await tip(t, s, { cents: 10 })
     await settleAll(t, BigInt(1_000_000))
 
@@ -1863,8 +1839,8 @@ describe('writer earnings summary with tab tips (#552)', () => {
     expect(queue).toEqual(ids)
 
     await rebuildAll(t)
-    // 2,101 v1 tips and one tab tip, each once.
-    expect(await summary(t, s)).toMatchObject(lifetime(2_102))
+    // 2,100 v1 tips and one tab tip, each once.
+    expect(await summary(t, s)).toMatchObject(lifetime(2_101))
     expect(await summaryOf(t, s.otherAuthorId)).toMatchObject(lifetime(3))
     expect(await summaryOf(t, s.readerId)).toMatchObject(lifetime(1))
   }, 120_000)
@@ -1970,15 +1946,6 @@ describe('writer earnings summary with tab tips (#552)', () => {
       )
       const v1 = rows.find((r) => r.contractVersion === undefined)!
       const wallet = rows.find((r) => r.channel === 'direct')!
-      const settledTab = rows.find(
-        (r) => r.channel === 'tab' && r.earningsAppliedAt !== undefined
-      )!
-      const acceptedTab = rows.find(
-        (r) => r.channel === 'tab' && r.earningsAppliedAt === undefined
-      )!
-      for (const row of [settledTab, acceptedTab, wallet]) {
-        await creditV1TipTotals(ctx, s.authorId, 'tips', row)
-      }
       // A tab change for a row that is not a tab tip.
       const tabDelta = {
         tabTipCount: 1,
@@ -1991,61 +1958,6 @@ describe('writer earnings summary with tab tips (#552)', () => {
     })
     expect(await earningsRow(t, s.authorId)).toEqual(before)
   })
-
-  /** A v1 tip verified through the real path, as a pending row first. */
-  async function verifiedV1(t: T, s: Seeded) {
-    const tipId = await t.run(async (ctx) => {
-      const now = Date.now()
-      return ctx.db.insert('tips', {
-        articleId: s.articleId,
-        tipperId: s.readerId,
-        authorId: s.authorId,
-        articleTitle: 'Words',
-        articleSlug: 'words',
-        amountUsd: 0.1,
-        amountCents: 10,
-        expectedAmountStroops: '1000000',
-        stellarTxId: crypto.randomUUID(),
-        status: 'PENDING',
-        createdAt: now,
-        updatedAt: now,
-      })
-    })
-    await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
-      tipId,
-    })
-    return tipId
-  }
-
-  it('a v1 tip marked fraudulent leaves all three figures, live and during a rebuild', async () => {
-    const t = convexTest(schema, modules)
-    const s = await seed(t)
-    // Live: rebuilt totals, then reconciliation marks the tip fraudulent.
-    const first = await verifiedV1(t, s)
-    const second = await verifiedV1(t, s)
-    await rebuildAll(t)
-    expect(await summary(t, s)).toMatchObject(lifetime(2))
-    await t.mutation(internal.tips.markArticleTipFraudulent, {
-      tipId: first,
-      reason: 'test',
-    })
-    expect(await summary(t, s)).toMatchObject(lifetime(1))
-    // During a rebuild that has read the tip.
-    await v1RowsBulk(t, s.authorId, s.articleId, 250)
-    await forgetTotals(t, s.authorId)
-    const id = (await earningsRow(t, s.authorId))!._id
-    expect(
-      await t.mutation(internal.earningsTotalsBackfill.rebuildStep, { id })
-    ).toBe('more')
-    await t.mutation(internal.tips.markArticleTipFraudulent, {
-      tipId: second,
-      reason: 'test',
-    })
-    await rebuildAll(t)
-    // 250 bulk v1 tips; both verified tips are out.
-    expect(await summary(t, s)).toMatchObject(lifetime(250))
-    expect(await liveEqualsHistory(t, s.authorId)).toMatchObject(lifetime(250))
-  }, 60_000)
 
   /** `n` other pairs of the writer's address, unpaid, with keys from `from`. */
   async function otherPairs(t: T, s: Seeded, from: number, n: number) {

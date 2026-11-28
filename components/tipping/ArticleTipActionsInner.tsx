@@ -22,16 +22,13 @@ export function ArticleTipActionsInner({
   authorName,
 }: ArticleTipActionsProps) {
   // An article takes tips only once it is registered on Core. With payments
-  // v2 off (`disabled`) no flow can take a tip, so the paused note shows.
+  // v2 off the query answers `paused`, so the paused note shows.
   const availability = useQuery(api.chain.articles.getArticleTipAvailability, {
     articleId,
   })
   // Until the answer arrives, show the skeleton rather than a tip button
   // that may turn into a note.
   if (availability === undefined) return <TipButtonSkeleton />
-  if (availability.status === 'disabled') {
-    return <TipsUnavailableNote reason="paused" />
-  }
   if (availability.status !== 'registered') {
     return <TipsUnavailableNote reason={availability.status} />
   }

@@ -189,13 +189,6 @@ const v1Unminted = {
   rarity: 'common',
 }
 
-/** `nfts.getNFTByArticle` as the backend returns it, with `v1ActionsPaused`. */
-function nftRecord(record: unknown) {
-  return record && typeof record === 'object'
-    ? { ...record, v1ActionsPaused: false }
-    : record
-}
-
 function eligibility(stateName: string, extra: Record<string, unknown> = {}) {
   return {
     state: stateName,
@@ -559,7 +552,7 @@ export function useQuery(ref: unknown, args?: unknown) {
     case 'nftsV2.getMintProgress':
       return current.progress
     case 'nfts.getNFTByArticle':
-      return nftRecord(current.record)
+      return current.record
     case 'walletLink.getMyWalletLink':
       return viewerOf() === 'signed-out' ? null : current.walletLink
     case 'nftsV2.getNftSubmissionStatus': {

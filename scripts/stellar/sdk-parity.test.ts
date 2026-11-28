@@ -3,48 +3,27 @@
  *
  * `fixtures/sdk-baseline.json` holds the observations recorded with the
  * previous SDK major (14.6.1). This suite recomputes the ones whose code is
- * still in the app (the practice flow and the Horizon verifier) and compares
- * them with the baseline. The v1 client builders were removed with the v1
- * tip code; their recorded observations stay in the file for reference.
+ * still in the app (the practice flow) and compares them with the baseline.
+ * The v1 client builders and the v1 Horizon verifier were removed with the
+ * v1 tip code; their recorded observations stay in the file for reference.
  *
  * Re-record only on purpose: `STELLAR_BASELINE=record bun run test:unit`.
  *
- * No network access: Horizon and RPC servers are replaced with local fakes,
- * and the testnet transactions in `fixtures/testnet-transactions.json` were
- * fetched once, read-only, from Horizon testnet.
+ * No network access.
  */
 import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import * as RealSdk from '@stellar/stellar-sdk'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
-import type { TipInvocationExpectations } from '../../convex/lib/horizon'
 
 const FIXTURE_DIR = join(__dirname, 'fixtures')
 const BASELINE_PATH = join(FIXTURE_DIR, 'sdk-baseline.json')
 const RECORD = process.env.STELLAR_BASELINE === 'record'
 
-const NFT_CONTRACT_ID =
-  'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'
 const FIXED_NOW_MS = 1_780_000_000_000
 const SEQUENCE = '123456789'
 
 type Observations = Record<string, unknown>
-type VerifyCases = Record<string, unknown>
-
-type TestnetTransaction = {
-  hash: string
-  function: string
-  source_account: string
-  ledger: number
-  created_at: string
-  successful: boolean
-  envelope_xdr: string
-  result_xdr: string
-}
-
-const testnet = JSON.parse(
-  readFileSync(join(FIXTURE_DIR, 'testnet-transactions.json'), 'utf8')
-) as { transactions: TestnetTransaction[] }
 
 // Deterministic throwaway keys derived from constant seeds. They hold no
 // funds and never sign anything that leaves this process.
@@ -56,8 +35,6 @@ function seedKeypair(fill: number) {
   )
 }
 const tipper = seedKeypair(1)
-const secondAuthor = seedKeypair(3)
-const feeSource = seedKeypair(4)
 
 function hex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join(
@@ -156,146 +133,6 @@ function describeTransaction(envelope: string) {
   })
 }
 
-function expectationsFor(
-  decoded: ReturnType<typeof decodeInvocation>
-): TipInvocationExpectations {
-  const { fnName, args } = decoded
-  if (fnName === 'tip_article') {
-    return {
-      contractId: decoded.contract,
-      allowedFunctions: [fnName],
-      expectedFunction: fnName,
-      articleId: args[1] as string,
-      authorAddress: args[2] as string,
-      minStroops: args[3] as bigint,
-      exactStroops: args[3] as bigint,
-    }
-  }
-  if (fnName === 'tip_highlight_direct') {
-    return {
-      contractId: decoded.contract,
-      allowedFunctions: [fnName],
-      expectedFunction: fnName,
-      highlightId: args[1] as string,
-      articleId: args[2] as string,
-      authorAddress: args[3] as string,
-      minStroops: args[4] as bigint,
-      exactStroops: args[4] as bigint,
-    }
-  }
-  const tips = args[1] as Array<{
-    article_id: string
-    author: string
-    amount: bigint
-    highlight_id?: string
-  }>
-  return {
-    contractId: decoded.contract,
-    allowedFunctions: [fnName],
-    expectedFunction: fnName,
-    authorAddress: tips[0]!.author,
-    minStroops: BigInt(1),
-    batchTips: tips.map((tip) => ({
-      articleId: tip.article_id,
-      authorAddress: tip.author,
-      highlightId: tip.highlight_id,
-      minStroops: tip.amount,
-      exactStroops: tip.amount,
-    })),
-  }
-}
-
-async function verifyCases(record: TestnetTransaction): Promise<VerifyCases> {
-  const { verifyTipTransaction } = await import('../../convex/lib/horizon')
-  const decoded = decodeInvocation(record.envelope_xdr)
-  const base = expectationsFor(decoded)
-  const tx = parseTransaction(record.envelope_xdr)
-
-  const run = (
-    invocation: TipInvocationExpectations,
-    body: Partial<TestnetTransaction> = {},
-    expectedSource = record.source_account
-  ) =>
-    verifyTipTransaction(
-      async () => ({
-        status: 200,
-        ok: true,
-        json: async () => ({ ...record, ...body }),
-      }),
-      {
-        txId: record.hash,
-        expectedSource,
-        horizonUrl: 'https://horizon-testnet.stellar.org',
-        invocation,
-      }
-    ).then(jsonSafe)
-
-  const feeBump = toBase64(
-    RealSdk.TransactionBuilder.buildFeeBumpTransaction(
-      feeSource,
-      '1000000',
-      tx,
-      RealSdk.Networks.TESTNET
-    )
-  )
-  const batch = base.batchTips
-  const tamperFirstTip = (
-    change: Partial<NonNullable<TipInvocationExpectations['batchTips']>[0]>
-  ): TipInvocationExpectations => ({
-    ...base,
-    batchTips: [{ ...batch![0]!, ...change }, ...batch!.slice(1)],
-  })
-
-  return {
-    decoded: jsonSafe(decoded),
-    transaction: describeTransaction(record.envelope_xdr),
-    match: await run(base),
-    timeBoundsMatch: await run({
-      ...base,
-      expectedTimeBounds: {
-        minTime: String(tx.timeBounds?.minTime ?? '0'),
-        maxTime: String(tx.timeBounds?.maxTime ?? '0'),
-      },
-    }),
-    timeBoundsMismatch: await run({
-      ...base,
-      expectedTimeBounds: { minTime: '1', maxTime: '2' },
-    }),
-    wrongContract: await run({ ...base, contractId: NFT_CONTRACT_ID }),
-    wrongFunction: await run({
-      ...base,
-      allowedFunctions: ['tip_article_with_arweave'],
-      expectedFunction: 'tip_article_with_arweave',
-    }),
-    wrongAuthor: await run(
-      batch
-        ? tamperFirstTip({ authorAddress: secondAuthor.publicKey() })
-        : { ...base, authorAddress: secondAuthor.publicKey() }
-    ),
-    wrongAmount: await run(
-      batch
-        ? tamperFirstTip({ exactStroops: BigInt(1) })
-        : { ...base, exactStroops: BigInt(1) }
-    ),
-    wrongArticle: await run(
-      batch
-        ? tamperFirstTip({ articleId: 'zzzzzzzzzz' })
-        : { ...base, articleId: 'zzzzzzzzzz' }
-    ),
-    wrongTipper: await run(
-      base,
-      { source_account: tipper.publicKey() },
-      tipper.publicKey()
-    ),
-    wrongSource: await run(base, {}, tipper.publicKey()),
-    feeBumpWrapped: await run(base, { envelope_xdr: feeBump }),
-    malformedEnvelope: await run(base, { envelope_xdr: 'not-xdr' }),
-    truncatedEnvelope: await run(base, {
-      envelope_xdr: record.envelope_xdr.slice(0, 40),
-    }),
-  }
-}
-
 async function buildObservations(): Promise<Observations> {
   vi.stubEnv('NEXT_PUBLIC_STELLAR_NETWORK', 'TESTNET')
 
@@ -319,11 +156,6 @@ async function buildObservations(): Promise<Observations> {
     }
   }
 
-  const verification: Record<string, VerifyCases> = {}
-  for (const record of testnet.transactions) {
-    verification[record.function] = await verifyCases(record)
-  }
-
   return jsonSafe({
     build: {
       practice: {
@@ -343,7 +175,6 @@ async function buildObservations(): Promise<Observations> {
         )
       ),
     },
-    verification,
   }) as Observations
 }
 
@@ -374,27 +205,5 @@ describe('Stellar SDK encode and decode parity', () => {
 
   it('validates practice signatures as recorded', () => {
     expect(observed.practice).toEqual(baseline().practice)
-  })
-
-  it.each(testnet.transactions.map((record) => record.function))(
-    'verifies the %s testnet transaction as recorded',
-    (fn) => {
-      const recorded = (baseline().verification as Record<string, unknown>)[fn]
-      expect((observed.verification as Record<string, unknown>)[fn]).toEqual(
-        recorded
-      )
-    }
-  )
-
-  it('accepts every real testnet tip with its exact on-chain amount', () => {
-    for (const record of testnet.transactions) {
-      const cases = (observed.verification as Record<string, VerifyCases>)[
-        record.function
-      ]!
-      expect(cases.match).toMatchObject({ ok: true, ledger: record.ledger })
-      expect(cases.feeBumpWrapped).toMatchObject({ ok: true })
-      expect(cases.wrongAmount).toMatchObject({ reason: 'amount_mismatch' })
-      expect(cases.wrongAuthor).toMatchObject({ reason: 'author_mismatch' })
-    }
   })
 })

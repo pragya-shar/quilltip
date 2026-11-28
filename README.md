@@ -74,7 +74,7 @@ Run `bun run check` for the local code/tooling gate. The
 | [docs/SETUP.md](docs/SETUP.md)                                                     | Full setup guide, environment variables, prerequisites |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)                                       | Tech stack, project structure, database schema         |
 | [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)                                           | Production builds, Vercel, Convex deploy               |
-| [docs/tipping-contract-testnet-deploy.md](docs/tipping-contract-testnet-deploy.md) | Public testnet tipping contract deployment note        |
+| [docs/contracts/v2-testnet-deployment.md](docs/contracts/v2-testnet-deployment.md) | Testnet contract deployment record                     |
 | [CONTRIBUTING.md](CONTRIBUTING.md)                                                 | How to contribute — workflow, code style, PR process   |
 | [SECURITY.md](SECURITY.md)                                                         | Security policy and vulnerability reporting            |
 

@@ -71,31 +71,6 @@ async function earningsFor(
   )
 }
 
-test('confirming and reversing an article tip moves only the writer share', async () => {
-  const t = newTest()
-  const { authorId, tipId } = await seed(t)
-
-  await t.mutation(internal.articleTipVerify.confirmVerifiedArticleTip, {
-    tipId,
-  })
-  expect(await earningsFor(t, authorId)).toMatchObject({
-    totalEarnedCents: 97.5,
-    totalEarnedUsd: 0.975,
-    availableBalanceCents: 97.5,
-    tipCount: 1,
-  })
-
-  await t.mutation(internal.tips.markArticleTipFraudulent, {
-    tipId,
-    reason: 'test',
-  })
-  expect(await earningsFor(t, authorId)).toMatchObject({
-    totalEarnedCents: 0,
-    availableBalanceCents: 0,
-    tipCount: 0,
-  })
-})
-
 test('backfill rebuilds gross earnings rows from confirmed tips', async () => {
   const t = newTest()
   const { authorId, articleId, tipId } = await seed(t)

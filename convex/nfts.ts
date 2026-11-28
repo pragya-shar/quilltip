@@ -1,14 +1,9 @@
 import { v } from 'convex/values'
 import { verifiedTipFilter } from './lib/verifiedTips'
-import { query, mutation, internalQuery } from './_generated/server'
+import { query } from './_generated/server'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { enrichWithUser } from './lib/enrich'
-import {
-  buildNftMetadataPayload,
-  isValidArweaveNftMetadataUrl,
-} from './lib/nftMetadata'
 import { verifiedStellarAddress } from './lib/walletVerification'
-import { requireV1PreparesEnabled, v1PreparesEnabled } from './lib/v1Prepares'
 import type { Doc, Id } from './_generated/dataModel'
 import type { QueryCtx } from './_generated/server'
 import { userForAddress } from './lib/chain/nftStore'
@@ -188,9 +183,6 @@ export const getNFTByArticle = query({
     const totalTipsUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
     const totalTipsCents = Math.round(totalTipsUsd * 100)
     const thresholdCents = 1000 // $10 threshold in cents
-    // v1 mint and transfer are refused while CHAIN_V1_PREPARES_ENABLED=false;
-    // the client shows a note instead of their buttons.
-    const v1ActionsPaused = !v1PreparesEnabled()
 
     if (nft) {
       // NFT exists - return full NFT data with status
@@ -235,7 +227,6 @@ export const getNFTByArticle = query({
         mintedAt: new Date(nft.mintedAt).toISOString(),
         transferCount: transfers.length,
         rarity,
-        v1ActionsPaused,
         ownerInfo: owner
           ? {
               id: owner._id,
@@ -265,244 +256,8 @@ export const getNFTByArticle = query({
         tipThreshold: thresholdCents,
         transferCount: 0,
         rarity: 'common' as const,
-        v1ActionsPaused,
       }
     }
-  },
-})
-
-// Get NFT details with transfer history
-export const getNFTDetails = query({
-  args: {
-    nftId: v.id('articleNFTs'),
-  },
-  handler: async (ctx, args) => {
-    const nft = await ctx.db.get(args.nftId)
-    if (!nft) return null
-
-    const ownerId = await ownerUserId(ctx, nft)
-    const [owner, minter, article] = await Promise.all([
-      ownerId ? ctx.db.get(ownerId) : null,
-      nft.mintedBy ? ctx.db.get(nft.mintedBy) : null,
-      ctx.db.get(nft.articleId),
-    ])
-
-    // Get transfer history
-    const transfers = await ctx.db
-      .query('nftTransfers')
-      .withIndex('by_nft', (q) => q.eq('nftId', args.nftId))
-      .collect()
-
-    // Enrich transfers with user data
-    const enrichedTransfers = await Promise.all(
-      transfers.map(async (transfer) => {
-        const [from, to] = await Promise.all([
-          enrichWithUser(ctx, transfer.fromUserId),
-          enrichWithUser(ctx, transfer.toUserId),
-        ])
-
-        return {
-          ...transfer,
-          from,
-          to,
-        }
-      })
-    )
-
-    return {
-      ...nft,
-      ...versionFields(nft),
-      owner: owner
-        ? {
-            id: owner._id,
-            name: owner.name,
-            username: owner.username,
-            avatar: owner.avatar,
-            stellarAddress: verifiedStellarAddress(owner),
-          }
-        : null,
-      minter: minter
-        ? {
-            id: minter._id,
-            name: minter.name,
-            username: minter.username,
-            avatar: minter.avatar,
-          }
-        : null,
-      article: article
-        ? {
-            id: article._id,
-            title: article.title,
-            slug: article.slug,
-            excerpt: article.excerpt,
-            coverImage: article.coverImage,
-            authorUsername: article.authorUsername,
-          }
-        : null,
-      transferHistory: enrichedTransfers,
-    }
-  },
-})
-
-export const loadArticleTipsForNftMetadata = internalQuery({
-  args: { articleId: v.id('articles') },
-  handler: async (ctx, args) => {
-    const article = await ctx.db.get(args.articleId)
-    if (!article) return null
-    const tips = await ctx.db
-      .query('tips')
-      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter(verifiedTipFilter)
-      .collect()
-    return { article, tips }
-  },
-})
-
-// Mint NFT for article
-export const mintNFT = mutation({
-  args: {
-    articleId: v.id('articles'),
-    tipThreshold: v.optional(v.number()),
-    metadataUrl: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
-    requireV1PreparesEnabled()
-    const userId = await getAuthUserId(ctx)
-    if (!userId) throw new Error('Not authenticated')
-
-    const user = await ctx.db.get(userId)
-    if (!user) throw new Error('User not found')
-
-    const article = await ctx.db.get(args.articleId)
-    if (!article) throw new Error('Article not found')
-    if (article.authorId !== userId)
-      throw new Error('Only the author can mint NFT for this article')
-
-    // Check if NFT already exists for this article
-    const existingNft = await ctx.db
-      .query('articleNFTs')
-      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .first()
-
-    if (existingNft) {
-      throw new Error('NFT already minted for this article')
-    }
-
-    if (!isValidArweaveNftMetadataUrl(args.metadataUrl)) {
-      throw new Error(
-        'Invalid metadata URL: must be https://arweave.net/ followed by a transaction id'
-      )
-    }
-
-    const now = Date.now()
-
-    const tokenId = `QUILL-${crypto.randomUUID()}`
-    const metadataUrl = args.metadataUrl
-
-    // Get total tips for the article
-    const tips = await ctx.db
-      .query('tips')
-      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter(verifiedTipFilter)
-      .collect()
-
-    const totalTipsUsd = tips.reduce((sum, tip) => sum + tip.amountUsd, 0)
-    const totalTipsCents = Math.round(totalTipsUsd * 100)
-
-    // Create NFT record
-    const nftId = await ctx.db.insert('articleNFTs', {
-      articleId: args.articleId,
-      tokenId,
-      contractAddress: '', // Will be set when deployed to Stellar
-      metadataUrl,
-      mintedBy: userId,
-      currentOwner: userId,
-      tipThreshold: args.tipThreshold || 1000, // Default $10 threshold
-      totalTipsAtMint: totalTipsCents,
-      mintedAt: now,
-      updatedAt: now,
-    })
-
-    // Update article with NFT reference
-    await ctx.db.patch(args.articleId, {
-      hasNft: true,
-      nftId,
-      updatedAt: now,
-    })
-
-    // Update user NFT counts
-    await ctx.db.patch(userId, {
-      nftsCreated: (user.nftsCreated || 0) + 1,
-      nftsOwned: (user.nftsOwned || 0) + 1,
-      updatedAt: now,
-    })
-
-    return nftId
-  },
-})
-
-// Transfer NFT
-export const transferNFT = mutation({
-  args: {
-    nftId: v.id('articleNFTs'),
-    toUsername: v.string(),
-  },
-  handler: async (ctx, args) => {
-    // Refused while CHAIN_V1_PREPARES_ENABLED=false (convex/lib/v1Prepares.ts).
-    requireV1PreparesEnabled()
-    const userId = await getAuthUserId(ctx)
-    if (!userId) throw new Error('Not authenticated')
-
-    const nft = await ctx.db.get(args.nftId)
-    if (!nft) throw new Error('NFT not found')
-    // v2 ownership changes only from a verified on-chain transfer event.
-    if (nft.contractVersion === 'v2') {
-      throw new Error('Transfer this NFT with your wallet on Stellar.')
-    }
-    if (nft.currentOwner !== userId) throw new Error("You don't own this NFT")
-
-    // Find recipient
-    const recipient = await ctx.db
-      .query('users')
-      .withIndex('by_username', (q) => q.eq('username', args.toUsername))
-      .first()
-
-    if (!recipient) throw new Error('Recipient not found')
-    if (recipient._id === userId) throw new Error('Cannot transfer to yourself')
-
-    const fromUser = await ctx.db.get(userId)
-    if (!fromUser) throw new Error('User not found')
-
-    const now = Date.now()
-
-    // Create transfer record
-    const transferId = await ctx.db.insert('nftTransfers', {
-      nftId: args.nftId,
-      fromUserId: userId,
-      toUserId: recipient._id,
-      transactionId: `pending_transfer_${args.nftId}`,
-      transferredAt: now,
-    })
-
-    // Update NFT ownership
-    await ctx.db.patch(args.nftId, {
-      currentOwner: recipient._id,
-      updatedAt: now,
-    })
-
-    // Update user NFT counts
-    await ctx.db.patch(userId, {
-      nftsOwned: Math.max(0, (fromUser.nftsOwned || 0) - 1),
-      updatedAt: now,
-    })
-
-    await ctx.db.patch(recipient._id, {
-      nftsOwned: (recipient.nftsOwned || 0) + 1,
-      updatedAt: now,
-    })
-
-    return transferId
   },
 })
 
@@ -600,72 +355,5 @@ export const getUserMintedNFTsPaginated = query({
       limit,
       totalPages: total === 0 ? 0 : Math.ceil(total / limit),
     }
-  },
-})
-
-// Check if article has reached NFT minting threshold
-export const checkMintingThreshold = query({
-  args: {
-    articleId: v.id('articles'),
-    threshold: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const article = await ctx.db.get(args.articleId)
-    if (!article) return { eligible: false, totalTips: 0, threshold: 0 }
-
-    // Same verified total that mintNFT and getNFTByArticle use; the article
-    // counter is not trusted here.
-    const tips = await ctx.db
-      .query('tips')
-      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter(verifiedTipFilter)
-      .collect()
-    const totalTipsUsd =
-      Math.round(tips.reduce((sum, tip) => sum + tip.amountUsd, 0) * 100) / 100
-
-    // Check if NFT already exists
-    const existingNft = await ctx.db
-      .query('articleNFTs')
-      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .first()
-
-    if (existingNft) {
-      return {
-        eligible: false,
-        totalTips: totalTipsUsd,
-        threshold: args.threshold || 10,
-        alreadyMinted: true,
-      }
-    }
-
-    const thresholdUsd = args.threshold || 10 // Default $10
-
-    return {
-      eligible: totalTipsUsd >= thresholdUsd,
-      totalTips: totalTipsUsd,
-      threshold: thresholdUsd,
-      alreadyMinted: false,
-    }
-  },
-})
-
-// Generate NFT metadata for an article
-export const generateNFTMetadata = query({
-  args: {
-    articleId: v.id('articles'),
-    xlmPrice: v.number(), // Live XLM/USD price from client
-  },
-  handler: async (ctx, args) => {
-    const article = await ctx.db.get(args.articleId)
-    if (!article) return null
-
-    // Get total tips for the article
-    const tips = await ctx.db
-      .query('tips')
-      .withIndex('by_article', (q) => q.eq('articleId', args.articleId))
-      .filter(verifiedTipFilter)
-      .collect()
-
-    return buildNftMetadataPayload(article, tips, args.xlmPrice)
   },
 })

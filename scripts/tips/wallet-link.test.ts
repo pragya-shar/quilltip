@@ -469,48 +469,6 @@ describe('addresses linked before proof was required', () => {
     expect(profile?.stellarAddress).toBeNull()
   })
 
-  it('receive no new tips until verified', async () => {
-    const { t, reader, articleId } = await legacy()
-    await expect(
-      as(t, reader).mutation(api.tips.prepareArticleTip, {
-        articleId,
-        amountXlm: 1,
-        stellarSourceAccount: Keypair.random().publicKey(),
-      })
-    ).rejects.toThrow('Author has not verified a receiving wallet')
-  })
-
-  it('cannot have a highlight tip recorded through the receipt path', async () => {
-    const { t, reader, articleId } = await legacy()
-    await t.run(({ db }) =>
-      db.patch(articleId, {
-        content: {
-          type: 'doc',
-          content: [
-            {
-              type: 'paragraph',
-              content: [{ type: 'text', text: 'Hello world' }],
-            },
-          ],
-        },
-      })
-    )
-    await expect(
-      as(t, reader).mutation(api.highlightTips.create, {
-        highlightId: 'x',
-        articleId,
-        highlightText: 'Hello',
-        startOffset: 0,
-        endOffset: 5,
-        amountCents: 100,
-        stellarTxId: 'ab'.repeat(32),
-        stellarMemo: 'x',
-        stellarSourceAccount: Keypair.random().publicKey(),
-        stellarAmountXlm: '5',
-      })
-    ).rejects.toThrow('Author has not verified a receiving wallet')
-  })
-
   it('cannot publish a new article until verified', async () => {
     const { t, writer } = await legacy()
     const draft = await t.run(({ db }) =>

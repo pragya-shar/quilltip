@@ -684,7 +684,7 @@ describe('registration verification', () => {
     await submit(t, s, p.submissionId, HASH)
     expect(await query()).toEqual({ status: 'pending' })
     vi.stubEnv('CHAIN_V2_ENABLED', 'false')
-    expect(await query()).toEqual({ status: 'disabled' })
+    expect(await query()).toEqual({ status: 'paused' })
   })
 
   it('is paused with v2 on and no Core contract, so no flow is offered', async () => {
@@ -695,9 +695,6 @@ describe('registration verification', () => {
       t.query(api.chain.articles.getArticleTipAvailability, {
         articleId: s.articleId,
       })
-    expect(await query()).toEqual({ status: 'paused' })
-    // The v1 switch does not reopen a flow while v2 is on.
-    vi.stubEnv('CHAIN_V1_PREPARES_ENABLED', 'true')
     expect(await query()).toEqual({ status: 'paused' })
   })
 

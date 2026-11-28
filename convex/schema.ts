@@ -1,10 +1,12 @@
-import { tipXlmPresetValidator } from './lib/articleTipExpectation'
 import { defineSchema, defineTable } from 'convex/server'
 import { v } from 'convex/values'
 import { authTables } from '@convex-dev/auth/server'
 import { nftChainFields, nftTransferChainFields } from './lib/chain/nftSchema'
 import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
 import { lifetimeTotalsFields } from './lib/lifetimeTotalsFields'
+
+/** The XLM presets that v1 tip intents recorded (`amountXlm`). */
+const tipXlmPresetValidator = v.union(v.literal(1), v.literal(2), v.literal(5))
 
 export default defineSchema({
   ...authTables,

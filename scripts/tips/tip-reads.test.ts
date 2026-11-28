@@ -638,55 +638,6 @@ describe('article tip reads with v1 and v2 rows', () => {
   })
 })
 
-describe('canTip', () => {
-  it('requires a registered article when an article is given', async () => {
-    const t = newTest()
-    const s = await seed(t)
-    expect(await t.query(api.tips.canTip, { articleId: s.articleId })).toEqual({
-      allowed: false,
-      waitSec: 0,
-      reason: 'NOT_REGISTERED',
-    })
-    await registerArticle(t, s)
-    expect(
-      await asUser(t, s.readerId).query(api.tips.canTip, {
-        articleId: s.articleId,
-      })
-    ).toEqual({ allowed: true })
-    expect(await t.query(api.tips.canTip, {})).toEqual({ allowed: true })
-  })
-
-  it('ignores a registration from an earlier chain epoch', async () => {
-    const t = newTest()
-    const s = await seed(t)
-    await registerArticle(t, s, {
-      chainEpoch: 'testnet-previous',
-      totals: { [TOKEN]: '5000000' },
-    })
-    expect(await t.query(api.tips.canTip, { articleId: s.articleId })).toEqual({
-      allowed: false,
-      waitSec: 0,
-      reason: 'NOT_REGISTERED',
-    })
-    expect(
-      await t.query(api.tips.getArticleTipStats, { articleId: s.articleId })
-    ).toMatchObject({ totalsBaseUnits: {}, registered: false })
-
-    // A registration in the current epoch is used, even when the old row
-    // comes first in the index.
-    await registerArticle(t, s, { totals: { [TOKEN]: '7000000' } })
-    expect(await t.query(api.tips.canTip, { articleId: s.articleId })).toEqual({
-      allowed: true,
-    })
-    expect(
-      await t.query(api.tips.getArticleTipStats, { articleId: s.articleId })
-    ).toMatchObject({
-      totalsBaseUnits: { [TOKEN]: '7000000' },
-      registered: true,
-    })
-  })
-})
-
 describe('highlight tip reads', () => {
   it('the heatmap groups paid v1 and v2 tips by passage', async () => {
     const t = newTest()

@@ -49,7 +49,7 @@ bunx convex env set SITE_URL https://quilltip.me --prod
 ```
 
 Use [setup](SETUP.md) for configuration responsibilities. Verify the frontend
-points to the intended backend; align tipping contract IDs and Stellar networks.
+points to the intended backend; align contract IDs and Stellar networks.
 
 ## Soroban contracts
 
@@ -60,4 +60,4 @@ Check the affected crate with the commands in the
 network options. Confirm signer, network, initialization, and resulting contract
 ID before updating configuration. Record the deployment and check the relevant
 wallet-to-ledger-to-Convex flow; see the
-[testnet note](tipping-contract-testnet-deploy.md).
+[testnet deployment record](contracts/v2-testnet-deployment.md).
