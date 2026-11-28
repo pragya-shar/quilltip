@@ -201,13 +201,21 @@ async function lateView(
   /** A shell page to visit by client navigation and come back from, after
    * the fonts arrive: the page then reads in the upgraded faces. */
   roundTrip?: string
-): Promise<{ before: Snapshot; after: Snapshot; next?: Snapshot }> {
+): Promise<{
+  before: Snapshot
+  after: Snapshot
+  next?: Snapshot
+  /** How many font requests were held back. */
+  held: number
+}> {
   const context = await browser.newContext({ viewport })
   try {
     const page = await context.newPage()
+    let heldCount = 0
     await page.route(
       (url) => FONT_FILES.test(url.pathname) && held.test(url.pathname),
       async (route) => {
+        heldCount++
         await new Promise((done) => setTimeout(done, LATE_MS))
         await route.continue().catch(() => {})
       }
@@ -222,7 +230,7 @@ async function lateView(
     await page.evaluate(() => document.fonts.ready)
     await page.waitForTimeout(1000)
     const after = await capture(page)
-    if (!roundTrip) return { before, after }
+    if (!roundTrip) return { before, after, held: heldCount }
     // The upgrade loads the faces under their second names when idle.
     await page
       .locator('html[data-reading-faces-loaded]')
@@ -240,7 +248,7 @@ async function lateView(
       await page.waitForURL((url) => url.pathname === to.split('?')[0])
       await page.waitForTimeout(1000)
     }
-    return { before, after, next: await capture(page) }
+    return { before, after, next: await capture(page), held: heldCount }
   } finally {
     await context.close()
   }
@@ -482,6 +490,29 @@ function checkMovement(
   })
   const p90 = percentile(moves, 0.9)
   const max = Math.max(0, ...moves)
+  // A face that changes inside the view with no re-wrap moves nothing:
+  // its text's width changes. Per reading font, summed over the page.
+  const widths = (snapshot: Snapshot) => {
+    const sums = new Map<string, number>()
+    // The reading faces only: late client content in the interface face
+    // is not a face change.
+    for (const run of snapshot.runs)
+      if (READING_FALLBACK.test(run.family))
+        sums.set(run.font, (sums.get(run.font) ?? 0) + run.width)
+    return sums
+  }
+  const afterWidths = widths(after)
+  const changedFaces = [...widths(before)]
+    .map(([font, width]) => ({
+      font,
+      ratio: (afterWidths.get(font) ?? width) / width,
+    }))
+    .filter(({ ratio }) => Math.abs(ratio - 1) > 0.001)
+  if (gate === 'still')
+    for (const { font, ratio } of changedFaces)
+      failures.push(
+        `${label}: text in ${font} changes face inside the view when the fonts arrive late (${ratio.toFixed(3)} times its width)`
+      )
   if (firstMoved)
     console.log(`  ${label}: first block that moves: ${firstMoved.key}`)
   for (const heading of rewrapped)
@@ -498,7 +529,7 @@ function checkMovement(
     )
   return {
     failures,
-    summary: `in view: move p90 ${p90} px  max ${max} px  headings re-wrapped ${rewrapped.length}`,
+    summary: `in view: move p90 ${p90} px  max ${max} px  headings re-wrapped ${rewrapped.length}  faces changed ${changedFaces.length}`,
   }
 }
 
@@ -549,6 +580,10 @@ async function main() {
                 : undefined
             )
             const moved = checkMovement(label, viewport.height, late, gate)
+            if (late.held === 0)
+              moved.failures.push(
+                `${label}: no font request was held back, so the late view measured nothing`
+              )
             console.log(
               `${label.padEnd(30)} ${faces.summary}  ${moved.summary}`
             )
@@ -558,13 +593,30 @@ async function main() {
             // A first view: the roman face preloaded and on time, the italic
             // faces (not preloaded) late.
             const mixedLabel = `${label} roman on time, italic late`
+            const mixedView = await lateView(
+              browser,
+              route.path,
+              viewport,
+              /italic/i
+            )
             const mixed = checkMovement(
               mixedLabel,
               viewport.height,
-              await lateView(browser, route.path, viewport, /italic/i),
+              mixedView,
               gate
             )
-            console.log(`${mixedLabel.padEnd(30)} ${mixed.summary}`)
+            // The page draws italic text in a web font: its file must have
+            // been held, or the case measured nothing.
+            const drawsItalic = cached.runs.some((run) =>
+              / italic$/.test(run.font)
+            )
+            if (drawsItalic && mixedView.held === 0)
+              mixed.failures.push(
+                `${mixedLabel}: the page draws italic text, but no italic font request was held back`
+              )
+            console.log(
+              `${mixedLabel.padEnd(30)} ${drawsItalic ? mixed.summary : 'no italic text on the page'}`
+            )
             failures.push(...mixed.failures)
           }
         }
