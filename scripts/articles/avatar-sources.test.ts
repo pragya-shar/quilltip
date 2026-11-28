@@ -78,7 +78,7 @@ test('updateProfile keeps an uploaded photo, and clearing still works (#633)', a
   ])
 })
 
-test('countImageHosts counts profile photo hosts, allowed and refused, with nothing else (#633)', async () => {
+test('countImageHosts counts profile photo hosts, allowed only in own storage, with nothing else (#633)', async () => {
   const t = convexTest(schema, modules)
   const avatars = [
     own,
@@ -103,7 +103,8 @@ test('countImageHosts counts profile photo hosts, allowed and refused, with noth
   const report = await t.action(internal.articleImageHosts.countImageHosts, {})
   expect(report.avatars).toEqual([
     { host: 'own-deployment-123.convex.cloud', allowed: 2, refused: 0 },
-    { host: 'images.unsplash.com', allowed: 1, refused: 1 },
+    // A listed stock host shows initials, so it counts as refused.
+    { host: 'images.unsplash.com', allowed: 0, refused: 2 },
     { host: 'someone-else-456.convex.cloud', allowed: 0, refused: 1 },
   ])
   const text = JSON.stringify(report)

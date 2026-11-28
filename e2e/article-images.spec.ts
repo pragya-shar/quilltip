@@ -49,14 +49,16 @@ async function watch(page: Page) {
   const otherRequests: string[] = []
   const policyErrors: string[] = []
   const frameRequests: string[] = []
+  const stockRequests: string[] = []
   // Video frames load an empty page here; record which addresses are asked.
   await page.route(/^https:\/\/(www\.)?youtube(-nocookie)?\.com\//, (route) => {
     frameRequests.push(route.request().url())
     return route.fulfill({ body: '<!doctype html>', contentType: 'text/html' })
   })
-  await page.route('https://images.unsplash.com/**', (route) =>
-    route.fulfill({ body: jpeg, contentType: 'image/jpeg' })
-  )
+  await page.route('https://images.unsplash.com/**', (route) => {
+    stockRequests.push(route.request().url())
+    return route.fulfill({ body: jpeg, contentType: 'image/jpeg' })
+  })
   await page.route('https://someone-else-456.convex.cloud/**', (route) => {
     otherRequests.push(route.request().url())
     return route.fulfill({ body: jpeg, contentType: 'image/jpeg' })
@@ -75,7 +77,7 @@ async function watch(page: Page) {
     )
       policyErrors.push(message.text())
   })
-  return { otherRequests, policyErrors, frameRequests }
+  return { otherRequests, policyErrors, frameRequests, stockRequests }
 }
 
 /** The images of one reader, each scrolled into view until it has loaded. */
@@ -256,15 +258,18 @@ for (const width of [375, 1440]) {
     const photo = (page: Page, kind: string) =>
       page.locator(`[data-avatar="${kind}"] img`)
 
-    test('profile photos: uploaded and Unsplash show, the other shows initials in the same box', async ({
+    test('profile photos: an upload shows; a stock-host photo and the other show initials in the same box', async ({
       page,
     }) => {
       const seen = await watch(page)
       await page.goto('/')
       await expect(photo(page, 'own')).toHaveCount(1)
-      await expect(photo(page, 'unsplash')).toHaveCount(1)
+      // Profile photos are uploads: a listed stock host shows initials too.
+      await expect(photo(page, 'unsplash')).toHaveCount(0)
+      await expect(page.locator('[data-avatar="unsplash"]')).toHaveText('W')
       await expect(photo(page, 'other')).toHaveCount(0)
       await expect(page.locator('[data-avatar="other"]')).toHaveText('W')
+      expect(seen.stockRequests).not.toContain(AVATARS.unsplash)
       const box = (kind: string) =>
         page.locator(`[data-avatar="${kind}"] > span`).boundingBox()
       const [own, other] = [await box('own'), await box('other')]

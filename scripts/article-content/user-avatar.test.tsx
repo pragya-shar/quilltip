@@ -5,7 +5,7 @@ import { act, createElement } from 'react'
 import { createRoot } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { UserAvatar } from '../../components/ui/user-avatar'
-import { shownAvatar } from '../../lib/tiptap/articleImage'
+import { shownAvatar } from '../../lib/profile/shownAvatar'
 import { isOwnStorageAddress } from '../../lib/security/imageSources'
 
 const OWN = 'https://own-deployment-123.convex.cloud'
@@ -78,19 +78,19 @@ describe('profile photos (#633)', () => {
     expect(shownAvatar(null)).toBeUndefined()
   })
 
-  it('saving accepts only an upload; showing keeps the shared list (#633)', () => {
-    // Write: own storage only. Render: the shared list, so an older photo on
-    // a listed host still shows.
+  it('saving and showing accept only an upload (#633)', () => {
+    // Both own storage only: a stored photo on a listed stock host shows the
+    // initials, like any other outside host.
     expect(isOwnStorageAddress(own, OWN)).toBe(true)
     expect(isOwnStorageAddress(unsplash, OWN)).toBe(false)
     expect(isOwnStorageAddress(`${OWN}/api/query`, OWN)).toBe(false)
     expect(isOwnStorageAddress(otherConvex, OWN)).toBe(false)
     expect(isOwnStorageAddress(own, undefined)).toBe(false)
     expect(isOwnStorageAddress(42, OWN)).toBe(false)
-    expect(shownAvatar(unsplash)).toBe(unsplash)
+    expect(shownAvatar(unsplash)).toBeUndefined()
   })
 
-  it.each([own, unsplash])('shows an allowed photo: %s', (src) => {
+  it.each([own])('shows an uploaded photo: %s', (src) => {
     const seen = render(src)
     expect(seen.images).toEqual([src])
     expect(requested).toEqual([src])
@@ -98,6 +98,8 @@ describe('profile photos (#633)', () => {
 
   it.each([
     otherConvex,
+    unsplash,
+    'https://arweave.net/bNbA3TEQVL60xlgCcqdz4ZPHFZ711cZ3hmkpGttDt_U',
     'https://tracker.example/pixel.png',
     `${OWN}/api/query`,
   ])(

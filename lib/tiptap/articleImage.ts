@@ -21,17 +21,6 @@ export function shownCoverImage(
 }
 
 /**
- * A profile photo readers may see, or undefined: one from another host counts
- * as none, so the avatar shows its initials (#633).
- */
-export function shownAvatar(
-  src: string | null | undefined
-): string | undefined {
-  const trimmed = src?.trim()
-  return trimmed && isArticleImageShown(trimmed) ? trimmed : undefined
-}
-
-/**
  * What a reader gets for an image that does not render: an empty, hidden
  * block, so nothing takes space and the server HTML and the reader match.
  */

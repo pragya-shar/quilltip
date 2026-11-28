@@ -33,9 +33,10 @@ const checkOff = path.join(import.meta.dirname, 'articleImage-off.ts')
 const rendererOff = {
   name: 'renderer-check-off',
   setup(build) {
-    build.onResolve({ filter: /^@\/lib\/tiptap\/articleImage$/ }, () => ({
-      path: checkOff,
-    }))
+    build.onResolve(
+      { filter: /^@\/lib\/(tiptap\/articleImage|profile\/shownAvatar)$/ },
+      () => ({ path: checkOff })
+    )
   },
 }
 

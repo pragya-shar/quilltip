@@ -5,6 +5,7 @@ import { articleEmbedSources, articleImageSources } from './lib/articleImages'
 import { youtubeVideoId } from '../lib/articles/youtubeVideo'
 import {
   isAllowedImageSource,
+  isOwnStorageAddress,
   ownImageSource,
 } from '../lib/security/imageSources'
 
@@ -14,8 +15,9 @@ import {
  * into published articles and drafts, and into allowed and refused
  * addresses (`lib/security/imageSources.ts`). Each address is judged on its
  * own, so one host can have both (`img.youtube.com` outside `/vi/`, `http`
- * against `https`). Profile photos are counted the same way, allowed and
- * refused per host (#633). Video embeds are counted by whether the renderers
+ * against `https`). Profile photos are counted per host too, allowed only in
+ * this deployment's own storage, as the save and `UserAvatar` decide (#633).
+ * A photo on a listed stock host counts as refused: it shows initials. Video embeds are counted by whether the renderers
  * can rebuild their frame from a video id (`rebuilt`) or show no frame
  * (`noFrame`). No address, article text, title, author, name or id.
  *
@@ -122,9 +124,7 @@ export const avatarHostPage = internalQuery({
       if (!user.avatar?.trim()) continue
       const host = hostOf(user.avatar)
       const row = tally.get(host) ?? { allowed: 0, refused: 0 }
-      if (
-        isAllowedImageSource(user.avatar.trim(), process.env.CONVEX_CLOUD_URL)
-      )
+      if (isOwnStorageAddress(user.avatar.trim(), process.env.CONVEX_CLOUD_URL))
         row.allowed += 1
       else row.refused += 1
       tally.set(host, row)

@@ -14,7 +14,7 @@ import {
   profilePath,
   toMetaDescription,
 } from '@/lib/seo/siteMetadata'
-import { shownAvatar } from '@/lib/tiptap/articleImage'
+import { shownAvatar } from '@/lib/profile/shownAvatar'
 
 interface ProfilePageProps {
   params: Promise<{

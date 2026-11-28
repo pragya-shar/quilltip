@@ -124,6 +124,9 @@ describe('one deployment origin for images in every place (#615)', () => {
     expect(read('lib/tiptap/articleImage.ts')).toContain(
       'isAllowedImageSource(src, process.env.NEXT_PUBLIC_CONVEX_URL)'
     )
+    expect(read('lib/profile/shownAvatar.ts')).toContain(
+      'isOwnStorageAvatar(trimmed, process.env.NEXT_PUBLIC_CONVEX_URL)'
+    )
     expect(read('convex/lib/articleImages.ts')).toContain(
       'const convexUrl = process.env.CONVEX_CLOUD_URL'
     )

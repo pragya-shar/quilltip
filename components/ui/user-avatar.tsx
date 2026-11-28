@@ -2,7 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { cn } from '@/lib/utils'
-import { shownAvatar } from '@/lib/tiptap/articleImage'
+import { shownAvatar } from '@/lib/profile/shownAvatar'
 
 export function avatarInitials(name: string): string {
   const n = name.trim()
