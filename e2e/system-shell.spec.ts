@@ -333,6 +333,41 @@ async function openReading(page: Page) {
   await page.goto('/reading')
   await expect(pushedHeader(page)).toHaveAttribute('data-watching', '')
   await lengthen(page)
+  // Let the longer page settle (two frames) before a wheel: WebKit can drop
+  // a wheel that comes before it has drawn the page that grew under it.
+  await page.evaluate(
+    () =>
+      new Promise((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(done))
+      )
+  )
+}
+
+// A wheel over the page, judged only once the page has scrolled. A wheel
+// the engine dropped gets one more, as a reader would give it, and the run
+// records it; a page that still did not scroll fails as that.
+async function wheel(page: Page, dy: number) {
+  const scrolled = (from: number) =>
+    expect
+      .poll(() => page.evaluate(() => window.scrollY), { timeout: 1500 })
+      .not.toBe(from)
+  const from = await page.evaluate(() => window.scrollY)
+  await page.mouse.wheel(0, dy)
+  try {
+    await scrolled(from)
+    return
+  } catch {
+    test.info().annotations.push({
+      type: 'wheel again',
+      description: `the page did not scroll for a wheel of ${dy}; one more`,
+    })
+  }
+  await page.mouse.wheel(0, dy)
+  try {
+    await scrolled(from)
+  } catch {
+    throw new Error(`the page did not scroll for two wheels of ${dy}`)
+  }
 }
 
 test('the pushed header leaves on a scroll down and returns on the reader’s scroll up, moving no text', async ({
@@ -343,7 +378,7 @@ test('the pushed header leaves on a scroll down and returns on the reader’s sc
   await expect(header).toBeVisible()
   const layout = await textLayout(page)
   await page.mouse.move(200, 400)
-  await page.mouse.wheel(0, 900)
+  await wheel(page, 900)
   await expect(header).toHaveAttribute('data-hidden', '')
   expect(await textLayout(page), 'hiding it').toBe(layout)
   await expect
@@ -356,7 +391,7 @@ test('the pushed header leaves on a scroll down and returns on the reader’s sc
     )
     .toBe('0px')
   // The reader scrolls up a little: it is back, over the page.
-  await page.mouse.wheel(0, -120)
+  await wheel(page, -120)
   await expect(header).not.toHaveAttribute('data-hidden', '')
   expect(await textLayout(page), 'showing it').toBe(layout)
   const height = Math.round((await header.boundingBox())!.height)
@@ -382,8 +417,8 @@ test('the pushed header carries the title only after 140 px of scroll', async ({
   const title = pushedHeader(page).locator('.qt-pushed__title')
   await expect(title).not.toHaveAttribute('data-shown', '')
   await page.mouse.move(200, 400)
-  await page.mouse.wheel(0, 400)
-  await page.mouse.wheel(0, -60)
+  await wheel(page, 400)
+  await wheel(page, -60)
   await expect(title).toHaveAttribute('data-shown', '')
   await expect(title).toBeVisible()
 })
@@ -394,11 +429,11 @@ test('a scroll by script never brings the pushed header back', async ({
   await openReading(page)
   const header = pushedHeader(page)
   await page.mouse.move(200, 400)
-  await page.mouse.wheel(0, 1200)
+  await wheel(page, 1200)
   await expect(header).toHaveAttribute('data-hidden', '')
-  // Later than the reader's own input counts (INTENT_MS, 300 ms): a place
-  // restored or an anchor landed, above where the reader is.
-  await page.waitForTimeout(400)
+  // Once the reader's gesture has ended: a place restored or an anchor
+  // landed, above where the reader is.
+  await expect(header).not.toHaveAttribute('data-scrolling', '')
   await page.evaluate(() => window.scrollTo(0, window.scrollY - 400))
   await page.waitForTimeout(400)
   await expect(header).toHaveAttribute('data-hidden', '')
@@ -411,9 +446,20 @@ test('the way back is reachable by keyboard at any depth', async ({
   await openReading(page)
   const header = pushedHeader(page)
   await page.mouse.move(200, 400)
-  await page.mouse.wheel(0, 1500)
+  await wheel(page, 1500)
   await expect(header).toHaveAttribute('data-hidden', '')
+  // Once the wheel's scroll has ended, where the text is.
+  await expect(header).not.toHaveAttribute('data-scrolling', '')
   const y = await page.evaluate(() => window.scrollY)
+  const textTop = () =>
+    page.evaluate(() =>
+      Math.round(
+        document
+          .querySelector('main p:not(.qt-pushed__title)')!
+          .getBoundingClientRect().top
+      )
+    )
+  const top = await textTop()
   // From the first control after the header, one step back: the header's
   // last control.
   await page.evaluate(() => {
@@ -445,7 +491,15 @@ test('the way back is reachable by keyboard at any depth', async ({
       })
     )
     .toBe(true)
+  // The text never moved: not at the focus, and not a frame later.
+  await page.evaluate(
+    () =>
+      new Promise((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(done))
+      )
+  )
   expect(await page.evaluate(() => window.scrollY), 'no scroll').toBe(y)
+  expect(await textTop(), 'the text moved').toBe(top)
 })
 
 test('a change of path closes the sheets over the old page', async ({
