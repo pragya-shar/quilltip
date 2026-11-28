@@ -75,8 +75,8 @@ and each fixture shard whose suites' bundles or specs, or the shared inputs
 (the proxy and routing registries, the Next config, the CSP module, the
 configs, the fixture runner), include a changed file. Lint & Typecheck and
 Dependency Audit always run. Everything runs on pushes to `main` and the
-overhaul branches, for a change to `package.json`, `bun.lock`, the workflow
-or `scripts/ci/`, for a path under a new top-level folder, and when What
+overhaul branches, for a change to `package.json`, `bun.lock`, the workflow,
+`scripts/ci/` or `patches/`, for a path under a new top-level folder, and when What
 changed fails. `Required` always reports, and fails when a job fails, is
 cancelled or is skipped without a plan to skip it, or when What changed
 fails. **Re-run failed jobs** keeps the first plan, so it is not a full run.
