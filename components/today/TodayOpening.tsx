@@ -54,9 +54,10 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
       <p className="qt-today__onward">
         {/* Continues where the opening stopped (the paragraph anchor). */}
         <Button href={article.readMoreHref} variant="primary" size="l">
-          Read more
-          {/* Named like the list's links: "Read more: {title}". */}
-          <span className="qt-visually-hidden">: {article.title}</span>
+          {/* Named like the list's links, "Read more: {title}", in one
+              hidden span: a hidden span beside visible text adds a space. */}
+          <span aria-hidden="true">Read more</span>
+          <span className="qt-visually-hidden">{`Read more: ${article.title}`}</span>
         </Button>
         {article.minutesLeft > 0 ? (
           <span className="qt-today__left">{article.minutesLeft} min left</span>
