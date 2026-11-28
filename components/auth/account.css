@@ -663,3 +663,20 @@
   color: #68444c;
   margin: 0 0 22px;
 }
+/* A submit made before the page scripts ran is held until they run
+   (lib/auth/earlySubmit.ts); the button shows the busy state meanwhile. */
+.account-page .account-ready-label {
+  display: contents;
+}
+.account-page .account-held-label,
+.account-page form[data-held-submit] .account-ready-label {
+  display: none;
+}
+.account-page form[data-held-submit] .account-held-label {
+  display: inline;
+}
+.account-page form[data-held-submit] .account-primary {
+  pointer-events: none;
+  cursor: wait;
+  opacity: 0.65;
+}

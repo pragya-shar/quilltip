@@ -246,6 +246,52 @@ jobs:
           NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
           NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
 
+  # Presses made before the page scripts run: a held sign-in submit and the
+  # mobile menu opened from the first paint (#554), in Chromium and WebKit,
+  # against a production build and the fixture backend; no secrets.
+  early-taps:
+    name: Early Taps
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    permissions:
+      contents: read
+    needs: quality
+
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.4'
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Chromium and WebKit
+        run: bunx playwright install --with-deps chromium webkit
+
+      # Vercel's chunk paths (/_next/static/immutable/), so the first-flush
+      # check in e2e/server-forms.spec.ts counts the bytes the site sends.
+      - name: Build against the fixture backend
+        run: bun run build
+        env:
+          QUILLTIP_IMMUTABLE_ASSETS: '1'
+          SKIP_ENV_VALIDATION: '1'
+          NEXT_PUBLIC_CONVEX_URL: 'http://127.0.0.1:3299'
+          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET'
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
+      - name: Answer presses made before the page scripts run
+        run: bun run test:e2e:early-taps
+        env:
+          NEXT_PUBLIC_HORIZON_URL: 'https://horizon-testnet.stellar.org'
+          NEXT_PUBLIC_SOROBAN_RPC_URL: 'https://soroban-testnet.stellar.org'
+          NEXT_PUBLIC_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+
   audit:
     name: Dependency Audit
     runs-on: ubuntu-latest
@@ -555,6 +601,7 @@ jobs:
         perf-budget,
         font-fallbacks,
         csp,
+        early-taps,
         audit,
         contracts,
         contracts-integration,
@@ -570,6 +617,7 @@ jobs:
           PERF_BUDGET_RESULT: ${{ needs.perf-budget.result }}
           FONT_FALLBACKS_RESULT: ${{ needs.font-fallbacks.result }}
           CSP_RESULT: ${{ needs.csp.result }}
+          EARLY_TAPS_RESULT: ${{ needs.early-taps.result }}
           AUDIT_RESULT: ${{ needs.audit.result }}
           CONTRACTS_RESULT: ${{ needs.contracts.result }}
           CONTRACTS_INTEGRATION_RESULT: ${{ needs.contracts-integration.result }}
@@ -593,6 +641,7 @@ jobs:
           check_result "Page-load Budget" "$PERF_BUDGET_RESULT"
           check_result "Font Fallbacks" "$FONT_FALLBACKS_RESULT"
           check_result "Content Security Policy" "$CSP_RESULT"
+          check_result "Early Taps" "$EARLY_TAPS_RESULT"
           check_result "Dependency Audit" "$AUDIT_RESULT"
           check_result "Contracts" "$CONTRACTS_RESULT"
           check_result "Contracts (local network)" "$CONTRACTS_INTEGRATION_RESULT"

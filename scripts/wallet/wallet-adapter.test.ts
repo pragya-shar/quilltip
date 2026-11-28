@@ -728,6 +728,35 @@ describe('restore after a page load (#562)', () => {
     expect([...mem.store.keys()]).toEqual([KEY])
   })
 
+  test('a kit that starts with no reader signed in leaves no copy behind', async () => {
+    // The kit writes its keys when it starts; sign-out may already have
+    // cleared storage by then (#554).
+    const fake = fakeKit()
+    const mem = memory()
+    fake.kit.init.mockImplementation(() => {
+      mem.store.set(KIT_KEY, 'varial')
+      mem.store.set('@StellarWalletsKit/hardwareWalletPaths', '[]')
+      mem.store.set('@StellarWalletsKit/wcSessionPaths', '[]')
+    })
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    wallet.setRemembering(null)
+    await wallet.init()
+    expect([...mem.store.keys()]).toEqual([])
+  })
+
+  test('a kit that starts for a signed-in reader keeps its keys', async () => {
+    const fake = fakeKit()
+    const mem = memory({ [KEY]: record('varial') })
+    fake.kit.init.mockImplementation(() => {
+      mem.store.set(KIT_KEY, 'varial')
+    })
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    wallet.setRemembering('reader-1')
+    await wallet.init()
+    expect(mem.store.get(KIT_KEY)).toBe('varial')
+    expect(mem.store.get(KEY)).toBe(record('varial'))
+  })
+
   test('signed out: does not restore and asks nothing', async () => {
     const { fake, read } = restoreKit()
     const mem = memory({ [KEY]: record('varial') })
