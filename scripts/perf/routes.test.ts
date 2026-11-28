@@ -136,7 +136,7 @@ describe('payments code in a first load', () => {
     expect(forbiddenModules([engine], '/system/reading')).toHaveLength(1)
     expect(forbiddenModules([shell], '/system/reading')).toHaveLength(1)
     // The legacy layout mounts the payments shell itself.
-    expect(forbiddenModules([shell], '/articles')).toEqual([])
+    expect(forbiddenModules([shell], '/[username]/[slug]')).toEqual([])
   })
 })
 
