@@ -72,6 +72,9 @@ cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nf
 `Required` aggregates quality, build, and dependency audit. The audit is a required
 job; its severity/exception rules are defined in the
 [audit policy](../../security/dependency-review.md). PR hygiene runs on PRs.
+`bun scripts/ci/local.ts --jobs app --shards <shards>` runs the same steps
+locally, read from the workflow, on one production build per build setting;
+`--list` prints them, `--all` runs everything.
 Local success does not establish remote CI or deployment success.
 
 ## Using Codex and Claude Code
