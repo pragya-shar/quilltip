@@ -146,6 +146,8 @@ export function balanceViewOf(input: {
   session: SessionRead | undefined
   outbox: OutboxEntry[]
   device: DeviceState
+  /** The device state in detail, for the tip button's words. */
+  deviceKind?: BalanceView['deviceKind']
   online: boolean
   now: number
   /** When the figures were last known current (`useAsOf`). */
@@ -158,6 +160,7 @@ export function balanceViewOf(input: {
     pending: null,
     deviceReady: false,
     device: input.device,
+    deviceKind: input.deviceKind ?? null,
     limits: null,
     amounts: [],
     noAmountReason: null,

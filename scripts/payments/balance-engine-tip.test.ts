@@ -22,6 +22,8 @@ import { tokenNames } from './sessionToken'
 
 const fake = vi.hoisted(() => ({
   user: 'reader-1',
+  /** The signer answers `checking` while the session has no ledger. */
+  checkWithLedger: false,
   /** What the signer was asked to send, in order. */
   sends: [] as {
     requestId: string
@@ -119,7 +121,10 @@ vi.mock('convex/react', () => ({
 vi.mock('@/lib/payments/live/signer', () => ({
   createSigner: (readerAddress: string) => ({
     scope: { tabContractId: 'CTAB', readerAddress },
-    deviceState: async () => ({ state: 'ready', keyId: 1, view: 'ready' }),
+    deviceState: async (_devices: unknown, clock: unknown) =>
+      fake.checkWithLedger && !clock
+        ? { state: 'checking', keyId: null, view: 'unchecked' }
+        : { state: 'ready', keyId: 1, view: 'ready' },
     send: (entry: OutboxEntry) => {
       fake.sends.push({
         requestId: entry.requestId,
@@ -212,6 +217,7 @@ afterEach(async () => {
   paymentsStore.setSession(null)
   answers.overrides.clear()
   answers.auth.isAuthenticated = true
+  fake.checkWithLedger = false
   detach?.()
   detach = null
   document.body.innerHTML = ''
@@ -402,5 +408,46 @@ describe('PaymentsEngine tip()', () => {
       passage: lineA.kind === 'passage' ? lineA.passage : null,
     })
     expect(paymentsStore.get().queuedTaps.control).toBeUndefined()
+  })
+})
+
+describe('a device whose approval cannot be checked yet', () => {
+  it('waits as checking with no setup asked and nothing sent, then turns ready when a ledger answers', async () => {
+    start()
+    fake.checkWithLedger = true
+    const base = answers.of('balance:session', fake.user) as Record<
+      string,
+      unknown
+    >
+    answers.overrides.set('balance:session', { ...base, ledger: null })
+    await mountEngine()
+    const id = 'control'
+    paymentsStore.register(id, { target: line('A checked line.', 0), meta })
+    await vi.waitFor(
+      () => {
+        const s = paymentsStore.get()
+        expect({
+          device: s.balance?.device,
+          kind: s.balance?.deviceKind,
+          unavailable: s.tips[id]?.unavailable,
+        }).toEqual({
+          device: 'checking',
+          kind: 'unchecked',
+          unavailable: 'device-checking',
+        })
+      },
+      { timeout: 3000 }
+    )
+    await act(async () => {
+      await paymentsStore.get().tips[id]!.tip()
+    })
+    expect(fake.sends).toHaveLength(0)
+    // The indexer's ledger arrives: the same approval is ready, unasked.
+    answers.overrides.set('balance:session', { ...base })
+    await act(async () => root!.render(h(PaymentsEngine)))
+    const tip = await readyTip(id)
+    expect(paymentsStore.get().balance?.deviceKind).toBe('ready')
+    expect(tip.unavailable).toBeNull()
+    expect(fake.sends).toHaveLength(0)
   })
 })

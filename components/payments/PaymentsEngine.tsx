@@ -413,11 +413,22 @@ export function PaymentsEngine() {
         session,
         outbox: entries,
         device,
+        deviceKind: reading?.view ?? null,
         online,
         now,
         asOf,
       }),
-    [isLoading, isAuthenticated, session, entries, device, online, now, asOf]
+    [
+      isLoading,
+      isAuthenticated,
+      session,
+      entries,
+      device,
+      reading,
+      online,
+      now,
+      asOf,
+    ]
   )
   const publicAmounts = useMemo(() => publicChoices(publicTerms), [publicTerms])
   const readerActivity = useMemo(
@@ -714,6 +725,7 @@ function unavailableOf(
   if (balance.status === 'none') return 'no-balance'
   if (balance.status === 'closing') return 'closing'
   if (!balance.settlement.enabled) return 'settlement-off'
+  if (balance.device === 'checking') return 'device-checking'
   if (!balance.deviceReady) return 'device'
   return null
 }
