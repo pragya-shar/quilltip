@@ -4,25 +4,30 @@
 //   NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
 //   bun run perf:font-fallbacks
 //
-// Text paints in a metric-matched local face (app/font-fallbacks.css) until
-// the web font arrives. When that face is missing, or its values do not match
-// the web font, lines re-wrap at the swap and everything below them moves.
-// For each route, engine and width, this loads the page twice, once with every
-// font request blocked and once with the fonts loaded, and compares them:
-// - every fallback family a text block names must exist as a font face;
-// - for each font (family, weight, style), the text set in it must take the
-//   same width in both runs, within MAX_WIDTH_DIFFERENCE. The width is the
-//   sum of each element's line pieces over the page, so it does not depend on
-//   where lines break. This is what the faces control: a face matched to the
-//   wrong file is 8 to 17 percent off, a matched one at most 5 percent;
-// - no heading (h1 to h3) on the page may change its height, that is its
-//   number of lines;
-// - on the first screen and a half, which a reader sees while the fonts load,
-//   the 90th percentile of the text blocks' vertical movement must stay within
-//   MAX_P90_MOVE_PX. Positions are layout positions (offsetTop), so transforms
-//   and animations do not count. The width rule alone lets a face a few
-//   percent too wide pass while text in view moves, so both are gated. Only
-//   the cases in MOVEMENT_EXEMPT, each with its reason, are not.
+// Text paints in a metric-matched local face (system/font-fallbacks.css and
+// app/font-fallbacks.css) until the web font arrives. For each route, engine
+// and width:
+// - Faces and widths. The page loads once with every font request blocked and
+//   once with the fonts in the cache (a first load, then a second), and the
+//   two are compared. Every fallback family a text block names must exist as
+//   a font face. For each font (family, weight, style), the text set in it
+//   must take the same width in both, within MAX_WIDTH_DIFFERENCE, and within
+//   READING_WIDTH_DIFFERENCE for the reading faces. The width is the sum of
+//   each element's line pieces over the page, so it does not depend on where
+//   lines break: it is a calibration figure for the face, not a rule for any
+//   one line.
+// - Movement. The page loads once with the fonts held back past the block
+//   period, and its layout is compared before and after they arrive, in the
+//   same page view. No heading (h1 to h3) may change its height. On the first
+//   screen and a half, the text blocks' vertical movement must be 0 px on the
+//   shell's routes, whose reading faces use font-display: optional (a view
+//   that started in the fallback stays in it), and its 90th percentile within
+//   MAX_P90_MOVE_PX on the legacy routes, whose faces swap. Positions are
+//   layout positions (offsetTop), so transforms and animations do not count.
+//   Only the cases in MOVEMENT_EXEMPT, each with its reason, are not gated.
+// - The mixed case, on the shell's routes: the roman face on time and the
+//   italic faces late (a first view, where only the roman file is preloaded).
+//   It must move 0 px too.
 // See docs/performance/page-load.md.
 
 import {
@@ -31,10 +36,11 @@ import {
   webkit,
   type Browser,
   type BrowserType,
+  type Page,
 } from '@playwright/test'
 import { startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
-import { FONT_FALLBACK_ROUTES } from './routes'
+import { FONT_FALLBACK_ROUTES, SURFACE_FONT_FALLBACK } from './routes'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
 const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
@@ -56,6 +62,9 @@ const ROUTES: { name: string; path: string; gateMovement: boolean }[] = [
     .filter(Boolean)
     .map((extra) => ({ name: extra, path: extra, gateMovement: false })),
 ]
+
+/** The shell's routes (every package's), whose text must not move at all. */
+const SHELL_PATHS = new Set(SURFACE_FONT_FALLBACK.map((route) => route.path))
 
 /**
  * Route and width cases whose movement is reported but not gated, each with
@@ -89,6 +98,20 @@ const HEADING_TOLERANCE_PX = 2
  * 1.148 to 1.168, and the earlier bold values 1.076 to 1.111 in WebKit.
  */
 const MAX_WIDTH_DIFFERENCE = 0.07
+/**
+ * The same for the reading faces (Literata's fallbacks). Their worst font on
+ * the shell's pages measures 0.987 to 1.018; a line's own ratio varies by
+ * about 1.4 percent either way with its letters, which is why movement is
+ * held by font-display: optional and not by these values.
+ */
+const READING_WIDTH_DIFFERENCE = 0.025
+/** Families of the reading faces' fallbacks. */
+const READING_FALLBACK = /Quilltip (Read|Display)[A-Za-z ]* Fallback/
+/** How long font responses are held back in the movement runs: well past
+ * the block period, and after the page's own client work has settled. */
+const LATE_MS = 5000
+/** When the movement runs take their first layout, after the document. */
+const BEFORE_MS = 2500
 /** A font with fewer characters than this on the page is not compared. */
 const MIN_FONT_CHARS = 30
 /** Ninetieth-percentile vertical movement of text in view at the swap. */
@@ -132,112 +155,157 @@ type Snapshot = {
   fallbackFaces: string[]
 }
 
+const FONT_FILES = /\.(woff2?|ttf|otf)(\?|$)/
+
+/** Blocked: no font file loads. Cached: the fonts are in the cache, so the
+ * view paints in the web fonts (a face with font-display: optional that was
+ * not preloaded is used only from the cache in Chromium). */
 async function snapshot(
   browser: Browser,
   routePath: string,
   viewport: (typeof VIEWPORTS)[number],
-  blockFonts: boolean
+  mode: 'blocked' | 'cached'
 ): Promise<Snapshot> {
   const context = await browser.newContext({ viewport })
   try {
     const page = await context.newPage()
-    if (blockFonts)
-      await page.route(/\.(woff2?|ttf|otf)(\?|$)/, (route) => route.abort())
-    await page.goto(BASE_URL + routePath, {
-      waitUntil: 'load',
-      timeout: 60_000,
-    })
-    // Fonts settle (or fail), then late client work settles.
-    await page.evaluate(() => document.fonts.ready)
-    await page.waitForTimeout(2000)
-    await page.evaluate(() => document.fonts.ready)
-    return await page.evaluate((selector) => {
-      const layoutTop = (element: HTMLElement) => {
-        let top = 0
-        for (
-          let node: HTMLElement | null = element;
-          node;
-          node = node.offsetParent as HTMLElement | null
-        )
-          top += node.offsetTop
-        return top
-      }
-      const seen = new Map<string, number>()
-      const blocks = []
-      for (const element of document.querySelectorAll<HTMLElement>(selector)) {
-        const text = (element.textContent ?? '').replace(/\s+/g, ' ').trim()
-        if (!text || element.offsetHeight === 0) continue
-        const tag = element.tagName.toLowerCase()
-        const base = `${tag}:${text.slice(0, 60)}`
-        const count = seen.get(base) ?? 0
-        seen.set(base, count + 1)
-        const style = getComputedStyle(element)
-        blocks.push({
-          key: `${base}#${count}`,
-          tag,
-          top: layoutTop(element),
-          height: element.offsetHeight,
-          family: style.fontFamily,
-          weight: style.fontWeight,
-        })
-      }
-      // Every element's own text nodes, measured as the sum of the widths of
-      // their line pieces, so a different line break changes little.
-      const runs = []
-      const seenRun = new Map<string, number>()
-      const range = document.createRange()
-      for (const element of document.querySelectorAll<HTMLElement>('body *')) {
-        if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|svg)$/i.test(element.tagName))
-          continue
-        let width = 0
-        let text = ''
-        for (const node of element.childNodes) {
-          if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim())
-            continue
-          text += node.textContent
-          range.selectNodeContents(node)
-          for (const rect of range.getClientRects()) width += rect.width
-        }
-        text = text.replace(/\s+/g, ' ').trim()
-        if (!text || width === 0) continue
-        const base = `${element.tagName.toLowerCase()}:${text.slice(0, 60)}`
-        const count = seenRun.get(base) ?? 0
-        seenRun.set(base, count + 1)
-        const style = getComputedStyle(element)
-        runs.push({
-          key: `${base}#${count}`,
-          width,
-          chars: text.length,
-          family: style.fontFamily,
-          font: `${style.fontFamily.split(',')[0]} ${style.fontWeight} ${style.fontStyle}`,
-        })
-      }
-      const faces: Record<string, string[]> = {}
-      const fallbackFaces: string[] = []
-      let fontsLoaded = 0
-      for (const face of document.fonts) {
-        const family = face.family.replace(/^["']|["']$/g, '')
-        ;(faces[family] ??= []).push(face.weight)
-        if (/ Fallback$/.test(family))
-          fallbackFaces.push(
-            `${family} ${face.weight} ${face.style}: ${face.status}`
-          )
-        // Local fallback faces load too; count only web fonts.
-        if (face.status === 'loaded' && !/ Fallback$/.test(family))
-          fontsLoaded++
-      }
-      return {
-        blocks,
-        runs,
-        pageHeight: document.documentElement.scrollHeight,
-        faces,
-        fontsLoaded,
-        fallbackFaces: [...new Set(fallbackFaces)],
-      }
-    }, TEXT_BLOCKS)
+    if (mode === 'blocked')
+      await page.route(FONT_FILES, (route) => route.abort())
+    const visits = mode === 'cached' ? 2 : 1
+    for (let visit = 0; visit < visits; visit++) {
+      await page.goto(BASE_URL + routePath, {
+        waitUntil: 'load',
+        timeout: 60_000,
+      })
+      // Fonts settle (or fail), then late client work settles.
+      await page.evaluate(() => document.fonts.ready)
+      await page.waitForTimeout(2000)
+      await page.evaluate(() => document.fonts.ready)
+    }
+    return await capture(page)
   } finally {
     await context.close()
   }
+}
+
+/** One page view with the font files in `held` answering after LATE_MS:
+ * its layout before they arrive and after. */
+async function lateView(
+  browser: Browser,
+  routePath: string,
+  viewport: (typeof VIEWPORTS)[number],
+  held: RegExp
+): Promise<{ before: Snapshot; after: Snapshot }> {
+  const context = await browser.newContext({ viewport })
+  try {
+    const page = await context.newPage()
+    await page.route(
+      (url) => FONT_FILES.test(url.pathname) && held.test(url.pathname),
+      async (route) => {
+        await new Promise((done) => setTimeout(done, LATE_MS))
+        await route.continue().catch(() => {})
+      }
+    )
+    await page.goto(BASE_URL + routePath, {
+      waitUntil: 'domcontentloaded',
+      timeout: 60_000,
+    })
+    await page.waitForTimeout(BEFORE_MS)
+    const before = await capture(page)
+    await page.waitForTimeout(LATE_MS)
+    await page.evaluate(() => document.fonts.ready)
+    await page.waitForTimeout(1000)
+    const after = await capture(page)
+    return { before, after }
+  } finally {
+    await context.close()
+  }
+}
+
+async function capture(page: Page): Promise<Snapshot> {
+  return await page.evaluate((selector) => {
+    const layoutTop = (element: HTMLElement) => {
+      let top = 0
+      for (
+        let node: HTMLElement | null = element;
+        node;
+        node = node.offsetParent as HTMLElement | null
+      )
+        top += node.offsetTop
+      return top
+    }
+    const seen = new Map<string, number>()
+    const blocks = []
+    for (const element of document.querySelectorAll<HTMLElement>(selector)) {
+      const text = (element.textContent ?? '').replace(/\s+/g, ' ').trim()
+      if (!text || element.offsetHeight === 0) continue
+      const tag = element.tagName.toLowerCase()
+      const base = `${tag}:${text.slice(0, 60)}`
+      const count = seen.get(base) ?? 0
+      seen.set(base, count + 1)
+      const style = getComputedStyle(element)
+      blocks.push({
+        key: `${base}#${count}`,
+        tag,
+        top: layoutTop(element),
+        height: element.offsetHeight,
+        family: style.fontFamily,
+        weight: style.fontWeight,
+      })
+    }
+    // Every element's own text nodes, measured as the sum of the widths of
+    // their line pieces, so a different line break changes little.
+    const runs = []
+    const seenRun = new Map<string, number>()
+    const range = document.createRange()
+    for (const element of document.querySelectorAll<HTMLElement>('body *')) {
+      if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|svg)$/i.test(element.tagName))
+        continue
+      let width = 0
+      let text = ''
+      for (const node of element.childNodes) {
+        if (node.nodeType !== Node.TEXT_NODE || !node.textContent?.trim())
+          continue
+        text += node.textContent
+        range.selectNodeContents(node)
+        for (const rect of range.getClientRects()) width += rect.width
+      }
+      text = text.replace(/\s+/g, ' ').trim()
+      if (!text || width === 0) continue
+      const base = `${element.tagName.toLowerCase()}:${text.slice(0, 60)}`
+      const count = seenRun.get(base) ?? 0
+      seenRun.set(base, count + 1)
+      const style = getComputedStyle(element)
+      runs.push({
+        key: `${base}#${count}`,
+        width,
+        chars: text.length,
+        family: style.fontFamily,
+        font: `${style.fontFamily.split(',')[0]} ${style.fontWeight} ${style.fontStyle}`,
+      })
+    }
+    const faces: Record<string, string[]> = {}
+    const fallbackFaces: string[] = []
+    let fontsLoaded = 0
+    for (const face of document.fonts) {
+      const family = face.family.replace(/^["']|["']$/g, '')
+      ;(faces[family] ??= []).push(face.weight)
+      if (/ Fallback$/.test(family))
+        fallbackFaces.push(
+          `${family} ${face.weight} ${face.style}: ${face.status}`
+        )
+      // Local fallback faces load too; count only web fonts.
+      if (face.status === 'loaded' && !/ Fallback$/.test(family)) fontsLoaded++
+    }
+    return {
+      blocks,
+      runs,
+      pageHeight: document.documentElement.scrollHeight,
+      faces,
+      fontsLoaded,
+      fallbackFaces: [...new Set(fallbackFaces)],
+    }
+  }, TEXT_BLOCKS)
 }
 
 /** True when a face's weight descriptor (`600` or `500 800`) covers `weight`. */
@@ -258,16 +326,14 @@ function percentile(values: number[], fraction: number): number {
   ]!
 }
 
-function compare(
+function checkFaces(
   label: string,
-  viewportHeight: number,
   blocked: Snapshot,
-  loaded: Snapshot,
-  movementGated: boolean
-): string[] {
+  loaded: Snapshot
+): { failures: string[]; summary: string } {
   const failures: string[] = []
   if (loaded.fontsLoaded === 0)
-    failures.push(`${label}: no web font loaded in the loaded run`)
+    failures.push(`${label}: no web font loaded in the cached run`)
   if (blocked.fontsLoaded > 0)
     failures.push(`${label}: a web font loaded in the blocked run`)
 
@@ -285,11 +351,63 @@ function compare(
   for (const face of missing)
     failures.push(`${label}: no font face for ${face}`)
 
-  const loadedByKey = new Map(loaded.blocks.map((block) => [block.key, block]))
+  // Widths of text set in a fallback stack (a face this app defines), summed
+  // per font across the page: one string's letters can make it a few percent
+  // wider or narrower, while a face matched to the wrong file is off for
+  // every text in that font.
+  const loadedRuns = new Map(loaded.runs.map((run) => [run.key, run]))
+  const fonts = new Map<
+    string,
+    { blocked: number; loaded: number; chars: number; reading: boolean }
+  >()
+  for (const run of blocked.runs) {
+    const other = loadedRuns.get(run.key)
+    if (!other || !/ Fallback['"]?(,|$)/.test(run.family)) continue
+    const sums = fonts.get(other.font) ?? {
+      blocked: 0,
+      loaded: 0,
+      chars: 0,
+      reading: READING_FALLBACK.test(run.family),
+    }
+    sums.blocked += run.width
+    sums.loaded += other.width
+    sums.chars += other.chars
+    fonts.set(other.font, sums)
+  }
+  const ratios = [...fonts]
+    .filter(([, sums]) => sums.chars >= MIN_FONT_CHARS)
+    .map(([font, sums]) => ({
+      font,
+      ratio: sums.blocked / sums.loaded,
+      limit: sums.reading ? READING_WIDTH_DIFFERENCE : MAX_WIDTH_DIFFERENCE,
+    }))
+    .sort((a, b) => Math.abs(b.ratio - 1) - Math.abs(a.ratio - 1))
+  for (const { font, ratio, limit } of ratios)
+    if (Math.abs(ratio - 1) > limit)
+      failures.push(
+        `${label}: text in ${font} is ${ratio.toFixed(3)} times as wide in its fallback face (limit ${limit})`
+      )
+  if (failures.length > 0)
+    console.log(
+      `  fallback faces, fonts blocked: ${blocked.fallbackFaces.join('; ')}`
+    )
+  const summary = `fonts ${String(ratios.length).padStart(2)}  worst ${ratios[0] ? `${ratios[0].ratio.toFixed(3)} (${ratios[0].font})` : '-'}`
+  return { failures, summary }
+}
+
+/** Movement within one page view, from before the fonts arrive to after. */
+function checkMovement(
+  label: string,
+  viewportHeight: number,
+  { before, after }: { before: Snapshot; after: Snapshot },
+  gate: 'still' | 'p90' | 'none'
+): { failures: string[]; summary: string } {
+  const failures: string[] = []
+  const afterByKey = new Map(after.blocks.map((block) => [block.key, block]))
   const moves: number[] = []
   const rewrapped: string[] = []
-  for (const block of blocked.blocks) {
-    const other = loadedByKey.get(block.key)
+  for (const block of before.blocks) {
+    const other = afterByKey.get(block.key)
     if (!other) continue
     if (other.top < viewportHeight * FIRST_SCREENS)
       moves.push(Math.abs(block.top - other.top))
@@ -298,59 +416,34 @@ function compare(
       Math.abs(block.height - other.height) > HEADING_TOLERANCE_PX
     )
       rewrapped.push(
-        `${block.key.split('#')[0]} (${block.height} px blocked, ${other.height} px loaded)`
+        `${block.key.split('#')[0]} (${block.height} px before, ${other.height} px after)`
       )
   }
   // The first block that moves points at what re-wrapped above it.
-  const firstMoved = blocked.blocks.find((block) => {
-    const other = loadedByKey.get(block.key)
-    return other && Math.abs(block.top - other.top) > HEADING_TOLERANCE_PX
+  const firstMoved = before.blocks.find((block) => {
+    const other = afterByKey.get(block.key)
+    return other && Math.abs(block.top - other.top) > 0
   })
   const p90 = percentile(moves, 0.9)
   const max = Math.max(0, ...moves)
-
-  // Widths of text set in a fallback stack (a face this app defines), summed
-  // per font across the page: one string's letters can make it a few percent
-  // wider or narrower, while a face matched to the wrong file is off for
-  // every text in that font.
-  const loadedRuns = new Map(loaded.runs.map((run) => [run.key, run]))
-  const fonts = new Map<
-    string,
-    { blocked: number; loaded: number; chars: number }
-  >()
-  for (const run of blocked.runs) {
-    const other = loadedRuns.get(run.key)
-    if (!other || !/ Fallback['"]?(,|$)/.test(run.family)) continue
-    const sums = fonts.get(other.font) ?? { blocked: 0, loaded: 0, chars: 0 }
-    sums.blocked += run.width
-    sums.loaded += other.width
-    sums.chars += other.chars
-    fonts.set(other.font, sums)
-  }
-  const ratios = [...fonts]
-    .filter(([, sums]) => sums.chars >= MIN_FONT_CHARS)
-    .map(([font, sums]) => ({ font, ratio: sums.blocked / sums.loaded }))
-    .sort((a, b) => Math.abs(b.ratio - 1) - Math.abs(a.ratio - 1))
-  console.log(
-    `${label.padEnd(30)} fonts ${String(ratios.length).padStart(2)}  worst ${ratios[0] ? `${ratios[0].ratio.toFixed(3)} (${ratios[0].font})` : '-'}  in view: move p90 ${p90} px  max ${max} px  headings re-wrapped ${rewrapped.length}`
-  )
-  if (firstMoved) console.log(`  first block that moves: ${firstMoved.key}`)
+  if (firstMoved)
+    console.log(`  ${label}: first block that moves: ${firstMoved.key}`)
   for (const heading of rewrapped)
-    failures.push(`${label}: heading changes lines at the swap: ${heading}`)
-  if (movementGated && p90 > MAX_P90_MOVE_PX)
+    failures.push(
+      `${label}: heading changes lines when the fonts arrive: ${heading}`
+    )
+  if (gate === 'still' && max > 0)
+    failures.push(
+      `${label}: text in view moves ${max} px when the fonts arrive late (the shell's text must not move)`
+    )
+  if (gate === 'p90' && p90 > MAX_P90_MOVE_PX)
     failures.push(
       `${label}: text in view moves ${p90} px at the 90th percentile when the fonts arrive > ${MAX_P90_MOVE_PX}`
     )
-  for (const { font, ratio } of ratios)
-    if (Math.abs(ratio - 1) > MAX_WIDTH_DIFFERENCE)
-      failures.push(
-        `${label}: text in ${font} is ${ratio.toFixed(3)} times as wide in its fallback face`
-      )
-  if (failures.length > 0)
-    console.log(
-      `  fallback faces, fonts blocked: ${blocked.fallbackFaces.join('; ')}`
-    )
-  return failures
+  return {
+    failures,
+    summary: `in view: move p90 ${p90} px  max ${max} px  headings re-wrapped ${rewrapped.length}`,
+  }
 }
 
 async function main() {
@@ -372,17 +465,40 @@ async function main() {
             )
             if (exempt)
               console.log(`  ${label}: movement not gated: ${exempt.reason}`)
-            const blocked = await snapshot(browser, route.path, viewport, true)
-            const loaded = await snapshot(browser, route.path, viewport, false)
-            failures.push(
-              ...compare(
-                label,
-                viewport.height,
-                blocked,
-                loaded,
-                route.gateMovement && !exempt
-              )
+            const shell = SHELL_PATHS.has(route.path)
+            const gate =
+              !route.gateMovement || exempt ? 'none' : shell ? 'still' : 'p90'
+            const blocked = await snapshot(
+              browser,
+              route.path,
+              viewport,
+              'blocked'
             )
+            const cached = await snapshot(
+              browser,
+              route.path,
+              viewport,
+              'cached'
+            )
+            const faces = checkFaces(label, blocked, cached)
+            const late = await lateView(browser, route.path, viewport, /./)
+            const moved = checkMovement(label, viewport.height, late, gate)
+            console.log(
+              `${label.padEnd(30)} ${faces.summary}  ${moved.summary}`
+            )
+            failures.push(...faces.failures, ...moved.failures)
+            if (!shell) continue
+            // A first view: the roman face preloaded and on time, the italic
+            // faces (not preloaded) late.
+            const mixedLabel = `${label} roman on time, italic late`
+            const mixed = checkMovement(
+              mixedLabel,
+              viewport.height,
+              await lateView(browser, route.path, viewport, /italic/i),
+              gate
+            )
+            console.log(`${mixedLabel.padEnd(30)} ${mixed.summary}`)
+            failures.push(...mixed.failures)
           }
         }
       } finally {

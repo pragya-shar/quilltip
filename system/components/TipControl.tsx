@@ -9,6 +9,7 @@ import {
   HOLD_CANCELLED,
   amountChoosable,
   buttonAmount,
+  pressHoldAfter,
   tipButtonParts,
   tipNote,
   type TipControlPhase,
@@ -172,6 +173,9 @@ export function TipControl({
       return
     }
     releaseLatch()
+    // A button that now means another action holds presses a moment.
+    const hold = pressHoldAfter(state.phase)
+    if (hold > 0) latch.current = window.setTimeout(releaseLatch, hold)
     const started = busy && !wasBusy.current
     wasBusy.current = busy
     if (busy) {

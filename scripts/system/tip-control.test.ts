@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   amountChoosable,
   buttonAmount,
+  pressHoldAfter,
   centsFromInput,
   firstName,
   tipButtonLabel,
@@ -167,6 +168,14 @@ describe('one amount for the label and the press', () => {
     expect(buttonAmount(other, null)).toBe(three)
     expect(tipButtonLabel(other, null, 'article')).toBe('Adding $3')
   })
+  it('holds presses a moment when the button turns into another action', () => {
+    // Longer than the gap between the two taps of a double tap.
+    expect(pressHoldAfter('failed')).toBeGreaterThanOrEqual(400)
+    expect(pressHoldAfter('needs-funds')).toBeGreaterThanOrEqual(400)
+    for (const phase of ['idle', 'sending', 'sent', 'offline'] as const)
+      expect(pressHoldAfter(phase), phase).toBe(0)
+  })
+
   it('lets the reader choose the amount only where the button sends it', () => {
     const one = { cents: 100, display: '$1' }
     const phases = [

@@ -827,6 +827,20 @@ test('a press just after a sheet closes by itself reaches its target', async ({
   await press(page, tip)
   await expect(sheet).toBeHidden()
   await expect(count).toHaveAttribute('data-press-count', '1')
+
+  // A press inside the sheet, then the sheet closes by itself at once (a
+  // tip sent from a sheet, its result arriving): the next tap still lands.
+  await page.waitForTimeout(1100) // the tip control's own latch
+  await press(page, page.getByRole('button', { name: 'Open the sheet' }))
+  await expect(sheet).toBeVisible()
+  await press(page, sheet.getByText('Drag the top of the sheet down'))
+  await page.waitForTimeout(300)
+  await sheet.evaluate((el) =>
+    el.dispatchEvent(new Event('cancel', { cancelable: true }))
+  )
+  await press(page, tip)
+  await expect(sheet).toBeHidden()
+  await expect(count).toHaveAttribute('data-press-count', '2')
 })
 
 test('a failure toast is announced as an alert, others politely', async ({
