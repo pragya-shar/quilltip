@@ -38,7 +38,7 @@ export function ArticleReadNext({
               )}
               <span className="reader-next-label">Read more</span>
             </span>
-            <span aria-hidden="true">↗</span>
+            <span aria-hidden="true">↗︎</span>
           </Link>
         )
       })}

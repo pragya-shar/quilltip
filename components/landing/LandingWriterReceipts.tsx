@@ -56,7 +56,7 @@ export function LandingWriterReceipts({
           you.
         </p>
         <Link className="text-action" href="/write">
-          Write something of your own ↗
+          Write something of your own <span aria-hidden="true">↗︎</span>
         </Link>
       </div>
       <div className="tip-flow" data-playing={visible && pageVisible}>

@@ -48,7 +48,7 @@ for (const viewport of [
       await expect(
         page.getByRole('button', { name: 'Save draft' })
       ).toHaveCount(0)
-      const link = page.getByRole('link', { name: 'View article ↗' })
+      const link = page.getByRole('link', { name: 'View article' })
       await link.focus()
       await expect(link).toBeFocused()
       expect(

@@ -135,7 +135,7 @@ for (const viewport of [
       await preview.click()
       await dialog
         .getByRole('button', {
-          name: published ? 'Article settings' : 'Continue to publish ↗',
+          name: published ? 'Article settings' : 'Continue to publish',
         })
         .click()
       const cover = page.locator('#cover-preview img')

@@ -54,7 +54,7 @@ export function PublishedArticleLocked({
             </p>
             {articleHref && (
               <a className="locked-article-link" href={articleHref}>
-                View article ↗
+                View article <span aria-hidden="true">↗︎</span>
               </a>
             )}
           </div>
