@@ -11,7 +11,9 @@ import schema from '../../convex/schema'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import { DESK_DEFAULT_LIMIT, DESK_MAX_LIMIT } from '../../convex/write'
+import { publishContentAnchor } from '../../convex/articles'
 import {
+  MAX_ARRAY_ITEMS,
   MAX_CONTENT_VALUE_DEPTH,
   MAX_DOCUMENT_JSON_BYTES,
   checkReadingDocument,
@@ -168,6 +170,8 @@ describe('write.saveDraft refusals', () => {
         })
       )
     ).toBe('draft-not-found')
+    // Read after the refused attempt: nothing changed.
+    expect(await row(w, mine.id)).toEqual(before)
     await w.t.run((ctx) => ctx.db.delete(mine.id))
     expect(
       await errorCode(
@@ -179,7 +183,6 @@ describe('write.saveDraft refusals', () => {
         })
       )
     ).toBe('draft-not-found')
-    expect(before!.title).toBe('Mine')
   })
 
   test('an update without a base is refused and writes nothing', async () => {
@@ -842,5 +845,339 @@ describe('the reading check (sanitiser seam)', () => {
 
   test('with no sanitiser wired, only the size is checked', () => {
     expect(checkReadingDocument(doc('Hi.'), null)).toEqual({ ok: true })
+  })
+})
+
+describe('review: forward-only updatedAt', () => {
+  test('three saves in the same millisecond each move updatedAt forward', async () => {
+    const w = await setup()
+    // Fake timers: the clock does not move between these mutations.
+    let last = await w.writer.mutation(api.write.saveDraft, {
+      title: 'T',
+      content: doc('One.'),
+    })
+    for (const text of ['Two.', 'Three.', 'Four.']) {
+      const next = await w.writer.mutation(api.write.saveDraft, {
+        id: last.id,
+        baseUpdatedAt: last.updatedAt,
+        title: 'T',
+        content: doc(text),
+      })
+      expect(next.updatedAt).toBeGreaterThan(last.updatedAt)
+      last = next
+    }
+  })
+
+  test('an old-path save in the same millisecond still moves the base on', async () => {
+    const w = await setup()
+    const d = await w.writer.mutation(api.write.saveDraft, {
+      title: 'Old path',
+      content: doc('New editor words.'),
+    })
+    // Two old-path saves in a row: the harness clock stops moving, so only
+    // the forward-only rule keeps each one after the last.
+    let previous = d.updatedAt
+    for (const text of ['Old editor words.', 'More old editor words.']) {
+      await w.writer.mutation(api.articles.saveDraft, {
+        id: d.id,
+        title: 'Old path',
+        content: doc(text),
+      })
+      const now = (await row(w, d.id))!.updatedAt
+      expect(now).toBeGreaterThan(previous)
+      previous = now
+    }
+    expect(
+      await errorCode(
+        w.writer.mutation(api.write.saveDraft, {
+          id: d.id,
+          baseUpdatedAt: d.updatedAt,
+          title: 'Old path',
+          content: doc('Would overwrite the old editor.'),
+        })
+      )
+    ).toBe('draft-changed')
+    // A stored time ahead of the clock never moves backwards.
+    await w.t.run((ctx) =>
+      ctx.db.patch(d.id, { updatedAt: Date.now() + 5_000 })
+    )
+    const ahead = (await row(w, d.id))!.updatedAt
+    await w.writer.mutation(api.articles.updateArticle, {
+      id: d.id,
+      title: 'Old path again',
+    })
+    expect((await row(w, d.id))!.updatedAt).toBeGreaterThan(ahead)
+  })
+})
+
+describe('review: content shape', () => {
+  test('anything but a plain doc object is refused, typed, with nothing written', async () => {
+    const w = await setup()
+    const cases: Array<[unknown, string]> = [
+      ['a string', 'not-a-doc'],
+      [[{ type: 'doc' }], 'not-a-doc'],
+      [null, 'not-a-doc'],
+      [42, 'not-a-doc'],
+      [{ type: 'paragraph', content: [] }, 'not-a-doc'],
+      [new ArrayBuffer(900 * 1024), 'not-a-doc'],
+      [
+        { type: 'doc', content: [{ type: 'text', text: 'x', n: BigInt(1) }] },
+        'value',
+      ],
+      [
+        {
+          type: 'doc',
+          content: [{ type: 'image', bytes: new ArrayBuffer(8) }],
+        },
+        'value',
+      ],
+      [{ type: 'doc', content: [{ _id: 'x' }] }, 'key'],
+      [
+        {
+          type: 'doc',
+          content: Array.from({ length: MAX_ARRAY_ITEMS + 1 }, () => ({
+            type: 'paragraph',
+          })),
+        },
+        'array-too-long',
+      ],
+    ]
+    for (const [content, reason] of cases) {
+      const error = await errorData(
+        w.writer.mutation(api.write.saveDraft, {
+          title: 'Shape',
+          content: content as never,
+        })
+      )
+      expect(error, String(reason)).toMatchObject({
+        code: 'document-invalid',
+        reason,
+      })
+    }
+    expect(await w.t.run((ctx) => ctx.db.query('articles').collect())).toEqual(
+      []
+    )
+  })
+
+  test('a $ field name never reaches the function: the arguments are refused', async () => {
+    const w = await setup()
+    await expect(
+      w.writer.mutation(api.write.saveDraft, {
+        title: 'Dollar',
+        content: { type: 'doc', content: [{ $type: 'x' }] } as never,
+      })
+    ).rejects.toThrow(/starts with a '\$'/)
+    expect(await w.t.run((ctx) => ctx.db.query('articles').collect())).toEqual(
+      []
+    )
+  })
+
+  test('an array of exactly the limit is stored', async () => {
+    const w = await setup()
+    const ok = await w.writer.mutation(api.write.saveDraft, {
+      title: 'Wide',
+      content: {
+        type: 'doc',
+        content: Array.from({ length: MAX_ARRAY_ITEMS }, () => ({
+          type: 'paragraph',
+        })),
+      },
+    })
+    expect(ok.created).toBe(true)
+  })
+})
+
+describe('review: device ids', () => {
+  test('a known id whose draft was published is refused as a published save; the record stays', async () => {
+    const w = await setup()
+    const d = await w.writer.mutation(api.write.saveDraft, {
+      clientId: CLIENT,
+      title: 'Device draft',
+      content: doc('Words.'),
+    })
+    await w.t.run((ctx) => ctx.db.patch(d.id, { published: true }))
+    expect(
+      await errorCode(
+        w.writer.mutation(api.write.saveDraft, {
+          clientId: CLIENT,
+          title: 'Device draft',
+          content: doc('Words, retried late.'),
+        })
+      )
+    ).toBe('draft-published')
+    const records = await w.t.run((ctx) =>
+      ctx.db.query('draftClientIds').collect()
+    )
+    expect(records).toHaveLength(1)
+    expect(
+      await w.t.run((ctx) => ctx.db.query('articles').collect())
+    ).toHaveLength(1)
+  })
+
+  test('deleting the draft deletes its id record; the id then makes a new draft', async () => {
+    const w = await setup()
+    const d = await w.writer.mutation(api.write.saveDraft, {
+      clientId: CLIENT,
+      title: 'Short lived',
+      content: doc('Words.'),
+    })
+    await w.writer.mutation(api.articles.deleteArticle, { id: d.id })
+    expect(
+      await w.t.run((ctx) => ctx.db.query('draftClientIds').collect())
+    ).toEqual([])
+    const again = await w.writer.mutation(api.write.saveDraft, {
+      clientId: CLIENT,
+      title: 'Short lived',
+      content: doc('Words kept.'),
+    })
+    expect(again.created).toBe(true)
+    expect(again.id).not.toBe(d.id)
+  })
+})
+
+describe('review: slugs', () => {
+  test('three same-title creates in one millisecond get three slugs', async () => {
+    const w = await setup()
+    const ids = []
+    for (let i = 0; i < 3; i++)
+      ids.push(
+        (
+          await w.writer.mutation(api.write.saveDraft, {
+            title: 'Same title',
+            content: doc(`Copy ${i}.`),
+          })
+        ).id
+      )
+    const slugs = await Promise.all(
+      ids.map(async (id) => (await row(w, id))!.slug)
+    )
+    expect(new Set(slugs).size).toBe(3)
+    expect(slugs[0]).toBe('same-title')
+  })
+
+  test('a title change on a draft gives it the new title’s slug', async () => {
+    const w = await setup()
+    const d = await w.writer.mutation(api.write.saveDraft, {
+      title: 'First title',
+      content: doc('Words.'),
+    })
+    expect((await row(w, d.id))!.slug).toBe('first-title')
+    await w.writer.mutation(api.write.saveDraft, {
+      id: d.id,
+      baseUpdatedAt: d.updatedAt,
+      title: 'Second title',
+      content: doc('Words.'),
+    })
+    expect((await row(w, d.id))!.slug).toBe('second-title')
+  })
+})
+
+describe('review: publish rules and steps', () => {
+  async function ready(
+    w: World,
+    title = 'The Ferry Timetable',
+    body = 'The ferry leaves at seven.'
+  ) {
+    const d = await w.writer.mutation(api.write.saveDraft, {
+      title,
+      content: doc(body),
+    })
+    return { id: d.id, updatedAt: (await row(w, d.id))!.updatedAt }
+  }
+  const publishOf = (w: World, d: { id: Id<'articles'>; updatedAt: number }) =>
+    w.writer.mutation(api.write.publish, {
+      id: d.id,
+      baseUpdatedAt: d.updatedAt,
+    })
+
+  test('each publish rule refuses with its own code and publishes nothing', async () => {
+    const w = await setup()
+    const short = await ready(w, 'Ab')
+    expect(await errorData(publishOf(w, short))).toEqual({
+      code: 'title-required',
+      minLength: 3,
+    })
+    const placeholder = await ready(w, 'Untitled')
+    expect(await errorCode(publishOf(w, placeholder))).toBe('title-required')
+    const empty = await ready(w, 'An empty body', '')
+    expect(await errorCode(publishOf(w, empty))).toBe('body-empty')
+    const nameless = await ready(w, 'No handle here')
+    await w.t.run((ctx) => ctx.db.patch(nameless.id, { authorUsername: ' ' }))
+    expect(
+      await errorCode(
+        publishOf(w, { id: nameless.id, updatedAt: nameless.updatedAt })
+      )
+    ).toBe('username-required')
+    await w.t.run((ctx) =>
+      ctx.db.patch(w.ids.writer, { stellarAddressVerifiedAt: undefined })
+    )
+    const walletless = await ready(w, 'No wallet yet')
+    expect(await errorCode(publishOf(w, walletless))).toBe(
+      'wallet-not-verified'
+    )
+    const rows = await w.t.run((ctx) => ctx.db.query('articles').collect())
+    expect(rows.every((a) => !a.published)).toBe(true)
+  })
+
+  test('no excerpt is needed: a draft without one publishes', async () => {
+    const w = await setup()
+    const d = await ready(w)
+    expect((await row(w, d.id))!.excerpt).toBeUndefined()
+    await publishOf(w, d)
+    expect((await row(w, d.id))!.published).toBe(true)
+  })
+
+  test('publish counts the article, lists it, anchors its content and keeps search text', async () => {
+    const w = await setup()
+    const d = await ready(w, 'Harbour Lights', 'The lamps come on at dusk.')
+    await w.t.run((ctx) =>
+      ctx.db.patch(d.id, { excerpt: 'Notes from the pier', tags: ['Essays'] })
+    )
+    const base = (await row(w, d.id))!
+    const expected = await w.t.run(async (ctx) =>
+      publishContentAnchor((await ctx.db.get(d.id))!)
+    )
+    const result = await publishOf(w, { id: d.id, updatedAt: base.updatedAt })
+    expect(result.contentHash).toBe(expected.contentHash)
+    const other = await ready(
+      w,
+      'Harbour Lights Again',
+      'Different words here.'
+    )
+    const second = await publishOf(w, other)
+    expect(second.contentHash).not.toBe(result.contentHash)
+    expect(
+      (await w.t.run((ctx) => ctx.db.get(w.ids.writer)))!.articleCount
+    ).toBe(2)
+    const listed = await w.t.run((ctx) =>
+      ctx.db
+        .query('readingRoomArticles')
+        .withIndex('by_article', (q) => q.eq('articleId', d.id))
+        .unique()
+    )
+    expect(listed).toMatchObject({ title: 'Harbour Lights' })
+    const published = (await row(w, d.id))!
+    expect(published.searchContent).toContain('Notes from the pier')
+    expect(published.searchContent).toContain('Essays')
+    expect(published.searchContent).toContain('The lamps come on at dusk.')
+  })
+
+  test('a draft save keeps the stored excerpt and tags in the search text', async () => {
+    const w = await setup()
+    const d = await ready(w, 'Search Me')
+    await w.t.run((ctx) =>
+      ctx.db.patch(d.id, { excerpt: 'A stored excerpt', tags: ['Poems'] })
+    )
+    const base = (await row(w, d.id))!.updatedAt
+    await w.writer.mutation(api.write.saveDraft, {
+      id: d.id,
+      baseUpdatedAt: base,
+      title: 'Search Me',
+      content: doc('Changed body words.'),
+    })
+    const saved = (await row(w, d.id))!
+    expect(saved.searchContent).toContain('A stored excerpt')
+    expect(saved.searchContent).toContain('Poems')
+    expect(saved.searchContent).toContain('Changed body words.')
   })
 })

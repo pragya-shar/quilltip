@@ -52,20 +52,75 @@ export function isDocumentTooLarge(content: unknown): boolean {
  */
 export const MAX_CONTENT_VALUE_DEPTH = 15
 
+/** The most items one array in a stored value may hold (a platform limit). */
+export const MAX_ARRAY_ITEMS = 8192
+
+/** Why a document cannot be stored, or null. */
+export type DocumentShapeProblem =
+  | { code: 'document-too-nested'; maxValueDepth: number }
+  | {
+      code: 'document-invalid'
+      reason: 'not-a-doc' | 'value' | 'key' | 'array-too-long'
+      maxItems?: number
+    }
+
 /**
- * True when `content` nests deeper than `MAX_CONTENT_VALUE_DEPTH`. Walks
- * without recursion and stops at the first value past the limit.
+ * Checks that `content` is a document the backend stores as given: a plain
+ * object with `type: 'doc'`, holding only strings, numbers, booleans, null,
+ * plain objects and arrays (no BigInt, no bytes, no key starting with `$` or
+ * `_`), no array over `MAX_ARRAY_ITEMS` items and no nesting past
+ * `MAX_CONTENT_VALUE_DEPTH`. Walks without recursion and stops at the first
+ * problem.
  */
-export function isDocumentTooNested(content: unknown): boolean {
+export function documentShapeProblem(
+  content: unknown
+): DocumentShapeProblem | null {
+  if (
+    content === null ||
+    typeof content !== 'object' ||
+    Array.isArray(content) ||
+    content instanceof ArrayBuffer ||
+    ArrayBuffer.isView(content) ||
+    (content as { type?: unknown }).type !== 'doc'
+  ) {
+    return { code: 'document-invalid', reason: 'not-a-doc' }
+  }
   const stack: Array<[unknown, number]> = [[content, 1]]
   while (stack.length > 0) {
     const [value, depth] = stack.pop()!
-    if (value === null || typeof value !== 'object') continue
-    if (depth > MAX_CONTENT_VALUE_DEPTH) return true
-    const children = Array.isArray(value) ? value : Object.values(value)
-    for (const child of children) stack.push([child, depth + 1])
+    const kind = typeof value
+    if (kind === 'bigint' || kind === 'function' || kind === 'symbol') {
+      return { code: 'document-invalid', reason: 'value' }
+    }
+    if (value === null || kind !== 'object') continue
+    if (value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+      return { code: 'document-invalid', reason: 'value' }
+    }
+    if (depth > MAX_CONTENT_VALUE_DEPTH) {
+      return {
+        code: 'document-too-nested',
+        maxValueDepth: MAX_CONTENT_VALUE_DEPTH,
+      }
+    }
+    if (Array.isArray(value)) {
+      if (value.length > MAX_ARRAY_ITEMS) {
+        return {
+          code: 'document-invalid',
+          reason: 'array-too-long',
+          maxItems: MAX_ARRAY_ITEMS,
+        }
+      }
+      for (const child of value) stack.push([child, depth + 1])
+      continue
+    }
+    for (const [key, child] of Object.entries(value as object)) {
+      if (key.startsWith('$') || key.startsWith('_')) {
+        return { code: 'document-invalid', reason: 'key' }
+      }
+      stack.push([child, depth + 1])
+    }
   }
-  return false
+  return null
 }
 
 function deepEqual(a: unknown, b: unknown): boolean {

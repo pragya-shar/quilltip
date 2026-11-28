@@ -13,5 +13,7 @@ export const writeTables = {
     clientId: v.string(),
     articleId: v.id('articles'),
     createdAt: v.number(),
-  }).index('by_author_client', ['authorId', 'clientId']),
+  })
+    .index('by_author_client', ['authorId', 'clientId'])
+    .index('by_article', ['articleId']),
 }

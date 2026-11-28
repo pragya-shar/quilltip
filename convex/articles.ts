@@ -80,6 +80,8 @@ import {
   tiptapJsonHasNonEmptyText,
 } from './lib/tiptapContent'
 import { scheduleShareReconcile } from './shares'
+import { forgetDraftClientIds } from './lib/write/clientIds'
+import { nextUpdatedAt } from './lib/write/clock'
 
 const WRITER_NOTES_MAX_LENGTH = 5000
 const PUBLISH_RECEIVING_WALLET_ERROR =
@@ -93,7 +95,7 @@ function stripWriterNotes<T extends { writerNotes?: string }>(
 }
 
 // Validation helper for article input
-export function validateArticleInput(args: {
+function validateArticleInput(args: {
   title: string
   excerpt?: string
   tags?: string[]
@@ -125,7 +127,7 @@ export function validateArticleInput(args: {
   }
 }
 
-export function assertAuthorCanReceiveTips(user: Doc<'users'>) {
+function assertAuthorCanReceiveTips(user: Doc<'users'>) {
   // Readers can tip only a wallet the writer proved control of.
   if (!verifiedStellarAddress(user)) {
     throw new Error(PUBLISH_RECEIVING_WALLET_ERROR)
@@ -1009,7 +1011,8 @@ export const updateArticle = mutation({
       tags?: string[]
       searchContent?: string
     } = {
-      updatedAt: Date.now(),
+      // Forward only, as `write.saveDraft` does, so a base never matches twice.
+      updatedAt: nextUpdatedAt(article.updatedAt),
     }
 
     if (args.title !== undefined && args.title !== article.title) {
@@ -1294,6 +1297,7 @@ export const deleteArticle = mutation({
 
     // Delete article
     await ctx.db.delete(args.id)
+    await forgetDraftClientIds(ctx, args.id)
     await scheduleShareReconcile(ctx, args.id)
 
     return { success: true }
@@ -1346,7 +1350,8 @@ export const saveDraft = mutation({
         coverImage: args.coverImage,
         tags: args.tags,
         writerNotes: args.writerNotes,
-        updatedAt: Date.now(),
+        // Forward only, as `write.saveDraft` does, so a base never matches twice.
+        updatedAt: nextUpdatedAt(article.updatedAt),
         searchContent: buildSearchContent(args.title, args.excerpt, {
           tags: args.tags,
           content: args.content,

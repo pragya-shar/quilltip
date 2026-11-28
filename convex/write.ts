@@ -24,8 +24,7 @@ import { getAuthUserId } from '@convex-dev/auth/server'
 import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
 import { mutation, query, type MutationCtx } from './_generated/server'
-import { assertAuthorCanReceiveTips, publishContentAnchor } from './articles'
-import { assertArticleListingReady } from './lib/articleListingReady'
+import { publishContentAnchor } from './articles'
 import {
   buildSearchContent,
   replaceTagLinksForArticle,
@@ -34,18 +33,22 @@ import {
   generateUniqueArticleSlugForAuthor,
   isPlaceholderArticleSlug,
 } from './lib/articleSlug'
-import { assertPublishableArticleTitle } from './lib/articleTitle'
+import {
+  MIN_PUBLISHABLE_TITLE_LENGTH,
+  isPublishBlockedArticleTitle,
+} from './lib/articleTitle'
 import { ARTICLE_SCHEMA } from './lib/chain/ids'
 import { syncReadingRoomArticle } from './lib/readingRoomIndex'
 import { scheduleShareReconcile } from './shares'
+import { nextUpdatedAt } from './lib/write/clock'
+import { verifiedStellarAddress } from './lib/walletVerification'
 import { tiptapJsonHasNonEmptyText } from './lib/tiptapContent'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
 import {
   checkReadingDocument,
   firstLineOf,
+  documentShapeProblem,
   isDocumentTooLarge,
-  isDocumentTooNested,
-  MAX_CONTENT_VALUE_DEPTH,
   sanitizerFindsTooLarge,
   wordsOf,
 } from './lib/write/document'
@@ -87,12 +90,6 @@ async function ownArticle(
     throw new ConvexError({ code: 'draft-not-found' })
   }
   return article
-}
-
-/** A time after `previous`, so every save gives the client a new base. */
-function nextUpdatedAt(previous: number): number {
-  const now = Date.now()
-  return now > previous ? now : previous + 1
 }
 
 /**
@@ -168,7 +165,10 @@ export const desk = query({
  * earlier words for that draft). Errors: `not-signed-in`, `draft-not-found` (missing or
  * another writer's), `draft-published`, `draft-changed` (with the server's
  * `updatedAt`), `base-required` (an `id` without `baseUpdatedAt`),
- * `document-too-nested` (with `maxValueDepth`; see `MAX_CONTENT_VALUE_DEPTH`),
+ * `document-invalid` (with `reason`: `not-a-doc`, `value`, `key`,
+ * `array-too-long`), `document-too-nested` (with `maxValueDepth`; see
+ * `documentShapeProblem`), `draft-published` also for a create whose
+ * `clientId` made a draft that is published now,
  * `draft-too-large`, `title-too-long`, `invalid-client-id`.
  * A refused save writes nothing.
  */
@@ -193,12 +193,8 @@ export const saveDraft = mutation({
     if (args.clientId !== undefined && !CLIENT_ID_PATTERN.test(args.clientId)) {
       throw new ConvexError({ code: 'invalid-client-id' })
     }
-    if (isDocumentTooNested(args.content)) {
-      throw new ConvexError({
-        code: 'document-too-nested',
-        maxValueDepth: MAX_CONTENT_VALUE_DEPTH,
-      })
-    }
+    const shape = documentShapeProblem(args.content)
+    if (shape) throw new ConvexError(shape)
     if (
       isDocumentTooLarge(args.content) ||
       sanitizerFindsTooLarge(args.content)
@@ -257,6 +253,12 @@ export const saveDraft = mutation({
         .unique()
       const existing = known ? await ctx.db.get(known.articleId) : null
       if (existing && existing.authorId === userId) {
+        // The draft this device made was published since: refused as a save
+        // of a published id is, and the record stays, so a late retry never
+        // makes a second draft.
+        if (isArticleLocked(existing)) {
+          throw new ConvexError({ code: 'draft-published' })
+        }
         return {
           id: existing._id,
           updatedAt: existing.updatedAt,
@@ -312,8 +314,11 @@ export const saveDraft = mutation({
  * copy is made only when `permanentCopy` is true and this deployment stores
  * articles permanently. Errors: `not-signed-in`, `draft-not-found`,
  * `already-published`, `draft-changed` (with the server's `updatedAt`),
- * `document-too-large`, `document-not-readable`; and the publish rules shared
- * with `articles.publishArticle` (title, body, preview, receiving wallet).
+ * `document-too-large`, `document-not-readable` (not before the reading
+ * sanitiser is wired), and the rules `articles.publishArticle` applies:
+ * `wallet-not-verified` (no verified receiving wallet), `title-required`
+ * (with `minLength`: empty, "Untitled" or shorter), `body-empty` (no text),
+ * `username-required`. No excerpt or other preview is required.
  */
 export const publish = mutation({
   args: {
@@ -343,16 +348,22 @@ export const publish = mutation({
 
     const user = await ctx.db.get(userId)
     if (!user) throw new ConvexError({ code: 'not-signed-in' })
-    assertAuthorCanReceiveTips(user)
-    assertPublishableArticleTitle(article.title)
-    if (!article.content || !tiptapJsonHasNonEmptyText(article.content)) {
-      throw new Error('Cannot publish: article body is empty')
+    // The publish rules of `articles.publishArticle`, as typed refusals.
+    if (!verifiedStellarAddress(user)) {
+      throw new ConvexError({ code: 'wallet-not-verified' })
     }
-    assertArticleListingReady({
-      title: article.title,
-      excerpt: article.excerpt,
-      authorUsername: article.authorUsername,
-    })
+    if (isPublishBlockedArticleTitle(article.title)) {
+      throw new ConvexError({
+        code: 'title-required',
+        minLength: MIN_PUBLISHABLE_TITLE_LENGTH,
+      })
+    }
+    if (!article.content || !tiptapJsonHasNonEmptyText(article.content)) {
+      throw new ConvexError({ code: 'body-empty' })
+    }
+    if (!article.authorUsername?.trim()) {
+      throw new ConvexError({ code: 'username-required' })
+    }
 
     const anchor = await publishContentAnchor(article)
     const updatedAt = nextUpdatedAt(article.updatedAt)
