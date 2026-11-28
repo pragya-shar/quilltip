@@ -5,6 +5,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 // unreachable state, never a 404, and never indexed. (Dynamic routes send
 // Cache-Control: no-store; the production-build checks see the header.)
 
+const tipState = vi.hoisted(() => ({
+  articleTippable: vi.fn<() => Promise<boolean | null>>(async () => null),
+}))
+vi.mock('@/components/read/tipState', () => tipState)
+
 const reads = vi.hoisted(() => ({
   article: vi.fn<() => Promise<unknown>>(),
   moved: vi.fn<() => Promise<string | null>>(),
@@ -120,5 +125,40 @@ describe('the article route and ?live=1', () => {
     expect(await generateMetadata(at({ live: '1' }))).toEqual(
       await generateMetadata(at({}))
     )
+  })
+})
+
+describe('the article route and an article that cannot take a tip', () => {
+  const article = {
+    _id: 'k57rdfxtrartc1e0000000000000000001',
+    slug: 'ledger',
+    title: 'Ledger',
+    content: {
+      type: 'doc',
+      content: [
+        { type: 'paragraph', content: [{ type: 'text', text: 'One. Two.' }] },
+      ],
+    },
+    author: { name: 'Tomás Reyes', username: 'tomas' },
+  }
+
+  it('sends no tip control in the HTML, signed out and with no script', async () => {
+    reads.article.mockResolvedValue(article)
+    tipState.articleTippable.mockResolvedValue(false)
+    const html = renderToStaticMarkup(await ArticlePage(args))
+    expect(html).toContain('Tips are not on for this article.')
+    expect(html).not.toMatch(/qt-tip\b|qt-read__signin|>Tip /)
+    expect(tipState.articleTippable).toHaveBeenCalledWith(
+      article._id,
+      expect.any(Number)
+    )
+  })
+
+  it('leaves a registered article unchanged', async () => {
+    reads.article.mockResolvedValue(article)
+    tipState.articleTippable.mockResolvedValue(true)
+    const html = renderToStaticMarkup(await ArticlePage(args))
+    expect(html).not.toContain('Tips are not on for this article.')
+    expect(html).toMatch(/qt-tip\b/)
   })
 })

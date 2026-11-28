@@ -1,132 +1,245 @@
 /**
- * What a signed-out reader was doing when they pressed Tip or Keep, kept
- * across sign-in. The sign-in package owns this contract
- * (`lib/auth/intent.ts` on `feat/sign-in-sheet`): the shapes, the key, the
- * stored form and `takeIntent` below mirror it exactly until that branch is
- * in this base; then this file re-exports its builders and resume hook.
+ * MIRROR of the sign-in package's intent contract (`lib/auth/intent.ts` on
+ * `feat/sign-in-sheet` at 4d7c97ed), unchanged below the two helpers it
+ * imports there, until that branch is in this base; then this file
+ * re-exports from `@/lib/auth/intent` and the helpers go. Build intents only
+ * with `tipIntent` and `keepIntent`; the store (`saveIntent`) writes them to
+ * `sessionStorage['quilltip:sign-in-intent']`, and `useResumedIntent`
+ * (hooks/read) takes one back on its own page after sign-in.
  *
- * With a sign-in sheet the shell carries the intent (`openSignIn`). Without
- * one, and with no script, the link goes to the sign-in page with a
- * same-site return path that keeps the line's anchor; with scripts the
- * intent is also stored for this tab before leaving. On return the article
- * view takes it once: it chooses the line and sets the amount within the
- * ceiling, and sends nothing. Keeping it never acts on it.
+ * The read view's own helpers are at the end: the sign-in page's link with a
+ * return path that keeps the line's anchor, for no script.
  */
 
-export type IntentPassage = { text: string; start: number; end: number }
+// --- Mirrors of lib/auth/returnPath (sameSitePath) and signOutGuard -----
 
-/** An amount as the money layer wrote it: whole cents and its text. */
-export type IntentAmount = { cents: number; display: string }
+const RETURN_PATH_MAX = 512
+const RETURN_BASE = 'https://quilltip.invalid'
 
-export type TipIntent = {
-  kind: 'tip'
-  /** Where the tip was pressed (a same-site path, with the line's anchor). */
-  path: string
-  articleId: string
-  /** The chosen line, when the tip was for a line. */
-  passage: IntentPassage | null
-  /** The amount the button stated: a ceiling for the resumed tip. */
-  amount: IntentAmount
-  /** The writer's name, for the sheet's title. */
-  writer: string
+function safeOnce(path: string): boolean {
+  if (path.length === 0 || path.length > RETURN_PATH_MAX) return false
+  for (const char of path) {
+    const code = char.charCodeAt(0)
+    if (code < 32 || code === 127) return false
+  }
+  if (!path.startsWith('/')) return false
+  if (path.startsWith('//')) return false
+  if (path.includes('\\')) return false
+  if (/^\/*[a-z][a-z0-9+.-]*:/i.test(path)) return false
+  try {
+    const url = new URL(path, RETURN_BASE)
+    if (url.origin !== RETURN_BASE) return false
+  } catch {
+    return false
+  }
+  return true
 }
 
-export type KeepIntent = {
-  kind: 'keep'
-  path: string
-  articleId: string
-  passage: IntentPassage
+function sameSitePath(raw: unknown, fallback = '/'): string {
+  if (typeof raw !== 'string') return fallback
+  const path = raw.trim()
+  let current = path
+  for (let round = 0; round < 4; round += 1) {
+    if (!safeOnce(current)) return fallback
+    let decoded: string
+    try {
+      decoded = decodeURIComponent(current)
+    } catch {
+      return fallback
+    }
+    if (decoded === current) return path
+    current = decoded
+  }
+  return fallback
 }
 
-export type ReadIntent = TipIntent | KeepIntent
+/** The shell's sign-out guard is not in this base: never signing out here. */
+const isSigningOut = () => false
+
+// --- lib/auth/intent.ts ---------------------------------------------------
+
+/** A chosen line, with the stored offsets (the money layer's `PassageRef`
+ * names). */
+export type IntentPassage = {
+  text: string
+  startOffset: number
+  endOffset: number
+}
+
+/** An amount as the money layer wrote it: whole cents, its text, and its
+ * short text for a button ("$1"), when it has one. */
+export type IntentAmount = { cents: number; display: string; short?: string }
+
+declare const BUILT: unique symbol
+/** Made by this module's builders or parser, never by hand. */
+type Built = { readonly [BUILT]: true }
+
+export type SignInIntent = Built &
+  (
+    | {
+        kind: 'tip'
+        /** Where the tip was pressed (a same-site path). */
+        path: string
+        articleId: string
+        /** The chosen line, when the tip was for a line. */
+        passage: IntentPassage | null
+        /** The amount the button stated: a ceiling for the resumed tip. */
+        amount: IntentAmount
+        /** The writer's name, for the sheet's title. */
+        writer: string
+      }
+    | {
+        kind: 'keep'
+        path: string
+        articleId: string
+        passage: IntentPassage
+      }
+    | {
+        kind: 'publish'
+        path: string
+        draftId: string
+      }
+    | {
+        kind: 'follow'
+        path: string
+        writerId: string
+        /** The writer's name, for the sheet's title. */
+        writer: string
+      }
+  )
+
+type Fields<K extends SignInIntent['kind']> = Omit<
+  Extract<SignInIntent, { kind: K }>,
+  'kind' | typeof BUILT
+>
 
 export const INTENT_KEY = 'quilltip:sign-in-intent'
 export const INTENT_TTL_MS = 30 * 60_000
-const INTENT_MAX_BYTES = 4096
+/** Larger than any real intent; anything bigger is refused. */
+export const INTENT_MAX_BYTES = 4096
 const TEXT_MAX = 600
 const ID_MAX = 64
+/** The largest tip a resumed intent may carry, in cents. */
 const AMOUNT_MAX_CENTS = 50_00
 
-/** A tip intent, as the sign-in package's `tipIntent` builds it. */
-export function tipIntent(intent: Omit<TipIntent, 'kind'>): TipIntent {
-  return { kind: 'tip', ...intent }
-}
-
-/** A keep intent, as the sign-in package's `keepIntent` builds it. */
-export function keepIntent(intent: Omit<KeepIntent, 'kind'>): KeepIntent {
-  return { kind: 'keep', ...intent }
-}
-
-/** The article's path, with the line's anchor when it has one. */
-export function returnPathFor(articleHref: string, anchor: string | null) {
-  return anchor ? `${articleHref}#${anchor}` : articleHref
-}
-
-/**
- * The sign-in page, returning to `returnTo` (a same-site path). The shell
- * will export one `signInHref`; this goes when it does.
- */
-export function signInHref(returnTo: string) {
-  return `/login?next=${encodeURIComponent(returnTo)}`
-}
+type Stored = { v: 1; savedAt: number; intent: SignInIntent }
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
+
 const shortString = (value: unknown, max: number): value is string =>
   typeof value === 'string' && value.length > 0 && value.length <= max
-const isId = (value: unknown): value is string =>
-  shortString(value, ID_MAX) && /^[A-Za-z0-9_-]+$/.test(value)
-const isPath = (value: unknown): value is string =>
-  shortString(value, 512) &&
-  value.startsWith('/') &&
-  !value.startsWith('//') &&
-  !/[\\\u0000-\u001f\u007f]/.test(value)
 
-function passageOf(value: unknown): IntentPassage | null | undefined {
+const id = (value: unknown): value is string =>
+  shortString(value, ID_MAX) && /^[A-Za-z0-9_-]+$/.test(value)
+
+function passage(value: unknown): IntentPassage | null | undefined {
   if (value === null) return null
   if (!isRecord(value)) return undefined
-  const { text, start, end } = value
+  const { text, startOffset: start, endOffset: end } = value
   if (!shortString(text, TEXT_MAX)) return undefined
   if (!Number.isInteger(start) || !Number.isInteger(end)) return undefined
   if ((start as number) < 0 || (end as number) <= (start as number))
     return undefined
-  return { text, start: start as number, end: end as number }
+  return { text, startOffset: start as number, endOffset: end as number }
 }
 
-function amountOf(value: unknown): IntentAmount | undefined {
+function amount(value: unknown): IntentAmount | undefined {
   if (!isRecord(value)) return undefined
-  const { cents, display } = value
+  const { cents, display, short } = value
   if (!Number.isInteger(cents)) return undefined
   if ((cents as number) <= 0 || (cents as number) > AMOUNT_MAX_CENTS)
     return undefined
   if (!shortString(display, 16)) return undefined
-  return { cents: cents as number, display }
+  if (short !== undefined && !shortString(short, 16)) return undefined
+  return short === undefined
+    ? { cents: cents as number, display }
+    : { cents: cents as number, display, short }
 }
 
-/** A stored value as a tip or keep intent, or null when anything is wrong. */
-export function parseReadIntent(value: unknown): ReadIntent | null {
-  if (!isRecord(value) || !isPath(value.path) || !isId(value.articleId))
-    return null
-  const passage = passageOf(value.passage)
-  if (value.kind === 'tip') {
-    const amount = amountOf(value.amount)
-    if (passage === undefined || !amount || !shortString(value.writer, 120))
+function path(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const safe = sameSitePath(value, '')
+  return safe === '' ? undefined : safe
+}
+
+const built = (intent: object) => intent as SignInIntent
+
+/** A stored value as an intent, or null when anything about it is wrong. */
+export function parseIntent(value: unknown): SignInIntent | null {
+  if (!isRecord(value)) return null
+  const at = path(value.path)
+  if (!at) return null
+  switch (value.kind) {
+    case 'tip': {
+      const line = passage(value.passage)
+      const ceiling = amount(value.amount)
+      if (line === undefined || !ceiling || !id(value.articleId)) return null
+      if (!shortString(value.writer, 120)) return null
+      return built({
+        kind: 'tip',
+        path: at,
+        articleId: value.articleId,
+        passage: line,
+        amount: ceiling,
+        writer: value.writer,
+      })
+    }
+    case 'keep': {
+      const line = passage(value.passage)
+      if (!line || !id(value.articleId)) return null
+      return built({
+        kind: 'keep',
+        path: at,
+        articleId: value.articleId,
+        passage: line,
+      })
+    }
+    case 'publish':
+      if (!id(value.draftId)) return null
+      return built({ kind: 'publish', path: at, draftId: value.draftId })
+    case 'follow':
+      if (!id(value.writerId) || !shortString(value.writer, 120)) return null
+      return built({
+        kind: 'follow',
+        path: at,
+        writerId: value.writerId,
+        writer: value.writer,
+      })
+    default:
       return null
-    return tipIntent({
-      path: value.path,
-      articleId: value.articleId,
-      passage,
-      amount,
-      writer: value.writer,
-    })
   }
-  if (value.kind === 'keep' && passage)
-    return keepIntent({
-      path: value.path,
-      articleId: value.articleId,
-      passage,
-    })
-  return null
+}
+
+/** A tip the person pressed: on a line (`passage`) or on the article. */
+export const tipIntent = (fields: Fields<'tip'>) =>
+  parseIntent({ ...fields, kind: 'tip' }) as Extract<
+    SignInIntent,
+    { kind: 'tip' }
+  > | null
+/** A line the person wanted to keep. */
+export const keepIntent = (fields: Fields<'keep'>) =>
+  parseIntent({ ...fields, kind: 'keep' }) as Extract<
+    SignInIntent,
+    { kind: 'keep' }
+  > | null
+/** A draft the person wanted to publish. */
+export const publishIntent = (fields: Fields<'publish'>) =>
+  parseIntent({ ...fields, kind: 'publish' }) as Extract<
+    SignInIntent,
+    { kind: 'publish' }
+  > | null
+/** A writer the person wanted to follow. */
+export const followIntent = (fields: Fields<'follow'>) =>
+  parseIntent({ ...fields, kind: 'follow' }) as Extract<
+    SignInIntent,
+    { kind: 'follow' }
+  > | null
+
+/** The path part of a same-site path, for matching a page. */
+function pageOf(path: string): string {
+  const cut = path.search(/[?#]/)
+  return cut === -1 ? path : path.slice(0, cut)
 }
 
 function storage(): Storage | null {
@@ -137,11 +250,16 @@ function storage(): Storage | null {
   }
 }
 
-/** Keeps an intent for after sign-in, in this tab. False when refused. */
-export function saveIntent(intent: ReadIntent, now = Date.now()): boolean {
-  const valid = parseReadIntent(intent)
+/** Keeps an intent for after sign-in. Refused (false) when it is invalid,
+ * too large, or the person is signing out. */
+export function saveIntent(
+  intent: SignInIntent | unknown,
+  now = Date.now()
+): boolean {
+  if (isSigningOut()) return false
+  const valid = parseIntent(intent)
   if (!valid) return false
-  const text = JSON.stringify({ v: 1, savedAt: now, intent: valid })
+  const text = JSON.stringify({ v: 1, savedAt: now, intent: valid } as Stored)
   if (text.length > INTENT_MAX_BYTES) return false
   try {
     storage()?.setItem(INTENT_KEY, text)
@@ -151,12 +269,9 @@ export function saveIntent(intent: ReadIntent, now = Date.now()): boolean {
   }
 }
 
-/**
- * The kept tip or keep intent for this page (`at`: path and hash), removed
- * once taken; null when there is none, it is for another page, or it is
- * malformed or expired.
- */
-export function takeIntent(at: string, now = Date.now()): ReadIntent | null {
+/** The kept intent, if it is valid and not expired; anything else is
+ * cleared. */
+export function readIntent(now = Date.now()): SignInIntent | null {
   const store = storage()
   let text: string | null = null
   try {
@@ -164,29 +279,46 @@ export function takeIntent(at: string, now = Date.now()): ReadIntent | null {
   } catch {
     return null
   }
-  if (text === null || text.length > INTENT_MAX_BYTES) return null
+  if (text === null) return null
   let stored: unknown
   try {
-    stored = JSON.parse(text)
+    stored =
+      text.length > INTENT_MAX_BYTES ? null : (JSON.parse(text) as unknown)
   } catch {
-    return null
+    stored = null
   }
-  if (
-    !isRecord(stored) ||
-    stored.v !== 1 ||
-    typeof stored.savedAt !== 'number' ||
-    now - stored.savedAt < 0 ||
-    now - stored.savedAt > INTENT_TTL_MS
-  )
-    return null
-  const intent = parseReadIntent(stored.intent)
-  if (!intent || intent.path !== at) return null
-  try {
-    store?.removeItem(INTENT_KEY)
-  } catch {
-    // Storage blocked: nothing more to clear.
-  }
+  const intent =
+    isRecord(stored) &&
+    stored.v === 1 &&
+    typeof stored.savedAt === 'number' &&
+    now - stored.savedAt >= 0 &&
+    now - stored.savedAt <= INTENT_TTL_MS
+      ? parseIntent(stored.intent)
+      : null
+  if (!intent) clearIntent()
   return intent
+}
+
+/** The kept intent of this kind for this page (its path, whatever the
+ * query), removed once taken. One for another page or kind stays. */
+export function takeIntent<K extends SignInIntent['kind']>(
+  kind: K,
+  at: string,
+  now = Date.now()
+): Extract<SignInIntent, { kind: K }> | null {
+  const intent = readIntent(now)
+  if (!intent || intent.kind !== kind || pageOf(intent.path) !== pageOf(at))
+    return null
+  clearIntent()
+  return intent as Extract<SignInIntent, { kind: K }>
+}
+
+export function clearIntent() {
+  try {
+    storage()?.removeItem(INTENT_KEY)
+  } catch {
+    // Storage blocked: nothing was kept.
+  }
 }
 
 /**
@@ -201,4 +333,19 @@ export function amountWithin(
   for (const cents of choicesCents)
     if (cents <= ceilingCents && (best === null || cents > best)) best = cents
   return best
+}
+
+// --- The read view's helpers ---------------------------------------------
+
+/** The article's path, with the line's anchor when it has one. */
+export function returnPathFor(articleHref: string, anchor: string | null) {
+  return anchor ? `${articleHref}#${anchor}` : articleHref
+}
+
+/**
+ * The sign-in page, returning to `returnTo` (a same-site path). The shell
+ * will export one `signInHref`; this goes when it does.
+ */
+export function signInHref(returnTo: string) {
+  return `/login?next=${encodeURIComponent(returnTo)}`
 }

@@ -35,9 +35,7 @@ import {
   returnPathFor,
   saveIntent,
   signInHref,
-  takeIntent,
   tipIntent,
-  type ReadIntent,
 } from './signInIntent'
 
 /** What a tip that the server accepted was for. */
@@ -64,8 +62,8 @@ type TipBarProps = {
   arrivalArmed?: boolean
   /** The arrival is over. */
   onArrivalDone?: () => void
-  /** A kept intent was taken after sign-in: choose its line, if any. */
-  onResume?: (intent: ReadIntent) => void
+  /** A resumed tip intent's ceiling, in cents, after sign-in. */
+  resumeCeiling?: number | null
 }
 
 /** Presses this close together, or this soon after a sheet closes, are one. */
@@ -103,7 +101,6 @@ const SENT_HOLD_MS = 1600
 const UNAVAILABLE_WORDS: Partial<Record<UnavailableReason, string>> = {
   closing: 'Your balance is closing',
   device: 'Set up this device to tip',
-  'not-tippable': 'Tips are not on for this article',
   'settlement-off': 'Tipping is paused',
   'not-loaded': 'Tipping is not available now',
   absent: 'Tipping is not available now',
@@ -152,7 +149,7 @@ export function TipBar({
   onSent,
   arrivalArmed = false,
   onArrivalDone = () => {},
-  onResume = () => {},
+  resumeCeiling = null,
 }: TipBarProps) {
   const balance = useBalance()
   const target = useMemo<TipTarget>(
@@ -249,49 +246,63 @@ export function TipBar({
     )
   }, [article.href, passage])
   const linePassage = passage
-    ? { text: passage.text, start: passage.startOffset, end: passage.endOffset }
+    ? {
+        text: passage.text,
+        startOffset: passage.startOffset,
+        endOffset: passage.endOffset,
+      }
     : null
-  // The tip as the button states it; null when no amount is offered.
-  const tipIntentNow = (): ReadIntent | null =>
+  // The tip as the button states it, built by the sign-in contract's
+  // builder; null when no amount is offered or it does not validate. Its
+  // path is the article's own: the line comes back from its offsets.
+  const tipIntentNow = () =>
     offer
       ? tipIntent({
-          path: returnTo,
+          path: article.href,
           articleId: article.id,
           passage: linePassage,
-          // A ceiling, never an order: see signInIntent.ts.
+          // A ceiling, never an order.
           amount: {
             cents: offer.amount.cents,
-            display: short(offer.amount).display,
+            display: offer.amount.display,
+            short: short(offer.amount).display,
           },
           writer: article.writer.name,
         })
       : null
 
-  // After sign-in, once: take the intent this page names, choose its line
-  // and set the amount within its ceiling. Nothing is sent.
-  const resumed = useRef(false)
+  // After sign-in, once: the resumed tip's amount, within its ceiling.
+  // Nothing is sent; the island chose the line.
+  const ceilingSet = useRef(false)
   useEffect(() => {
-    if (resumed.current || !tip.ready || signedOut) return
-    resumed.current = true
-    const intent = takeIntent(location.pathname + location.hash)
-    if (!intent || intent.articleId !== article.id) return
-    onResume(intent)
-    if (intent.kind !== 'tip') return
+    if (ceilingSet.current || resumeCeiling == null) return
+    if (!tip.ready || signedOut || tip.amounts.length === 0) return
+    ceilingSet.current = true
     const cents = amountWithin(
-      intent.amount.cents,
+      resumeCeiling,
       tip.amounts.map((a) => a.cents)
     )
     if (cents !== null) tip.setAmount(cents)
-    // Once, when the controller is ready and signed in.
+    // Once, when the controller has its amounts.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tip.ready, signedOut])
+  }, [resumeCeiling, tip.ready, signedOut, tip.amounts.length])
 
   // What a tip at the default would need, when the balance is short.
   const need = tip.amount ?? balance.limits?.defaultTip ?? null
 
   let control: React.ReactNode
+  // An article that cannot take a tip offers none, to anyone: known from
+  // the server render, or from the money layer once it has loaded.
+  const notTippable =
+    article.tippable === false || tip.unavailable === 'not-tippable'
   if (tip.unavailable === 'own-article') {
     control = null
+  } else if (notTippable) {
+    control = (
+      <p className="qt-read__dock-line" role="status">
+        Tips are not on for this article.
+      </p>
+    )
   } else if (signedOut) {
     control = (
       <a
@@ -411,7 +422,7 @@ export function TipBar({
               // kept by signing in alone.
               const intent = linePassage
                 ? keepIntent({
-                    path: returnTo,
+                    path: article.href,
                     articleId: article.id,
                     passage: linePassage,
                   })

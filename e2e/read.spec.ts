@@ -1102,7 +1102,8 @@ test('signed out with no sign-in sheet, the link returns to the line and keeps t
   )
   await press(page, link)
   await expect(page).toHaveURL(/\/login\?next=/)
-  // The sign-in package's stored form and tip intent.
+  // The sign-in contract's stored form and tip intent: the article's own
+  // path (the line comes back from its offsets), the amount as a ceiling.
   const stored = await page.evaluate(() =>
     JSON.parse(sessionStorage.getItem('quilltip:sign-in-intent') ?? 'null')
   )
@@ -1110,14 +1111,16 @@ test('signed out with no sign-in sheet, the link returns to the line and keeps t
     v: 1,
     intent: {
       kind: 'tip',
-      path: next,
+      path: ARTICLE_PATH,
       articleId: ARTICLE._id,
       passage: { text: LINES.gate },
-      amount: { cents: 100, display: '$1' },
+      amount: { cents: 100, display: '$1.00', short: '$1' },
       writer: 'Tomás Reyes',
     },
   })
-  expect(stored.intent.passage.end).toBeGreaterThan(stored.intent.passage.start)
+  expect(stored.intent.passage.endOffset).toBeGreaterThan(
+    stored.intent.passage.startOffset
+  )
   expect((await server(page)).requests).toBe(0)
 })
 
@@ -1144,11 +1147,11 @@ test('after sign-in the intent is taken once: the line is chosen, the amount kep
   )
   // Back from sign-in, signed in, with a $2.50 ceiling: $2 is offered.
   await page.evaluate((stored) => {
-    stored.intent.amount = { cents: 250, display: '$2.50' }
+    stored.intent.amount = { cents: 250, display: '$2.50', short: '$2.50' }
     sessionStorage.setItem('quilltip:sign-in-intent', JSON.stringify(stored))
   }, stored)
-  const path: string = stored.intent.path
-  await page.goto(`${path.replace('#', `?run=${run}#`)}`)
+  // A full page load, signed in, on the intent's own page.
+  await page.goto(`${stored.intent.path}?run=${run}`)
   await expect(page.locator('mark.qt-mark[data-state="chosen"]')).toHaveText(
     LINES.gate
   )
@@ -1163,6 +1166,67 @@ test('after sign-in the intent is taken once: the line is chosen, the amount kep
     page.getByRole('heading', { level: 1, name: TITLE })
   ).toBeVisible()
   await expect(page.locator('mark.qt-mark[data-state="chosen"]')).toHaveCount(0)
+})
+
+test('a signed-out Keep is kept after sign-in, once, across a full load', async ({
+  page,
+}) => {
+  await open(page, '&pay=signed-out')
+  await tapLine(page, 'rarely remembers')
+  await press(page, page.locator('.qt-read__dock').locator('.qt-keep'))
+  // No sheet: the sign-in page, with the keep intent stored.
+  await expect(page).toHaveURL(/\/login\?next=/)
+  const stored = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('quilltip:sign-in-intent') ?? 'null')
+  )
+  expect(stored.intent).toMatchObject({
+    kind: 'keep',
+    path: ARTICLE_PATH,
+    articleId: ARTICLE._id,
+    passage: { text: LINES.quote },
+  })
+  const mutations = async () =>
+    (await (await page.request.get(`/api/mutations?run=${run}`)).json()) as {
+      name: string
+      args: { text?: string }
+    }[]
+  expect(await mutations()).toEqual([])
+  // Signed in, back on the article: the line is chosen and kept.
+  await open(page)
+  await expect(page.locator('.qt-read__dock .qt-keep')).toHaveAttribute(
+    'aria-pressed',
+    'true'
+  )
+  await expect
+    .poll(async () => (await mutations()).map((m) => [m.name, m.args.text]))
+    .toEqual([['highlights:createHighlight', LINES.quote]])
+  expect((await server(page)).requests).toBe(0)
+  // Taken once: a reload keeps nothing again.
+  await page.reload()
+  await expect(
+    page.getByRole('heading', { level: 1, name: TITLE })
+  ).toBeVisible()
+  await page.waitForTimeout(500)
+  expect(await mutations()).toHaveLength(1)
+})
+
+test('an article not registered for tips offers no tip, to anyone', async ({
+  page,
+}) => {
+  for (const pay of ['signed-out', 'ready', 'no-balance']) {
+    await open(page, `&tippable=no&pay=${pay}`)
+    const dock = page.locator('.qt-read__dock')
+    await expect(dock).toContainText('Tips are not on for this article.')
+    await expect(dock.getByRole('link', { name: /^Tip/ })).toHaveCount(0)
+    await expect(
+      dock.getByRole('button', { name: /^(Tip|Add money)/ })
+    ).toHaveCount(0)
+  }
+  // Keeping a line is not money: it stays.
+  await open(page, '&tippable=no')
+  await tapLine(page, 'person next to')
+  await expect(page.locator('.qt-read__dock .qt-keep')).toBeVisible()
+  expect((await server(page)).requests).toBe(0)
 })
 
 test('the balance caption opens the balance, and says what it holds', async ({

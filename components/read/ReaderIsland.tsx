@@ -23,6 +23,8 @@ import {
 } from '@/hooks/read/passageOffsets'
 import { articleIdOf } from '@/hooks/read/payments'
 import { useTippedLines } from '@/hooks/read/tippedLines'
+import { useResumedIntent } from '@/hooks/read/useResumedIntent'
+import type { IntentPassage } from './signInIntent'
 import {
   FINISHED_AT,
   markOpened,
@@ -39,7 +41,6 @@ import { useReadingPosition } from '@/hooks/read/useReadingPosition'
 import { paintPassages, type PaintedSpan } from './paintPassages'
 import { READ_BODY_ID, READ_MARGIN_ID, type ReadArticle } from './readModel'
 import { takeLiveArrival } from './liveArrival'
-import type { ReadIntent } from './signInIntent'
 import { TipBar, type SentTip } from './TipBar'
 
 type Tick = { top: number; height: number; kind: 'chosen' | 'place' }
@@ -376,26 +377,6 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
 
   // After sign-in: the line the reader had chosen, chosen again, only where
   // the text still reads the same. Nothing is sent or kept.
-  const resume = useCallback(
-    (intent: ReadIntent) => {
-      const root = body()
-      const line = intent.passage
-      if (!root || !line) return
-      if (textBetween(root, line.start, line.end) !== line.text) return
-      const chosen: ChosenPassage = {
-        text: line.text,
-        startOffset: line.start,
-        endOffset: line.end,
-        startContainerPath: `text.${line.start}`,
-        endContainerPath: `text.${line.end}`,
-        via: 'intent',
-      }
-      choose(chosen)
-      requestAnimationFrame(() => keepInView(chosen))
-    },
-    [choose]
-  )
-
   const gone = status === 'gone'
   useEffect(() => {
     if (!gone) return
@@ -463,6 +444,45 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
     [actions, article.id, keep, keptHere]
   )
 
+  // After sign-in, on this page, once (the sign-in contract's resume): the
+  // line the reader had chosen is chosen again, only where the text still
+  // reads the same. A tip's amount is set within its ceiling (the tip bar);
+  // nothing is sent. A keep is kept, since keeping is not money.
+  const resumedTip = useResumedIntent('tip')
+  const resumedKeep = useResumedIntent('keep')
+  const [resumeCeiling, setResumeCeiling] = useState<number | null>(null)
+  const chooseLine = useCallback(
+    (line: IntentPassage): boolean => {
+      const root = body()
+      if (!root) return false
+      if (textBetween(root, line.startOffset, line.endOffset) !== line.text)
+        return false
+      const chosen: ChosenPassage = {
+        text: line.text,
+        startOffset: line.startOffset,
+        endOffset: line.endOffset,
+        startContainerPath: `text.${line.startOffset}`,
+        endContainerPath: `text.${line.endOffset}`,
+        via: 'intent',
+      }
+      choose(chosen)
+      requestAnimationFrame(() => keepInView(chosen))
+      return true
+    },
+    [choose]
+  )
+  useEffect(() => {
+    if (!resumedTip || resumedTip.articleId !== article.id) return
+    if (resumedTip.passage) chooseLine(resumedTip.passage)
+    setResumeCeiling(resumedTip.amount.cents)
+  }, [resumedTip, article.id, chooseLine])
+  useEffect(() => {
+    if (!resumedKeep || resumedKeep.articleId !== article.id) return
+    if (chooseLine(resumedKeep.passage)) void onKeepChange(true)
+    // Once per resumed intent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resumedKeep, article.id, chooseLine])
+
   if (gone)
     return (
       <EmptyState
@@ -505,7 +525,7 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
           onSent={onSent}
           arrivalArmed={arrivalArmed}
           onArrivalDone={arrivalDone}
-          onResume={resume}
+          resumeCeiling={resumeCeiling}
         />
       ) : null}
     </>

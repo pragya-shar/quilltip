@@ -81,4 +81,9 @@ export function useMutation(ref: FunctionReference<'mutation'>) {
   }
 }
 
-export const useConvexAuth = () => ({ isLoading: false, isAuthenticated: true })
+// Signed in, unless the payments scenario is a signed-out visitor.
+const AUTH = {
+  isLoading: false,
+  isAuthenticated: params.get('pay') !== 'signed-out',
+}
+export const useConvexAuth = () => AUTH

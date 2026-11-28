@@ -5,66 +5,71 @@ import {
   INTENT_TTL_MS,
   amountWithin,
   keepIntent,
-  parseReadIntent,
+  parseIntent,
   saveIntent,
   takeIntent,
   tipIntent,
 } from '@/components/read/signInIntent'
 
-// The read view's side of the sign-in package's intent contract: the same
-// shapes, key and stored form, taken once for the page it names.
+// The read view's mirror of the sign-in package's intent contract
+// (lib/auth/intent.ts at 4d7c97ed): its builders, its store and its take,
+// for one page whatever the query.
 
+const ARTICLE = 'k57rdfxtrartc1e0000000000000000001'
 const TIP = tipIntent({
-  path: '/tomas/ledger#s-1-0',
-  articleId: 'k57rdfxtrartc1e0000000000000000001',
-  passage: { text: 'A line.', start: 10, end: 17 },
-  amount: { cents: 100, display: '$1' },
+  path: '/tomas/ledger',
+  articleId: ARTICLE,
+  passage: { text: 'A line.', startOffset: 10, endOffset: 17 },
+  amount: { cents: 100, display: '$1.00', short: '$1' },
   writer: 'Tomás Reyes',
-})
+})!
 
 beforeEach(() => sessionStorage.clear())
 
-describe('the sign-in intent', () => {
-  it('stores the package form and is taken once, for its page only', () => {
+describe('the sign-in intent contract', () => {
+  it('builds a valid intent, and null for anything wrong', () => {
+    expect(TIP).toMatchObject({ kind: 'tip', path: '/tomas/ledger' })
+    for (const bad of [
+      { path: '//evil.example/x' },
+      { path: '/\\evil.example' },
+      { articleId: 'a b' },
+      { amount: { cents: 0, display: '$0' } },
+      { amount: { cents: 50_01, display: '$50.01' } },
+      { amount: { cents: 100, display: '$1', short: '' } },
+      { passage: { text: 'x', startOffset: 5, endOffset: 5 } },
+      { writer: '' },
+    ])
+      expect(
+        tipIntent({ ...TIP, ...bad } as never),
+        JSON.stringify(bad)
+      ).toBeNull()
+    expect(
+      keepIntent({
+        path: '/a',
+        articleId: 'a1',
+        passage: { text: 'x', startOffset: 0, endOffset: 1 },
+      })
+    ).not.toBeNull()
+    expect(parseIntent({ ...TIP, kind: 'other' })).toBeNull()
+  })
+
+  it('stores the package form and is taken once, for its kind and page', () => {
     expect(saveIntent(TIP, 1_000)).toBe(true)
     expect(JSON.parse(sessionStorage.getItem(INTENT_KEY)!)).toEqual({
       v: 1,
       savedAt: 1_000,
       intent: TIP,
     })
-    expect(takeIntent('/tomas/other', 2_000)).toBeNull()
-    expect(takeIntent('/tomas/ledger', 2_000)).toBeNull()
-    expect(takeIntent('/tomas/ledger#s-1-0', 2_000)).toEqual(TIP)
-    expect(takeIntent('/tomas/ledger#s-1-0', 2_000)).toBeNull()
+    expect(takeIntent('keep', '/tomas/ledger', 2_000)).toBeNull()
+    expect(takeIntent('tip', '/tomas/other', 2_000)).toBeNull()
+    // The page, whatever the query.
+    expect(takeIntent('tip', '/tomas/ledger?run=1', 2_000)).toEqual(TIP)
+    expect(takeIntent('tip', '/tomas/ledger', 2_000)).toBeNull()
   })
 
   it('drops an expired intent', () => {
     saveIntent(TIP, 0)
-    expect(takeIntent(TIP.path, INTENT_TTL_MS + 1)).toBeNull()
-  })
-
-  it('refuses malformed intents', () => {
-    for (const bad of [
-      { ...TIP, path: '//evil.example/x' },
-      { ...TIP, path: '/\\evil.example' },
-      { ...TIP, articleId: 'a b' },
-      { ...TIP, amount: { cents: 0, display: '$0' } },
-      { ...TIP, amount: { cents: 50_01, display: '$50.01' } },
-      { ...TIP, passage: { text: 'x', start: 5, end: 5 } },
-      { ...TIP, writer: '' },
-      { ...TIP, kind: 'follow' },
-      keepIntent({ path: '/a', articleId: 'a1', passage: null as never }),
-    ])
-      expect(parseReadIntent(bad), JSON.stringify(bad)).toBeNull()
-    expect(
-      parseReadIntent(
-        keepIntent({
-          path: '/a',
-          articleId: 'a1',
-          passage: { text: 'x', start: 0, end: 1 },
-        })
-      )
-    ).not.toBeNull()
+    expect(takeIntent('tip', TIP.path, INTENT_TTL_MS + 1)).toBeNull()
   })
 
   it('keeps a resumed amount within the ceiling, never raised', () => {

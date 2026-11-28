@@ -7,6 +7,7 @@ import { retryHrefFor } from '@/shell/public/boundedRead'
 import { PushedHeader } from '@/shell/PushedHeader'
 import { PushedScreen } from '@/shell/PushedScreen'
 import { readNextBudget, readNextFor } from '@/components/read/readNext'
+import { articleTippable } from '@/components/read/tipState'
 import { toReadArticle } from '@/components/read/readModel'
 import { getPublishedArticle, movedPublicPath } from '@/lib/seo/publicContent'
 import {
@@ -132,13 +133,15 @@ export default async function ArticlePage({
         </div>
       </PushedScreen>
     )
-  const readNext = await readNextFor(
-    article._id,
-    readNextBudget(Date.now() - startedAt)
-  )
+  // Read next and the tip state share what is left of the page's limit.
+  const left = readNextBudget(Date.now() - startedAt)
+  const [readNext, tippable] = await Promise.all([
+    readNextFor(article._id, left),
+    articleTippable(article._id, left),
+  ])
   return (
     <ArticleView
-      article={toReadArticle(article)}
+      article={{ ...toReadArticle(article), tippable }}
       bodyHtml={html}
       readNext={readNext}
     />

@@ -31,6 +31,12 @@ export type ReadArticle = {
   published: string | null
   publishedIso: string | null
   coverImage: string | null
+  /**
+   * Whether the article can take a tip at all, read on the server
+   * (`articleTippable`): false shows no tip control for anyone; null when
+   * not known, and the money layer decides in the browser.
+   */
+  tippable: boolean | null
   /** The fields that change on an edit, for the live check. */
   version: { updatedAt?: number; contentVersion?: number }
 }
@@ -98,6 +104,7 @@ export function toReadArticle(
       : null,
     // Under the same rule as body images: this deployment's storage only.
     coverImage: safeImageSrc(article.coverImage, sources),
+    tippable: null,
     version: {
       updatedAt: article.updatedAt,
       contentVersion: article.contentVersion,

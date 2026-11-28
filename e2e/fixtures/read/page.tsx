@@ -21,7 +21,8 @@ import { useFixtureTippedLines } from './tippedLines'
 // body HTML is rendered by the fixture server with the server renderer and
 // handed over in the page; money comes from the fake runtime. What
 // e2e/read.spec.ts drives. `?pay=` picks the payments scenario,
-// `?signin=sheet` registers a stand-in sign-in sheet.
+// `?signin=sheet` registers a stand-in sign-in sheet, `?tippable=no` is an
+// article not registered for tips.
 declare global {
   interface Window {
     __READ_BODY__: string
@@ -54,7 +55,15 @@ createRoot(document.getElementById('root')!).render(
           }
         >
           <ArticleView
-            article={toReadArticle(ARTICLE, Date.UTC(2026, 10, 28))}
+            article={{
+              ...toReadArticle(ARTICLE, Date.UTC(2026, 10, 28)),
+              // As the server render reads it: `?tippable=no` is an article
+              // not registered for tips.
+              tippable:
+                new URLSearchParams(location.search).get('tippable') === 'no'
+                  ? false
+                  : true,
+            }}
             bodyHtml={window.__READ_BODY__}
             readNext={readNext}
           />
