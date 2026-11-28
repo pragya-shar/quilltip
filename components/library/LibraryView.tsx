@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { articleHref, type Bookmark } from '@/lib/library/bookmarks'
 
 export type LibraryHighlight = {
@@ -26,7 +27,12 @@ export function LibraryView({
       <h2>Bookmarked articles</h2>
       {bookmarks.length ? (
         bookmarks.map((b) => (
-          <Link className="library-row" key={b.id} href={articleHref(b)}>
+          <Link
+            className="library-row"
+            key={b.id}
+            href={articleHref(b)}
+            prefetch={ARTICLE_LINK_PREFETCH}
+          >
             <span>
               <small>
                 {b.topic} · {b.minutes} min read
@@ -55,6 +61,7 @@ export function LibraryView({
             <Link
               key={h._id}
               className="library-row passage-row"
+              prefetch={ARTICLE_LINK_PREFETCH}
               href={`${articleHref({ username: h.article!.authorUsername, slug: h.article!.slug })}?highlight=${encodeURIComponent(h._id)}`}
             >
               <span>

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import dynamic from 'next/dynamic'
 import { type JSONContent } from '@tiptap/core'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { ArticleReaderHeader } from './ArticleReaderHeader'
 import { ArticleSelectionHint } from './ArticleSelectionHint'
 import { BookmarkButton } from '@/components/library/BookmarkButton'
@@ -90,7 +91,10 @@ export default function ArticleDisplay({
         subtitle={article.excerpt}
         topic={topic}
         author={
-          <Link href={`/${encodeURIComponent(article.author.username)}`}>
+          <Link
+            href={`/${encodeURIComponent(article.author.username)}`}
+            prefetch={ARTICLE_LINK_PREFETCH}
+          >
             {article.author.name || article.author.username}
           </Link>
         }
@@ -144,7 +148,10 @@ export default function ArticleDisplay({
         </p>
         <p className="reader-author-end">
           By{' '}
-          <Link href={`/${encodeURIComponent(article.author.username)}`}>
+          <Link
+            href={`/${encodeURIComponent(article.author.username)}`}
+            prefetch={ARTICLE_LINK_PREFETCH}
+          >
             {article.author.name || article.author.username}
           </Link>
         </p>

@@ -24,6 +24,7 @@ import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabConten
 import { AuthorNotFoundPage } from '@/components/profile/AuthorNotFoundPage'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { CollectionShell } from '@/components/library/CollectionShell'
 import { HandleSetupBanner } from '@/components/profile/HandleSetupBanner'
 import { UserAvatar } from '@/components/ui/user-avatar'
@@ -189,7 +190,11 @@ export function ProfilePageClient({
       <div className="profile-page flex min-h-screen flex-col">
         <AppNavigation />
         <main className="profile-folio flex-1">
-          <Link className="profile-action" href={`/${user.username}`}>
+          <Link
+            className="profile-action"
+            href={`/${user.username}`}
+            prefetch={ARTICLE_LINK_PREFETCH}
+          >
             ← Writer page
           </Link>
           <ProfileHeader user={user} isOwnProfile={isOwnProfile} />
@@ -245,7 +250,11 @@ export function ProfilePageClient({
           initialData={initialArticles}
           unavailable={articlesUnavailable}
         />
-        <Link className="library-browse" href={`/${user.username}?tab=nfts`}>
+        <Link
+          className="library-browse"
+          href={`/${user.username}?tab=nfts`}
+          prefetch={ARTICLE_LINK_PREFETCH}
+        >
           NFT collection ↗
         </Link>
         {/* Fixed to the viewport, so it does not push the page down. */}

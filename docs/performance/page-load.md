@@ -805,7 +805,12 @@ first reading link (`/`, `/articles`, a writer) or the first paragraph of prose
 ## Link prefetches and backend reads (#630)
 
 Article and writer links in the v2 components do not prefetch
-(`prefetch={ARTICLE_LINK_PREFETCH}`, `lib/articles/linkPrefetch.ts`). Their
+(`prefetch={ARTICLE_LINK_PREFETCH}`, `lib/articles/linkPrefetch.ts`): cards,
+feed rows, read-next, continue reading, the article page's author links, the
+author byline, the writer page's own links, the library, the landing proof
+card, the settings page's profile link and the published-article link. The
+account menus' link to the reader's own writer page is not covered: it renders
+only while a menu is open. Their
 pages are dynamic and have no loading boundary, so a prefetch fetched almost
 nothing a click could reuse (#597), while each one ran the proxy's route check
 and rendered the page.

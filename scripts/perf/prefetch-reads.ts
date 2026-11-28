@@ -172,6 +172,14 @@ async function main() {
         console.log(`${engine}, click on an article: ${describeReads(click)}`)
 
         if (MEASURE_ONLY) continue
+        // The view's own reads are publicRouteExists and listArticles; a route
+        // check, an article or a writer read while the page loads comes from
+        // viewport prefetches of its links.
+        for (const path of [ROUTE_CHECK, ARTICLE_READ, WRITER_READ])
+          if (count(load, path) > 0)
+            failures.push(
+              `${engine}: the view of /articles made ${count(load, path)} ${path} reads`
+            )
         for (const path of [ROUTE_CHECK, ARTICLE_READ, WRITER_READ])
           if (count(prefetches, path) > 0)
             failures.push(
