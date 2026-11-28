@@ -62,8 +62,9 @@ later work.
    site variable.
 8. Before the window closes, `SETTLEMENT_ENABLED` is `true` on the live
    deployment and the `settle due tab vouchers` cron has run in the last 10
-   minutes (Convex dashboard, **Schedules**, cron jobs), with no
-   `TAB_SETTLER_RUN_FAILED` in the logs. The settler must run at least once
+   minutes (Convex dashboard, **Schedules**, cron jobs) and that run
+   succeeded (stage 3, **Check**). The logs show no `TAB_SETTLER_UNAVAILABLE`
+   and no `TAB_SETTLER_RUN_FAILED`. The settler must run at least once
    within the 3-day withdrawal delay (51,840 ledgers): a reader who starts a
    withdrawal can withdraw after it, and receipts not settled by then stay
    unpaid. The settler settles every pair of a closing tab first.
@@ -982,8 +983,18 @@ payments off if needed (section 6).
   it at once, run the internal action `chain/config:refreshChainConfig` from
   the dashboard. Do not start stage 6 before this check passes: until the
   config is loaded, v2 tips refuse with `CHAIN_CONFIG_MISSING`.
-- The Convex logs show no `TAB_ACCEPTOR_MISMATCH` and no
-  `TAB_SETTLER_RUN_FAILED`.
+- The Convex logs show no `TAB_ACCEPTOR_MISMATCH`, no
+  `TAB_SETTLER_UNAVAILABLE` and no `TAB_SETTLER_RUN_FAILED`.
+- One successful settler run after the settler is enabled. After
+  `SETTLEMENT_ENABLED=true` is set, and again after any change to
+  `TAB_SETTLER_SECRET`, wait for the next `settle due tab vouchers` run
+  (every 10 minutes). In the Convex dashboard (**Logs**, function
+  `tabSettler:settleDue`), that run completes without an error and does not
+  return `"status": "disabled"`. Record its time. A missing or malformed
+  settler secret fails the run with `TAB_SETTLER_UNAVAILABLE` before the
+  settlement cycle starts, so that run logs no `TAB_SETTLER_RUN_FAILED`: a
+  scan for `TAB_SETTLER_RUN_FAILED` alone does not find it. Do not start
+  stage 6 until this run is recorded.
 
 **Rollback:** set `SETTLEMENT_ENABLED=false` and remove the contract IDs and
 `INDEXER_START_LEDGER`. Nothing user-facing uses the set while
@@ -1008,7 +1019,7 @@ with `"cursor"` set to the returned `continueCursor`. Repeat for
 these with the credential from section 5.0.2.
 
 v1 rows confirmed after this stage (tips in flight at the freeze) have no
-`contractVersion`. Stage 6, step 1 runs this backfill once more after the
+`contractVersion`. Stage 6, step 2 runs this backfill once more after the
 drain.
 
 **Claim records (#596).** The release records each applied `Claimed` event of
@@ -1200,11 +1211,14 @@ row again.
 
 ### Stage 6. Switch on v2
 
-1. Run the stage 4 backfill again for the three tables (dry run, apply, dry
+1. Confirm that the successful settler run of stage 3 (**Check**) is
+   recorded, with its time. If `TAB_SETTLER_SECRET` changed after it, wait
+   for and record a new successful run first.
+2. Run the stage 4 backfill again for the three tables (dry run, apply, dry
    run), so that the v1 rows confirmed during the drain carry
    `contractVersion: 'v1'`.
-2. Set `CHAIN_V2_ENABLED=true` on the live deployment. Record the time.
-3. Run the post-cutover verification (section 7) at once.
+3. Set `CHAIN_V2_ENABLED=true` on the live deployment. Record the time.
+4. Run the post-cutover verification (section 7) at once.
 
 **Check:** the backfill's final dry runs report `"toUpdate": 0`, and
 section 7.1 passes.
@@ -1621,7 +1635,8 @@ stay at the front. If `checked` equals the limit, run again with
 
 After the tab tip in 7.1, the next `settle due tab vouchers` run (every 10
 minutes) submits a settlement. Check the Convex logs for the cron: no
-`TAB_SETTLER_RUN_FAILED`, `TAB_SETTLER_REJECTED` or `TAB_SETTLER_BALANCE_LOW`.
+`TAB_SETTLER_UNAVAILABLE`, `TAB_SETTLER_RUN_FAILED`, `TAB_SETTLER_REJECTED` or
+`TAB_SETTLER_BALANCE_LOW`.
 The settler account holds more than 50 testnet XLM.
 
 A settled amount stays held back from the reader's free balance until the
