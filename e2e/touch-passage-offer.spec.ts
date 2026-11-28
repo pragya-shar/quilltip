@@ -44,8 +44,8 @@ async function selectWords(paragraph: Locator, words: number) {
   }, words)
 }
 
-async function open(page: Page) {
-  await page.goto('/')
+async function open(page: Page, query = '') {
+  await page.goto(`/${query}`)
   const paragraph = page.locator('.highlightable-article .tiptap p').first()
   await expect(paragraph).toBeVisible()
   return {
@@ -62,27 +62,32 @@ async function longPress(paragraph: Locator, end: 'touchend' | 'touchcancel') {
   await paragraph.dispatchEvent(end)
 }
 
-test('a long press does not open the passage slip; the offer opens it with the grown selection', async ({
-  page,
-}) => {
-  const { paragraph, slip, offer } = await open(page)
-  await longPress(paragraph, 'touchend')
-  // The defect: the slip opened here with one word, over the handles.
-  await expect(slip).toBeHidden()
-  await expect(offer).toBeVisible()
+for (const [who, query] of [
+  ['signed out', ''],
+  ['signed in', '?auth=in'],
+] as const) {
+  test(`${who}: a long press does not open the passage slip; the offer opens it with the grown selection`, async ({
+    page,
+  }) => {
+    const { paragraph, slip, offer } = await open(page, query)
+    await longPress(paragraph, 'touchend')
+    // The defect: the slip opened here with one word, over the handles.
+    await expect(slip).toBeHidden()
+    await expect(offer).toBeVisible()
 
-  // The handles move; the page sees selection changes only.
-  const passage = await selectWords(paragraph, 8)
-  await expect(slip).toBeHidden()
-  await expect(offer).toBeVisible()
+    // The handles move; the page sees selection changes only.
+    const passage = await selectWords(paragraph, 8)
+    await expect(slip).toBeHidden()
+    await expect(offer).toBeVisible()
 
-  await offer.tap()
-  await expect(slip).toBeVisible()
-  await expect(slip.locator('blockquote')).toContainText(passage.trim())
-  await expect(offer).toBeHidden()
-  await page.keyboard.press('Escape')
-  await expect(slip).toBeHidden()
-})
+    await offer.tap()
+    await expect(slip).toBeVisible()
+    await expect(slip.locator('blockquote')).toContainText(passage.trim())
+    await expect(offer).toBeHidden()
+    await page.keyboard.press('Escape')
+    await expect(slip).toBeHidden()
+  })
+}
 
 test('a long press that ends in a touch cancel still offers the passage', async ({
   page,
@@ -112,4 +117,40 @@ test('a tap outside the article withdraws the offer, so no stale words open', as
   await page.evaluate(() => window.getSelection()?.removeAllRanges())
   await expect(offer).toBeHidden()
   await expect(slip).toBeHidden()
+})
+
+test('a long press that ends in a pointer cancel still offers the passage', async ({
+  page,
+}) => {
+  const { paragraph, slip, offer } = await open(page)
+  await paragraph.dispatchEvent('touchstart')
+  await selectWords(paragraph, 1)
+  await page.evaluate(() =>
+    document.dispatchEvent(new PointerEvent('pointercancel', { bubbles: true }))
+  )
+  await expect(slip).toBeHidden()
+  await expect(offer).toBeVisible()
+})
+
+test('a press on the offer that clears the selection still opens the slip with the passage', async ({
+  page,
+}) => {
+  const { paragraph, slip, offer } = await open(page)
+  await longPress(paragraph, 'touchend')
+  const passage = await selectWords(paragraph, 6)
+  await expect(offer).toBeVisible()
+  // Some browsers clear the native selection when the button is pressed.
+  await offer.evaluate((button) => {
+    button.dispatchEvent(
+      new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })
+    )
+    window.getSelection()?.removeAllRanges()
+  })
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+  )
+  await expect(offer).toBeVisible()
+  await offer.click()
+  await expect(slip).toBeVisible()
+  await expect(slip.locator('blockquote')).toContainText(passage.trim())
 })

@@ -16,7 +16,13 @@ export function useQuery(ref: unknown, args?: unknown) {
   return answer
 }
 
-/** A signed-out reader: the passage slip offers sign-in to save. */
+/** Signed out by default; `?auth=in` signs in a reader. */
 export function useAuth() {
-  return { user: null, isAuthenticated: false, isLoading: false }
+  return new URLSearchParams(location.search).get('auth') === 'in'
+    ? {
+        user: { _id: 'qa-reader', username: 'reader', name: 'Reader' },
+        isAuthenticated: true,
+        isLoading: false,
+      }
+    : { user: null, isAuthenticated: false, isLoading: false }
 }
