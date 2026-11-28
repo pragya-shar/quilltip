@@ -745,7 +745,7 @@ describe('restore after a page load (#562)', () => {
     expect([...mem.store.keys()]).toEqual([])
   })
 
-  test('a kit that starts for a signed-in reader keeps its keys', async () => {
+  test('a kit that starts for a signed-in reader keeps the reader’s record and drops its own unkeyed copy (#607)', async () => {
     const fake = fakeKit()
     const mem = memory({ [KEY]: record('varial') })
     fake.kit.init.mockImplementation(() => {
@@ -754,8 +754,10 @@ describe('restore after a page load (#562)', () => {
     const wallet = adapterFor(fake, { storage: mem.storage })
     wallet.setRemembering('reader-1')
     await wallet.init()
-    expect(mem.store.get(KIT_KEY)).toBe('varial')
+    // The reader's choice lives in their own record; the kit's copy is not
+    // keyed by reader and nothing reads it.
     expect(mem.store.get(KEY)).toBe(record('varial'))
+    expect(mem.store.has(KIT_KEY)).toBe(false)
   })
 
   test('signed out: does not restore and asks nothing', async () => {

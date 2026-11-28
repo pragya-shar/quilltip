@@ -461,12 +461,6 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         ...(options.theme ? { theme: options.theme } : {}),
         authModal: { showInstallLabel: true, hideUnsupportedWallets: false },
       })
-      // Starting, the kit writes its own copy of the last choice to storage
-      // (with its wallet-path lists). With no reader signed in nothing of it
-      // may stay (#562), also when the kit finishes loading after sign-out
-      // has already cleared storage (#554: a quick sign-out from the mobile
-      // menu).
-      if (!rememberFor) forgetRememberedWallet(options.storage)
       loaded.kit.on(loaded.events.stateUpdated, (event) => {
         const address = (event as { payload?: { address?: string } }).payload
           ?.address
@@ -482,7 +476,11 @@ export function createWalletAdapter(options: WalletAdapterOptions) {
         emit({ type: 'disconnected' })
       })
       bundle = { ...loaded, modules }
-      // Importing the kit ran its storage effect; nothing is connected yet.
+      // Importing and starting the kit ran its storage effects: its unkeyed
+      // copy of the last choice and its wallet-path lists. Nothing is
+      // connected yet, so none of it stays, with or without a reader signed
+      // in, also when the kit finishes loading after sign-out has cleared
+      // storage (#554, #607). The reader's own record is kept.
       tidyKitStorage()
       return bundle
     })().catch((error) => {
