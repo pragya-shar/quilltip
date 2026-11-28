@@ -479,6 +479,8 @@ test('nothing moves under the pointer: leaving the amount field with a wrong amo
   await open(page, 'balance=0&connected')
   await press(tipButton(page))
   const s = sheet(page)
+  // The deployed contract's 1 XLM floor: the smallest amount is $1.
+  await expect(s).toContainText('You can add between $1 and')
   await press(s.getByRole('radio', { name: 'Other' }))
   const field = s.getByLabel('Amount in dollars')
   await field.fill('0.5')
@@ -489,5 +491,19 @@ test('nothing moves under the pointer: leaving the amount field with a wrong amo
   expect(after).toEqual(before)
   // The press lands: the error is said after it, never during it.
   await press(review)
+  await expect(s).toContainText('The smallest you can add is $1.')
+})
+
+test('the smallest amount is a whole dollar a quarter above the contract floor', async ({
+  page,
+}) => {
+  // A 10 XLM floor on purpose ($1.27 at the fixture's price): $2.
+  await open(page, 'balance=0&connected&floor=10')
+  await press(tipButton(page))
+  const s = sheet(page)
+  await expect(s).toContainText('You can add between $2 and')
+  await press(s.getByRole('radio', { name: 'Other' }))
+  await s.getByLabel('Amount in dollars').fill('1.5')
+  await press(s.getByRole('button', { name: /^Review/ }))
   await expect(s).toContainText('The smallest you can add is $2.')
 })

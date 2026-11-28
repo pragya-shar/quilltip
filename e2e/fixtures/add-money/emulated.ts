@@ -14,6 +14,7 @@
  *   ?other-key        another device has quick tips
  *   ?slow             the network takes 25 s to confirm
  *   ?closing          a withdrawal of the balance is under way
+ *   ?floor=<xlm>      the contract's smallest deposit (default 1, as deployed)
  *
  * `window.__wallet.next`: approve (default), slow, decline, close, blocked,
  * wrong-network, wrong-account, offline, fail, locked.
@@ -193,12 +194,18 @@ export const emulatedServices: AddMoneyServices = {
   useReading: () => useSyncExternalStore(subscribe, readingNow),
   async facts() {
     await pause(150)
-    const room = params.has('full')
+    // The deployed testnet contract's limits (config(), read 2026-11-28):
+    // min_deposit 1 XLM, max_balance 1000 XLM. `?floor=` sets another floor
+    // on purpose (in XLM); `?full` puts the balance at its ceiling.
+    const maxBalance = params.has('full')
       ? reading.confirmed
       : (BigInt(1000) * XLM).toString()
     return {
       spendable: xlm(params.get('spendable'), 500),
-      limits: { minDeposit: (BigInt(10) * XLM).toString(), maxBalance: room },
+      limits: {
+        minDeposit: xlm(params.get('floor'), 1),
+        maxBalance,
+      },
     }
   },
   async wallets() {
