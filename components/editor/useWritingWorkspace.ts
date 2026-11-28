@@ -6,12 +6,12 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useEditor, JSONContent } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
 import Placeholder from '@tiptap/extension-placeholder'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import TextAlign from '@tiptap/extension-text-align'
 import { lowlight } from '@/lib/lowlight'
 import { WritingImage } from './WritingImage'
+import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
 import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
 import { useAuth } from '@/components/providers/AuthContext'
@@ -237,11 +237,9 @@ export function useWritingWorkspace() {
         underline: false,
       }),
       Underline,
-      Link.configure({
+      createArticleLinkExtension({
         openOnClick: false,
-        HTMLAttributes: {
-          class: 'underline cursor-pointer',
-        },
+        className: 'underline cursor-pointer',
       }),
       WritingImage.configure({
         HTMLAttributes: {

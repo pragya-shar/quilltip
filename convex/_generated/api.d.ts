@@ -33,6 +33,7 @@ import type * as highlights from "../highlights.js";
 import type * as http from "../http.js";
 import type * as legacyTipCleanup from "../legacyTipCleanup.js";
 import type * as lib_articleBrowseSort from "../lib/articleBrowseSort.js";
+import type * as lib_articleContent from "../lib/articleContent.js";
 import type * as lib_articleImages from "../lib/articleImages.js";
 import type * as lib_articleListing from "../lib/articleListing.js";
 import type * as lib_articleListingReady from "../lib/articleListingReady.js";
@@ -156,6 +157,7 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   legacyTipCleanup: typeof legacyTipCleanup;
   "lib/articleBrowseSort": typeof lib_articleBrowseSort;
+  "lib/articleContent": typeof lib_articleContent;
   "lib/articleImages": typeof lib_articleImages;
   "lib/articleListing": typeof lib_articleListing;
   "lib/articleListingReady": typeof lib_articleListingReady;
