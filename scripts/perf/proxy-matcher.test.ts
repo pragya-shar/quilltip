@@ -5,6 +5,7 @@ import { expect, test } from 'vitest'
 import * as pageStaticInfo from 'next/dist/build/analysis/get-page-static-info'
 import { getMiddlewareRouteMatcher } from 'next/dist/shared/lib/router/utils/middleware-route-matcher'
 import { config } from '../../proxy'
+import { handleFormatError } from '../../lib/profile/handleRules'
 
 // Exported at run time; its type declarations leave it out.
 const { getMiddlewareMatchers } = pageStaticInfo as unknown as {
@@ -49,3 +50,22 @@ test.each([
 ])('%s does not run the proxy', (path) => {
   expect(matches(path)).toBe(false)
 })
+
+// The proxy removes a client's internal route header, so its safety rests on
+// every writer path running the proxy: no first segment the matcher leaves
+// out may be a handle a writer can hold.
+test.each(['api', 'API', 'Api', '_next', 'favicon.ico'])(
+  'the excluded first segment %s is not a valid handle',
+  (segment) => {
+    expect(handleFormatError(segment)).not.toBeNull()
+  }
+)
+
+test.each(['apiary', 'api_fan', 'API_x', 'faviconXico'])(
+  '%s is a valid handle, and its pages run the proxy',
+  (handle) => {
+    expect(handleFormatError(handle)).toBeNull()
+    expect(matches(`/${handle}`)).toBe(true)
+    expect(matches(`/${handle}/an-article`)).toBe(true)
+  }
+)

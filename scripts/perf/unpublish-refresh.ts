@@ -269,7 +269,18 @@ async function main() {
       )
     setFixtureArticlePublished('fixture-article-8', true)
     setFixtureWriterHandle(FIXTURE_WRITER)
-    await expectLoad('API route path', '/api/x', 'page', { csp: false })
+    // /api itself has no page or route: Next.js answers 404, without the
+    // proxy. Routing is case-sensitive, so /API/x is a writer path.
+    for (const path of ['/api', '/api/x'])
+      await expectLoad(`API path ${path}`, path, 'page', {
+        status: 404,
+        csp: false,
+      })
+    for (const path of ['/api-docs', '/API/x'])
+      await expectLoad(`writer path ${path}`, path, 'page', {
+        status: 404,
+        csp: true,
+      })
 
     // A draft never appears.
     for (const kind of ['page', 'navigation'] as const)
