@@ -77,7 +77,7 @@ export const FORBIDDEN_FIRST_LOAD_MODULES: {
     // (shell/pocket/loadPocket.ts), never with a page.
     label: 'the balance sheet (components/pocket)',
     pattern: /\[project\]\/components\/pocket\//,
-    // The balance's own page loads it; it is measured against the plan's
+    // The balance's own page loads it; it is measured against the
     // signed-in budget there (scripts/perf/routes/pocket.ts).
     allowedOn: ['/pocket'],
   },

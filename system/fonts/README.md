@@ -24,4 +24,11 @@ text. The Latin Extended files carry the subset's `unicode-range` and load
 only when a page draws one of its letters ("Łukasz"); they sit second in the
 family list, before the metric fallback. Neither subset has "≈" or "→":
 the UI draws both in the platform face. `system/fonts.ts` loads both through `next/font/local` with a
-metric-matched fallback.
+metric-matched fallback of its own:
+`system/font-fallbacks.css` gives Times New Roman (or Liberation Serif)
+Literata's width and line metrics in one face per weight band, with the bold
+file from 550, plus faces for the display title and for the lead-in line,
+which is drawn in capitals at 0.7 em. next/font's own fallback has one face
+only, and bold titles re-wrapped at the swap in WebKit. The values come from
+Literata instanced at each weight, the way next/font computes its fallback,
+and the display values are checked against real titles in the browser.
