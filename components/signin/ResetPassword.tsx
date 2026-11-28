@@ -180,6 +180,7 @@ export function ResetPassword({ returnTo = '/' }: { returnTo?: string }) {
           </p>
           <TextField
             ref={email}
+            id="reset-email"
             label="Email"
             name="email"
             type="email"
@@ -222,6 +223,7 @@ export function ResetPassword({ returnTo = '/' }: { returnTo?: string }) {
         >
           <TextField
             ref={email}
+            id="reset-email"
             label="Email"
             name="email"
             type="email"
@@ -234,6 +236,7 @@ export function ResetPassword({ returnTo = '/' }: { returnTo?: string }) {
           />
           <TextField
             ref={code}
+            id="reset-code"
             label="Code from the email"
             name="code"
             inputMode="numeric"
@@ -244,6 +247,7 @@ export function ResetPassword({ returnTo = '/' }: { returnTo?: string }) {
           />
           <TextField
             ref={password}
+            id="reset-password"
             label="New password"
             name="password"
             type="password"

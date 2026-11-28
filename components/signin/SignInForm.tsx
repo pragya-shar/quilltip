@@ -52,11 +52,18 @@ function check(mode: AuthMode, email: string, password: string): FieldErrors {
  */
 export function SignInForm({
   initialMode = 'sign-in',
+  idPrefix = 'signin',
   onModeChange,
   onSignedIn,
   returnTo,
 }: {
   initialMode?: AuthMode
+  /**
+   * Starts the fields' ids. They are fixed, not generated: a press held
+   * before the page script runs is matched to the fields React draws by
+   * id, also when React draws the form anew. Unique per form on a page.
+   */
+  idPrefix?: string
   /** Told when the person switches between signing in and creating. */
   onModeChange?: (mode: AuthMode) => void
   onSignedIn: () => void
@@ -220,6 +227,7 @@ export function SignInForm({
       >
         <TextField
           ref={email}
+          id={`${idPrefix}-email`}
           label="Email"
           name="email"
           type="email"
@@ -247,6 +255,7 @@ export function SignInForm({
         <div className="qt-signin__keep" data-sheet-keep="">
           <TextField
             ref={password}
+            id={`${idPrefix}-password`}
             label="Password"
             name="password"
             type={showPassword ? 'text' : 'password'}
