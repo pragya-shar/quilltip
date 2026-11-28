@@ -16,18 +16,36 @@ import {
 const XLM = BigInt(10_000_000)
 const NOW = Date.UTC(2026, 10, 27, 15, 0, 0)
 const MAX_AGE = 30 * 60 * 1000
-const limits = (o: Partial<TabTipLimits> = {}): TabTipLimits => ({
-  tipMax: (BigInt(5) * XLM).toString(),
-  dailyLimit: (BigInt(20) * XLM).toString(),
-  acceptedToday: '0',
-  acceptedDay: '2026-11-27',
-  minTip: '1000000',
-  priceUsd: 0.13,
-  priceFetchedAt: NOW,
-  priceMaxAgeMs: MAX_AGE,
-  tipMaxCents: maxCentsWithin(BigInt(5) * XLM, 0.13),
-  ...o,
-})
+/** US cents of base units at a price, floored, as the server counts them. */
+const centsOf = (base: string, priceUsd: number | null) =>
+  priceUsd === null
+    ? null
+    : Math.floor((Number(base) * priceUsd * 100) / Number(XLM))
+const limits = (o: Partial<TabTipLimits> = {}): TabTipLimits => {
+  const merged = {
+    tipMax: (BigInt(5) * XLM).toString(),
+    dailyLimit: (BigInt(20) * XLM).toString(),
+    acceptedToday: '0',
+    acceptedDay: '2026-11-27',
+    minTip: '1000000',
+    priceUsd: 0.13,
+    priceFetchedAt: NOW,
+    priceMaxAgeMs: MAX_AGE,
+    tipMaxCents: maxCentsWithin(BigInt(5) * XLM, 0.13),
+    ...o,
+  }
+  // Unless a case says otherwise, the day in cents equals the XLM figures
+  // at the case's price.
+  return {
+    ...merged,
+    dailyLimitCents:
+      o.dailyLimitCents ?? centsOf(merged.dailyLimit, merged.priceUsd) ?? 2000,
+    acceptedTodayCents:
+      o.acceptedTodayCents !== undefined
+        ? o.acceptedTodayCents
+        : centsOf(merged.acceptedToday, merged.priceUsd),
+  }
+}
 const free = (BigInt(20) * XLM).toString()
 
 describe('tab tip amounts (#546)', () => {
@@ -207,5 +225,50 @@ describe('presets', () => {
       }
     }
     expect(broken).toEqual([])
+  })
+})
+
+describe('the day in cents after a price move', () => {
+  // The server counts the day in the tips' own cents; base units are only
+  // the XLM guard (400 XLM a day).
+  const guard = (BigInt(400) * XLM).toString()
+
+  it('offers what is left in cents when the price rose since', () => {
+    // $10 accepted at $0.12 (83.3 XLM); the price is now $0.50.
+    const l = limits({
+      priceUsd: 0.5,
+      tipMaxCents: 500,
+      dailyLimit: guard,
+      dailyLimitCents: 2000,
+      acceptedToday: '833333332',
+      acceptedTodayCents: 1000,
+    })
+    expect(
+      checkTabTipAmount({ cents: 500, limits: l, free, now: NOW })
+    ).toEqual({ ok: true, amount: '100000000' })
+    expect(tabTipLimitsAt(l, NOW).dailyLeftCents).toBe(1000)
+  })
+
+  it('refuses in cents when the price fell since', () => {
+    // $20 accepted at $0.50 (40 XLM); the price is now $0.05.
+    const l = limits({
+      priceUsd: 0.05,
+      tipMaxCents: 500,
+      dailyLimit: guard,
+      dailyLimitCents: 2000,
+      acceptedToday: (BigInt(40) * XLM).toString(),
+      acceptedTodayCents: 2000,
+    })
+    expect(
+      checkTabTipAmount({ cents: 5, limits: l, free, now: NOW })
+    ).toMatchObject({ ok: false, reason: 'daily-limit', left: '0' })
+  })
+
+  it('reads no remainder without a cents figure: no price', () => {
+    const l = limits({ acceptedToday: '1', acceptedTodayCents: null })
+    expect(checkTabTipAmount({ cents: 5, limits: l, free, now: NOW })).toEqual({
+      ok: false,
+      reason: 'no-price',
+    })
   })
 })

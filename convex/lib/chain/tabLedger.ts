@@ -64,8 +64,22 @@ export const MAX_KEY_LIFETIME_LEDGERS = 30 * DAY_LEDGERS
 export const TAB_PREPARE_TTL_MS = 300_000
 /** A cached XLM price older than this is not used to price a tab tip. */
 export const TAB_PRICE_MAX_AGE_MS = 30 * 60 * 1000
-export const DEFAULT_TAB_DAILY_LIMIT = BigInt(200_000_000)
-export const DEFAULT_TAB_TIP_MAX = BigInt(50_000_000)
+/**
+ * A reader's limits are set in dollars: the most one tip may be, and the
+ * most a day's tips may add up to, converted to XLM at the price the tip is
+ * quoted at. `TAB_TIP_MAX_CENTS` and `TAB_DAILY_LIMIT_CENTS` change them.
+ */
+export const DEFAULT_TAB_TIP_MAX_CENTS = 500
+export const DEFAULT_TAB_DAILY_LIMIT_CENTS = 2000
+/**
+ * Bounds in XLM against a broken price (`TAB_TIP_MAX`, `TAB_DAILY_LIMIT`,
+ * base units): 100 XLM a tip and 400 XLM a day, which are $5 and $20 at
+ * $0.05 a Lumen. Above that price the dollar limits bind; below it these
+ * do, so a price read far too low cannot turn a $5 tip into more than
+ * 100 XLM.
+ */
+export const DEFAULT_TAB_DAILY_LIMIT = BigInt(4_000_000_000)
+export const DEFAULT_TAB_TIP_MAX = BigInt(1_000_000_000)
 /**
  * Most debit rows one absolute balance may read (`debitsAfter`). Far below
  * Convex's per-transaction read limit, which also has to cover the rest of
@@ -143,14 +157,57 @@ function positiveSetting(env: EnvLike, name: string, fallback: bigint) {
 
 export type TabLimits = { dailyLimit: bigint; tipMax: bigint }
 
-export function tabLimits(env: EnvLike = process.env): TabLimits {
-  return {
+function positiveCents(env: EnvLike, name: string, fallback: number): number {
+  const raw = env[name]?.trim()
+  if (!raw) return fallback
+  if (!/^[1-9][0-9]{0,5}$/.test(raw)) {
+    tabError('TAB_CONFIG_INVALID', `${name} must be a positive whole cents.`)
+  }
+  return Number(raw)
+}
+
+/** The daily limit in US cents (`TAB_DAILY_LIMIT_CENTS`). */
+export function tabDailyLimitCents(env: EnvLike = process.env): number {
+  return positiveCents(
+    env,
+    'TAB_DAILY_LIMIT_CENTS',
+    DEFAULT_TAB_DAILY_LIMIT_CENTS
+  )
+}
+
+/**
+ * The limits in base units: the dollar limits at `priceUsd`, never above
+ * the XLM guards. With no price only the guards apply (and no tip is priced
+ * without one).
+ */
+export function tabLimits(
+  env: EnvLike = process.env,
+  priceUsd: number | null = null
+): TabLimits {
+  const guards = {
     dailyLimit: positiveSetting(
       env,
       'TAB_DAILY_LIMIT',
       DEFAULT_TAB_DAILY_LIMIT
     ),
     tipMax: positiveSetting(env, 'TAB_TIP_MAX', DEFAULT_TAB_TIP_MAX),
+  }
+  const tipCents = positiveCents(
+    env,
+    'TAB_TIP_MAX_CENTS',
+    DEFAULT_TAB_TIP_MAX_CENTS
+  )
+  const dailyCents = positiveCents(
+    env,
+    'TAB_DAILY_LIMIT_CENTS',
+    DEFAULT_TAB_DAILY_LIMIT_CENTS
+  )
+  if (priceUsd === null || !(priceUsd > 0) || !Number.isFinite(priceUsd))
+    return guards
+  const min = (a: bigint, b: bigint) => (a < b ? a : b)
+  return {
+    tipMax: min(guards.tipMax, centsToStroops(tipCents, priceUsd)),
+    dailyLimit: min(guards.dailyLimit, centsToStroops(dailyCents, priceUsd)),
   }
 }
 
@@ -315,6 +372,11 @@ type TipCheckArgs = {
   articleId: Id<'articles'>
   keyId: number
   amount: bigint
+  /** The tip in US cents, as the reader chose it. */
+  amountCents: number
+  /** The price the tip was quoted at (the server's cached price at
+   * prepare, stored on the tip): the dollar limits use it. */
+  priceUsd: number | null
   now: number
   env?: EnvLike
 }
@@ -334,6 +396,8 @@ export type TipCheck = {
   cumulativeBefore: bigint
   minTip: bigint
   acceptedToday: bigint
+  /** Accepted today in cents, before this tip. */
+  acceptedTodayCents: number
   /** Tab `acceptor_keys` from the last config refresh, if read. */
   acceptorKeys: string[] | undefined
 }
@@ -355,7 +419,16 @@ export async function checkTabTip(
     tabError('CHAIN_CONFIG_MISSING', 'The chain configuration is not loaded.')
   }
   const minTip = BigInt(config.minTip)
-  const limits = tabLimits(args.env)
+  // No limit is ever computed without the tip's price.
+  if (
+    args.priceUsd === null ||
+    !(args.priceUsd > 0) ||
+    !Number.isFinite(args.priceUsd)
+  ) {
+    tabError('TAB_PRICE_UNAVAILABLE', 'No current XLM price is available.')
+  }
+  const limits = tabLimits(args.env, args.priceUsd)
+  const dailyCents = tabDailyLimitCents(args.env)
 
   const user = await ctx.db.get(args.userId)
   const readerAddress = verifiedStellarAddress(user, chain.passphrase)
@@ -453,9 +526,19 @@ export async function checkTabTip(
   if (args.amount > limits.tipMax) {
     tabError('TAB_ABOVE_TIP_MAX', 'The tip is above the tab tip maximum.')
   }
-  const acceptedToday =
-    account.acceptedDay === utcDay(args.now) ? big(account.acceptedToday) : ZERO
-  if (acceptedToday + args.amount > limits.dailyLimit) {
+  const sameDay = account.acceptedDay === utcDay(args.now)
+  const acceptedToday = sameDay ? big(account.acceptedToday) : ZERO
+  // The day's total in the tips' own cents; an account from before the
+  // field reads its base units at this tip's price.
+  const acceptedTodayCents = !sameDay
+    ? 0
+    : (account.acceptedTodayCents ??
+      centsFromBaseUnits(acceptedToday, args.priceUsd))
+  if (
+    acceptedTodayCents + args.amountCents > dailyCents ||
+    // The XLM guard only: the dollar limit is the line above.
+    acceptedToday + args.amount > tabLimits(args.env, null).dailyLimit
+  ) {
     tabError('TAB_DAILY_LIMIT', 'The daily tab limit is reached.')
   }
 
@@ -489,6 +572,7 @@ export async function checkTabTip(
     cumulativeBefore: voucher ? big(voucher.cumulative) : ZERO,
     minTip,
     acceptedToday,
+    acceptedTodayCents,
     acceptorKeys: config.tabAcceptorKeys,
   }
 }
@@ -529,6 +613,12 @@ function validRequestId(requestId: string): boolean {
   )
 }
 
+/** US cents a base-unit amount is worth at `priceUsd` per XLM, floored. */
+export function centsFromBaseUnits(base: bigint, priceUsd: number): number {
+  if (base <= ZERO || !(priceUsd > 0) || !Number.isFinite(priceUsd)) return 0
+  return Math.floor((Number(base) * priceUsd * 100) / STROOPS_PER_XLM)
+}
+
 /** Base units for a USD cent amount at `priceUsd` per XLM (rounded down). */
 export function centsToStroops(amountCents: number, priceUsd: number): bigint {
   if (
@@ -538,10 +628,16 @@ export function centsToStroops(amountCents: number, priceUsd: number): bigint {
   ) {
     tabError('TAB_INVALID_AMOUNT', 'Invalid tip amount.')
   }
-  if (!(priceUsd > 0) || !Number.isFinite(priceUsd)) {
+  const stroops = Math.floor((amountCents * STROOPS_PER_XLM) / (priceUsd * 100))
+  // A price so small that the amount overflows is no usable price either.
+  if (
+    !(priceUsd > 0) ||
+    !Number.isFinite(priceUsd) ||
+    !Number.isFinite(stroops)
+  ) {
     tabError('TAB_PRICE_UNAVAILABLE', 'No XLM price is available.')
   }
-  return BigInt(Math.floor((amountCents * STROOPS_PER_XLM) / (priceUsd * 100)))
+  return BigInt(stroops)
 }
 
 /** The largest US cent amount `centsToStroops` accepts at this price. */
@@ -554,8 +650,10 @@ const MAX_TIP_CENTS = 1_000_000
  */
 export function maxCentsWithin(maxBaseUnits: bigint, priceUsd: number): number {
   if (!(priceUsd > 0) || !Number.isFinite(priceUsd)) return 0
-  const fits = (c: number) =>
-    BigInt(Math.floor((c * STROOPS_PER_XLM) / (priceUsd * 100))) <= maxBaseUnits
+  const fits = (c: number) => {
+    const stroops = Math.floor((c * STROOPS_PER_XLM) / (priceUsd * 100))
+    return Number.isFinite(stroops) && BigInt(stroops) <= maxBaseUnits
+  }
   if (!fits(1)) return 0
   if (fits(MAX_TIP_CENTS)) return MAX_TIP_CENTS
   // `centsToStroops` never decreases as cents grow: search the boundary.
@@ -577,12 +675,20 @@ export function maxCentsWithin(maxBaseUnits: bigint, priceUsd: number): number {
  * above a limit before it prepares anything.
  */
 export type TabTipLimitsView = {
-  /** Base units; `TAB_TIP_MAX`. */
+  /** Base units: the per-tip dollar cap at `priceUsd`, within `TAB_TIP_MAX`. */
   tipMax: string
-  /** Base units; `TAB_DAILY_LIMIT`. */
+  /** Base units; the XLM guard `TAB_DAILY_LIMIT` alone. */
   dailyLimit: string
+  /** The daily limit in US cents (`TAB_DAILY_LIMIT_CENTS`). */
+  dailyLimitCents: number
   /** Base units accepted on `acceptedDay` (UTC `YYYY-MM-DD`). */
   acceptedToday: string
+  /**
+   * US cents accepted on `acceptedDay`, as the server counts them. An
+   * account from before the cents total reads its base units at `priceUsd`;
+   * null then when there is no price.
+   */
+  acceptedTodayCents: number | null
   acceptedDay: string
   /** Base units; the chain minimum, or null before the config is loaded. */
   minTip: string | null
@@ -600,13 +706,23 @@ export async function tabTipLimitsView(
   args: {
     network: ChainEnv['network']
     chainEpoch: string
-    account: Pick<Doc<'tabAccounts'>, 'acceptedDay' | 'acceptedToday'>
+    account: Pick<
+      Doc<'tabAccounts'>,
+      'acceptedDay' | 'acceptedToday' | 'acceptedTodayCents'
+    >
     env?: EnvLike
   }
 ): Promise<TabTipLimitsView | null> {
+  const price = await ctx.db.query('xlmPriceCache').first()
+  const usable =
+    !!price && price.priceUsd > 0 && Number.isFinite(price.priceUsd)
   let limits: TabLimits
+  let guards: TabLimits
+  let dailyLimitCents: number
   try {
-    limits = tabLimits(args.env)
+    limits = tabLimits(args.env, usable ? price.priceUsd : null)
+    guards = tabLimits(args.env, null)
+    dailyLimitCents = tabDailyLimitCents(args.env)
   } catch {
     return null
   }
@@ -618,13 +734,16 @@ export async function tabTipLimitsView(
     config && config.chainEpoch === args.chainEpoch && config.minTip
       ? config.minTip
       : null
-  const price = await ctx.db.query('xlmPriceCache').first()
-  const usable =
-    !!price && price.priceUsd > 0 && Number.isFinite(price.priceUsd)
   return {
     tipMax: limits.tipMax.toString(),
-    dailyLimit: limits.dailyLimit.toString(),
+    dailyLimit: guards.dailyLimit.toString(),
+    dailyLimitCents,
     acceptedToday: args.account.acceptedToday,
+    acceptedTodayCents:
+      args.account.acceptedTodayCents ??
+      (usable
+        ? centsFromBaseUnits(BigInt(args.account.acceptedToday), price.priceUsd)
+        : null),
     acceptedDay: args.account.acceptedDay,
     minTip,
     priceUsd: usable ? price.priceUsd : null,
@@ -741,6 +860,8 @@ export async function prepareTabTip(
     articleId: args.articleId,
     keyId: args.keyId,
     amount,
+    amountCents: args.amountCents,
+    priceUsd: price.priceUsd,
     now: args.now,
     env: args.env,
   })
@@ -980,6 +1101,8 @@ export async function submitTabTip(
     articleId: row.articleId,
     keyId: prep.keyId,
     amount,
+    amountCents: row.amountCents,
+    priceUsd: row.quotePriceUsd ?? null,
     now: args.now,
     env: args.env,
   })
@@ -1109,6 +1232,7 @@ export async function submitTabTip(
   await ctx.db.patch(check.account._id, {
     outstanding: (big(check.account.outstanding) + amount).toString(),
     acceptedToday: (check.acceptedToday + amount).toString(),
+    acceptedTodayCents: check.acceptedTodayCents + row.amountCents,
     acceptedDay: utcDay(now),
     updatedAt: now,
   })

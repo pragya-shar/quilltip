@@ -29,22 +29,34 @@ export function utcDay(now: number): string {
 /**
  * The limits as they stand at `now`: the price only while prepare would still
  * use it, and what is left of today's limit (a new UTC day starts at zero).
+ * The day is counted in cents, as Convex counts it (`dailyLeftCents`); the
+ * XLM guard is counted in base units beside it (`dailyLeft`).
  */
 export function tabTipLimitsAt(
   limits: TabTipLimits,
   now: number
-): { priceUsd: number | null; tipMaxCents: number | null; dailyLeft: bigint } {
+): {
+  priceUsd: number | null
+  tipMaxCents: number | null
+  dailyLeft: bigint
+  dailyLeftCents: number | null
+} {
   const fresh =
     limits.priceUsd !== null &&
     limits.priceFetchedAt !== null &&
     now - limits.priceFetchedAt <= limits.priceMaxAgeMs
-  const accepted =
-    limits.acceptedDay === utcDay(now) ? BigInt(limits.acceptedToday) : ZERO
+  const today = limits.acceptedDay === utcDay(now)
+  const accepted = today ? BigInt(limits.acceptedToday) : ZERO
   const left = BigInt(limits.dailyLimit) - accepted
+  const acceptedCents = today ? limits.acceptedTodayCents : 0
   return {
     priceUsd: fresh ? limits.priceUsd : null,
     tipMaxCents: fresh ? limits.tipMaxCents : null,
     dailyLeft: left > ZERO ? left : ZERO,
+    dailyLeftCents:
+      acceptedCents === null
+        ? null
+        : Math.max(0, limits.dailyLimitCents - acceptedCents),
   }
 }
 
@@ -91,7 +103,11 @@ export type TabTipAmountInput = {
 export function checkTabTipAmount(input: TabTipAmountInput): TabTipAmountCheck {
   const { cents, limits } = input
   const at = tabTipLimitsAt(limits, input.now)
-  if (at.priceUsd === null || at.tipMaxCents === null) {
+  if (
+    at.priceUsd === null ||
+    at.tipMaxCents === null ||
+    at.dailyLeftCents === null
+  ) {
     return { ok: false, reason: 'no-price' }
   }
   const stroops = tabTipStroops(cents, at.priceUsd)
@@ -102,13 +118,11 @@ export function checkTabTipAmount(input: TabTipAmountInput): TabTipAmountCheck {
   if (cents > at.tipMaxCents) {
     return { ok: false, reason: 'above-max', maxCents: at.tipMaxCents }
   }
-  if (stroops > at.dailyLeft) {
-    return {
-      ok: false,
-      reason: 'daily-limit',
-      amount,
-      left: at.dailyLeft.toString(),
-    }
+  if (cents > at.dailyLeftCents || stroops > at.dailyLeft) {
+    // What is left, in base units at this price, within the XLM guard.
+    const inCents = tabTipStroops(at.dailyLeftCents, at.priceUsd)
+    const left = inCents < at.dailyLeft ? inCents : at.dailyLeft
+    return { ok: false, reason: 'daily-limit', amount, left: left.toString() }
   }
   if (stroops > BigInt(input.free)) {
     return { ok: false, reason: 'balance', amount, free: input.free }

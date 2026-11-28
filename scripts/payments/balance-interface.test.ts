@@ -323,6 +323,8 @@ describe('a signed-out visitor’s offer', () => {
       quickTipMaxCents: 500,
       defaultTipCents: 100,
       priceUsd: 0.127,
+      priceAt: 0,
+      priceMaxAgeMs: 30 * 60 * 1000,
     })
     expect(publicChoices(terms(63, 4))).toEqual([10, 25, 50])
     expect(publicChoices(terms(500, 4))).toEqual([100, 200, 300, 500])

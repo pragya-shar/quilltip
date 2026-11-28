@@ -51,6 +51,35 @@ bunx convex env set SITE_URL https://quilltip.me --prod
 Use [setup](SETUP.md) for configuration responsibilities. Verify the frontend
 points to the intended backend; align tipping contract IDs and Stellar networks.
 
+### Balance tip limits
+
+A reader's balance tip limits are set in dollars and converted to XLM at the
+price each tip is quoted at:
+
+- `TAB_TIP_MAX_CENTS`: the most one tip may be. Default `500` ($5).
+- `TAB_DAILY_LIMIT_CENTS`: the most a reader's tips may add up to in a UTC
+  day, counted in the tips' own cents. Default `2000` ($20).
+
+Both take whole cents written as digits only, from `1` to `999999` (no
+leading zero, no decimal point: `500`, not `500.0` or `$5`). Any other value
+stops balance tips with `TAB_CONFIG_INVALID`.
+
+`TAB_TIP_MAX` and `TAB_DAILY_LIMIT` (XLM base units) are guards against a
+broken price. Their defaults are 100 XLM a tip and 400 XLM a day: $5 and $20
+at $0.05 a Lumen. The dollar limits hold at any price down to $0.05. Below
+it the guards bind, so a reader meets 100 XLM a tip and 400 XLM a day, and a
+price read far too low cannot make a $5 tip more than 100 XLM.
+
+A deployment that sets them to small values, such as the former 5 XLM and
+20 XLM, keeps those as the limits a reader meets: at $0.1235 a Lumen the
+largest tip is $0.61 and a day stops at $2.47, and the day's remainder shown
+to the reader is wrong after a price move. Unset them, or set them to guard
+values, when this version deploys.
+
+A tip is priced only with a price younger than 30 minutes; with none, no new
+tip is priced and the reads state no limits. A tip prepared before that is
+still accepted within 5 minutes, at the price it was quoted at.
+
 ## Soroban contracts
 
 Contract deployment is a separate operation from deploying the web app/backend.

@@ -17,6 +17,7 @@ import {
   maxCentsWithin,
   readerSpendable,
   reservedOf,
+  TAB_PRICE_MAX_AGE_MS,
   tabAccountForReader,
   tabLimits,
 } from './lib/chain/tabLedger'
@@ -47,6 +48,17 @@ async function cursorClock(
   if (!cursor || cursor.chainEpoch !== chain.chainEpoch) return null
   if (cursor.latestLedger <= 0) return null
   return { sequence: cursor.latestLedger, closedAt: cursor.updatedAt }
+}
+
+/**
+ * The cached price when prepare would still price a tip with it (younger
+ * than `TAB_PRICE_MAX_AGE_MS`), else null: a limit is never stated from a
+ * price that no tip can use.
+ */
+function priceForTips(
+  price: { usd: number; at: number } | null
+): { usd: number; at: number } | null {
+  return price && Date.now() - price.at <= TAB_PRICE_MAX_AGE_MS ? price : null
 }
 
 /**
@@ -86,6 +98,8 @@ export const session = query({
           }
         : null,
       prices: price ? [{ token: 'xlm', usd: price.usd, at: price.at }] : [],
+      /** Prepare refuses a price older than this (from `prices[].at`). */
+      priceMaxAgeMs: TAB_PRICE_MAX_AGE_MS,
       ledger,
       settlement,
     }
@@ -139,18 +153,21 @@ export const session = query({
         ? BigInt(config.minTip)
         : null
     let limits = null
+    // Limits only from a price prepare would still use. A query's clock is
+    // read once per evaluation and the query is not run again as time
+    // passes, so a client also applies `priceMaxAgeMs` to `prices[].at`.
+    const tipPrice = priceForTips(price)
     try {
-      const l = tabLimits()
-      limits = price
+      const l = tabLimits(process.env, tipPrice ? tipPrice.usd : null)
+      limits = tipPrice
         ? {
-            perTipCents: maxCentsWithin(l.tipMax, price.usd),
-            dailyCents: maxCentsWithin(l.dailyLimit, price.usd),
+            perTipCents: maxCentsWithin(l.tipMax, tipPrice.usd),
+            dailyCents: maxCentsWithin(l.dailyLimit, tipPrice.usd),
             acceptedDay: account.acceptedDay,
-            acceptedTodayCents: centsFromBaseUnits(
-              BigInt(account.acceptedToday),
-              price.usd
-            ),
-            minTipCents: minTip ? minimumTipCents(minTip, price.usd) : null,
+            acceptedTodayCents:
+              account.acceptedTodayCents ??
+              centsFromBaseUnits(BigInt(account.acceptedToday), tipPrice.usd),
+            minTipCents: minTip ? minimumTipCents(minTip, tipPrice.usd) : null,
             quickTipMaxCents: QUICK_TIP_MAX_CENTS,
             defaultTipCents: DEFAULT_TIP_CENTS,
           }
@@ -283,14 +300,15 @@ export const acceptedRequests = query({
  * The amounts a tip can take, from public data only (the minimum tip, the
  * per-tip cap and the current price): what a signed-out visitor's tip
  * button states. No balance, no daily remainder, no account. Null when
- * tips are not set up or no price is cached.
+ * tips are not set up or no price younger than prepare's limit is cached.
  */
 export const publicTipTerms = query({
   args: {},
   handler: async (ctx) => {
     const chain = readChainEnv()
     if (!chain.tabContractId) return null
-    const price = await cachedPrice(ctx)
+    // Only a price prepare would still use (see `session`).
+    const price = priceForTips(await cachedPrice(ctx))
     if (!price) return null
     const config = await ctx.db
       .query('chainConfig')
@@ -302,11 +320,16 @@ export const publicTipTerms = query({
         : null
     try {
       return {
-        perTipCents: maxCentsWithin(tabLimits().tipMax, price.usd),
+        perTipCents: maxCentsWithin(
+          tabLimits(process.env, price.usd).tipMax,
+          price.usd
+        ),
         minTipCents: minTip ? minimumTipCents(minTip, price.usd) : null,
         quickTipMaxCents: QUICK_TIP_MAX_CENTS,
         defaultTipCents: DEFAULT_TIP_CENTS,
         priceUsd: price.usd,
+        priceAt: price.at,
+        priceMaxAgeMs: TAB_PRICE_MAX_AGE_MS,
       }
     } catch {
       return null

@@ -306,7 +306,11 @@ describe('exactly once per tip', () => {
     expect(x.receiptId).toBe(y.receiptId)
     expect([x.alreadyAccepted, y.alreadyAccepted].sort()).toEqual([false, true])
     // Any other voucher for the accepted tip is refused.
-    const forged = sign(p).replace(/^../, '00')
+    // Flip the first byte, so the voucher always differs from the accepted one.
+    const valid = sign(p)
+    const forged =
+      (parseInt(valid.slice(0, 2), 16) ^ 0xff).toString(16).padStart(2, '0') +
+      valid.slice(2)
     expect(await errorCode(submit(t, s, p, { signature: forged }))).toBe(
       'TAB_DUPLICATE_REFERENCE'
     )
@@ -408,6 +412,8 @@ describe('what each side is told', () => {
       quickTipMaxCents: limits.quickTipMaxCents,
       defaultTipCents: limits.defaultTipCents,
       priceUsd: expect.any(Number),
+      priceAt: expect.any(Number),
+      priceMaxAgeMs: 30 * 60 * 1000,
     })
     expect(Object.keys(terms!)).not.toContain('availableCents')
   })
@@ -1726,7 +1732,7 @@ describe('balance session', () => {
       availableCents: 1000,
       pendingCents: 0,
       limits: {
-        perTipCents: 500, // TAB_TIP_MAX 5 XLM at $1
+        perTipCents: 500, // TAB_TIP_MAX_CENTS, $5
         dailyCents: 2000,
         minTipCents: 1,
         defaultTipCents: 100,
