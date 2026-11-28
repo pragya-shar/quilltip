@@ -3,12 +3,18 @@
 // auth functions in convex-test (in memory), with synthetic accounts;
 // nothing reaches a deployment.
 import { convexTest } from 'convex-test'
-import { ConvexError } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { exportJWK, exportPKCS8, generateKeyPair } from 'jose'
 import { afterEach, beforeAll, describe, expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
-import { api } from '../../convex/_generated/api'
-import { SIGN_UP_CLAIM_MS, SIGN_UP_PER_EMAIL_LIMIT } from '../../convex/auth'
+import { api, internal } from '../../convex/_generated/api'
+import { internalMutation } from '../../convex/_generated/server'
+import {
+  CREATE_ONLY_PREFIX,
+  SIGN_UP_CLAIM_MS,
+  SIGN_UP_PER_EMAIL_LIMIT,
+  signUpSecret,
+} from '../../convex/auth'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 const newTest = () => convexTest(schema, modules)
@@ -341,5 +347,185 @@ describe('a used-up sign-up count', () => {
     })
     expect(gotTokens(reset)).toBe(true)
     expect(gotTokens(await signIn(t, 'NewPassword2'))).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// Sign-up only creates. `beginSignUp` and the library's account creation are
+// separate transactions; the library's create path
+// (`createAccountFromCredentialsImpl`) finds an account made in between and
+// compares this sign-up's secret with it. Sign-up passes a secret that
+// `verifySecret` never accepts (`signUpSecret`), so that comparison refuses.
+
+const OTHER = 'other@example.test'
+
+/**
+ * The modules with `auth.beginSignUp` replaced: for EMAIL it moves OTHER's
+ * account to EMAIL, as if another sign-up for EMAIL had committed after this
+ * one's hold ran out (`SIGN_UP_CLAIM_MS`), and answers 'new' as the real
+ * check did. The create-only secret is then all that stops a password check.
+ */
+const racingModules = {
+  ...modules,
+  '../../convex/auth.ts': async () => {
+    const real = (await modules['../../convex/auth.ts']!()) as Record<
+      string,
+      unknown
+    >
+    return {
+      ...real,
+      beginSignUp: internalMutation({
+        args: { email: v.string() },
+        handler: async (ctx, { email }) => {
+          if (email === EMAIL) {
+            const other = await ctx.db
+              .query('authAccounts')
+              .withIndex('providerAndAccountId', (q) =>
+                q.eq('provider', 'password').eq('providerAccountId', OTHER)
+              )
+              .unique()
+            if (other) {
+              await ctx.db.patch(other._id, { providerAccountId: EMAIL })
+            }
+          }
+          return 'new' as const
+        },
+      }),
+    }
+  },
+}
+
+async function tableSizes(t: T) {
+  return t.run(async (ctx) => {
+    const out: Record<string, number> = {}
+    for (const table of [
+      'users',
+      'authAccounts',
+      'authSessions',
+      'authRefreshTokens',
+      'authVerifiers',
+      'authVerificationCodes',
+      'authRateLimits',
+    ] as const) {
+      out[table] = (await ctx.db.query(table).collect()).length
+    }
+    return out
+  })
+}
+
+describe('sign-up only creates', () => {
+  test('an account that appears after the hold, before the creation, is refused even with its password', async () => {
+    const t = convexTest(schema, racingModules)
+    expect(gotTokens(await signUp(t, PASSWORD, OTHER))).toBe(true)
+    const before = await tableSizes(t)
+    expect(await signUp(t, PASSWORD)).toEqual(EMAIL_IN_USE)
+    expect(await signUp(t, WRONG(1))).toEqual(EMAIL_IN_USE)
+    // No second account, user or session.
+    expect(await tableSizes(t)).toEqual(before)
+  })
+
+  test('the create path compares a plain secret, and refuses the sign-up secret', async () => {
+    const t = newTest()
+    expect(gotTokens(await signUp(t, PASSWORD))).toBe(true)
+    const create = (secret: string) =>
+      t.mutation(internal.auth.store, {
+        args: {
+          type: 'createAccountFromCredentials',
+          provider: 'password',
+          account: { id: EMAIL, secret },
+          profile: { email: EMAIL },
+        },
+      })
+    // The library on its own: the right password returns the account.
+    const plain = (await create(PASSWORD)) as {
+      account: { providerAccountId: string }
+    }
+    expect(plain.account.providerAccountId).toBe(EMAIL)
+    // The secret sign-up sends: refused, with the right password too.
+    for (const password of [PASSWORD, WRONG(1)]) {
+      await expect(create(signUpSecret(password))).rejects.toThrow(
+        `Account ${EMAIL} already exists`
+      )
+    }
+  })
+
+  test('the stored hash is the password: it signs in; the sign-up secret does not', async () => {
+    const t = newTest()
+    expect(gotTokens(await signUp(t, PASSWORD))).toBe(true)
+    expect(gotTokens(await signIn(t, PASSWORD))).toBe(true)
+    expect(await signIn(t, signUpSecret(PASSWORD))).toEqual({
+      error: 'plain: InvalidSecret',
+    })
+    expect(CREATE_ONLY_PREFIX.startsWith('\u0000')).toBe(true)
+  })
+
+  test('a password with NUL, or one with the sign-up prefix, is refused and counts nothing', async () => {
+    const t = newTest()
+    for (const password of [
+      `${PASSWORD}\u0000`,
+      `\u0000${PASSWORD}`,
+      signUpSecret(PASSWORD),
+    ]) {
+      expect(await signUp(t, password, 'new@example.test')).toEqual({
+        error: 'INVALID_PASSWORD',
+      })
+    }
+    const sizes = await tableSizes(t)
+    expect(sizes).toMatchObject({ users: 0, authAccounts: 0 })
+    expect(
+      await t.run(async (ctx) => ctx.db.query('rateLimits').collect())
+    ).toEqual([])
+  })
+
+  test('a refused or limited sign-up leaves no row but its count', async () => {
+    const t = newTest()
+    expect(gotTokens(await signUp(t, PASSWORD))).toBe(true)
+    const before = await tableSizes(t)
+    for (let i = 1; i < SIGN_UP_PER_EMAIL_LIMIT; i++) {
+      expect(await signUp(t, i % 2 ? PASSWORD : WRONG(i))).toEqual(EMAIL_IN_USE)
+    }
+    expect(await signUp(t, PASSWORD)).toEqual(LIMITED)
+    expect(await tableSizes(t)).toEqual(before)
+    const keys = await t.run(async (ctx) =>
+      (await ctx.db.query('rateLimits').collect()).map((r) => r.key)
+    )
+    expect(keys).toEqual([`sign-up:${EMAIL}`])
+  })
+
+  test('the sign-up limit never limits sign-in', async () => {
+    const t = newTest()
+    expect(gotTokens(await signUp(t, PASSWORD))).toBe(true)
+    for (let i = 0; i < SIGN_UP_PER_EMAIL_LIMIT + 2; i++) {
+      await signUp(t, WRONG(i))
+    }
+    expect(await signUp(t, PASSWORD)).toEqual(LIMITED)
+    expect(gotTokens(await signIn(t, PASSWORD))).toBe(true)
+  })
+
+  test('with the right password, no flow but signIn gives a session', async () => {
+    const t = newTest()
+    expect(gotTokens(await signUp(t, PASSWORD))).toBe(true)
+    for (const flow of [
+      'signUp',
+      'signup',
+      'SignUp',
+      'signUp ',
+      'signIn ',
+      'reset-verification',
+      'email-verification',
+      'unknown',
+      '',
+    ]) {
+      const result = await attempt(t, {
+        email: EMAIL,
+        password: PASSWORD,
+        newPassword: 'OtherPassword2',
+        code: '00000000',
+        flow,
+      })
+      expect(gotTokens(result), flow).toBe(false)
+    }
+    // No flow above changed the password.
+    expect(gotTokens(await signIn(t, PASSWORD))).toBe(true)
   })
 })
