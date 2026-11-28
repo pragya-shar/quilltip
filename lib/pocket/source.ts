@@ -28,7 +28,7 @@ export type MoneyActPhase =
   | { phase: 'failed'; reason: string }
 
 export type MoneyAct = {
-  /** The button, stating what it does: "Add $5 practice money". */
+  /** The button, stating what it does: "Add $5". */
   label: string
   state: MoneyActPhase
   start(): void
@@ -49,7 +49,7 @@ export type PocketSource = {
   useBalance(): BalanceView
   useEarnings(): EarningsView
   useActivity(role: 'reader' | 'writer'): ActivityView
-  /** Practice money for new accounts, then funding from a wallet. */
+  /** Adding testnet money from a wallet; null until the money layer can. */
   useAddMoney(): MoneyAct | null
   /** Collecting a writer's earnings to their wallet. */
   useWithdraw(): MoneyAct | null

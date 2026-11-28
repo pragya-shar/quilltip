@@ -6,6 +6,7 @@ import { TestnetNote } from '@/system/components/TestnetNote'
 import { TextLink } from '@/system/components/TextLink'
 import type { SheetBodyProps } from '@/shell/sheets/types'
 import { MoneyActPanel } from '../MoneyActPanel'
+import { ADD_MONEY_PAGE } from '../sheetIds'
 import { usePocketSource } from '@/lib/pocket/source'
 import type { Money } from '@/lib/pocket/types'
 
@@ -36,7 +37,11 @@ export default function AddMoneyBody({
         <p className="qt-pocket__plain">
           You have <MoneyFigure value={balance.available} size="s" /> ready to
           tip.
-          {need ? ' Nothing is sent until you tap Tip again.' : null}
+        </p>
+      ) : null}
+      {need ? (
+        <p className="qt-pocket__plain">
+          Nothing is sent until you tap Tip again.
         </p>
       ) : null}
       <MoneyActPanel
@@ -45,16 +50,11 @@ export default function AddMoneyBody({
         unbuilt={
           <>
             <p className="qt-pocket__plain">
-              You cannot add money here yet. New accounts get $5 of testnet
-              practice money; adding money from a Stellar testnet wallet comes
-              in a later update.
+              You add testnet money from a Stellar wallet on the current balance
+              page.
             </p>
             <p className="qt-pocket__plain">
-              Until then,{' '}
-              <TextLink href="/dashboard/tab">
-                add testnet money on the current balance page
-              </TextLink>
-              .
+              <TextLink href={ADD_MONEY_PAGE}>Add testnet money</TextLink>
             </p>
           </>
         }

@@ -4,10 +4,11 @@ import { Button } from '@/system/components/Button'
 import { Icon } from '@/system/components/Icon'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { Notice } from '@/system/components/Notice'
+import { TextLink } from '@/system/components/TextLink'
 import { AddIcon, PendingIcon } from '@/system/icons'
 import { sheetStack } from '@/shell/sheetStack'
 import { warmSheet } from '@/shell/sheets/preload'
-import { ADD_MONEY_SHEET, EXACT_AMOUNT_SHEET } from './sheetIds'
+import { ADD_MONEY_PAGE, ADD_MONEY_SHEET, EXACT_AMOUNT_SHEET } from './sheetIds'
 import { usePocketSource } from '@/lib/pocket/source'
 import type { BalanceView } from '@/lib/pocket/types'
 
@@ -16,7 +17,8 @@ import type { BalanceView } from '@/lib/pocket/types'
  * writes it, with the exact token amount one tap away. Tips on their way
  * out are said in words beside it (they are already out of it), never as a
  * second balance. Add money appears only once the money layer can add money;
- * until then a line says how money arrives. When the money layer knows no
+ * until then a line says how money arrives today, with a link to the page
+ * that does it. When the money layer knows no
  * price, the balance is the exact token amount and no dollar value is shown.
  */
 export function SpendableSection({
@@ -117,10 +119,12 @@ export function SpendableSection({
         >
           Add money
         </Button>
-      ) : status === 'ready' && !noPrice ? (
+      ) : status === 'ready' ? (
+        // How money arrives today, at a zero balance too: the current
+        // balance page, until the money layer can add money here.
         <p className="qt-pocket__fine">
-          New accounts get $5 of testnet practice money. More ways to add money
-          come later.
+          Add testnet money from a Stellar wallet.{' '}
+          <TextLink href={ADD_MONEY_PAGE}>Add testnet money</TextLink>
         </p>
       ) : null}
     </section>

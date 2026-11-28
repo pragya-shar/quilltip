@@ -140,10 +140,13 @@ test.describe('over what the person is doing', () => {
     await expect(
       page.getByRole('heading', { level: 1, name: 'Balance' })
     ).toBeVisible()
-    await expect(digits(page.locator('.qt-pocket'), 'Ready to tip')).toHaveText(
-      '≈$2.54'
-    )
-    await expect(page.locator('noscript')).toHaveCount(1)
+    await expect(
+      digits(page.locator('.qt-pocket:visible'), 'Ready to tip')
+    ).toHaveText('≈$2.54')
+    // The page's own sign-in prompt is for a visit with no session.
+    await expect(
+      page.getByText('Sign in to tip and keep your lines.')
+    ).toBeHidden()
   })
 })
 
@@ -168,7 +171,7 @@ const SCENARIOS: Record<string, Expect> = {
     rows: 6,
     texts: [
       'Held in Lumens. The dollar figure moves with the price.',
-      'New accounts get $5 of testnet practice money.',
+      'Add testnet money from a Stellar wallet.',
       'You can withdraw in a later update. Until then, what has arrived stays here.',
       'These are your share. You keep 97.5% of every tip.',
       'Quilltip runs on Stellar testnet. Tips are practice money.',
@@ -245,7 +248,7 @@ const SCENARIOS: Record<string, Expect> = {
     texts: [
       'Dollar amounts are not available right now, so tipping is paused.',
     ],
-    absent: [/≈/, /Held in Lumens/, /New accounts get/],
+    absent: [/≈/, /Held in Lumens/],
   },
   offline: {
     spend: '≈$2.54',
@@ -269,7 +272,7 @@ test.describe('who is here', () => {
     page,
   }) => {
     await page.goto('/pocket?auth=loading')
-    const root = page.locator('.qt-pocket')
+    const root = page.locator('.qt-pocket:visible')
     await expect(root).toHaveAttribute('data-auth', 'loading')
     await expect(root).toHaveAttribute('aria-busy', 'true')
     await expect(root.locator('[data-skeleton]')).toHaveCount(1)
@@ -284,14 +287,28 @@ test.describe('who is here', () => {
     expect(await root.textContent()).not.toMatch(/\$\s?\d/)
   })
 
-  test('signed out, the balance asks to sign in and shows no money', async ({
+  test('signed out with no session, /pocket asks to sign in and shows no money', async ({
     page,
   }) => {
     await page.goto('/pocket?auth=signed-out')
-    const root = page.locator('.qt-pocket')
-    await expect(root).toContainText(
-      'Sign in to see your balance and your tips.'
+    const root = page.locator('.qt-pocket:visible')
+    await expect(root).toHaveCount(1)
+    await expect(root).toContainText('Sign in to tip and keep your lines.')
+    await expect(root.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
+      'href',
+      '/login'
     )
+    expect(await root.textContent()).not.toMatch(/\$\s?\d/)
+  })
+
+  test('signed out with a session that ended, one prompt asks to sign in and shows no money', async ({
+    page,
+  }) => {
+    // The page opens as for a held session; auth then reads signed out.
+    await page.goto('/pocket?auth=signed-out&held=yes')
+    const root = page.locator('.qt-pocket:visible')
+    await expect(root).toHaveCount(1)
+    await expect(root).toContainText(/Sign in to/)
     await expect(root.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
       'href',
       '/login'
@@ -306,7 +323,7 @@ test.describe('every money scenario', () => {
   for (const [name, want] of Object.entries(SCENARIOS)) {
     test(`${name}`, async ({ page }) => {
       await page.goto(`/pocket?scenario=${name}`)
-      const root = page.locator('.qt-pocket')
+      const root = page.locator('.qt-pocket:visible')
       await expect(root).toBeVisible()
       if (want.spend)
         await expect(digits(root, 'Ready to tip')).toHaveText(want.spend)
@@ -365,6 +382,27 @@ test.describe('every money scenario', () => {
     await expect(page.locator('.qt-pocket__rows')).not.toContainText('Wen Hsu')
   })
 
+  test('says how money arrives today, at any balance, and promises no practice money', async ({
+    page,
+  }) => {
+    for (const scenario of ['ready', 'none', 'empty', 'no-price']) {
+      await page.goto(`/pocket?scenario=${scenario}`)
+      const root = page.locator('.qt-pocket:visible')
+      await expect(root).toContainText(
+        'Add testnet money from a Stellar wallet.'
+      )
+      await expect(
+        root.getByRole('link', { name: 'Add testnet money' })
+      ).toHaveAttribute('href', '/dashboard/tab')
+      // Only the testnet line speaks of practice money.
+      const text = await root.innerText()
+      expect(text.match(/practice money/g), scenario).toEqual([
+        'practice money',
+      ])
+      expect(text).toContain('Tips are practice money.')
+    }
+  })
+
   test('Your tips and Tips to you are two labelled lists', async ({ page }) => {
     await page.goto('/pocket?scenario=ready')
     const titles = page.locator('.qt-pocket__list-title')
@@ -397,7 +435,7 @@ test.describe('every money scenario', () => {
     page,
   }) => {
     await page.goto('/pocket?scenario=ready&role=writer&writer-converted')
-    const root = page.locator('.qt-pocket')
+    const root = page.locator('.qt-pocket:visible')
     await expect(digits(root, 'Arrived')).toHaveText('≈$0.68')
     await expect(digits(root, 'Paid to your wallet')).toHaveText('≈$0.00')
     await expect(root).toContainText(
@@ -413,7 +451,7 @@ test.describe('every money scenario', () => {
     page,
   }) => {
     await page.goto('/pocket?scenario=lagging&role=writer')
-    const root = page.locator('.qt-pocket')
+    const root = page.locator('.qt-pocket:visible')
     await expect(digits(root, 'On its way')).toHaveText('$0.0975')
     await expect(digits(root, 'Arrived')).toHaveText('$0.00')
   })
@@ -471,7 +509,9 @@ test.describe('every money scenario', () => {
     await expect(
       page.getByRole('button', { name: /Show the exact amount/ })
     ).toHaveCount(0)
-    await expect(page.locator('.qt-pocket')).not.toContainText('Held in Lumens')
+    await expect(page.locator('.qt-pocket:visible')).not.toContainText(
+      'Held in Lumens'
+    )
   })
 
   test('a tip sent elsewhere shows once, and once after a reload', async ({
@@ -559,15 +599,14 @@ test.describe('receipts and money sheets', () => {
     await expect(sheet).toContainText(
       'Nothing is sent until you tap Tip again.'
     )
+    await expect(sheet.getByRole('button', { name: /Add \$/ })).toHaveCount(0)
+    await expect(sheet).toContainText(
+      'You add testnet money from a Stellar wallet on the current balance page.'
+    )
     await expect(
-      sheet.getByRole('button', { name: /practice money/ })
-    ).toHaveCount(0)
-    await expect(sheet).toContainText('You cannot add money here yet.')
-    await expect(
-      sheet.getByRole('link', {
-        name: 'add testnet money on the current balance page',
-      })
+      sheet.getByRole('link', { name: 'Add testnet money' })
     ).toHaveAttribute('href', '/dashboard/tab')
+    await expect(sheet).not.toContainText('practice money')
     await page.keyboard.press('Escape')
     await expect
       .poll(
@@ -588,7 +627,7 @@ test.describe('receipts and money sheets', () => {
     await add.focus()
     await press(add)
     const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await press(sheet.getByRole('button', { name: 'Add $5 practice money' }))
+    await press(sheet.getByRole('button', { name: 'Add $5' }))
     await expect.poll(async () => (await focused(page)).text).toBe('Adding $5')
     await expect
       .poll(async () => (await focused(page)).text)
@@ -598,20 +637,78 @@ test.describe('receipts and money sheets', () => {
     await expect.poll(async () => (await focused(page)).text).toBe('Add money')
   })
 
+  test('a double press that closes a sheet never presses the page under it; a press 500 ms later works', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=ready&act=add')
+    // Presses that reach the page outside any sheet (the shell's guard
+    // swallows held presses before they get here).
+    await page.evaluate(() => {
+      const w = window as unknown as { __under: number }
+      w.__under = 0
+      document.addEventListener(
+        'click',
+        (event) => {
+          if (!(event.target as Element).closest('dialog')) w.__under += 1
+        },
+        true
+      )
+    })
+    const under = () =>
+      page.evaluate(() => (window as unknown as { __under: number }).__under)
+    // The press that closes the sheet, then a second press at the same spot
+    // as soon as the sheet has gone (inside the 400 ms hold).
+    const twice = async (target: Locator, sheet: Locator) => {
+      const box = (await target.boundingBox())!
+      const x = box.x + box.width / 2
+      const y = box.y + box.height / 2
+      const at = () =>
+        hasTouch() ? page.touchscreen.tap(x, y) : page.mouse.click(x, y)
+      await at()
+      await sheet.waitFor({ state: 'hidden' })
+      await at()
+    }
+
+    // A receipt's Close, pressed twice.
+    const rows = page.getByRole('button', { name: /Wen Hsu/ })
+    await press(rows.first())
+    const receipt = page.getByRole('dialog', { name: 'Receipt' })
+    await expect(receipt).toBeVisible()
+    const before = await under()
+    await twice(receipt.getByRole('button', { name: /^Close/ }), receipt)
+    expect(await under()).toBe(before)
+
+    // Add money's Done, pressed twice after the act (once the hold after
+    // the receipt has passed).
+    await page.waitForTimeout(500)
+    const add = page.getByRole('button', { name: 'Add money' })
+    await press(add)
+    const sheet = page.getByRole('dialog', { name: 'Add money' })
+    await press(sheet.getByRole('button', { name: 'Add $5' }))
+    const done = sheet.getByRole('button', { name: 'Done' })
+    await expect(done).toBeVisible()
+    const beforeDone = await under()
+    await twice(done, sheet)
+    expect(await under()).toBe(beforeDone)
+
+    // Half a second after the sheet has gone, a press works.
+    await page.waitForTimeout(500)
+    await press(rows.first())
+    await expect(receipt).toBeVisible()
+  })
+
   test('a failed money act says so and can be tried again', async ({
     page,
   }) => {
     await page.goto('/pocket?scenario=ready&act=add-fail')
     await press(page.getByRole('button', { name: 'Add money' }))
     const sheet = page.getByRole('dialog', { name: 'Add money' })
-    await press(sheet.getByRole('button', { name: 'Add $5 practice money' }))
+    await press(sheet.getByRole('button', { name: 'Add $5' }))
     await expect
       .poll(async () => (await focused(page)).text)
       .toBe('That did not go through. Nothing was added.')
     await press(sheet.getByRole('button', { name: 'Try again' }))
-    await expect(
-      sheet.getByRole('button', { name: 'Add $5 practice money' })
-    ).toBeVisible()
+    await expect(sheet.getByRole('button', { name: 'Add $5' })).toBeVisible()
   })
 
   test('the Withdraw sheet opened with no way to withdraw says what has arrived', async ({
@@ -756,7 +853,7 @@ test.describe('review cases', () => {
     page,
   }) => {
     await page.goto('/pocket?scenario=awkward')
-    const root = page.locator('.qt-pocket')
+    const root = page.locator('.qt-pocket:visible')
     await expect(digits(root, 'Ready to tip')).toHaveText('≈$1,234.56')
     const tipToYou = page.locator('[data-role="writer"] li').first()
     await expect(tipToYou.locator('.qt-money__digits')).toHaveText('+$0.04875')
@@ -768,7 +865,7 @@ test.describe('review cases', () => {
     page,
   }) => {
     await page.goto('/pocket?scenario=dust')
-    const root = page.locator('.qt-pocket')
+    const root = page.locator('.qt-pocket:visible')
     await expect(digits(root, 'Ready to tip')).toHaveText('≈$0.00')
     expect(await root.textContent()).not.toContain('<$0.01')
     await press(page.getByRole('button', { name: /Show the exact amount/ }))
@@ -783,7 +880,7 @@ test.describe('review cases', () => {
     page,
   }) => {
     await page.goto('/pocket?unwired')
-    const root = page.locator('.qt-pocket')
+    const root = page.locator('.qt-pocket:visible')
     // The shell's own reading of what can be tipped, and no tips or
     // earnings of its own.
     await expect(digits(root, 'Ready to tip')).toHaveText('≈$2.54')

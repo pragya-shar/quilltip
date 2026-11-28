@@ -61,6 +61,10 @@ const name = (
 ) as Scenario
 const role = (params.get('role') ?? 'both') as Role
 const auth = (params.get('auth') ?? 'signed-in') as BalanceReading['auth']
+// As the root layout's pre-paint script does: a session token is held
+// unless this visit is signed out (?held=no: signed out with no token).
+if (auth !== 'signed-out' || params.get('held') === 'yes')
+  document.documentElement.setAttribute('data-session', 'held')
 const actKind = params.get('act')
 
 const SERVER_KEY = 'pocket-fixture:server'
@@ -210,7 +214,7 @@ const source: PocketSource = {
   },
   useAddMoney: () => {
     const act = useFakeAct(
-      'Add $5 practice money',
+      'Add $5',
       'Adding $5',
       '$5 added to your balance',
       actKind === 'add-fail'
