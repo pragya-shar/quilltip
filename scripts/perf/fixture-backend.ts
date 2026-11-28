@@ -17,14 +17,15 @@ import { answerFixtureQuery } from './convex-fixture'
 export const fixtureBackendBehaviour: {
   mode: 'normal' | 'slow' | 'silent' | 'error'
   delayMs: number
+  /** When set, only these query paths are slow; the rest answer at once. */
+  slowPaths?: string[]
 } = { mode: 'normal', delayMs: 0 }
 
 export function startFixtureBackend(port: number): Server {
   const server = createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/query') {
-      const { mode, delayMs } = fixtureBackendBehaviour
+      const { mode, delayMs, slowPaths } = fixtureBackendBehaviour
       if (mode === 'silent') return
-      if (mode === 'slow') await new Promise((r) => setTimeout(r, delayMs))
       if (mode === 'error') {
         response.writeHead(500, { 'content-type': 'text/plain' })
         response.end('Fixture backend error')
@@ -36,6 +37,8 @@ export function startFixtureBackend(port: number): Server {
         path: string
         args: Record<string, unknown> | Record<string, unknown>[]
       }
+      if (mode === 'slow' && (!slowPaths || slowPaths.includes(body.path)))
+        await new Promise((r) => setTimeout(r, delayMs))
       const args = Array.isArray(body.args) ? (body.args[0] ?? {}) : body.args
       const answer = answerFixtureQuery(body.path, args)
       response.writeHead(answer ? 200 : 560, {

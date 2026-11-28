@@ -113,11 +113,58 @@ const ROWS = [
   ...Array.from({ length: 9 }, (_, index) => fixtureArticle(index)),
   fixtureArticle(9, true),
 ]
-const ARTICLES = ROWS.filter((row) => row.published)
+const publishedRows = () => ROWS.filter((row) => row.published)
+const ARTICLES = publishedRows()
+
+/**
+ * Changes for checks that edit the fixture while the app runs. The pages and
+ * the list read the rows as they are at that moment.
+ */
+let writerHandle = FIXTURE_WRITER
+let writes = 0
+
+function writeRow(slug: string) {
+  const row = ROWS.find((candidate) => candidate.slug === slug)
+  if (!row) throw new Error(`No fixture article ${slug}`)
+  // Every write sets updatedAt, as the real mutations do.
+  row.updatedAt = BASE_TIME + ++writes
+  return row
+}
+
+/** The version the route check reports for an article. */
+export function fixtureArticleVersion(slug: string) {
+  const row = ROWS.find((candidate) => candidate.slug === slug)
+  if (!row) throw new Error(`No fixture article ${slug}`)
+  return `${row._id}:${row.updatedAt}`
+}
+
+/** Publishes or hides an article, as an unpublish or a republish does. */
+export function setFixtureArticlePublished(slug: string, published: boolean) {
+  const row = writeRow(slug)
+  row.published = published
+  row.publishedAt = published ? row.updatedAt : undefined
+}
+
+/**
+ * Deletes the article at `slug` and publishes a different one there, with
+ * another id and the given text, as a later article taking a freed slug does.
+ */
+export function replaceFixtureArticle(slug: string, text: string) {
+  const row = writeRow(slug)
+  row._id = `fixturereplaced${String(writes).padStart(17, '0')}`
+  row.content = articleContent([text])
+  row.searchContent = `${row.title} ${text}`
+  row.published = true
+}
+
+/** The writer's current handle; the fixture handle redirects to it. */
+export function setFixtureWriterHandle(handle: string) {
+  writerHandle = handle
+}
 
 function publishedBySlug(username: unknown, slug: unknown) {
-  if (username !== FIXTURE_WRITER) return null
-  return ARTICLES.find((row) => row.slug === slug) ?? null
+  if (username !== writerHandle) return null
+  return publishedRows().find((row) => row.slug === slug) ?? null
 }
 
 type QueryArgs = Record<string, unknown>
@@ -129,11 +176,25 @@ export function answerFixtureQuery(
 ): { value: unknown } | undefined {
   switch (path) {
     case 'publicRoutes:resolvePublicRoute': {
-      const found =
-        args.username === FIXTURE_WRITER &&
-        (args.slug === undefined ||
-          publishedBySlug(args.username, args.slug) !== null)
-      return { value: { kind: found ? 'found' : 'missing' } }
+      if (args.username !== writerHandle) {
+        // An earlier handle redirects to the current one.
+        const moved =
+          args.username === FIXTURE_WRITER &&
+          (args.slug === undefined ||
+            publishedBySlug(writerHandle, args.slug) !== null)
+        return {
+          value: moved
+            ? { kind: 'moved', username: writerHandle }
+            : { kind: 'missing' },
+        }
+      }
+      if (args.slug === undefined) return { value: { kind: 'found' } }
+      const article = publishedBySlug(args.username, args.slug)
+      return {
+        value: article
+          ? { kind: 'found', version: fixtureArticleVersion(article.slug) }
+          : { kind: 'missing' },
+      }
     }
     case 'articles:getArticleBySlug':
       return {
@@ -144,7 +205,7 @@ export function answerFixtureQuery(
     case 'users:getUserByUsername':
       return {
         value:
-          args.username === FIXTURE_WRITER
+          args.username === writerHandle
             ? {
                 _id: FIXTURE_AUTHOR.id,
                 _creationTime: BASE_TIME,
@@ -161,17 +222,19 @@ export function answerFixtureQuery(
               }
             : null,
       }
-    case 'articles:listArticles':
+    case 'articles:listArticles': {
+      const articles = publishedRows()
       return {
         value: {
-          articles: ARTICLES,
+          articles,
           browseMeta: {},
           limit: 9,
           page: 1,
-          total: ARTICLES.length,
+          total: articles.length,
           totalPages: 1,
         },
       }
+    }
     default:
       return undefined
   }
