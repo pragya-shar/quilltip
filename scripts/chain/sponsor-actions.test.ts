@@ -197,6 +197,7 @@ const DEPLOY_PAYLOAD = {
   func: deploy.func,
   auth: deploy.auth,
   contractId: deploy.contractId,
+  signerKey: deploy.signerKey,
 }
 type T = ReturnType<typeof convexTest>
 
@@ -268,6 +269,7 @@ function env(over: Record<string, string | undefined> = {}) {
     TOKEN_CONTRACT_ID: TOKEN,
     SPONSOR_ACCOUNT_WASM_HASH: WASM,
     SPONSOR_ACCOUNT_DEPLOYER: deploy.deployer,
+    SPONSOR_ACCOUNT_VERIFIER: deploy.verifier,
     SPONSOR_PUBLIC_KEY: sponsorKey.publicKey(),
     SPONSOR_SECRET: sponsorKey.secret(),
     SPONSOR_DAILY_BUDGET_STROOPS: '20000000000',
@@ -521,6 +523,21 @@ describe('deploys take the same path as balance calls', () => {
     const pending = (await rows(t)).find((x) => x.status === 'pending')
     expect(pending).toMatchObject({ call: 'deploy' })
     expect(pending!.txHash).toMatch(/^[0-9a-f]{64}$/)
+  })
+
+  it('signs nothing for an account that is not born with the given passkey', async () => {
+    const { t } = await setup()
+    node.get = 'success'
+    const other = Buffer.from(deploy.signerKey, 'hex')
+    other[10] = other[10]! ^ 1
+    const r = await outcome(
+      t.action(internal.sponsor.deployAccount, {
+        ...DEPLOY_PAYLOAD,
+        signerKey: other.toString('hex'),
+      })
+    )
+    expect(r.code).toBe('SPONSOR_DEPLOY_REFUSED')
+    expect(node.sent).toEqual([])
   })
 
   it('checks the budget before the secret is read', async () => {

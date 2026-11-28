@@ -3,8 +3,9 @@
  * the threat list that the pure checks own. Auth entries are built the way
  * testnet's simulation returns them on protocol 30
  * (`sorobanCredentialsAddressV2`); the deploy payload is a real one from
- * `smart-account-kit` 0.10.0 (public data: the host function and the shared
- * deployer's signed auth entry).
+ * `smart-account-kit` 0.10.0 (public data: the host function, the shared
+ * deployer's signed auth entry, and the verifier and signer key its
+ * constructor installs).
  */
 import { describe, expect, it } from 'vitest'
 import {
@@ -116,6 +117,17 @@ function recorded(s: BalanceCallSpec): xdr.SorobanAuthorizationEntry {
       subs
     ),
   })
+}
+
+/** The refusal's message, to tell refusals with one code apart. */
+const reason = (fn: () => unknown) => {
+  try {
+    fn()
+  } catch (e) {
+    if (e instanceof SponsorRefusal) return e.message
+    throw e
+  }
+  return 'ALLOWED'
 }
 
 const code = (fn: () => unknown) => {
@@ -433,12 +445,163 @@ describe('account birth', () => {
     wasmHash:
       'c514d35ea67eaea9bfc1fb3327854c0c06111bc1ddebd4fe217c504c1004b9e1',
     deployer: deploy.deployer,
+    verifier: deploy.verifier,
+    signerKey: deploy.signerKey,
     expectedContractId: deploy.contractId,
     passphrase: TESTNET,
   }
 
+  /**
+   * The kit payload with other constructor arguments, and the deployer's
+   * entry rewritten to authorize exactly that creation, so the constructor
+   * is the only thing that differs.
+   */
+  function withConstructor(args: xdr.ScVal[]): {
+    func: string
+    auth: string[]
+  } {
+    const hf = xdr.HostFunction.fromXDR(deploy.func, 'base64') as unknown as {
+      value: xdr.CreateContractArgsV2
+    }
+    const create = new xdr.CreateContractArgsV2({
+      contractIdPreimage: hf.value.contractIdPreimage,
+      executable: hf.value.executable,
+      constructorArgs: args,
+    } as never)
+    const signed = xdr.SorobanAuthorizationEntry.fromXDR(
+      deploy.auth[0]!,
+      'base64'
+    )
+    const auth = new xdr.SorobanAuthorizationEntry({
+      credentials: signed.credentials,
+      rootInvocation: invocation(
+        xdr.SorobanAuthorizedFunction.sorobanAuthorizedFunctionTypeCreateContractV2HostFn(
+          create
+        )
+      ),
+    } as never)
+    return {
+      func: xdr.HostFunction.hostFunctionTypeCreateContractV2(create).toXDR(
+        'base64'
+      ),
+      auth: [auth.toXDR('base64')],
+    }
+  }
+
+  const KEY = Buffer.from(deploy.signerKey, 'hex')
+  const signer = (verifier: string, key: Buffer, kind = 'External') =>
+    xdr.ScVal.scvVec([
+      xdr.ScVal.scvSymbol(kind),
+      new Address(verifier).toScVal(),
+      xdr.ScVal.scvBytes(key),
+    ])
+  const NOT_THE_PASSKEY =
+    'The account is not born with exactly the verified passkey as signer.'
+
   it('accepts the kit payload from the allowlisted deployer and WASM', () => {
     expect(code(() => checkDeployPayload(ok))).toBe('ALLOWED')
+    expect(
+      code(() =>
+        checkDeployPayload({
+          ...ok,
+          ...withConstructor([
+            xdr.ScVal.scvVec([signer(deploy.verifier, KEY)]),
+            xdr.ScVal.scvMap([]),
+          ]),
+        })
+      )
+    ).toBe('ALLOWED')
+  })
+
+  it('refuses an account born with another verifier or another key', () => {
+    // The configured verifier or the verified key differs from the payload's.
+    expect(reason(() => checkDeployPayload({ ...ok, verifier: OTHER }))).toBe(
+      NOT_THE_PASSKEY
+    )
+    const flipped = Buffer.from(KEY)
+    flipped[10] = flipped[10]! ^ 1
+    expect(
+      reason(() =>
+        checkDeployPayload({ ...ok, signerKey: flipped.toString('hex') })
+      )
+    ).toBe(NOT_THE_PASSKEY)
+    // The payload's signer differs from the configured verifier or the key.
+    expect(
+      reason(() =>
+        checkDeployPayload({
+          ...ok,
+          ...withConstructor([
+            xdr.ScVal.scvVec([signer(OTHER, KEY)]),
+            xdr.ScVal.scvMap([]),
+          ]),
+        })
+      )
+    ).toBe(NOT_THE_PASSKEY)
+    expect(
+      reason(() =>
+        checkDeployPayload({
+          ...ok,
+          ...withConstructor([
+            xdr.ScVal.scvVec([signer(deploy.verifier, flipped)]),
+            xdr.ScVal.scvMap([]),
+          ]),
+        })
+      )
+    ).toBe(NOT_THE_PASSKEY)
+  })
+
+  it('refuses a second signer, another signer kind, a policy or other arguments', () => {
+    const one = signer(deploy.verifier, KEY)
+    const cases: xdr.ScVal[][] = [
+      // A second signer beside the passkey: someone else could sign too.
+      [
+        xdr.ScVal.scvVec([one, signer(OTHER, Buffer.alloc(65, 4))]),
+        xdr.ScVal.scvMap([]),
+      ],
+      // A delegated signer in place of the passkey.
+      [
+        xdr.ScVal.scvVec([signer(deploy.verifier, KEY, 'Delegated')]),
+        xdr.ScVal.scvMap([]),
+      ],
+      // No signer at all.
+      [xdr.ScVal.scvVec([]), xdr.ScVal.scvMap([])],
+      // A policy installed at birth.
+      [
+        xdr.ScVal.scvVec([one]),
+        xdr.ScVal.scvMap([
+          new xdr.ScMapEntry({
+            key: new Address(OTHER).toScVal(),
+            val: xdr.ScVal.scvVoid(),
+          }),
+        ]),
+      ],
+      // Missing or extra arguments.
+      [xdr.ScVal.scvVec([one])],
+      [xdr.ScVal.scvVec([one]), xdr.ScVal.scvMap([]), xdr.ScVal.scvVoid()],
+    ]
+    for (const args of cases) {
+      expect(
+        reason(() => checkDeployPayload({ ...ok, ...withConstructor(args) }))
+      ).toBe(NOT_THE_PASSKEY)
+    }
+  })
+
+  it('refuses a signer key that is not a passkey key', () => {
+    for (const bad of [
+      '',
+      'zz'.repeat(81),
+      deploy.signerKey.slice(1),
+      deploy.signerKey.toUpperCase(),
+      // Compressed (0x02) in place of uncompressed (0x04).
+      '02' + deploy.signerKey.slice(2),
+      // A credential id shorter than 16 bytes.
+      deploy.signerKey.slice(0, (65 + 15) * 2),
+      '04' + 'ab'.repeat(64 + 1024),
+    ]) {
+      expect(reason(() => checkDeployPayload({ ...ok, signerKey: bad }))).toBe(
+        'The signer key is not a passkey key.'
+      )
+    }
   })
 
   it('refuses another WASM, deployer, account address or network', () => {
@@ -506,13 +669,15 @@ describe('configuration', () => {
     TOKEN_CONTRACT_ID: TOKEN,
     SPONSOR_ACCOUNT_WASM_HASH: 'c5'.repeat(32),
     SPONSOR_ACCOUNT_DEPLOYER: Keypair.random().publicKey(),
+    SPONSOR_ACCOUNT_VERIFIER: contract(9),
     SPONSOR_PUBLIC_KEY: Keypair.random().publicKey(),
   }
 
-  it('refuses to turn on without the account code hash, the deployer or the public address', () => {
+  it('refuses to turn on without the account code hash, the deployer, the verifier or the public address', () => {
     for (const name of [
       'SPONSOR_ACCOUNT_WASM_HASH',
       'SPONSOR_ACCOUNT_DEPLOYER',
+      'SPONSOR_ACCOUNT_VERIFIER',
       'SPONSOR_PUBLIC_KEY',
     ]) {
       expect(code(() => sponsorConfig({ ...env, [name]: undefined }))).toBe(
@@ -533,6 +698,7 @@ describe('configuration', () => {
   it('reads the guarded settings with defaults', () => {
     const c = sponsorConfig(env)
     expect(c.tabContractId).toBe(TAB)
+    expect(c.accountVerifier).toBe(contract(9))
     expect(c.dailyBudgetStroops).toBe(BigInt(20_000_000_000))
   })
 
