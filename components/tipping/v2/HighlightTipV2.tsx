@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, Suspense, useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useQuery } from 'convex/react'
 import { Heart } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
@@ -19,11 +19,12 @@ import { requestOpenBasket } from '@/lib/tip/v2/open-basket'
 import { TIP_DIALOG } from '@/lib/copy/tip-flow'
 import { cn } from '@/lib/utils'
 import { LastTipLine } from './LastTipLine'
+import { TipCodeBoundary, retryableLazy } from './TipCodeBoundary'
 import { TipDialogLoading } from './TipDialogLoading'
 import '../tipping.css'
 import './tip-v2.css'
 
-const TipDialogV2 = lazy(() =>
+const tipDialog = retryableLazy(() =>
   import('./TipDialogV2').then((mod) => ({ default: mod.TipDialogV2 }))
 )
 
@@ -118,34 +119,41 @@ export function HighlightTipV2({
             </DialogDescription>
           </DialogHeader>
           {open && eligibility ? (
-            <Suspense fallback={<TipDialogLoading />}>
-              <TipDialogV2
-                variant="highlight"
-                articleId={articleId}
-                articleSlug={articleSlug}
-                articleTitle={articleTitle}
-                authorName={authorName}
-                eligibility={eligibility}
-                highlight={{
-                  text: highlightText,
-                  startOffset,
-                  endOffset,
-                  startContainerPath,
-                  endContainerPath,
-                }}
-                onBusyChange={setBusy}
-                onOpenBasket={() => {
-                  setOpen(false)
-                  requestOpenBasket()
-                }}
-                onDone={() => {
-                  setOpen(false)
-                  last.refresh()
-                  onDone?.()
-                }}
-                onConfirmed={onSuccess}
-              />
-            </Suspense>
+            <TipCodeBoundary onRetry={tipDialog.retry}>
+              {() => {
+                const TipDialogV2 = tipDialog.Component
+                return (
+                  <Suspense fallback={<TipDialogLoading />}>
+                    <TipDialogV2
+                      variant="highlight"
+                      articleId={articleId}
+                      articleSlug={articleSlug}
+                      articleTitle={articleTitle}
+                      authorName={authorName}
+                      eligibility={eligibility}
+                      highlight={{
+                        text: highlightText,
+                        startOffset,
+                        endOffset,
+                        startContainerPath,
+                        endContainerPath,
+                      }}
+                      onBusyChange={setBusy}
+                      onOpenBasket={() => {
+                        setOpen(false)
+                        requestOpenBasket()
+                      }}
+                      onDone={() => {
+                        setOpen(false)
+                        last.refresh()
+                        onDone?.()
+                      }}
+                      onConfirmed={onSuccess}
+                    />
+                  </Suspense>
+                )
+              }}
+            </TipCodeBoundary>
           ) : null}
         </DialogContent>
       </Dialog>
