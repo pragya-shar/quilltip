@@ -16,6 +16,7 @@ import type { RawRpcEvent } from '../../convex/lib/chain/rpc'
 import {
   DAY_LEDGERS,
   SETTLE_GRACE_LEDGERS,
+  TAB_NOT_ACCEPTED,
   netOf,
   receiptPaidNet,
 } from '../../convex/lib/chain/tabLedger'
@@ -8734,5 +8735,133 @@ describe('tab activity not accepted here (#647)', () => {
     // A dispatch of the acknowledged event does not reopen it.
     await expectRedispatchChangesNothing(t)
     expect((await read(s.otherAuthorId))?.rows).toHaveLength(3)
+  })
+})
+
+/**
+ * Tab tips prepared but never accepted (#706): a refused or abandoned submit
+ * leaves the row `PREPARED`; the expiry cron moves it to `EXPIRED` once no
+ * submit can accept it any more (300 s after prepare, plus the margin).
+ */
+describe('tab tips that were never accepted (#706)', () => {
+  /** Prepare lifetime (300 s) plus the margin (300 s), from prepare. */
+  const LIFETIME_AND_MARGIN = 600_000
+
+  async function tipRow(t: T, id: Id<'tips'> | Id<'highlightTips'>) {
+    return t.run(async (ctx) => (await ctx.db.get(id))!)
+  }
+  const expire = (t: T, limit?: number) =>
+    t.mutation(internal.tabs.expireUnacceptedTips, limit ? { limit } : {})
+
+  it('a refused submit (acceptor key not listed) leaves PREPARED and nothing taken; the cron then expires it once', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const before = (await account(t)).outstanding
+    const p = await prepare(t, s, { cents: 40 })
+    await t.run(async (ctx) => {
+      const config = await ctx.db.query('chainConfig').first()
+      await ctx.db.patch(config!._id, { tabAcceptorKeys: ['00'.repeat(32)] })
+    })
+    // The readiness gate refuses before acceptance compares the key.
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
+    const prepared = await tipRow(t, p.prepareId)
+    expect(prepared.status).toBe('PREPARED')
+    expect(await receiptStatuses(t)).toEqual([])
+    expect((await account(t)).outstanding).toBe(before)
+
+    // Not yet: a submit at 300 s may still accept it, and the margin follows.
+    vi.setSystemTime(prepared.createdAt + LIFETIME_AND_MARGIN)
+    expect(await expire(t)).toEqual({ expired: 0, kept: 0 })
+    expect((await tipRow(t, p.prepareId)).status).toBe('PREPARED')
+
+    const past = prepared.createdAt + LIFETIME_AND_MARGIN + 1
+    vi.setSystemTime(past)
+    expect(await expire(t)).toEqual({ expired: 1, kept: 0 })
+    const row = await tipRow(t, p.prepareId)
+    expect(row.status).toBe('EXPIRED')
+    expect(row.failureReason).toBe(TAB_NOT_ACCEPTED)
+    expect(row.processedAt).toBe(past)
+    expect(row.tabReceiptId).toBeUndefined()
+    expect((await account(t)).outstanding).toBe(before)
+    // Idempotent.
+    expect(await expire(t)).toEqual({ expired: 0, kept: 0 })
+  })
+
+  it('does not expire a tip whose submit is in flight at 299 s', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const p = await prepare(t, s)
+    const { createdAt } = await tipRow(t, p.prepareId)
+    vi.setSystemTime(createdAt + 299_000)
+    expect(await expire(t)).toEqual({ expired: 0, kept: 0 })
+    await submit(t, s, p)
+    vi.setSystemTime(createdAt + LIFETIME_AND_MARGIN + 3_600_000)
+    expect(await expire(t)).toEqual({ expired: 0, kept: 0 })
+    expect((await tipRow(t, p.prepareId)).status).toBe('ACCEPTED')
+    expect(await receiptStatuses(t)).toEqual(['ACCEPTED'])
+  })
+
+  it('a submit that lands while the cron runs, at the last accepted moment (300 s), is accepted and kept', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const p = await prepare(t, s)
+    const { createdAt } = await tipRow(t, p.prepareId)
+    vi.setSystemTime(createdAt + 300_000)
+    const [accepted, run] = await Promise.all([submit(t, s, p), expire(t)])
+    expect(accepted.status).toBe('ACCEPTED')
+    expect(run).toEqual({ expired: 0, kept: 0 })
+    vi.setSystemTime(createdAt + LIFETIME_AND_MARGIN + 1)
+    expect(await expire(t)).toEqual({ expired: 0, kept: 0 })
+    expect((await tipRow(t, p.prepareId)).status).toBe('ACCEPTED')
+  })
+
+  it('keeps a PREPARED row that has a receipt for its client reference', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const p = await prepare(t, s)
+    await submit(t, s, p)
+    // A row out of step with its receipt: never expire it.
+    await t.run(async (ctx) => {
+      await ctx.db.patch(p.prepareId as Id<'tips'>, {
+        status: 'PREPARED',
+        tabReceiptId: undefined,
+      })
+    })
+    const { createdAt } = await tipRow(t, p.prepareId)
+    vi.setSystemTime(createdAt + LIFETIME_AND_MARGIN + 1)
+    expect(await expire(t)).toEqual({ expired: 0, kept: 1 })
+    expect((await tipRow(t, p.prepareId)).status).toBe('PREPARED')
+  })
+
+  it('expires passage tab tips too, leaves wallet tips in flight alone, and is bounded per run', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const article1 = await prepare(t, s)
+    const article2 = await prepare(t, s)
+    const passage = await prepare(t, s, { highlight: HIGHLIGHT })
+    // A wallet tip in flight is resolved by the submission recheck, not here.
+    const walletId = await t.run(async (ctx) => {
+      const row = (await ctx.db.get(article1.prepareId as Id<'tips'>))!
+      const { _id, _creationTime, tabPrepare, ...rest } = row
+      void _id
+      void _creationTime
+      void tabPrepare
+      return ctx.db.insert('tips', {
+        ...rest,
+        channel: 'direct',
+        requestId: 'wallet-in-flight',
+        clientRef: 'ee'.repeat(16),
+      })
+    })
+    const { createdAt } = await tipRow(t, passage.prepareId)
+    vi.setSystemTime(createdAt + LIFETIME_AND_MARGIN + 1)
+    // One per table per run.
+    expect(await expire(t, 1)).toEqual({ expired: 2, kept: 0 })
+    expect(await expire(t, 1)).toEqual({ expired: 1, kept: 0 })
+    expect(await expire(t, 1)).toEqual({ expired: 0, kept: 0 })
+    for (const p of [article1, article2, passage]) {
+      expect((await tipRow(t, p.prepareId)).status).toBe('EXPIRED')
+    }
+    expect((await tipRow(t, walletId)).status).toBe('PREPARED')
   })
 })

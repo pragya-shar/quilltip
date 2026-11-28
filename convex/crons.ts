@@ -98,6 +98,16 @@ crons.interval(
   internal.tabSettler.settleDue
 )
 
+// Payments v2: tab tips prepared but never accepted (a refused or abandoned
+// submit) move from PREPARED to EXPIRED 10 minutes after prepare (#706).
+// Bounded per run; does nothing while there are none.
+crons.interval(
+  'expire unaccepted tab tips',
+  { minutes: 10 },
+  internal.tabs.expireUnacceptedTips,
+  {}
+)
+
 // Payments v2: credit CONFIRMED and MISMATCH direct and batch tips to
 // authorEarnings (section 6.2). Each row is credited once.
 crons.interval(

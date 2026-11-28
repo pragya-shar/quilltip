@@ -1159,6 +1159,68 @@ async function patchTipRow(
 }
 
 // ---------------------------------------------------------------------------
+// Tab tips that were never accepted (#706)
+
+/**
+ * Time after `TAB_PREPARE_TTL_MS` before a prepared tab tip is expired. A
+ * submit is refused once `now > createdAt + TAB_PREPARE_TTL_MS`, so after
+ * this margin no submit can still accept the tip.
+ */
+export const TAB_UNACCEPTED_MARGIN_MS = 300_000
+/** `failureReason` of a prepared tab tip that expired without acceptance. */
+export const TAB_NOT_ACCEPTED = 'TAB_NOT_ACCEPTED'
+/** Rows read per table in one expiry run. */
+export const TAB_UNACCEPTED_BATCH = 100
+
+/**
+ * Moves tab tips still `PREPARED` after `TAB_PREPARE_TTL_MS` plus
+ * `TAB_UNACCEPTED_MARGIN_MS` to `EXPIRED`. Prepare reserves nothing and every
+ * refused submit rolls back, so such a row moved no value: it is not a sent
+ * tip. A row with a receipt for its `clientRef` is left alone. Bounded per
+ * table and run; a second run changes nothing.
+ */
+export async function expireUnacceptedTabTips(
+  ctx: MutationCtx,
+  args: { now: number; limit?: number }
+): Promise<{ expired: number; kept: number }> {
+  const cutoff = args.now - TAB_PREPARE_TTL_MS - TAB_UNACCEPTED_MARGIN_MS
+  const limit = args.limit ?? TAB_UNACCEPTED_BATCH
+  let expired = 0
+  let kept = 0
+  for (const table of ['tips', 'highlightTips'] as const) {
+    const rows: TipRow[] = await ctx.db
+      .query(table)
+      .withIndex('by_status_created', (q) =>
+        q.eq('status', 'PREPARED').lt('createdAt', cutoff)
+      )
+      .filter((q) => q.eq(q.field('channel'), 'tab'))
+      .take(limit)
+    for (const row of rows) {
+      const receipt = row.clientRef
+        ? await ctx.db
+            .query('tabReceipts')
+            .withIndex('by_client_ref', (q) =>
+              q.eq('clientRef', row.clientRef!)
+            )
+            .first()
+        : null
+      if (receipt || row.tabReceiptId) {
+        kept += 1
+        continue
+      }
+      await patchTipRow(ctx, row._id, {
+        status: 'EXPIRED',
+        failureReason: TAB_NOT_ACCEPTED,
+        processedAt: args.now,
+        updatedAt: args.now,
+      })
+      expired += 1
+    }
+  }
+  return { expired, kept }
+}
+
+// ---------------------------------------------------------------------------
 // Earnings (section 6.2)
 
 function addToRecord(
