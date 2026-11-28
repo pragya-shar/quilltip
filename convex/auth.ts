@@ -1,11 +1,13 @@
 import { Password } from '@convex-dev/auth/providers/Password'
 import { convexAuth } from '@convex-dev/auth/server'
-import { ConvexError } from 'convex/values'
+import { ConvexError, v } from 'convex/values'
 import { internal } from './_generated/api'
-import type { MutationCtx } from './_generated/server'
+import { internalMutation, type MutationCtx } from './_generated/server'
 import type { Id } from './_generated/dataModel'
 import { markWaitlistJoined } from './waitlist'
 import { classifyNewAccount } from './lib/internalAccounts'
+import { normalizeEmail } from './lib/email'
+import { consumeFixedWindow } from './lib/fixedWindowLimit'
 import {
   PASSWORD_MIN_LENGTH,
   PASSWORD_REGEX,
@@ -18,6 +20,53 @@ import {
 
 export const PASSWORD_RESET_RATE_LIMITED = 'PASSWORD_RESET_RATE_LIMITED'
 export const PASSWORD_RESET_INVALID_CODE = 'PASSWORD_RESET_INVALID_CODE'
+
+// Sign-up answers with these codes. A production deployment replaces the
+// text of a plain error with a generic one, so the form reads codes.
+export const EMAIL_IN_USE = 'EMAIL_IN_USE'
+export const SIGN_UP_RATE_LIMITED = 'SIGN_UP_RATE_LIMITED'
+
+// Sign-up attempts, counted whether or not the email has an account, so the
+// count tells nothing about which emails have one.
+export const SIGN_UP_PER_EMAIL_LIMIT = 10
+export const SIGN_UP_PER_EMAIL_WINDOW_MS = 60 * 60 * 1000
+export const SIGN_UP_GLOBAL_LIMIT = 300
+export const SIGN_UP_GLOBAL_WINDOW_MS = 10 * 60 * 1000
+
+/**
+ * Before a sign-up: counts the attempt, then says whether a password
+ * account exists for this email (the account id Convex Auth uses: the
+ * email as given). Sign-up for such an email is refused before the
+ * password is read; signing in to that account goes through sign-in.
+ */
+export const beginSignUp = internalMutation({
+  args: { email: v.string() },
+  returns: v.union(v.literal('new'), v.literal('in-use'), v.literal('limited')),
+  handler: async (ctx, { email }) => {
+    const key = normalizeEmail(email) ?? 'invalid'
+    const perEmail = await consumeFixedWindow(
+      ctx,
+      `sign-up:${key}`,
+      SIGN_UP_PER_EMAIL_LIMIT,
+      SIGN_UP_PER_EMAIL_WINDOW_MS
+    )
+    if (!perEmail.ok) return 'limited'
+    const global = await consumeFixedWindow(
+      ctx,
+      'sign-up:global',
+      SIGN_UP_GLOBAL_LIMIT,
+      SIGN_UP_GLOBAL_WINDOW_MS
+    )
+    if (!global.ok) return 'limited'
+    const account = await ctx.db
+      .query('authAccounts')
+      .withIndex('providerAndAccountId', (q) =>
+        q.eq('provider', 'password').eq('providerAccountId', email)
+      )
+      .unique()
+    return account ? 'in-use' : 'new'
+  },
+})
 
 const password = Password({
   // Profile mapping for user creation
@@ -79,6 +128,17 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
               if (error instanceof ConvexError) throw error
               throw new ConvexError(PASSWORD_RESET_INVALID_CODE)
             }
+          }
+          if (params.flow === 'signUp') {
+            const email = typeof params.email === 'string' ? params.email : ''
+            const state = await ctx.runMutation(internal.auth.beginSignUp, {
+              email,
+            })
+            if (state === 'limited') throw new ConvexError(SIGN_UP_RATE_LIMITED)
+            // Refused before the library compares any password with the
+            // account's: sign-up only ever makes new accounts.
+            if (state === 'in-use') throw new ConvexError(EMAIL_IN_USE)
+            return baseAuthorize(params, ctx)
           }
           if (params.flow !== 'reset') return baseAuthorize(params, ctx)
           if (!passwordResetConfigured()) {
