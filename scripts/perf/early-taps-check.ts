@@ -13,24 +13,17 @@
 
 import { spawn } from 'child_process'
 import { startFixtureBackend } from './fixture-backend'
+import {
+  fixtureBackendPort,
+  perfPort,
+  startProductionApp,
+} from './production-app'
 
-const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
-const APP_PORT = Number(process.env.EARLY_TAPS_APP_PORT ?? 3197)
+const CONVEX_PORT = fixtureBackendPort()
+const external = !!process.env.PLAYWRIGHT_BASE_URL
 const BASE_URL =
-  process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${APP_PORT}`
-
-async function waitForApp(): Promise<void> {
-  const deadline = Date.now() + 60_000
-  while (Date.now() < deadline) {
-    try {
-      if ((await fetch(`${BASE_URL}/login`)).ok) return
-    } catch {
-      /* Not listening yet. */
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500))
-  }
-  throw new Error(`The app did not start on ${BASE_URL}`)
-}
+  process.env.PLAYWRIGHT_BASE_URL ??
+  `http://127.0.0.1:${await perfPort('EARLY_TAPS_APP_PORT')}`
 
 function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
   return new Promise<number>((resolve) => {
@@ -40,16 +33,13 @@ function run(command: string, args: string[], env: NodeJS.ProcessEnv) {
 }
 
 async function main(): Promise<number> {
-  const external = !!process.env.PLAYWRIGHT_BASE_URL
   const backend = external ? undefined : startFixtureBackend(CONVEX_PORT)
-  const app = external
-    ? undefined
-    : spawn('bunx', ['next', 'start', '-p', String(APP_PORT)], {
-        stdio: ['ignore', 'inherit', 'inherit'],
-        env: { ...process.env, NODE_ENV: 'production' },
-      })
+  let app: Awaited<ReturnType<typeof startProductionApp>>
   try {
-    await waitForApp()
+    if (backend)
+      app = await startProductionApp(Number(new URL(BASE_URL).port), BASE_URL, {
+        backend,
+      })
     // Warm the routes, so a cold start cannot race the first assertions.
     for (const path of [
       '/login',

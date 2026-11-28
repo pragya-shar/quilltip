@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { installVarialEmulator } from './helpers/varialEmulator'
 import { expectNoticeTookFocus } from './helpers/noticeFocus'
+import { SEND_TIP, SEND_TIP_FROM_WALLET } from './helpers/sendButton'
 
 /**
  * The tab tip section of the article and passage tip dialogs (issue #546),
@@ -469,8 +470,8 @@ test.describe('one amount for the dialog', () => {
     await dialog.getByRole('button', { name: 'Connect wallet' }).click()
     const picker = page.getByRole('dialog', { name: 'Choose a wallet' })
     await picker.getByRole('button', { name: /^Varial/ }).click()
-    const wallet = dialog.getByRole('button', { name: 'Send from your wallet' })
-    await expect(wallet).toBeVisible()
+    const wallet = dialog.getByRole('button', { name: SEND_TIP_FROM_WALLET })
+    await expect(wallet).toHaveAccessibleName('Send $0.10 tip from your wallet')
     await expect(wallet).toHaveClass(/tip-v2-secondary/)
     await expect(
       tabSection(dialog).getByRole('button', {
@@ -479,7 +480,7 @@ test.describe('one amount for the dialog', () => {
     ).toHaveClass(/tip-primary/)
     // An amount the tab cannot send makes the wallet primary again.
     await chooseAmount(dialog, '0.75')
-    const walletAgain = dialog.getByRole('button', { name: 'Send tip' })
+    const walletAgain = dialog.getByRole('button', { name: SEND_TIP })
     await expect(walletAgain).toHaveClass(/tip-primary/)
     await expect(
       tabSection(dialog).getByRole('button', {

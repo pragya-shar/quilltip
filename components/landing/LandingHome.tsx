@@ -22,6 +22,8 @@ export function LandingHome() {
   useLandingHashScroll()
   const { active, finish } = useLandingOpening()
   const [receipt, setReceipt] = useState<DemoReceipt | null>(null)
+  // Out of reach for the keyboard and assistive technology while it waits.
+  const waiting = { inert: active, 'aria-hidden': active || undefined }
 
   return (
     <div
@@ -34,16 +36,28 @@ export function LandingHome() {
     >
       <div className="colour-field" aria-hidden />
       <LandingOrnaments />
-      <div inert={active} aria-hidden={active || undefined}>
-        <a className="skip-link" href="#try-it">
+      {/* While the opening plays, the page waits, part by part; the opening
+          offers its own reading link meanwhile (#598). */}
+      <div>
+        <a className="skip-link" href="#try-it" {...waiting}>
           Skip to the reading moment
         </a>
-        <LandingNavigation />
+        <div className="landing-contents" {...waiting}>
+          <LandingNavigation />
+        </div>
         <main>
-          <HeroSection ready={!active} onReceipt={setReceipt} />
-          <LandingBelowFold receipt={receipt} />
+          <HeroSection
+            ready={!active}
+            opening={active}
+            onReceipt={setReceipt}
+          />
+          <div className="landing-contents" {...waiting}>
+            <LandingBelowFold receipt={receipt} />
+          </div>
         </main>
-        <LandingFooter />
+        <div className="landing-contents" {...waiting}>
+          <LandingFooter />
+        </div>
       </div>
       {active && <OpeningStage onFinish={finish} />}
     </div>

@@ -27,7 +27,11 @@ import {
   FIXTURE_WRITER,
 } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
-import { startProductionApp } from './production-app'
+import {
+  fixtureBackendPort,
+  perfPort,
+  startProductionApp,
+} from './production-app'
 
 type Role = Parameters<Page['getByRole']>[0]
 /** A locator by role and accessible name, inside an optional landmark. */
@@ -47,6 +51,9 @@ export const READING = {
   writerName: 'Fixture Writer',
   article: FIXTURE_ARTICLE_PATH,
   articleTitle: 'The Lamp on Orchard Street',
+  /** The landing page's reading link and how soon the keyboard reaches it. */
+  homeReadLink: /here to read/,
+  homeReadLinkTabStops: 8,
   /** A sentence from the article's body. */
   prose: 'came on every evening at a quarter past six',
   /** An unpublished article of the writer: its URL answers 404. */
@@ -80,8 +87,8 @@ export const READING = {
   signedIn: { path: '/dashboard', signInPath: '/login' },
 }
 
-const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
-const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
+const CONVEX_PORT = fixtureBackendPort()
+const APP_PORT = await perfPort('PERF_APP_PORT')
 const BASE_URL = `http://127.0.0.1:${APP_PORT}`
 const ENGINES = (process.env.PERF_READING_ENGINES ?? 'chromium,webkit').split(
   ','
@@ -116,6 +123,40 @@ async function check(page: Page, failures: string[], label: string) {
   await page.goto(BASE_URL + READING.home, { waitUntil: 'load' })
   if (!(await shown(page.locator(`a[href="${READING.list}"]`))))
     fail(`${READING.home} shows no link to ${READING.list}`)
+  // The landing page's reading link (#598): present, reached early by the
+  // keyboard, and it opens the article list.
+  const readLink = page.getByRole('link', { name: READING.homeReadLink })
+  if (!(await shown(readLink))) {
+    fail(`${READING.home} shows no link named "${READING.homeReadLink}"`)
+  } else {
+    if ((await readLink.first().getAttribute('href')) !== READING.list)
+      fail(`"${READING.homeReadLink}" does not lead to ${READING.list}`)
+    let presses = 0
+    while (presses < READING.homeReadLinkTabStops) {
+      await page.keyboard.press('Tab')
+      presses += 1
+      if (
+        await readLink
+          .first()
+          .evaluate((link) => link === document.activeElement)
+      )
+        break
+    }
+    if (
+      !(await readLink
+        .first()
+        .evaluate((link) => link === document.activeElement))
+    )
+      fail(
+        `"${READING.homeReadLink}" is not reached within ${READING.homeReadLinkTabStops} Tab presses`
+      )
+    await readLink.first().click()
+    await page
+      .waitForURL((url) => url.pathname === READING.list, { timeout: 20_000 })
+      .catch(() => {})
+    if (new URL(page.url()).pathname !== READING.list)
+      fail(`following "${READING.homeReadLink}" did not open ${READING.list}`)
+  }
 
   await page.goto(BASE_URL + READING.list, { waitUntil: 'load' })
   const articleLink = page.getByRole('link', { name: READING.articleTitle })
@@ -157,7 +198,7 @@ async function check(page: Page, failures: string[], label: string) {
 
 async function main() {
   const backend = startFixtureBackend(CONVEX_PORT)
-  const app = await startProductionApp(APP_PORT, BASE_URL)
+  const app = await startProductionApp(APP_PORT, BASE_URL, { backend })
   const failures: string[] = []
   try {
     // Guards: no article text on a draft or unknown path, and a 404.

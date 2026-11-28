@@ -379,7 +379,28 @@
   .account-nav {
     font-size: 15px;
     gap: 24px;
-    min-height: 68px;
+    /* 68px, plus the room above the ring (padding-top below). */
+    min-height: 74px;
+    /* More sections than fit a phone: the row scrolls inside itself, so
+       the page never scrolls sideways. */
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+    /* Room for the focus ring inside the scrolling row; nothing moves. */
+    padding-inline: 6px;
+    margin-inline: -6px;
+    padding-top: 6px;
+    margin-top: -6px;
+    /* The rule, drawn in place of the border so its ends stay put. */
+    border-bottom-color: transparent;
+    background: linear-gradient(var(--account-rule), var(--account-rule)) 6px
+      100% / calc(100% - 12px) 1px no-repeat border-box;
+  }
+  .account-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .account-nav a {
+    flex: none;
   }
   .account-name {
     display: none;

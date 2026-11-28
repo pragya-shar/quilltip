@@ -113,13 +113,7 @@ export function TipDialogV2({
   const [message, setMessage] = useState('')
   const [amountError, setAmountError] = useState<string | null>(null)
   const [added, setAdded] = useState<AddResult>(null)
-  const ids = {
-    custom: useId(),
-    error: useId(),
-    note: useId(),
-    hint: useId(),
-    summary: useId(),
-  }
+  const ids = { custom: useId(), error: useId(), note: useId(), hint: useId() }
   const customRef = useRef<HTMLInputElement>(null)
   const sendRef = useRef<HTMLButtonElement>(null)
   /** The reader acted in the gate; focus "Send tip" once it opens. */
@@ -151,6 +145,8 @@ export function TipDialogV2({
         : presets[presets.length - 1]!
   const cents = custom.trim() ? parseDollars(custom) : preset
   const check = checkAmount(cents, eligibility.minTipCents, custom)
+  // The amount is in the button's name (#645), as the reader chose it.
+  const chosen = check.ok ? formatCents(check.cents) : null
   const running = flow.state.stage === 'preparing' || flow.state.step !== null
   const tabBusy = tabPhase === 'busy'
   /** A quick tip is sending or answered: the dialog shows only its section. */
@@ -158,6 +154,13 @@ export function TipDialogV2({
   const tabReady = tabPhase === 'ready'
   /** The tab section has its heading: the wallet tip gets one too. */
   const tabShown = tabReady || tabPhase === 'blocked'
+  const sendLabel = tabReady
+    ? chosen
+      ? TAB_TIP_DIALOG.sendFromWalletAmount(chosen)
+      : TAB_TIP_DIALOG.sendFromWallet
+    : chosen
+      ? TIP_DIALOG.sendAmount(chosen)
+      : TIP_DIALOG.send
 
   useEffect(() => {
     onBusyChange(running || tabBusy)
@@ -551,9 +554,6 @@ export function TipDialogV2({
                   })()}
                   quoteCents={check.ok ? check.cents : null}
                   estimate
-                  // "Send tip" reads the total as its description, so the
-                  // reader hears the chosen amount before sending.
-                  totalId={ids.summary}
                 />
               ) : (
                 <TestnetLabel detail />
@@ -654,13 +654,12 @@ export function TipDialogV2({
                     type="submit"
                     variant={tabReady ? 'outline' : 'default'}
                     className={tabReady ? 'tip-v2-secondary' : 'tip-primary'}
-                    aria-disabled={blocked || undefined}
-                    aria-describedby={
-                      estimate && estimate !== '0' ? ids.summary : undefined
-                    }
+                    // Not valid yet: no amount in the name, and marked
+                    // disabled; pressing it still explains why.
+                    aria-disabled={blocked || !check.ok || undefined}
                   >
                     <Heart className="w-4 h-4" aria-hidden="true" />
-                    {tabReady ? TAB_TIP_DIALOG.sendFromWallet : TIP_DIALOG.send}
+                    {sendLabel}
                   </Button>
                 </WalletGate>
                 {gate.kind !== 'signed-out' && gate.kind !== 'checking' ? (

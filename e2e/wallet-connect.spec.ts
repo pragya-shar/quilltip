@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import QR from 'qrcode'
 import { test, expect, type Page } from './helpers/consoleGuard'
+import { SEND_TIP } from './helpers/sendButton'
 
 /**
  * WalletConnect (mobile wallets) through the real wallet runtime, Wallets
@@ -83,7 +84,7 @@ async function pairAndApprove(page: Page, opts?: unknown) {
 async function tip(page: Page) {
   await page.getByRole('button', { name: 'Tip article', exact: true }).click()
   const dialog = page.getByRole('dialog', { name: 'Tip this article' })
-  await dialog.getByRole('button', { name: 'Send tip' }).click()
+  await dialog.getByRole('button', { name: SEND_TIP }).click()
   return dialog
 }
 
