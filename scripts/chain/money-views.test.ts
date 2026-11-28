@@ -21,7 +21,9 @@ import {
 } from '../../convex/lib/chain/tabLedger'
 import { tabShareCents } from '../../convex/lib/authorEarnings'
 import {
+  reservedHeld,
   syncCollectedCents,
+  syncPaidPart,
   unpaidCents,
 } from '../../convex/lib/chain/balanceFigures'
 import {
@@ -29,7 +31,10 @@ import {
   receiptShareCents,
 } from '../../convex/lib/moneyViews'
 import { SETTLE_REQUEST_LEASE } from '../../convex/lib/chain/settleSchedule'
-import { RECOUNT_PAGE } from '../../convex/lib/chain/balanceRecount'
+import {
+  RECOUNT_PAGE,
+  resyncReaderPage,
+} from '../../convex/lib/chain/balanceRecount'
 import { RECENT_REQUESTS } from '../../convex/balance'
 import {
   ACCEPTOR_PUBLIC,
@@ -1064,6 +1069,61 @@ describe('totals at any history length and across collects', () => {
     expect(
       (await receipts(t)).every((r) => r.moneyReservedCents !== undefined)
     ).toBe(true)
+  })
+
+  it('treats an unmarked, partly paid receipt as holding its whole cents on every path', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 100 }) // 10 M base units
+    // As left by code that reserved before the markers existed: applied as
+    // accepted, the whole tip reserved, no reserve marker, though the pair
+    // had already paid 40% of it.
+    const amount = BigInt(10_000_000)
+    const paid = (gross: bigint) => ({ gross, net: netOf(gross) })
+    const before = paid(BigInt(4_000_000))
+    const after = paid(BigInt(6_000_000))
+    const unmark = () =>
+      t.run(async (ctx) => {
+        const r = (await ctx.db.query('tabReceipts').first())!
+        const { moneyReservedCents: _dropped, ...rest } = r
+        await ctx.db.replace(r._id, { ...rest, moneyAppliedStatus: 'ACCEPTED' })
+        await ctx.db.patch(r.tabAccountId, { reservedCents: 100 })
+        return (await ctx.db.get(r._id))!
+      })
+
+    // The one rule, stated once.
+    const unmarked = await unmark()
+    expect(unmarked.moneyReservedCents).toBeUndefined()
+    expect(reservedHeld(unmarked, 100)).toBe(100)
+
+    // A further payment: what is left reserved is the unpaid part after it.
+    await t.run(async (ctx) => {
+      await syncPaidPart(ctx, unmarked, {
+        amountCents: 100,
+        before,
+        after,
+        token: TOKEN,
+        now: Date.now(),
+      })
+    })
+    const reservedAfterPayment = await t.run(
+      async (ctx) => (await ctx.db.query('tabAccounts').first())!.reservedCents
+    )
+    expect(reservedAfterPayment).toBe(unpaidCents(100, amount, after.gross))
+
+    // The paged recount reads the same receipt the same way: from the
+    // whole cents to its unpaid part now.
+    const again = await unmark()
+    await t.run(async (ctx) => {
+      await ctx.db.patch(again._id, { status: 'ACCEPTED' })
+      const pair = (await ctx.db.query('tabVouchers').first())!
+      await ctx.db.patch(pair._id, { paidOnChain: after.gross.toString() })
+      await resyncReaderPage(ctx, again.tabAccountId, null, Date.now())
+    })
+    const reservedAfterPage = await t.run(
+      async (ctx) => (await ctx.db.query('tabAccounts').first())!.reservedCents
+    )
+    expect(reservedAfterPage).toBe(reservedAfterPayment)
   })
 
   async function settleTwo(t: T, s: Seeded) {

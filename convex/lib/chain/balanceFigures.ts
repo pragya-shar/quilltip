@@ -132,6 +132,29 @@ export type PaidPart = {
   net: bigint
 }
 
+/**
+ * The reader's cents a receipt holds in the account's reserve now, as the
+ * last move recorded it. A receipt with no `moneyReservedCents` marker was
+ * never moved by code that records one, and every path that moves a
+ * reserve records it (acceptance, settlement, a paid part, the recounts).
+ * Such a receipt was reserved whole at acceptance, so it holds its whole
+ * cents while its applied status reserves, and nothing otherwise. The live
+ * path (`syncReceiptMoney`, `syncPaidPart`) and the paged recount
+ * (`resyncReaderPage`) all read it here.
+ */
+export function reservedHeld(
+  receipt: Pick<
+    Doc<'tabReceipts'>,
+    'moneyReservedCents' | 'moneyAppliedStatus'
+  >,
+  amountCents: number
+): number {
+  return (
+    receipt.moneyReservedCents ??
+    (reserves(receipt.moneyAppliedStatus) ? amountCents : 0)
+  )
+}
+
 /** The reader's cents still reserved for a receipt: its unpaid part. */
 export function unpaidCents(
   amountCents: number,
@@ -191,8 +214,7 @@ export async function syncReceiptMoney(
   const share = tabShareCents(args.amountCents, args.net, amount)
 
   // Reader: the unpaid cents of a receipt that still reserves the balance.
-  const reservedFrom =
-    receipt.moneyReservedCents ?? (reserves(from) ? args.amountCents : 0)
+  const reservedFrom = reservedHeld(receipt, args.amountCents)
   const reservedTo = reserves(to)
     ? unpaidCents(args.amountCents, amount, args.paid.gross)
     : 0
@@ -277,9 +299,7 @@ export async function syncPaidPart(
 
   // Reader: a reserving receipt reserves only its unpaid part.
   if (reserves(applied)) {
-    const was =
-      receipt.moneyReservedCents ??
-      unpaidCents(args.amountCents, amount, args.before.gross)
+    const was = reservedHeld(receipt, args.amountCents)
     const now_ = unpaidCents(args.amountCents, amount, args.after.gross)
     if (now_ !== was) {
       const account = await ctx.db.get(receipt.tabAccountId)
@@ -291,8 +311,10 @@ export async function syncPaidPart(
           ),
           updatedAt: now,
         })
-      receiptPatch.moneyReservedCents = now_
     }
+    // Recorded even when unchanged, so the next move reads a marker.
+    if (now_ !== was || receipt.moneyReservedCents === undefined)
+      receiptPatch.moneyReservedCents = now_
   }
 
   const row = await earningsRow(ctx, receipt.authorId, now)

@@ -40,6 +40,7 @@ import {
   CENTS_FIELD,
   COUNT_FIELD,
   earningsRow,
+  reservedHeld,
   reserves,
   unpaidCents,
   type Bucket,
@@ -289,7 +290,7 @@ export async function recountReader(
 /**
  * One page of a reader's receipts: each moves its own difference in
  * reserved cents and records it on `moneyReservedCents`, as the live path
- * does (an unmarked receipt holds its whole cents while it reserves).
+ * does (an unmarked receipt: `reservedHeld`).
  */
 export async function resyncReaderPage(
   ctx: MutationCtx,
@@ -305,9 +306,7 @@ export async function resyncReaderPage(
   let delta = 0
   for (const r of page.page) {
     const target = await targetOf(ctx, r, paidOf)
-    const held =
-      r.moneyReservedCents ??
-      (reserves(r.moneyAppliedStatus) ? target.amountCents : 0)
+    const held = reservedHeld(r, target.amountCents)
     if (held === target.reserved && r.moneyReservedCents !== undefined) continue
     delta = roundCents(delta + target.reserved - held)
     await ctx.db.patch(r._id, { moneyReservedCents: target.reserved })
