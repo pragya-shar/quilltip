@@ -79,6 +79,34 @@ type Identity = {
   passageId: string | null
   readerKey: string | null
   quote: string | null
+  /** The sharer and shared line the tip came from (`sourceShareId`). */
+  sharerId: Id<'users'> | null
+  sharedPassageId: string | null
+}
+
+/**
+ * The sharer and line of the tip's source link, re-checked as at capture
+ * (`convex/lib/counts/shareSource.ts`): another person's personal link to
+ * this article, with its line still known. Otherwise none.
+ */
+async function sourceOf(
+  ctx: MutationCtx,
+  row: TipRow
+): Promise<{ sharerId: Id<'users'> | null; sharedPassageId: string | null }> {
+  const none = { sharerId: null, sharedPassageId: null }
+  const shareId = (row as { sourceShareId?: Id<'shares'> }).sourceShareId
+  if (!shareId) return none
+  const share = await ctx.db.get(shareId)
+  if (
+    !share ||
+    share.kind !== 'personal' ||
+    !share.createdBy ||
+    share.createdBy === row.tipperId ||
+    share.articleId !== row.articleId ||
+    share.passageId === null
+  )
+    return none
+  return { sharerId: share.createdBy, sharedPassageId: share.passageId }
 }
 
 export type SyncResult = {
@@ -161,6 +189,7 @@ async function identityOf(
     articleId: row.articleId,
     authorId: row.authorId,
     readerKey: tipper ? `u:${row.tipperId}` : null,
+    ...(await sourceOf(ctx, row)),
   }
   if (source !== 'highlightTips' || !('highlightId' in row)) {
     return { ...base, passageId: null, quote: null }
@@ -272,6 +301,36 @@ function moved(
   }
 }
 
+/** +1 or -1 on a (sharer, line) count. */
+async function moveShareLine(
+  ctx: MutationCtx,
+  sharerId: Id<'users'>,
+  articleId: Id<'articles'>,
+  passageId: string,
+  sign: 1 | -1,
+  now: number
+): Promise<void> {
+  const row = await ctx.db
+    .query('shareLineStats')
+    .withIndex('by_sharer_line', (q) =>
+      q
+        .eq('sharerId', sharerId)
+        .eq('articleId', articleId)
+        .eq('passageId', passageId)
+    )
+    .unique()
+  const tipCount = clampAdd(row?.tipCount ?? 0, sign, 'share line tipCount')
+  if (row) await ctx.db.patch(row._id, { tipCount, updatedAt: now })
+  else if (tipCount > 0)
+    await ctx.db.insert('shareLineStats', {
+      sharerId,
+      articleId,
+      passageId,
+      tipCount,
+      updatedAt: now,
+    })
+}
+
 async function applyContribution(
   ctx: MutationCtx,
   c: Identity & { cents: number },
@@ -295,6 +354,17 @@ async function applyContribution(
       ...nextArticle,
       updatedAt: now,
     })
+
+  // The sharer's line, when the tip came from their link.
+  if (c.sharerId !== null && c.sharedPassageId !== null)
+    await moveShareLine(
+      ctx,
+      c.sharerId,
+      c.articleId,
+      c.sharedPassageId,
+      sign,
+      now
+    )
 
   // Passage.
   if (c.passageId === null) return
@@ -372,6 +442,8 @@ export async function syncTipCounts(
         passageId: entry.passageId,
         readerKey: entry.readerKey,
         quote: null,
+        sharerId: entry.sharerId ?? null,
+        sharedPassageId: entry.sharedPassageId ?? null,
       }
     : await identityOf(ctx, source, row!)
   if (haveLive) {
@@ -395,6 +467,12 @@ export async function syncTipCounts(
       articleId: identity.articleId,
       passageId: identity.passageId,
       readerKey: identity.readerKey,
+      ...(identity.sharerId !== null && identity.sharedPassageId !== null
+        ? {
+            sharerId: identity.sharerId,
+            sharedPassageId: identity.sharedPassageId,
+          }
+        : {}),
       ...fields,
     })
   }

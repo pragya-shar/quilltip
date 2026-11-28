@@ -17,7 +17,8 @@ import {
   syncTipCountsForReceipt,
   type TipSource,
 } from './lib/counts/sync'
-import { labelOf } from './passages'
+import { getAuthUserId } from '@convex-dev/auth/server'
+import { MIN_LINE_TIPS, labelOf } from './passages'
 import { tipSourceValidator } from './schema/counts'
 
 /**
@@ -247,6 +248,71 @@ async function snapshotPassage(
   return true
 }
 
+/** Copies one (sharer, line) count to the sharer's copy; true if changed. */
+async function snapshotShareLine(
+  ctx: MutationCtx,
+  stats: Doc<'shareLineStats'>,
+  day: string
+): Promise<boolean> {
+  const copy = await ctx.db
+    .query('shareLineSnapshots')
+    .withIndex('by_sharer_line', (q) =>
+      q
+        .eq('sharerId', stats.sharerId)
+        .eq('articleId', stats.articleId)
+        .eq('passageId', stats.passageId)
+    )
+    .unique()
+  if (copy ? copy.tipCount === stats.tipCount : stats.tipCount === 0)
+    return false
+  if (copy) await ctx.db.patch(copy._id, { tipCount: stats.tipCount, day })
+  else
+    await ctx.db.insert('shareLineSnapshots', {
+      sharerId: stats.sharerId,
+      articleId: stats.articleId,
+      passageId: stats.passageId,
+      tipCount: stats.tipCount,
+      day,
+    })
+  return true
+}
+
+/** Shared lines one `mySharedLines` read returns at most. */
+export const MAX_SHARED_LINES = 50
+
+/**
+ * The caller's shared lines that brought tips back, as of the last daily
+ * snapshot: `{ articleId, passageId, tipCount }`, the most first, only from
+ * `MIN_LINE_TIPS` tips. A count only: no amounts, no times, nobody named.
+ * Signed out: none.
+ */
+export const mySharedLines = query({
+  args: {},
+  returns: v.array(
+    v.object({
+      articleId: v.id('articles'),
+      passageId: v.string(),
+      tipCount: v.number(),
+    })
+  ),
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId) return []
+    const rows = await ctx.db
+      .query('shareLineSnapshots')
+      .withIndex('by_sharer_tipCount', (q) =>
+        q.eq('sharerId', userId).gte('tipCount', MIN_LINE_TIPS)
+      )
+      .order('desc')
+      .take(MAX_SHARED_LINES)
+    return rows.map((row) => ({
+      articleId: row.articleId,
+      passageId: row.passageId,
+      tipCount: row.tipCount,
+    }))
+  },
+})
+
 /**
  * The daily cron: starts today's snapshot unless one is running or today's
  * is done. The run then continues in `snapshotStep`.
@@ -293,7 +359,11 @@ export const startSnapshot = internalMutation({
 export const snapshotStep = internalMutation({
   args: {},
   returns: v.object({
-    phase: v.union(v.literal('articles'), v.literal('passages')),
+    phase: v.union(
+      v.literal('articles'),
+      v.literal('passages'),
+      v.literal('shares')
+    ),
     rows: v.number(),
     changed: v.number(),
     done: v.boolean(),
@@ -329,7 +399,7 @@ export const snapshotStep = internalMutation({
         if (await snapshotArticle(ctx, stats, run.day)) changed++
       ;({ isDone, continueCursor } = page)
       read = page.page.length
-    } else {
+    } else if (run.phase === 'passages') {
       const page = await ctx.db
         .query('passageStats')
         .paginate(opts(run.cursor))
@@ -338,12 +408,23 @@ export const snapshotStep = internalMutation({
         if (await snapshotPassage(ctx, stats, run.day)) changed++
       ;({ isDone, continueCursor } = page)
       read = page.page.length
+    } else {
+      const page = await ctx.db
+        .query('shareLineStats')
+        .paginate(opts(run.cursor))
+        .catch(() => ctx.db.query('shareLineStats').paginate(opts(null)))
+      for (const stats of page.page)
+        if (await snapshotShareLine(ctx, stats, run.day)) changed++
+      ;({ isDone, continueCursor } = page)
+      read = page.page.length
     }
     const next = !isDone
       ? { phase: run.phase, cursor: continueCursor }
       : run.phase === 'articles'
         ? { phase: 'passages' as const, cursor: null }
-        : null
+        : run.phase === 'passages'
+          ? { phase: 'shares' as const, cursor: null }
+          : null
     await ctx.db.patch(run._id, {
       ...(next ?? { cursor: null, finishedAt: now }),
       rows: run.rows + read,

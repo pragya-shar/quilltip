@@ -7,6 +7,7 @@
  * (`convex/lib/chain/tabEventHandlers.ts`). Settlement is in the settler,
  * which reads `tabSettlement.selectCandidates`.
  */
+import { recordShareSource } from './lib/counts/shareSource'
 import { getAuthUserId } from '@convex-dev/auth/server'
 import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from './_generated/dataModel'
@@ -98,17 +99,31 @@ export const prepareTip = mutation({
  * over the recomputed payload, re-checks I-22, countersigns, and stores the
  * receipt and the pair's latest voucher. Repeating an accepted submit returns
  * the same acceptance.
+ *
+ * `shareCode`: the share link the reader opened the article from, if any.
+ * Checked on the server and recorded only for another signed-in person's
+ * link to this article (`recordShareSource`); it never changes the tip and
+ * never refuses it.
  */
 export const submitTip = mutation({
   args: {
     prepareId: v.union(v.id('tips'), v.id('highlightTips')),
     receipt: receiptValidator,
     signature: v.string(),
+    shareCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx)
     const now = Date.now()
-    const accepted = await submitTabTip(ctx, { ...args, userId, now })
+    const { shareCode, ...tip } = args
+    // Before acceptance, so the counts see the source when they first count
+    // the tip; a refused tip rolls this back with everything else.
+    await recordShareSource(ctx, {
+      prepareId: args.prepareId,
+      userId,
+      shareCode,
+    })
+    const accepted = await submitTabTip(ctx, { ...tip, userId, now })
     // Settle soon after acceptance when the deployment asks for it
     // (`TAB_SETTLE_AFTER_ACCEPT_MS`); otherwise the cron's due rules apply.
     if (!accepted.alreadyAccepted) await requestSettlement(ctx, now)

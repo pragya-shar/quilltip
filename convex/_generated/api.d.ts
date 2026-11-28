@@ -73,6 +73,7 @@ import type * as lib_chain_tabLedger from "../lib/chain/tabLedger.js";
 import type * as lib_chain_tipPrepare from "../lib/chain/tipPrepare.js";
 import type * as lib_chain_verify from "../lib/chain/verify.js";
 import type * as lib_chain_voucher from "../lib/chain/voucher.js";
+import type * as lib_counts_shareSource from "../lib/counts/shareSource.js";
 import type * as lib_counts_sync from "../lib/counts/sync.js";
 import type * as lib_constants from "../lib/constants.js";
 import type * as lib_email from "../lib/email.js";
@@ -222,6 +223,7 @@ declare const fullApi: ApiFromModules<{
   "lib/chain/tipPrepare": typeof lib_chain_tipPrepare;
   "lib/chain/verify": typeof lib_chain_verify;
   "lib/chain/voucher": typeof lib_chain_voucher;
+  "lib/counts/shareSource": typeof lib_counts_shareSource;
   "lib/counts/sync": typeof lib_counts_sync;
   "lib/constants": typeof lib_constants;
   "lib/email": typeof lib_email;

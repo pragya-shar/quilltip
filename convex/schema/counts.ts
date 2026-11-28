@@ -56,6 +56,13 @@ export const countsTables = {
     passageId: v.union(v.string(), v.null()),
     /** `u:<userId>` for a signed-in tipper; null when not known. */
     readerKey: v.union(v.string(), v.null()),
+    /**
+     * The sharer whose personal link the tip came from, and the line that
+     * link shared, fixed when the row is first counted; unset when the tip
+     * came from no checked link.
+     */
+    sharerId: v.optional(v.id('users')),
+    sharedPassageId: v.optional(v.string()),
     /** True while the row adds `cents` and one tip to the figures. */
     live: v.boolean(),
     cents: v.number(),
@@ -85,6 +92,29 @@ export const countsTables = {
     quote: v.union(v.string(), v.null()),
   }).index('by_article_passage', ['articleId', 'passageId']),
 
+  /**
+   * Counted tips per (sharer, shared line): tips opened from that sharer's
+   * personal link to that line. A count only: no amounts and no tippers.
+   */
+  shareLineStats: defineTable({
+    sharerId: v.id('users'),
+    articleId: v.id('articles'),
+    passageId: v.string(),
+    tipCount: v.number(),
+    updatedAt: v.number(),
+  }).index('by_sharer_line', ['sharerId', 'articleId', 'passageId']),
+
+  /** The sharer's copy of `shareLineStats`, as of the last daily snapshot. */
+  shareLineSnapshots: defineTable({
+    sharerId: v.id('users'),
+    articleId: v.id('articles'),
+    passageId: v.string(),
+    tipCount: v.number(),
+    day: v.string(),
+  })
+    .index('by_sharer_line', ['sharerId', 'articleId', 'passageId'])
+    .index('by_sharer_tipCount', ['sharerId', 'tipCount']),
+
   /** An article's public figures, as of the last daily snapshot. */
   articleTipSnapshots: defineTable({
     articleId: v.id('articles'),
@@ -113,7 +143,11 @@ export const countsTables = {
   countsSnapshotRuns: defineTable({
     key: v.literal('daily'),
     day: v.string(),
-    phase: v.union(v.literal('articles'), v.literal('passages')),
+    phase: v.union(
+      v.literal('articles'),
+      v.literal('passages'),
+      v.literal('shares')
+    ),
     cursor: v.union(v.string(), v.null()),
     /** Rows read, and public copies written, in this run. */
     rows: v.number(),

@@ -143,6 +143,13 @@ export const tipChainFields = {
       contentHash: v.string(),
     })
   ),
+  /**
+   * The personal share link the tip was opened from, recorded by
+   * `tabs.submitTip` in the mutation that accepts the tip, after the server
+   * checked the code (`convex/lib/counts/shareSource.ts`). Counted for the
+   * sharer's lines only; never read for money.
+   */
+  sourceShareId: v.optional(v.id('shares')),
 }
 
 /** States of a tab receipt (06-app-integration.md, section 6.1). */
