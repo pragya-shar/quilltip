@@ -1418,6 +1418,7 @@ describe('window approval: the allowed operations', () => {
       'earningsTotalsBackfill:reset',
       'chain/indexer:replayFrom',
       'chain/indexer:ingestBackfill',
+      'chain/tabReconcile:run',
     ]
     for (const fn of LIVE_WINDOW_FUNCTIONS) {
       expect(windowCodes(['convex-run', fn])).toEqual(
@@ -1434,6 +1435,7 @@ describe('window approval: the allowed operations', () => {
       'chain/backfill:setContractVersionV1',
       'chain/tabClaims:seedClaimRecords',
       'chain/tabClaims:recomputeCollected',
+      'chain/tabReconcile:run',
       'reconcileTips:recoverStuckPendingArticleTips',
       'reconcileTips:recoverStuckPendingHighlightTips',
       'earningsTotalsBackfill:dryRun',
@@ -1458,6 +1460,7 @@ describe('window approval: the allowed operations', () => {
 })
 
 const CURSOR = 'eyJjdXJzb3IiOiJhYmMifQ=='
+const READER = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF'
 const ROW_ID = 'k57a1b2c3d4e5f6g7h8j9k0m1n2p3q4r'
 
 /** The refusal message of a window evaluation, or '' when it is allowed. */
@@ -1505,6 +1508,11 @@ describe('window approval: every runbook command', () => {
     [
       'chain/tabClaims:recomputeCollected',
       `{"apply":true,"note":"Incident 12: claim counted twice","userId":"${ROW_ID}"}`,
+    ],
+    // Chain runbook, "Stale settlement reserves", step 3 (the apply).
+    [
+      'chain/tabReconcile:run',
+      `{"reader":"${READER}","apply":true,"note":"Ticket 451: TabSettled lost in a gap"}`,
     ],
     // Stage 5 drain.
     ['reconcileTips:recoverStuckPendingArticleTips', undefined],
@@ -1684,6 +1692,56 @@ describe('window approval: every runbook command', () => {
     ])
     expect(message).toContain('printable note')
     expect(message).not.toContain('SECRET-NOTE')
+  })
+})
+
+describe('window approval: the tab reconciliation apply', () => {
+  const apply = (json: string) =>
+    windowCodes(['convex-run', 'chain/tabReconcile:run', json])
+
+  it('allows the apply with a reader and a note only', () => {
+    expect(
+      apply(`{"note":"Ticket 1","apply":true,"reader":"${READER}"}`)
+    ).toEqual([])
+  })
+
+  it.each([
+    // The dry run is a read-only operation, not a window step.
+    `{"reader":"${READER}"}`,
+    `{"reader":"${READER}","apply":false,"note":"Ticket 1"}`,
+    `{"reader":"${READER}","note":"Ticket 1"}`,
+    // An apply always carries its note.
+    `{"reader":"${READER}","apply":true}`,
+    `{"reader":"${READER}","apply":true,"note":""}`,
+    `{"reader":"${READER}","apply":true,"note":"${'x'.repeat(501)}"}`,
+    `{"reader":"${READER}","apply":true,"note":"tab\tnote"}`,
+    `{"reader":"${READER}","apply":true,"note":"caf\u00e9"}`,
+    `{"reader":"${READER}","apply":true,"note":1}`,
+    `{"reader":"${READER}","apply":"true","note":"Ticket 1"}`,
+    `{"reader":"${READER}","apply":1,"note":"Ticket 1"}`,
+    // One pair only, or extra keys: not on the list.
+    `{"reader":"${READER}","apply":true,"note":"Ticket 1","keyId":1}`,
+    `{"reader":"${READER}","apply":true,"note":"Ticket 1","writer":"${READER}"}`,
+    `{"reader":"${READER}","apply":true,"note":"Ticket 1","dryRun":false}`,
+    // Readers that are not account addresses.
+    `{"reader":"${READER.toLowerCase()}","apply":true,"note":"Ticket 1"}`,
+    `{"reader":"${READER.slice(0, 54)}XF","apply":true,"note":"Ticket 1"}`,
+    `{"reader":"C${READER.slice(1)}","apply":true,"note":"Ticket 1"}`,
+    `{"apply":true,"note":"Ticket 1"}`,
+    '{}',
+  ])('refuses %s', (json) => {
+    expect(apply(json)).toEqual(['LIVE_WINDOW_OPERATION'])
+  })
+
+  it('refuses the functions it calls', () => {
+    for (const fn of [
+      'chain/tabReconcile:reconcile',
+      'chain/tabReconcile:snapshot',
+    ]) {
+      expect(windowCodes(['convex-run', fn, '{}'])).toEqual([
+        'LIVE_WINDOW_OPERATION',
+      ])
+    }
   })
 })
 
