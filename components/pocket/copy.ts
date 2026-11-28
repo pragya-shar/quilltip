@@ -14,6 +14,9 @@ export type RowWords = {
   short: string
   /** The sentence on the receipt. */
   long: string
+  /** A tip waiting for the reader's balance: its row states no amount and
+   * no time, and the reader's receipt offers to add money. */
+  waitingForBalance?: true
 }
 
 const paidInPart = (item: ActivityItem) => item.paid.cents > 0
@@ -72,10 +75,12 @@ export function rowWords(item: ActivityItem): RowWords {
       if (waiting)
         return {
           status: 'pending',
-          short: reader ? 'On hold until you add money' : 'On hold',
+          // "On hold" is the internal name only; both sides read this.
+          short: 'Waiting for balance',
           long: reader
             ? 'Your balance was short when this was paid out. Add money and it goes through.'
-            : "On hold: the reader's balance was short when it was paid out. It arrives if they add money.",
+            : "Waiting on the reader's balance.",
+          waitingForBalance: true,
         }
       return {
         status: 'failed',

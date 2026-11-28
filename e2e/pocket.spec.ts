@@ -224,10 +224,7 @@ const SCENARIOS: Record<string, Expect> = {
     spend: '≈$2.54',
     rows: 4,
     // Held and incomplete tips are told by their rows, with no notice.
-    texts: [
-      'Did not complete. You were not charged.',
-      'On hold until you add money',
-    ],
+    texts: ['Did not complete. You were not charged.', 'Waiting for balance'],
     absent: [/The reader kept that money/],
   },
   'partly-paid': {
@@ -635,6 +632,25 @@ test.describe('receipts and money sheets', () => {
     await press(sheet.getByRole('button', { name: 'Done' }))
     await expect(sheet).toBeHidden()
     await expect.poll(async () => (await focused(page)).text).toBe('Add money')
+  })
+
+  test('a tip waiting for balance states no amount or time; its receipt offers to add money', async ({
+    page,
+  }) => {
+    await page.goto('/pocket?scenario=failed&role=reader')
+    const row = page.locator('.qt-pocket:visible').locator('.qt-activity', {
+      has: page.getByRole('button', { name: /waiting for balance/ }),
+    })
+    await expect(row).toHaveCount(1)
+    await expect(row).toContainText('Waiting for balance')
+    await expect(row.locator('.qt-money')).toHaveCount(0)
+    await expect(row.locator('.qt-activity__time')).toHaveCount(0)
+    await press(row.getByRole('button', { name: /waiting for balance/ }))
+    const receipt = page.getByRole('dialog', { name: 'Receipt' })
+    await expect(receipt).toContainText('Add money and it goes through.')
+    await expect(
+      receipt.getByRole('link', { name: 'Add testnet money' })
+    ).toHaveAttribute('href', '/dashboard/tab')
   })
 
   test('a double press that closes a sheet never presses the page under it; a press 500 ms later works', async ({
