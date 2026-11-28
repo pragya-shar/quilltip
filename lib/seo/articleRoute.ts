@@ -3,6 +3,10 @@
  * header so the page does not ask the backend a second time. The proxy removes
  * any copy of this header that a client sends, so only its own answer arrives.
  *
+ * The value is not a secret and never an authorisation input. It only decides
+ * which cached copy of a published article the page may use, and every copy
+ * comes from the anonymous public read.
+ *
  * - found: the article is published under this handle and slug; `version`
  *   names the stored copy (it changes on every write to the article, and a new
  *   article with the same slug has a different one).
