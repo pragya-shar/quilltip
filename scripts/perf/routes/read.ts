@@ -13,8 +13,13 @@ export const routes: PerfRoutes = {
   // The targets for public reading: CLS at most 0.05 (both
   // profiles) and a median phone LCP of at most 2.0 s, both gated. Byte
   // budgets kept from the legacy article page until CI measures this one.
-  // Measured locally: HTML 45 KB (the full text is in the first response),
-  // stylesheets 15 KB, fonts 59 KB.
+  // Measured locally: HTML 47.8 KB (48,945 bytes), at its 48 KB budget;
+  // stylesheets 15 KB, fonts 59 KB. Of the HTML, 21.9 KB is the React
+  // server payload in script tags, which repeats what the page renders;
+  // the fixture article's body is 3.7 KB. Before raising htmlKb: the next
+  // KB should come from that payload (less passed to client components),
+  // not from more markup. Nothing planned for this page needs more server
+  // HTML; the tip bar's first paint is in it already.
   pageLoad: [
     {
       name: 'article',
