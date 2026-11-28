@@ -91,7 +91,8 @@ checks, `--light` for lint, typecheck and unit tests; `--list` prints the
 steps, `--all` runs everything). It leaves out
 runner setup (actions, installs, failure-only steps) and needs Bun 1.4.4, the
 installed dependencies and the Playwright browsers; its header lists the rest.
-Run it under a shared machine's lock for heavy jobs.
+On a machine shared by several people or agents, run one heavy selection at a
+time.
 Local success does not establish remote CI or deployment success.
 
 ## Using Codex and Claude Code
