@@ -125,3 +125,25 @@ export const fixtureAuth = {
   isAuthenticated: () => state.authenticated,
   signIns: () => state.signIns,
 }
+
+// The shell's balance asks for these since the balance page merged. This
+// fixture has no backend: no client, no answers, nothing sent.
+export function useConvex() {
+  return null
+}
+
+export function useQuery() {
+  return undefined
+}
+
+export function usePaginatedQuery() {
+  return { results: [], status: 'Exhausted', isLoading: false, loadMore() {} }
+}
+
+export function useMutation() {
+  return async () => undefined
+}
+
+export function useAction() {
+  return async () => undefined
+}
