@@ -20,7 +20,7 @@
 // - an href built by a helper imported from another module and not in
 //   PUBLIC_NAME (`href={toArticle(u, s)}`) is not seen;
 // - an href that arrives as a prop (`href={href}` from `{ href }`) or from
-//   runtime data (the sign-in pages' Cancel link to `returnTo`) is not
+//   runtime data (a path read from the query string or storage) is not
 //   seen; a component that wraps Link and forwards its href is caught only
 //   in the prop-fed files listed in HREF_PROP_FILES;
 // - an href from a destructured binding (`const { href } = item`), an
