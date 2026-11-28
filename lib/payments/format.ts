@@ -3,7 +3,8 @@
  * base units (stroops for native XLM), as Convex stores them. Nothing here
  * converts from cents or floats: the kit shows chain values only.
  */
-import { formatUsd, formatXlmFromStroops } from '@/lib/copy/network-status'
+import { formatXlmFromStroops } from '@/lib/copy/network-status'
+import { formatCents } from '@/lib/tip/v2/amount'
 
 const BASE_UNITS = /^\d+$/
 
@@ -87,8 +88,10 @@ export function estimateSummary(
 }
 
 /**
- * "$0.50" from 50, `under-a-cent` for a fraction of a cent. `null` when no
- * quote is available, so the caller shows nothing rather than "$0.00".
+ * "$0.50" from 50, "$5" from 500: the dollar form of the send buttons
+ * (`formatCents`), so one amount reads the same across the dialog (#676).
+ * `under-a-cent` for a fraction of a cent. `null` when no quote is
+ * available, so the caller shows nothing rather than "$0".
  */
 export function formatCentsQuote(
   cents: number | null | undefined
@@ -98,7 +101,7 @@ export function formatCentsQuote(
   }
   if (cents <= 0) return null
   if (cents < 1) return 'under-a-cent'
-  return formatUsd(Math.round(cents) / 100)
+  return formatCents(Math.round(cents))
 }
 
 /**

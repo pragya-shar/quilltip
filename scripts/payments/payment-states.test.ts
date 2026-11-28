@@ -880,11 +880,18 @@ describe('amounts and dates', () => {
 
   test('the cents quote is optional and says the XLM is not real (#670)', () => {
     expect(formatCentsQuote(50)).toBe('$0.50')
+    // The send buttons' dollar form: whole dollars carry no cents (#676).
+    expect(formatCentsQuote(500)).toBe('$5')
+    expect(formatCentsQuote(1250)).toBe('$12.50')
+    expect(formatCentsQuote(100)).toBe('$1')
+    expect(formatCentsQuote(12.4)).toBe('$0.12')
+    expect(formatCentsQuote(123456)).toBe('$1,234.56')
     expect(formatCentsQuote(null)).toBeNull()
     expect(formatCentsQuote(Number.NaN)).toBeNull()
     expect(formatCentsQuote(0)).toBeNull()
     expect(formatCentsQuote(0.4)).toBe('under-a-cent')
-    expect(quoteCopy('$1.00')).toBe('Worth about $1.00 if this were real XLM')
+    expect(quoteCopy('$5')).toBe('Worth about $5 if this were real XLM')
+    expect(quoteCopy('$12.50')).toBe('Worth about $12.50 if this were real XLM')
     expect(quoteCopy('$0.12')).toBe('Worth about $0.12 if this were real XLM')
     expect(quoteCopy('under-a-cent')).toBe(
       'Worth under $0.01 if this were real XLM'

@@ -624,10 +624,12 @@ Notes:
   line.
 - **Secondary:** the cents quote, when the caller has one, after the testnet
   label: "Worth about {usd} if this were real XLM", for example
-  "Worth about $0.12 if this were real XLM", or
-  "Worth under $0.01 if this were real XLM". It says what the same amount
-  would be worth as real XLM; it is not the price, and the testnet amount
-  has no value.
+  "Worth about $5 if this were real XLM", "Worth about $12.50 if this were
+  real XLM", or "Worth under $0.01 if this were real XLM". It says what the
+  same amount would be worth as real XLM; it is not the price, and the
+  testnet amount has no value. `{usd}` is in the send buttons' form
+  (`formatCents`): whole dollars carry no cents, so one amount reads the
+  same across one screen (#676).
 - **Estimates:** before prepare returns, the XLM figure is a conversion from
   the chosen cents. Pass `estimate`: every figure reads "About …". One
   summary rounds as a whole, through `estimateSummary`: every figure at the

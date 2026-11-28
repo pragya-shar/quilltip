@@ -198,7 +198,8 @@ const STATES: State[] = [
         dialog.getByRole('button', { name: '$1', exact: true })
       ).toHaveAttribute('aria-pressed', 'true')
       await expect(dialog.getByText('About 4 XLM')).toBeVisible()
-      await expect(dialog.getByText(quoteCopy('$1.00'))).toBeVisible()
+      // The button and the quote write the amount the same way (#676).
+      await expect(dialog.getByText(quoteCopy('$1'))).toBeVisible()
       await expect(dialog.getByText(ESTIMATE.caption)).toBeVisible()
       // With an amount chosen, the label keeps its detail (#670).
       await expect(

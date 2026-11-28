@@ -10,7 +10,7 @@ import {
   SEND_TIP,
   SEND_TIP_FROM_WALLET,
 } from './helpers/sendButton'
-import { ESTIMATE } from '../lib/copy/payment-states'
+import { ESTIMATE, quoteCopy } from '../lib/copy/payment-states'
 
 /**
  * The tab tip section of the article and passage tip dialogs (issue #546),
@@ -420,6 +420,14 @@ test.describe('one amount for the dialog', () => {
       )
     ).toBeVisible()
     await expect(dialog.getByText(/\$4\.00/)).toHaveCount(0)
+    // The quote and the tab button write the amount the same way.
+    await expect(
+      tabSection(dialog).getByRole('button', { name: 'Send $5 from your tab' })
+    ).toBeVisible()
+    await expect(dialog.locator('.pay-amount-caption')).toContainText(
+      quoteCopy('$5')
+    )
+    await expect(dialog.getByText(/\$5\.00/)).toHaveCount(0)
   })
 
   test('without a tab, the presets stay as they are', async ({ page }) => {
