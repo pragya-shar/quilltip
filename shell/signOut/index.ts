@@ -5,6 +5,7 @@
  */
 import type {
   SignOutAction,
+  SignOutAfter,
   SignOutCleanup,
   SignOutWarning,
   SignOutWho,
@@ -23,6 +24,7 @@ import * as you from './you'
 
 export type {
   SignOutAction,
+  SignOutAfter,
   SignOutCleanup,
   SignOutWarning,
   SignOutWho,
@@ -141,17 +143,19 @@ export async function signOutWarnings(
 }
 
 /**
- * Runs every cleanup; one that fails is logged and does not stop the rest.
- * Returns the names of those that failed.
+ * Runs every cleanup, telling each what did not finish before sign-out;
+ * one that fails is logged and does not stop the rest. Returns the names of
+ * those that failed.
  */
 export async function runSignOutCleanups(
-  cleanups: readonly SignOutCleanup[] = SIGN_OUT_CLEANUPS
+  cleanups: readonly SignOutCleanup[] = SIGN_OUT_CLEANUPS,
+  after: SignOutAfter = { unfinished: [] }
 ): Promise<string[]> {
   const failed: string[] = []
   await Promise.all(
     cleanups.map(async (cleanup) => {
       try {
-        await cleanup.run()
+        await cleanup.run(after)
       } catch (error) {
         console.error(`Sign-out cleanup "${cleanup.name}" failed`, error)
         failed.push(cleanup.name)
