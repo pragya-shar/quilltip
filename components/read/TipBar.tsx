@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/system/components/Button'
 import { Icon } from '@/system/components/Icon'
@@ -13,10 +14,8 @@ import { sheetStack } from '@/shell/sheetStack'
 import { openSignIn, signInHref } from '@/shell/signIn'
 import { preloadSheet } from '@/shell/sheets/loadSheet'
 import { BalanceCaption } from './BalanceCaption'
-import { LiveArrivalSlot } from './LiveArrivalSlot'
 import { RECEIPT_SHEET, type ReceiptProps } from './receipt'
-import type { ChosenPassage } from '@/hooks/read/usePassageSelection'
-import { anchorAt } from '@/hooks/read/passageOffsets'
+import type { ChosenLine } from './LineEngine'
 import {
   formatMoney,
   tipTargetOf,
@@ -28,25 +27,35 @@ import {
   type TipTarget,
   type UnavailableReason,
 } from '@/hooks/read/payments'
-import { READ_BODY_ID, type ReadArticle } from './readModel'
-import {
-  amountWithin,
-  keepIntent,
-  returnPathFor,
-  saveIntent,
-  tipIntent,
-} from './signInIntent'
+import type { ReadArticle } from './readModel'
+
+/** The arrival after a first publish: loaded only when it is armed. */
+const LiveArrivalSlot = dynamic(
+  () => import('./LiveArrivalSlot').then((module) => module.LiveArrivalSlot),
+  { ssr: false }
+)
+
+/** The sign-in intent builders and store: loaded on a signed-out press. */
+const intents = () => import('./signInIntent')
+
+/** The largest choice within the ceiling, or null: never raised. */
+function amountWithin(ceiling: number, choices: readonly number[]) {
+  let best: number | null = null
+  for (const cents of choices)
+    if (cents <= ceiling && (best === null || cents > best)) best = cents
+  return best
+}
 
 /** What a tip that the server accepted was for. */
 export type SentTip = {
   requestId: string
   amount: Money
-  passage: ChosenPassage | null
+  passage: ChosenLine | null
 }
 
 type TipBarProps = {
   article: ReadArticle
-  passage: ChosenPassage | null
+  passage: ChosenLine | null
   onClear: () => void
   /** Whether the chosen line is kept, and a save is under way. */
   kept: boolean
@@ -188,7 +197,7 @@ export function TipBar({
     tip.queued
   useEffect(() => onLockChange(busy), [busy, onLockChange])
 
-  const pressed = useRef<{ passage: ChosenPassage | null; at: number } | null>(
+  const pressed = useRef<{ passage: ChosenLine | null; at: number } | null>(
     null
   )
   const lastSheetClose = useRecentSheetClose()
@@ -237,13 +246,16 @@ export function TipBar({
     balance.status === 'signed-out'
   // Where sign-in returns: the article, at the chosen line. A line is only
   // chosen in the browser, so this never differs from the server HTML.
-  const returnTo = useMemo(() => {
-    const root = passage ? document.getElementById(READ_BODY_ID) : null
-    return returnPathFor(
-      article.href,
-      root && passage ? anchorAt(root, passage.startOffset) : null
-    )
-  }, [article.href, passage])
+  const returnTo = useMemo(
+    () =>
+      passage?.anchor ? `${article.href}#${passage.anchor}` : article.href,
+    [article.href, passage]
+  )
+  // A signed-out reader may press: the intent code loads now, after the
+  // page, so a press never waits for it.
+  useEffect(() => {
+    if (signedOut) void intents().catch(() => {})
+  }, [signedOut])
   const linePassage = passage
     ? {
         text: passage.text,
@@ -251,24 +263,41 @@ export function TipBar({
         endOffset: passage.endOffset,
       }
     : null
-  // The tip as the button states it, built by the sign-in contract's
-  // builder; null when no amount is offered or it does not validate. Its
-  // path is the article's own: the line comes back from its offsets.
-  const tipIntentNow = () =>
-    offer
-      ? tipIntent({
-          path: article.href,
-          articleId: article.id,
-          passage: linePassage,
-          // A ceiling, never an order.
-          amount: {
-            cents: offer.amount.cents,
-            display: offer.amount.display,
-            short: short(offer.amount).display,
-          },
-          writer: article.writer.name,
-        })
-      : null
+  /**
+   * Opens sign-in with what the reader meant to do, built by the sign-in
+   * contract's builders: over the page when a sheet is registered, else on
+   * the sign-in page, with the intent kept for this tab.
+   */
+  const signInWith = (kind: 'tip' | 'keep', href: string) => {
+    void intents().then(({ tipIntent, keepIntent, saveIntent }) => {
+      const intent =
+        kind === 'tip'
+          ? offer
+            ? tipIntent({
+                path: article.href,
+                articleId: article.id,
+                passage: linePassage,
+                // A ceiling, never an order.
+                amount: {
+                  cents: offer.amount.cents,
+                  display: offer.amount.display,
+                  short: short(offer.amount).display,
+                },
+                writer: article.writer.name,
+              })
+            : null
+          : linePassage
+            ? keepIntent({
+                path: article.href,
+                articleId: article.id,
+                passage: linePassage,
+              })
+            : null
+      if (openSignIn(intent ?? undefined)) return
+      if (intent) saveIntent(intent)
+      window.location.assign(href)
+    })
+  }
 
   // After sign-in, once: the resumed tip's amount, within its ceiling.
   // Nothing is sent; the island chose the line.
@@ -309,10 +338,10 @@ export function TipBar({
         href={signInHref(returnTo)}
         onClick={(event) => {
           if (event.metaKey || event.ctrlKey || event.shiftKey) return
-          const intent = tipIntentNow()
-          if (openSignIn(intent ?? undefined)) event.preventDefault()
-          // No sheet: the link goes to the sign-in page; the intent waits.
-          else if (intent) saveIntent(intent)
+          // With a script: the sheet, or the sign-in page with the intent
+          // kept. Without one, the link itself goes to the sign-in page.
+          event.preventDefault()
+          signInWith('tip', event.currentTarget.href)
         }}
       >
         <span className="qt-read__signin-nib" aria-hidden="true">
@@ -384,12 +413,14 @@ export function TipBar({
     // The shell's dock: it reports its height, so toasts sit above the
     // bar and never cover a control the reader needs next.
     <Dock className="qt-read__dock">
-      <LiveArrivalSlot
-        article={article}
-        armed={arrivalArmed}
-        own={tip.unavailable === 'own-article'}
-        onDone={onArrivalDone}
-      />
+      {arrivalArmed ? (
+        <LiveArrivalSlot
+          article={article}
+          armed={arrivalArmed}
+          own={tip.unavailable === 'own-article'}
+          onDone={onArrivalDone}
+        />
+      ) : null}
       {peek ? (
         // The receipt peek: a quiet row, not an announcement. The tip
         // control's own "Sent $1" (with focus) is the one announcement.
@@ -419,16 +450,7 @@ export function TipBar({
               if (!signedOut) return onKeepChange(next)
               // Signed out: sign in first, carrying the line; nothing is
               // kept by signing in alone.
-              const intent = linePassage
-                ? keepIntent({
-                    path: article.href,
-                    articleId: article.id,
-                    passage: linePassage,
-                  })
-                : null
-              if (openSignIn(intent ?? undefined)) return
-              if (intent) saveIntent(intent)
-              window.location.assign(signInHref(returnTo))
+              signInWith('keep', signInHref(returnTo))
             }}
           />
           {showsMoney ? <BalanceCaption available={available} compact /> : null}

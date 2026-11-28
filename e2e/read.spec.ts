@@ -1139,18 +1139,14 @@ test('after sign-in the intent is taken once: the line is chosen, the amount kep
   // Find the line's anchor and offsets as a signed-out press saved them.
   await open(page, '&pay=signed-out&offer=high')
   await tapLine(page, 'person next to')
-  await page
-    .locator('.qt-read__dock')
-    .getByRole('link', { name: 'Tip this line $1', exact: true })
-    .evaluate((a: HTMLAnchorElement) =>
-      a.addEventListener('click', (event) => event.preventDefault())
-    )
   await press(
     page,
     page
       .locator('.qt-read__dock')
       .getByRole('link', { name: 'Tip this line $1', exact: true })
   )
+  // No sheet: the sign-in page, with the intent kept for this tab.
+  await expect(page).toHaveURL(/\/(login|signin)\?returnTo=/)
   const stored = await page.evaluate(() =>
     JSON.parse(sessionStorage.getItem('quilltip:sign-in-intent')!)
   )

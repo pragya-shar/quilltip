@@ -1,107 +1,38 @@
 'use client'
 
 import type { Id } from '@/convex/_generated/dataModel'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import dynamic from 'next/dynamic'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Button } from '@/system/components/Button'
 import { useBalanceReading } from '@/shell/balance'
-import { sheetStack } from '@/shell/sheetStack'
 import { useKeptLines } from '@/hooks/read/useKeptLines'
 import { EmptyState } from '@/system/components/EmptyState'
 import { showToast } from '@/system/toast'
 import { usePassageActions } from '@/hooks/passages/usePassageActions'
-import { parseReadAnchor, readAnchor } from '@/lib/tiptap/readAnchors'
-import { sentenceSpans } from '@/hooks/read/sentences'
-import {
-  blockText,
-  lineBlockOf,
-  passagePlacement,
-  rangeAt,
-  sentenceAtLine,
-  textBetween,
-  textNodes,
-} from '@/hooks/read/passageOffsets'
 import { articleIdOf } from '@/hooks/read/payments'
 import { useTippedLines } from '@/hooks/read/tippedLines'
-import { useResumedIntent } from '@/hooks/read/useResumedIntent'
-import type { IntentPassage } from './signInIntent'
-import {
-  FINISHED_AT,
-  markOpened,
-  readPlaces,
-  savePlace,
-} from '@/hooks/read/readingPlace'
-import { READING_LINE } from '@/hooks/read/readingPosition'
 import { useArticleView } from '@/hooks/read/useArticleView'
-import {
-  usePassageSelection,
-  type ChosenPassage,
-} from '@/hooks/read/usePassageSelection'
-import { useReadingPosition } from '@/hooks/read/useReadingPosition'
-import { paintPassages, type PaintedSpan } from './paintPassages'
-import { READ_BODY_ID, READ_MARGIN_ID, type ReadArticle } from './readModel'
-import { takeLiveArrival } from './liveArrival'
+import type { ChosenLine, LineEngineApi } from './LineEngine'
+import type { PaintedSpan } from './paintPassages'
+import { READ_BODY_ID, type ReadArticle } from './readModel'
 import { TipBar, type SentTip } from './TipBar'
 
-type Tick = { top: number; height: number; kind: 'chosen' | 'place' }
-
-/** Space the toast and the dock take at the bottom, and the header at top. */
-const BOTTOM_RESERVE_PX = 200
-const TOP_RESERVE_PX = 72
+/**
+ * The lines (choosing, marks, the tick, anchors, the place, resumed
+ * intents): loaded after the page is interactive, never before the text.
+ */
+const LineEngine = dynamic(
+  () => import('./LineEngine').then((module) => module.LineEngine),
+  { ssr: false }
+)
 
 const body = () => document.getElementById(READ_BODY_ID)
 
 /**
- * Where an anchored block lands: its scroll margin plus the page's scroll
- * padding, the offset the browser itself uses for `#s-{p}-0` with no
- * script, so every landing is the same in every engine.
- */
-function anchorTop(block: Element): number {
-  const margin = parseFloat(getComputedStyle(block).scrollMarginTop) || 0
-  const padding =
-    parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0
-  return margin + padding
-}
-
-/** Keeps a line in view above the dock and any confirmation: a tip never hides its line. */
-function keepInView(span: PaintedSpan) {
-  const root = body()
-  if (!root) return
-  const rect = rangeAt(
-    root,
-    span.startOffset,
-    span.endOffset
-  ).getBoundingClientRect()
-  if (!rect.height) return
-  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
-  const limit = window.innerHeight - BOTTOM_RESERVE_PX
-  const delta =
-    rect.bottom > limit
-      ? rect.bottom - limit
-      : rect.top < TOP_RESERVE_PX
-        ? rect.top - TOP_RESERVE_PX
-        : 0
-  if (delta)
-    window.scrollBy({ top: delta, behavior: reduce ? 'instant' : 'smooth' })
-}
-
-/** The block at the reading line, for the place tick. */
-function blockAtReadingLine(root: HTMLElement): HTMLElement | null {
-  const line = window.innerHeight * READING_LINE
-  for (const node of textNodes(root)) {
-    const block = lineBlockOf(root, node)
-    if (!block) continue
-    const rect = block.getBoundingClientRect()
-    if (rect.bottom >= line) return block
-  }
-  return null
-}
-
-/**
  * Everything on the article that needs a script, attached beside the
- * server text: choosing a line, its mark and margin tick, the reader's
- * place, the tip bar and the receipt, and a quiet note if the article
- * changed since the page was rendered.
+ * server text: the tip bar and the receipt, the kept lines, and a quiet
+ * note if the article changed since the page was rendered. The lines
+ * themselves (`LineEngine`) load after the page is interactive.
  */
 export function ReaderIsland({ article }: { article: ReadArticle }) {
   // Lines tipped on this visit, marked from the press, and the reader's
@@ -118,239 +49,15 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   useEffect(() => {
     if (keptOnServer) setKept(keptOnServer)
   }, [keptOnServer])
-  const [tick, setTick] = useState<Tick | null>(null)
-  const [margin, setMargin] = useState<HTMLElement | null>(null)
 
-  const onChoose = useCallback((chosen: ChosenPassage) => {
-    // A tap leaves the page where it is; a line under the dock comes up.
-    requestAnimationFrame(() => keepInView(chosen))
-  }, [])
+  // The chosen line, as the engine reports it.
+  const [passage, setPassage] = useState<ChosenLine | null>(null)
+  const engine = useRef<LineEngineApi>(null)
+  const clear = useCallback(() => engine.current?.clear(), [])
   // While a tip is held, queued or sending, no line can be chosen or let go.
   const [locked, setLocked] = useState(false)
-  const [selecting, setSelecting] = useState(false)
-  const { passage, cursor, clear, keep, choose } = usePassageSelection(body, {
-    onChoose,
-    enabled: !locked,
-  })
   // Keep is a toggle: its pressed state confirms; only failures are said.
   const actions = usePassageActions({ quiet: true })
-
-  // Today's opening skips what this browser opened (`qt_opened`).
-  useEffect(() => markOpened(article.id), [article.id])
-
-  // `#s-{p}-{k}`: the browser lands on paragraph p by itself (its id is in
-  // the server HTML, so this works with no script); here a later sentence
-  // k is brought into view too, and p again if the text arrived after the
-  // browser looked. Nothing is chosen.
-  useEffect(() => {
-    const goToSentence = () => {
-      const anchor = parseReadAnchor(location.hash)
-      const root = body()
-      if (!anchor || !root) return
-      const block = document.getElementById(readAnchor(anchor.paragraph))
-      if (!block || !root.contains(block)) return
-      // The paragraph's top, or its sentence's, lands at one offset.
-      let top = block.getBoundingClientRect().top
-      if (anchor.sentence > 0) {
-        const { start, text, gaps } = blockText(root, block)
-        const span = sentenceSpans(text, gaps)[anchor.sentence]
-        if (!span) return
-        top = rangeAt(
-          root,
-          start + span.start,
-          start + span.end
-        ).getBoundingClientRect().top
-      }
-      window.scrollBy({ top: top - anchorTop(block), behavior: 'instant' })
-    }
-    goToSentence()
-    window.addEventListener('hashchange', goToSentence)
-    // The fonts can reflow the text after the browser looked: land again
-    // once they are in, unless the reader has moved by then.
-    let moved = false
-    const onMove = () => {
-      moved = true
-    }
-    const MOVES = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
-    for (const type of MOVES)
-      window.addEventListener(type, onMove, { once: true, passive: true })
-    let live = true
-    void document.fonts?.ready.then(() => {
-      if (live && !moved) goToSentence()
-    })
-    return () => {
-      live = false
-      window.removeEventListener('hashchange', goToSentence)
-      for (const type of MOVES) window.removeEventListener(type, onMove)
-    }
-  }, [])
-
-  // The margin layer is server HTML beside the body.
-  useEffect(() => setMargin(document.getElementById(READ_MARGIN_ID)), [])
-
-  // Earlier tips are marked only where the text still reads as tipped.
-  const tipped = useMemo(() => {
-    // On the server, and before an answer, there is nothing to check.
-    const root = tippedBefore.lines.length ? body() : null
-    const before = root
-      ? tippedBefore.lines.filter(
-          (line) =>
-            textBetween(root, line.startOffset, line.endOffset) === line.text
-        )
-      : []
-    const all = [...before, ...tippedHere]
-    return all.filter(
-      (span, index) =>
-        all.findIndex(
-          (other) =>
-            other.startOffset === span.startOffset &&
-            other.endOffset === span.endOffset
-        ) === index
-    )
-  }, [tippedBefore.lines, tippedHere])
-
-  // Paint the chosen and tipped lines; place the chosen line's tick.
-  useEffect(() => {
-    const root = body()
-    if (!root) return
-    const cleanup = paintPassages(root, {
-      chosen: passage,
-      kept,
-      tipped,
-      cursor,
-    })
-    const place = () => {
-      const frame = document.getElementById(READ_MARGIN_ID)
-      if (!passage || !frame) return
-      const at = passagePlacement(
-        rangeAt(root, passage.startOffset, passage.endOffset),
-        frame
-      )
-      setTick(at ? { ...at, kind: 'chosen' } : null)
-    }
-    if (passage) place()
-    else setTick((current) => (current?.kind === 'chosen' ? null : current))
-    const resize = new ResizeObserver(place)
-    resize.observe(root)
-    return () => {
-      resize.disconnect()
-      cleanup()
-    }
-  }, [passage, kept, tipped, cursor, selecting])
-
-  // A native selection that settles leaves the marks to the highlights;
-  // once it collapses, the marks are drawn again in the text.
-  useEffect(() => {
-    const onChange = () => {
-      const selection = window.getSelection()
-      const root = body()
-      setSelecting(
-        Boolean(
-          selection &&
-          !selection.isCollapsed &&
-          root?.contains(selection.anchorNode)
-        )
-      )
-    }
-    document.addEventListener('selectionchange', onChange)
-    return () => document.removeEventListener('selectionchange', onChange)
-  }, [])
-
-  // The keyboard cursor stays in view, and is read once by its words.
-  useEffect(() => {
-    if (cursor) keepInView(cursor)
-  }, [cursor])
-
-  // Escape lets the chosen line go, from anywhere on the page, unless a
-  // sheet or menu is open (it closes first), or a tip holds the line (the
-  // press captured it; the mark and the receipt use it).
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented || !passage) return
-      if (locked) return
-      if (sheetStack.get().some((entry) => entry.open)) return
-      if ((event.target as Element | null)?.closest('dialog, [role="menu"]'))
-        return
-      clear()
-    }
-    document.addEventListener('keydown', onKeyDown)
-    return () => document.removeEventListener('keydown', onKeyDown)
-  }, [passage, clear, locked])
-
-  // Back at the reader's place: a quiet tick beside that paragraph, and
-  // nothing chosen.
-  const onRestored = useCallback(() => {
-    const root = body()
-    const frame = document.getElementById(READ_MARGIN_ID)
-    if (!root || !frame) return
-    const block = blockAtReadingLine(root)
-    if (!block) return
-    const rect = block.getBoundingClientRect()
-    const origin = frame.getBoundingClientRect()
-    setTick((current) =>
-      current?.kind === 'chosen'
-        ? current
-        : { top: rect.top - origin.top, height: rect.height, kind: 'place' }
-    )
-  }, [])
-  // Today's "Your place" reads this: the sentence, the share read, and
-  // whether the reader reached the end.
-  const onSave = useCallback(
-    (position: { ratio: number }) => {
-      const root = body()
-      const line = root
-        ? sentenceAtLine(root, window.innerHeight * READING_LINE)
-        : null
-      savePlace({
-        articleId: article.id,
-        href: article.href,
-        title: article.title,
-        sentence: line?.text ?? '',
-        ...(line ? { at: line.startOffset } : {}),
-        percent: position.ratio,
-        updatedAt: Date.now(),
-        finished: position.ratio >= FINISHED_AT,
-      })
-    },
-    [article.href, article.id, article.title]
-  )
-  // Back to the saved sentence, not a share of the scroll: the same line
-  // whatever the width, the font or the images above it.
-  const savedSentence = useCallback(() => {
-    const root = body()
-    const at = readPlaces().find((p) => p.articleId === article.id)?.at
-    if (!root || at === undefined) return null
-    const range = rangeAt(root, at, at + 1)
-    return root.contains(range.startContainer) ? range : null
-  }, [article.id])
-  useReadingPosition(article.id, {
-    body,
-    onRestored,
-    onSave,
-    sentence: savedSentence,
-  })
-
-  // `?highlight=<id>` (a kept line, from the Shelf): land on that line,
-  // with a quiet tick and nothing chosen.
-  const aimed = useRef(false)
-  useEffect(() => {
-    if (aimed.current || !keptOnServer) return
-    const id = new URLSearchParams(location.search).get('highlight')
-    const line = id ? keptOnServer.find((k) => k.id === id) : undefined
-    if (!line) return
-    aimed.current = true
-    const root = body()
-    const frame = document.getElementById(READ_MARGIN_ID)
-    if (!root || !frame) return
-    const range = rangeAt(root, line.startOffset, line.endOffset)
-    const rect = range.getBoundingClientRect()
-    window.scrollBy({
-      top: rect.top - window.innerHeight * READING_LINE,
-      behavior: 'instant',
-    })
-    const at = passagePlacement(range, frame)
-    if (at) setTick({ ...at, kind: 'place' })
-  }, [keptOnServer])
 
   // The text never waits for this: a note only if the article moved on.
   const status = useArticleView(article.writer.username, article.slug, {
@@ -369,16 +76,6 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   }, [status])
   // Unpublished or deleted since the page was rendered: its text leaves the
   // page at once (a cached server copy can be up to a minute old).
-  // `?live=1` and the publish token are read once and cleared, for every
-  // visitor; the arrival runs only for the author (see liveArrival.ts).
-  const [arrivalArmed, setArrivalArmed] = useState(false)
-  useEffect(() => {
-    setArrivalArmed(takeLiveArrival(article.id))
-  }, [article.id])
-  const arrivalDone = useCallback(() => setArrivalArmed(false), [])
-
-  // After sign-in: the line the reader had chosen, chosen again, only where
-  // the text still reads the same. Nothing is sent or kept.
   const gone = status === 'gone'
   useEffect(() => {
     if (!gone) return
@@ -389,6 +86,10 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
       node.hidden = true
   }, [gone])
 
+  const [arrivalArmed, setArrivalArmed] = useState(false)
+  const arrivalDone = useCallback(() => setArrivalArmed(false), [])
+  const [resumeCeiling, setResumeCeiling] = useState<number | null>(null)
+
   const onSent = useCallback(
     (sent: SentTip) => {
       const span = sent.passage
@@ -397,7 +98,7 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
           ...list,
           { startOffset: span.startOffset, endOffset: span.endOffset },
         ])
-        requestAnimationFrame(() => keepInView(span))
+        requestAnimationFrame(() => engine.current?.keepInView(span))
       }
       clear()
     },
@@ -414,28 +115,23 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
           k.endOffset === passage.endOffset
       )
     : undefined
+  const keepLine = useCallback(
+    async (line: ChosenLine) => {
+      const id = await actions.keep(article.id, line)
+      if (id !== null)
+        setKept((list) => [
+          ...list,
+          { startOffset: line.startOffset, endOffset: line.endOffset, id },
+        ])
+    },
+    [actions, article.id]
+  )
   const onKeepChange = useCallback(
     async (next: boolean) => {
       setKeepPending(true)
       try {
-        if (next) {
-          await keep(
-            async (chosen) => {
-              const id = await actions.keep(article.id, chosen)
-              if (id !== null)
-                setKept((list) => [
-                  ...list,
-                  {
-                    startOffset: chosen.startOffset,
-                    endOffset: chosen.endOffset,
-                    id,
-                  },
-                ])
-              return id
-            },
-            { clearAfter: false }
-          )
-        } else if (keptHere) {
+        if (next && passage) await keepLine(passage)
+        else if (!next && keptHere) {
           if (await actions.remove(keptHere.id))
             setKept((list) => list.filter((k) => k !== keptHere))
         }
@@ -443,47 +139,16 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
         setKeepPending(false)
       }
     },
-    [actions, article.id, keep, keptHere]
+    [actions, keepLine, keptHere, passage]
   )
-
-  // After sign-in, on this page, once (the sign-in contract's resume): the
-  // line the reader had chosen is chosen again, only where the text still
-  // reads the same. A tip's amount is set within its ceiling (the tip bar);
-  // nothing is sent. A keep is kept, since keeping is not money.
-  const resumedTip = useResumedIntent('tip')
-  const resumedKeep = useResumedIntent('keep')
-  const [resumeCeiling, setResumeCeiling] = useState<number | null>(null)
-  const chooseLine = useCallback(
-    (line: IntentPassage): boolean => {
-      const root = body()
-      if (!root) return false
-      if (textBetween(root, line.startOffset, line.endOffset) !== line.text)
-        return false
-      const chosen: ChosenPassage = {
-        text: line.text,
-        startOffset: line.startOffset,
-        endOffset: line.endOffset,
-        startContainerPath: `text.${line.startOffset}`,
-        endContainerPath: `text.${line.endOffset}`,
-        via: 'intent',
-      }
-      choose(chosen)
-      requestAnimationFrame(() => keepInView(chosen))
-      return true
+  // A keep resumed after sign-in: kept for the line the engine chose again.
+  const onResumedKeep = useCallback(
+    (line: ChosenLine) => {
+      setKeepPending(true)
+      void keepLine(line).finally(() => setKeepPending(false))
     },
-    [choose]
+    [keepLine]
   )
-  useEffect(() => {
-    if (!resumedTip || resumedTip.articleId !== article.id) return
-    if (resumedTip.passage) chooseLine(resumedTip.passage)
-    setResumeCeiling(resumedTip.amount.cents)
-  }, [resumedTip, article.id, chooseLine])
-  useEffect(() => {
-    if (!resumedKeep || resumedKeep.articleId !== article.id) return
-    if (chooseLine(resumedKeep.passage)) void onKeepChange(true)
-    // Once per resumed intent.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resumedKeep, article.id, chooseLine])
 
   if (gone)
     return (
@@ -500,20 +165,19 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
 
   return (
     <>
-      {margin && tick
-        ? createPortal(
-            <span
-              key={`${tick.kind}:${tick.top}`}
-              className="qt-read__tick"
-              data-kind={tick.kind}
-              style={{ top: tick.top, height: tick.height }}
-            />,
-            margin
-          )
-        : null}
-      <p className="qt-visually-hidden" aria-live="polite">
-        {cursor ? cursor.text : ''}
-      </p>
+      <LineEngine
+        article={article}
+        locked={locked}
+        kept={kept}
+        keptOnServer={keptOnServer}
+        tippedHere={tippedHere}
+        tippedBefore={tippedBefore.lines}
+        onPassage={setPassage}
+        onKeep={onResumedKeep}
+        onResumeCeiling={setResumeCeiling}
+        onArrival={setArrivalArmed}
+        api={engine}
+      />
       {/* An id that is not a document id gets no tip control. */}
       {articleIdOf(article.id) ? (
         <TipBar
