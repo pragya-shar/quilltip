@@ -20,7 +20,16 @@
  *   (with the passage fields) once the line is gone or the article is not
  *   public: by `reconcileArticle`, which the article's publish, edit, unpublish
  *   and delete paths schedule; by `clearIfStale`, which `resolve` schedules;
- *   and by `sweep`, the safety net for a path that missed its call.
+ *   and by `sweep`, the safety net for a path that missed its call. The sweep
+ *   deletes a cleared row `CLEARED_SHARE_RETENTION_MS` after it was cleared.
+ *   A canonical code can then be issued again, but only for the same line
+ *   (its code is keyed from the passage id, which is the line's text).
+ * - Every path that reads an article's text (`create`, `resolve`,
+ *   `clearIfStale`, `reconcileArticle`, `sweep`) first checks its size
+ *   (`readShareable`): past `MAX_SHAREABLE_CHARACTERS`,
+ *   `MAX_SHAREABLE_BREAKS` or `MAX_SHAREABLE_SENTENCES` the article is not
+ *   searched. `create` refuses it, `resolve` answers null without clearing,
+ *   and the clean-up paths leave its shares as they are.
  */
 import { ConvexError, v } from 'convex/values'
 import { getAuthUserId } from '@convex-dev/auth/server'
@@ -36,16 +45,26 @@ import {
   canonicalText,
   findPassage,
   identifyRange,
+  passageIndexOf,
+  passageMatchesAt,
   rangeOfSentences,
   sentenceRange,
   sentenceRangeText,
   sentencesOf,
+  type CanonicalText,
+  type PassageIndex,
   type Sentence,
 } from '../lib/passages/sentences'
 
 /** Longest quote a share stores; a longer passage cannot be shared. */
 export const MAX_SHARE_QUOTE = 500
-/** Articles with more sentences than this cannot be shared from. */
+/**
+ * An article past any of these is not searched for shares: its text in
+ * UTF-16 units, its hard breaks (and other inline non-text nodes), its
+ * sentences. Each search then costs at most about these sizes.
+ */
+export const MAX_SHAREABLE_CHARACTERS = 200_000
+export const MAX_SHAREABLE_BREAKS = 10_000
 export const MAX_SHAREABLE_SENTENCES = 10_000
 export const SHARE_CODE_LENGTH = 8
 /** 32 characters: a to z without l and o, and 2 to 9. */
@@ -57,6 +76,11 @@ export const CANONICAL_CODE_SCHEME = 'quilltip-share-v1'
  * characters). Without it, signed-out sharing is refused.
  */
 export const SHARE_CODE_SECRET_ENV = 'SHARE_CODE_SECRET'
+/** The documented placeholders (`.env.example`, now and before), never keys. */
+export const SHARE_CODE_SECRET_PLACEHOLDERS: readonly string[] = [
+  'replace-with-a-random-secret',
+  'replace-with-at-least-32-random-characters',
+]
 /** Canonical codes tried for one line before a random code is used. */
 export const CANONICAL_GENERATIONS = 16
 
@@ -73,7 +97,14 @@ export const SIGNED_OUT_SHARES_PER_DAY = 50_000
 /** Rows one reconcile or sweep step reads. */
 export const RECONCILE_BATCH = 100
 /** Sweep steps chained from one cron run. */
-export const SWEEP_STEPS_PER_RUN = 10
+export const SWEEP_STEPS_PER_RUN = 25
+/**
+ * Distinct articles one sweep step reads; the step stops at the next one and
+ * the following step resumes at that share.
+ */
+export const SWEEP_ARTICLES_PER_STEP = 8
+/** How long a cleared row is kept before the sweep deletes it: 30 days. */
+export const CLEARED_SHARE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 /** A selection in the article's canonical offsets (`canonicalText`). */
 export const passageRefValidator = v.object({
@@ -132,7 +163,30 @@ function randomCode(): string {
 /** The canonical-code key, or null when the deployment has none. */
 export function shareCodeSecret(): string | null {
   const secret = process.env[SHARE_CODE_SECRET_ENV]?.trim()
-  return secret && secret.length >= 32 ? secret : null
+  if (!secret || secret.length < 32) return null
+  return SHARE_CODE_SECRET_PLACEHOLDERS.includes(secret) ? null : secret
+}
+
+/** An article's text, ready to search. */
+type Shareable = {
+  canonical: CanonicalText
+  sentences: Sentence[]
+  index: PassageIndex
+}
+
+/**
+ * The article's sentences and search index, or null when the article is past
+ * a size limit (checked before the sentences are split).
+ */
+export function readShareable(content: unknown): Shareable | null {
+  const canonical = canonicalText(content)
+  if (canonical.text.length > MAX_SHAREABLE_CHARACTERS) return null
+  let breaks = 0
+  for (const block of canonical.blocks) breaks += block.gaps.length
+  if (breaks > MAX_SHAREABLE_BREAKS) return null
+  const sentences = sentencesOf(canonical)
+  if (sentences.length > MAX_SHAREABLE_SENTENCES) return null
+  return { canonical, sentences, index: passageIndexOf(sentences) }
 }
 
 /**
@@ -195,21 +249,25 @@ type Located =
 function locate(
   share: Doc<'shares'>,
   article: Doc<'articles'>,
-  sentences: Sentence[]
+  text: Shareable
 ): Located {
   const quote = share.quote
   if (quote === null) return { status: 'gone' }
-  const found = findPassage(sentences, quote)
-  const stored = (f: [number, number]) =>
-    f[0] === share.sentenceStart && f[1] === share.sentenceEnd
+  const found = findPassage(text.index, quote, 2)
+  if (found.length === 0) return { status: 'gone' }
   if (found.length === 1) {
     const [from, to] = found[0]!
-    return { status: stored(found[0]!) ? 'exact' : 'moved', from, to }
+    const stored = from === share.sentenceStart && to === share.sentenceEnd
+    return { status: stored ? 'exact' : 'moved', from, to }
   }
-  if (found.length === 0) return { status: 'gone' }
-  const here = found.find(stored)
-  if (here && (article.contentVersion ?? null) === share.contentVersion) {
-    return { status: 'exact', from: here[0], to: here[1] }
+  const { sentenceStart, sentenceEnd } = share
+  if (
+    sentenceStart !== null &&
+    sentenceEnd !== null &&
+    (article.contentVersion ?? null) === share.contentVersion &&
+    passageMatchesAt(text.index, quote, sentenceStart, sentenceEnd)
+  ) {
+    return { status: 'exact', from: sentenceStart, to: sentenceEnd }
   }
   return { status: 'changed' }
 }
@@ -251,7 +309,8 @@ async function freeRandomCode(ctx: MutationCtx): Promise<string> {
  * alike), `ARTICLE_TOO_LONG` (with `maxSentences`), `INVALID_PASSAGE`,
  * `SINGLE_SENTENCE_ONLY` (signed out, more than one sentence),
  * `PASSAGE_TOO_LONG` (with `max`), `SHARING_NOT_CONFIGURED` (signed out, no
- * secret), `RATE_LIMITED` (with `retryAfterMs`). A quote is never shortened.
+ * secret), `RATE_LIMITED` (with `retryAfterMs`). `ARTICLE_TOO_LONG` also
+ * carries `maxCharacters` and `maxBreaks`. A quote is never shortened.
  */
 export const create = mutation({
   args: { articleId: v.id('articles'), passage: passageRefValidator },
@@ -261,14 +320,16 @@ export const create = mutation({
     if (!isPublic(article)) {
       throw new ConvexError({ code: 'NOT_FOUND' })
     }
-    const canonical = canonicalText(article.content)
-    const sentences = sentencesOf(canonical)
-    if (sentences.length > MAX_SHAREABLE_SENTENCES) {
+    const text = readShareable(article.content)
+    if (!text) {
       throw new ConvexError({
         code: 'ARTICLE_TOO_LONG',
         maxSentences: MAX_SHAREABLE_SENTENCES,
+        maxCharacters: MAX_SHAREABLE_CHARACTERS,
+        maxBreaks: MAX_SHAREABLE_BREAKS,
       })
     }
+    const { canonical, sentences, index } = text
     const range = sentenceRange(
       sentences,
       args.passage.startOffset,
@@ -291,7 +352,8 @@ export const create = mutation({
       String(article._id),
       canonical,
       sentences,
-      range
+      range,
+      index
     )
     const now = Date.now()
     const row = {
@@ -397,18 +459,22 @@ export const create = mutation({
  * Resolves a share code for the `/p/[code]` server component. It returns
  * nothing that the public page does not show, and the same `null` for an
  * unknown or malformed code, a line that is gone, and an unpublished or
- * deleted article. It writes nothing; for a line it finds gone it schedules
- * `clearIfStale` (the hooks and the sweep clear shares of hidden articles).
+ * deleted article. A cleared row is read as an unknown code: the same reads,
+ * and no article work. It writes nothing; for a line it finds gone it
+ * schedules `clearIfStale` (the hooks and the sweep clear shares of hidden
+ * articles). An article past the size limits answers null and is not cleared.
  */
 export const resolve = mutation({
   args: { code: v.string() },
   returns: resolvedValidator,
   handler: async (ctx, args) => {
     const code = args.code.slice(0, 64).trim().toLowerCase()
-    const share = await ctx.db
+    const row = await ctx.db
       .query('shares')
       .withIndex('by_code', (q) => q.eq('code', code))
       .first()
+    // A cleared row answers exactly as an unknown code does.
+    const share = row && row.quote !== null ? row : null
     const article = share
       ? await ctx.db.get(share.articleId)
       : // The same read an existing code makes, with nothing to find.
@@ -419,15 +485,14 @@ export const resolve = mutation({
           .then(() => null)
     if (!share || !isPublic(article)) return null
 
-    const canonical = canonicalText(article.content)
-    const sentences = sentencesOf(canonical)
-    const located = locate(share, article, sentences)
+    const text = readShareable(article.content)
+    if (!text) return null
+    const { canonical, sentences, index } = text
+    const located = locate(share, article, text)
     if (located.status === 'gone') {
-      if (share.quote !== null || share.passageId !== null) {
-        await ctx.scheduler.runAfter(0, internal.shares.clearIfStale, {
-          shareId: share._id,
-        })
-      }
+      await ctx.scheduler.runAfter(0, internal.shares.clearIfStale, {
+        shareId: share._id,
+      })
       return null
     }
 
@@ -448,7 +513,8 @@ export const resolve = mutation({
       String(article._id),
       canonical,
       sentences,
-      range
+      range,
+      index
     )
     return {
       status: located.status,
@@ -477,12 +543,10 @@ export const clearIfStale = internalMutation({
     const share = await ctx.db.get(args.shareId)
     if (!share) return false
     const article = await ctx.db.get(share.articleId)
-    if (
-      isPublic(article) &&
-      locate(share, article, sentencesOf(canonicalText(article.content)))
-        .status !== 'gone'
-    ) {
-      return false
+    if (isPublic(article)) {
+      const text = readShareable(article.content)
+      // Past the size limits: left as it is, like every other path.
+      if (!text || locate(share, article, text).status !== 'gone') return false
     }
     return clearShare(ctx, share, Date.now())
   },
@@ -491,7 +555,9 @@ export const clearIfStale = internalMutation({
 /**
  * Clears every share of an article whose line is gone (all of them when the
  * article is unpublished or deleted), and marks the others checked. Bounded
- * batches; schedules itself until the article's rows are done.
+ * batches; schedules itself until the article's rows are done. A public
+ * article past the size limits is not searched: its shares are only marked
+ * checked.
  */
 export const reconcileArticle = internalMutation({
   args: {
@@ -502,7 +568,7 @@ export const reconcileArticle = internalMutation({
   handler: async (ctx, args) => {
     const article = await ctx.db.get(args.articleId)
     const live = isPublic(article) ? article : null
-    const sentences = live ? sentencesOf(canonicalText(live.content)) : []
+    const text = live ? readShareable(live.content) : null
     const page = await ctx.db
       .query('shares')
       .withIndex('by_article_passage_sharer', (q) =>
@@ -513,7 +579,7 @@ export const reconcileArticle = internalMutation({
     let cleared = 0
     for (const share of page.page) {
       if (share.quote === null && share.passageId === null) continue
-      if (live && locate(share, live, sentences).status !== 'gone') {
+      if (live && (!text || locate(share, live, text).status !== 'gone')) {
         if (share.checkedAt < now)
           await ctx.db.patch(share._id, { checkedAt: now })
         continue
@@ -532,11 +598,21 @@ export const reconcileArticle = internalMutation({
 
 /**
  * Safety net for a path that changed an article without calling
- * `scheduleShareReconcile`. Walks every share in creation order, a bounded
- * page per step and `SWEEP_STEPS_PER_RUN` steps per cron run, and re-checks a
- * share only when its article is no longer public or changed after the
- * share's `checkedAt`. Writes only a clear, a `checkedAt` after a re-check,
- * and its own position; with no shares it writes nothing.
+ * `scheduleShareReconcile`, and the clean-up of old cleared rows. Walks every
+ * share in creation order, a page of `RECONCILE_BATCH` rows per step and
+ * `SWEEP_STEPS_PER_RUN` steps per cron run. It re-checks a share only when
+ * its article is no longer public or changed after the share's `checkedAt`,
+ * and deletes a row cleared more than `CLEARED_SHARE_RETENTION_MS` ago.
+ *
+ * Bounded per step: at most `SWEEP_ARTICLES_PER_STEP` distinct articles are
+ * read; at the next one the step ends and the next step resumes at that share
+ * (`resumeAfter`). An article past the size limits is skipped, and one whose
+ * check throws is recorded (`failures`, `lastFailedArticleId`): either way its
+ * shares are marked checked and the walk goes on, so no article can hold up
+ * the shares after it.
+ *
+ * Writes: a clear, a delete, a `checkedAt`, and its own position on every
+ * step that read a share (none when there are no shares).
  */
 export const sweep = internalMutation({
   args: { steps: v.optional(v.number()) },
@@ -544,6 +620,9 @@ export const sweep = internalMutation({
     seen: v.number(),
     rechecked: v.number(),
     cleared: v.number(),
+    purged: v.number(),
+    skipped: v.number(),
+    failed: v.number(),
     done: v.boolean(),
   }),
   handler: async (ctx, args) => {
@@ -555,62 +634,133 @@ export const sweep = internalMutation({
       ctx.db.query('shares').paginate({ numItems: RECONCILE_BATCH, cursor })
     // A position saved before a schema or index change may no longer be a
     // valid cursor: start the pass again instead of failing every run.
-    const page = await read(state?.cursor ?? null).catch(() => read(null))
+    let pageCursor = state?.cursor ?? null
+    let resumeAfter = state?.resumeAfter ?? null
+    const page = await read(pageCursor).catch(() => {
+      pageCursor = null
+      resumeAfter = null
+      return read(null)
+    })
     const now = Date.now()
-    const articles = new Map<
-      Id<'articles'>,
-      { article: Doc<'articles'> | null; sentences: Sentence[] | null }
-    >()
+    /** `text`: unread, the searchable text, or why the article is skipped. */
+    type Entry = {
+      article: Doc<'articles'> | null
+      text?: Shareable | 'too-large' | 'failed'
+    }
+    const articles = new Map<Id<'articles'>, Entry>()
+    let seen = 0
     let rechecked = 0
     let cleared = 0
+    let purged = 0
+    let skipped = 0
+    let failed = 0
+    let lastFailedArticleId: Id<'articles'> | null = null
+    let stopped = false
+    let lastHandled: Id<'shares'> | null = null
+    // Resume inside the page after the share the last step ended on; if that
+    // row is gone, the page is walked again from its start (only re-checks).
+    let skipping =
+      resumeAfter !== null && page.page.some((r) => r._id === resumeAfter)
+
     for (const share of page.page) {
-      if (share.quote === null && share.passageId === null) continue
+      if (skipping) {
+        if (share._id === resumeAfter) skipping = false
+        continue
+      }
+      if (share.quote === null && share.passageId === null) {
+        const clearedAt = share.clearedAt ?? share.checkedAt
+        if (clearedAt + CLEARED_SHARE_RETENTION_MS < now) {
+          await ctx.db.delete(share._id)
+          purged++
+        }
+        seen++
+        lastHandled = share._id
+        continue
+      }
       let entry = articles.get(share.articleId)
       if (!entry) {
-        entry = { article: await ctx.db.get(share.articleId), sentences: null }
+        if (articles.size === SWEEP_ARTICLES_PER_STEP) {
+          stopped = true
+          break
+        }
+        entry = { article: await ctx.db.get(share.articleId) }
         articles.set(share.articleId, entry)
       }
+      seen++
+      lastHandled = share._id
       const article = entry.article
-      if (isPublic(article) && article.updatedAt <= share.checkedAt) continue
-      rechecked++
       if (isPublic(article)) {
-        entry.sentences ??= sentencesOf(canonicalText(article.content))
-        if (locate(share, article, entry.sentences).status !== 'gone') {
+        if (article.updatedAt <= share.checkedAt) continue
+        if (entry.text === undefined) {
+          try {
+            entry.text = readShareable(article.content) ?? 'too-large'
+          } catch (error) {
+            console.error('share sweep: article check failed', {
+              articleId: share.articleId,
+              error: String(error),
+            })
+            entry.text = 'failed'
+          }
+        }
+        if (entry.text === 'too-large') {
+          skipped++
           await ctx.db.patch(share._id, { checkedAt: now })
           continue
         }
+        let status: Located['status'] | 'failed' = 'failed'
+        if (entry.text !== 'failed') {
+          try {
+            status = locate(share, article, entry.text).status
+          } catch (error) {
+            console.error('share sweep: share check failed', {
+              shareId: share._id,
+              error: String(error),
+            })
+          }
+        }
+        if (status === 'failed') {
+          failed++
+          lastFailedArticleId = share.articleId
+          await ctx.db.patch(share._id, { checkedAt: now })
+          continue
+        }
+        rechecked++
+        if (status !== 'gone') {
+          await ctx.db.patch(share._id, { checkedAt: now })
+          continue
+        }
+      } else {
+        rechecked++
       }
       if (await clearShare(ctx, share, now)) cleared++
     }
 
-    const cursor = page.isDone ? null : page.continueCursor
+    const finished = !stopped && page.isDone
+    const position = stopped
+      ? { cursor: pageCursor, resumeAfter: lastHandled }
+      : { cursor: page.isDone ? null : page.continueCursor, resumeAfter: null }
+    const failures = (state?.failures ?? 0) + failed
+    const record = {
+      cursor: position.cursor,
+      resumeAfter: position.resumeAfter ?? undefined,
+      lastRunAt: now,
+      ...(finished ? { lastPassAt: now } : {}),
+      ...(failed > 0 ? { failures, lastFailureAt: now } : {}),
+      ...(lastFailedArticleId ? { lastFailedArticleId } : {}),
+    }
     if (state) {
-      if (state.cursor !== cursor || page.page.length > 0)
-        await ctx.db.patch(state._id, {
-          cursor,
-          lastRunAt: now,
-          ...(page.isDone ? { lastPassAt: now } : {}),
-        })
+      if (page.page.length > 0 || state.cursor !== position.cursor)
+        await ctx.db.patch(state._id, record)
     } else if (page.page.length > 0) {
-      await ctx.db.insert('shareSweeps', {
-        key: 'shares',
-        cursor,
-        lastRunAt: now,
-        ...(page.isDone ? { lastPassAt: now } : {}),
-      })
+      await ctx.db.insert('shareSweeps', { key: 'shares', ...record })
     }
     const steps = args.steps ?? SWEEP_STEPS_PER_RUN
-    if (!page.isDone && steps > 1) {
+    if (!finished && steps > 1) {
       await ctx.scheduler.runAfter(0, internal.shares.sweep, {
         steps: steps - 1,
       })
     }
-    return {
-      seen: page.page.length,
-      rechecked,
-      cleared,
-      done: page.isDone,
-    }
+    return { seen, rechecked, cleared, purged, skipped, failed, done: finished }
   },
 })
 

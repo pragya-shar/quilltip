@@ -9,8 +9,9 @@
  * `toUpperCase`/`toLowerCase`, `\p{L}`/`\p{N}` and NFC, which follow each
  * engine's Unicode tables, so a character added in a newer Unicode version
  * than an engine knows may be read differently there. The guard is the shared
- * vectors (`lib/passages/vectors/identity-v1.json`), run in real browser
- * engines as well as here.
+ * vectors (`lib/passages/vectors/identity-v1.json`): the tests here run them in
+ * the edge runtime, and the article view runs them in Chromium and WebKit
+ * against its own copy of this module.
  *
  * Offsets are counted the way highlight offsets are counted today
  * (`convex/lib/tiptapContent.ts`): the characters of the TipTap text nodes in
@@ -43,21 +44,39 @@
  *    bytes of `quilltip-passage-v1` + LF + article id + LF + normalised text.
  *    An ambiguous passage hashes `quilltip-passage-v1:at` + LF + article id +
  *    LF + `<sentenceStart>:<sentenceEnd>` + LF + normalised text.
- * 4. The sentence rule (`sentencesOf`):
+ * 4. The sentence rule (`sentencesOf`), on the article's characters as stored
+ *    (not normalised):
  *    a. A sentence ends after a terminator run (`TERMINATORS`) and any closing
  *       marks (`CLOSERS`) when whitespace, a hard break or the block end
  *       follows; after a wide terminator (`WIDE_TERMINATORS`) it ends at once.
+ *       A plain semicolon (U+003B) never ends a sentence; only the Greek
+ *       question mark U+037E does, and only where the text stores U+037E.
  *    b. It does not end there when the next character after the whitespace is
- *       a lower-case letter; or, for a full stop, when the word before it is in
- *       `ABBREVIATIONS`, is in `NUMBER_ABBREVIATIONS` and a digit follows, is
- *       one letter (an initial), is dotted letters ("U.S.", "a.m.") and no
- *       capital letter follows, or is a number that opens the sentence.
- *    c. A piece with no letter or digit joins the sentence before it in its
+ *       a lower-case letter, where a letter is lower case when it differs from
+ *       its upper case and equals its lower case, except Georgian Mkhedruli
+ *       (U+10D0 to U+10FF), which counts as uncased.
+ *    c. For a full stop, it does not end there either when the word before
+ *       the stop is in `ABBREVIATIONS`; is in `NUMBER_ABBREVIATIONS` and a
+ *       digit follows; is one letter (an initial, so also "p. 5"); is dotted
+ *       letters ("U.S.", "a.m.": they never end a sentence by themselves, so
+ *       "He lives in the U.S. The weather is fine." is one sentence); or is a
+ *       number that opens the sentence ("1. First"). The word before a stop
+ *       runs back to whitespace, a hard break or the sentence start, and is
+ *       read for at most `MAX_WORD_LOOKBACK` UTF-16 units: a longer word is
+ *       none of these, and opening marks (`OPENERS`) are removed from it.
+ *    d. The full-width full stop U+FF0E does not end a sentence between two
+ *       decimal digits ("３．１４") or after a number that opens the sentence
+ *       ("１．はじめに").
+ *    e. A piece with no letter or digit joins the sentence before it in its
  *       block (the one after it when it opens the block); a block with no
  *       letter or digit at all is one sentence.
  *
- * Any change to 1 to 4 that can change a stored id needs a new scheme string;
- * ids stored under an old scheme keep meaning what that scheme said.
+ * Any change to 1 to 4 that can change a stored id needs, once ids of this
+ * scheme are stored: a new scheme string; a new vectors file beside
+ * `identity-v1.json` (the old file stays, for rows of the old scheme); and
+ * every stored id either recomputed under the new scheme or stored with the
+ * scheme that made it. Ids stored under an old scheme keep meaning what that
+ * scheme said.
  */
 
 /** Names the identity rule above; see the header for what it fixes. */
@@ -181,7 +200,8 @@ export function canonicalText(content: unknown): CanonicalText {
  * end follows: full stop, exclamation and question marks, ellipsis,
  * interrobang, the Devanagari danda (U+0964) and double danda (U+0965), the
  * Arabic question mark (U+061F), the Arabic full stop (U+06D4), the Armenian
- * full stop (U+0589) and the Greek question mark (U+037E).
+ * full stop (U+0589) and the Greek question mark (U+037E, written as an escape
+ * because it looks like a semicolon; a plain semicolon never ends a sentence).
  */
 const TERMINATORS = new Set([
   '.',
@@ -194,7 +214,7 @@ const TERMINATORS = new Set([
   '؟',
   '۔',
   '։',
-  ';',
+  '\u037e',
 ])
 /**
  * Terminators that end a sentence with no space after them: the ideographic
@@ -245,7 +265,8 @@ const ABBREVIATIONS = new Set([
 
 /**
  * Words that keep the sentence open only before a number ("no. 5", "fig. 3"),
- * because they are also ordinary words at the end of a sentence.
+ * because they are also ordinary words at the end of a sentence. One-letter
+ * words ("p. 5") need no entry: the initial rule keeps them open.
  */
 const NUMBER_ABBREVIATIONS = new Set([
   'no',
@@ -255,7 +276,6 @@ const NUMBER_ABBREVIATIONS = new Set([
   'vol',
   'pp',
   'ch',
-  'p',
 ])
 
 /**
@@ -269,17 +289,26 @@ function isWhitespace(ch: string | undefined): boolean {
   return ch !== undefined && WHITESPACE.test(ch)
 }
 
-/** A cased letter in lower case (Unicode default case mapping, no locale). */
+/**
+ * A cased letter in lower case (Unicode default case mapping, no locale).
+ * Georgian Mkhedruli (U+10D0 to U+10FF) is excluded: it is written without
+ * case, although engines map it to Mtavruli in upper case.
+ */
 function isLowercaseLetter(ch: string): boolean {
+  const cp = ch.codePointAt(0) ?? 0
+  if (cp >= 0x10d0 && cp <= 0x10ff) return false
   return ch !== ch.toUpperCase() && ch === ch.toLowerCase()
 }
 
-/** A cased letter in upper case. */
-function isUppercaseLetter(ch: string): boolean {
-  return ch !== ch.toLowerCase() && ch === ch.toUpperCase()
-}
-
 const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
+const DECIMAL_DIGIT = /^\p{Nd}$/u
+const DIGITS = /^\p{Nd}+$/u
+
+/** The longest word, in UTF-16 units, read back from a stop (rule 4c). */
+export const MAX_WORD_LOOKBACK = 32
+
+/** The full-width full stop, which is also a decimal point (rule 4d). */
+const FULL_WIDTH_STOP = '\uff0e'
 
 /** The code point at `i` as a string (one or two UTF-16 units). */
 function codePointString(text: string, i: number): string {
@@ -287,11 +316,26 @@ function codePointString(text: string, i: number): string {
   return cp === undefined ? '' : String.fromCodePoint(cp)
 }
 
-/** The word that ends at `stop` (exclusive), without opening marks. */
-function wordBefore(text: string, from: number, stop: number): string {
+/**
+ * The word that ends at `stop` (exclusive): back to whitespace, a hard break
+ * (`gaps`) or `from`, with opening marks removed. Null when it is longer than
+ * `MAX_WORD_LOOKBACK`. `opensSentence`: it starts at `from` with no opening
+ * mark.
+ */
+function wordBefore(
+  text: string,
+  from: number,
+  stop: number,
+  gaps: Set<number>
+): { word: string; opensSentence: boolean } | null {
   let i = stop
-  while (i > from && !isWhitespace(text[i - 1])) i--
-  return text.slice(i, stop).replace(OPENERS, '')
+  while (i > from && !isWhitespace(text[i - 1]) && !gaps.has(i)) {
+    if (stop - i === MAX_WORD_LOOKBACK) return null
+    i--
+  }
+  const raw = text.slice(i, stop)
+  const word = raw.replace(OPENERS, '')
+  return { word, opensSentence: i === from && word === raw }
 }
 
 /** True when the stop at `stop` does not end the sentence. */
@@ -299,24 +343,40 @@ function keepsSentenceOpen(
   text: string,
   sentenceStart: number,
   stop: number,
-  next: string
+  next: string,
+  gaps: Set<number>
 ): boolean {
   if (next !== '' && isLowercaseLetter(next)) return true
   if (text[stop] !== '.') return false
-  const word = wordBefore(text, sentenceStart, stop)
-  if (word.length === 0) return false
+  const before = wordBefore(text, sentenceStart, stop, gaps)
+  if (!before || before.word.length === 0) return false
+  const { word } = before
   const lower = word.toLowerCase()
   if (ABBREVIATIONS.has(lower)) return true
   if (NUMBER_ABBREVIATIONS.has(lower)) return /^\p{N}/u.test(next)
-  // An initial: one letter ("J. R. Tolkien").
+  // An initial: one letter ("J. R. Tolkien", "p. 5").
   if (codePointString(word, 0).length === word.length && /\p{L}/u.test(word))
     return true
-  // Dotted letters ("U.S.", "a.m."): open unless a capital letter follows.
-  if (/^(?:\p{L}\.)+\p{L}$/u.test(word)) return !isUppercaseLetter(next)
+  // Dotted letters ("U.S.", "a.m.") never end a sentence by themselves.
+  if (/^(?:\p{L}\.)+\p{L}$/u.test(word)) return true
   // A list number that opens the sentence ("1. First").
-  if (/^\d+$/.test(word) && text.slice(sentenceStart, stop) === word)
-    return true
+  if (/^\d+$/.test(word) && before.opensSentence) return true
   return false
+}
+
+/** True when the full-width stop at `i` is a decimal point or a list number. */
+function fullWidthStopKeepsOpen(
+  text: string,
+  sentenceStart: number,
+  i: number,
+  blockEnd: number,
+  gaps: Set<number>
+): boolean {
+  const prev = i > sentenceStart && !gaps.has(i) ? text[i - 1]! : ''
+  const next = i + 1 < blockEnd && !gaps.has(i + 1) ? text[i + 1]! : ''
+  if (DECIMAL_DIGIT.test(prev) && DECIMAL_DIGIT.test(next)) return true
+  const before = wordBefore(text, sentenceStart, i, gaps)
+  return !!before && before.opensSentence && DIGITS.test(before.word)
 }
 
 /** Closers between the last terminator of the run at `i` and `j`. */
@@ -324,6 +384,18 @@ function countClosers(text: string, i: number, j: number): number {
   let n = 0
   while (j - 1 - n > i && CLOSERS.has(text[j - 1 - n]!)) n++
   return n
+}
+
+/** The index of the first gap after `start` in the sorted `gaps`. */
+function firstGapAfter(gaps: number[], start: number): number {
+  let lo = 0
+  let hi = gaps.length
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1
+    if (gaps[mid]! <= start) lo = mid + 1
+    else hi = mid
+  }
+  return lo
 }
 
 /** `text.slice(start, end)` with one space at each hard break inside. */
@@ -335,8 +407,9 @@ function textWithBreaks(
 ): string {
   let out = ''
   let at = start
-  for (const gap of gaps) {
-    if (gap <= start || gap >= end) continue
+  for (let g = firstGapAfter(gaps, start); g < gaps.length; g++) {
+    const gap = gaps[g]!
+    if (gap >= end) break
     out += `${text.slice(at, gap)} `
     at = gap
   }
@@ -360,6 +433,13 @@ function blockPieces(
     while (i < block.end) {
       const ch = text[i]!
       if (WIDE_TERMINATORS.has(ch)) {
+        if (
+          ch === FULL_WIDTH_STOP &&
+          fullWidthStopKeepsOpen(text, start, i, block.end, gaps)
+        ) {
+          i++
+          continue
+        }
         let j = i + 1
         while (
           j < block.end &&
@@ -382,7 +462,8 @@ function blockPieces(
               text,
               start,
               j - 1 - countClosers(text, i, j),
-              next
+              next,
+              gaps
             )
           ) {
             end = j
@@ -572,36 +653,123 @@ export function sentenceRangeText(
 }
 
 /**
+ * The article's sentence keys joined by one space, with where each key starts
+ * and ends in it and a rolling hash of every prefix: built once per article
+ * (linear), so each search tries every sentence start in constant time.
+ */
+export type PassageIndex = {
+  joined: string
+  /** `starts[i]`: where sentence `i`'s key starts in `joined`. */
+  starts: number[]
+  /** `endAt[p]`: the sentence whose key ends at offset `p`, else -1. */
+  endAt: Int32Array
+  /** `prefix[p]`: the hash of `joined.slice(0, p)`. */
+  prefix: Float64Array
+  /** The hash's base, drawn at random per index, so no text is made to collide. */
+  base: number
+}
+
+/**
+ * A prime below 2^26, so every product in the hash stays below 2^52 and is
+ * exact in a double. The hash only skips candidates; a match is always
+ * confirmed character by character.
+ */
+const HASH_MODULUS = 67_108_859
+
+export function passageIndexOf(sentences: Sentence[]): PassageIndex {
+  const joined = sentences.map((s) => s.key).join(' ')
+  const starts: number[] = []
+  const endAt = new Int32Array(joined.length + 1).fill(-1)
+  let at = 0
+  for (const s of sentences) {
+    starts.push(at)
+    at += s.key.length
+    endAt[at] = s.index
+    at += 1
+  }
+  const base = 256 + Math.floor(Math.random() * (HASH_MODULUS - 512))
+  const prefix = new Float64Array(joined.length + 1)
+  for (let p = 0; p < joined.length; p++) {
+    prefix[p + 1] = (prefix[p]! * base + joined.charCodeAt(p)) % HASH_MODULUS
+  }
+  return { joined, starts, endAt, prefix, base }
+}
+
+function asIndex(source: Sentence[] | PassageIndex): PassageIndex {
+  return Array.isArray(source) ? passageIndexOf(source) : source
+}
+
+/** The hash of `text` and `base ** text.length`, both mod `HASH_MODULUS`. */
+function hashOf(text: string, base: number): [number, number] {
+  let hash = 0
+  let power = 1
+  for (let p = 0; p < text.length; p++) {
+    hash = (hash * base + text.charCodeAt(p)) % HASH_MODULUS
+    power = (power * base) % HASH_MODULUS
+  }
+  return [hash, power]
+}
+
+/** True when `joined.slice(at, at + length)` hashes to `hash`. */
+function hashMatches(
+  index: PassageIndex,
+  at: number,
+  length: number,
+  hash: number,
+  power: number
+): boolean {
+  const { prefix } = index
+  const head = (prefix[at]! * power) % HASH_MODULUS
+  const slice = (prefix[at + length]! - head + HASH_MODULUS) % HASH_MODULUS
+  return slice === hash
+}
+
+/**
  * Every sentence range whose normalized text equals `quote`, as
- * `[sentenceStart, sentenceEnd]` pairs. Word for word: a near match, or the
- * quote inside a longer sentence, is not a match. A range is tried only from
- * a sentence the quote starts with, and grown only while the quote still
- * starts with it, so the cost is about the article's length.
+ * `[sentenceStart, sentenceEnd]` pairs in order, at most `limit` of them.
+ * Word for word: a near match, or the quote inside a longer sentence, is not
+ * a match. Each sentence start costs constant time (the quote must end at a
+ * sentence end there, and its hash must match before the characters are
+ * compared), so a search costs about the number of sentences plus the
+ * quote's length.
  */
 export function findPassage(
-  sentences: Sentence[],
-  quote: string
+  source: Sentence[] | PassageIndex,
+  quote: string,
+  limit = Number.POSITIVE_INFINITY
 ): Array<[number, number]> {
   const target = normalizePassageText(quote)
-  if (!target) return []
+  if (!target || limit < 1) return []
+  const index = asIndex(source)
+  const { joined, starts, endAt } = index
+  const [hash, power] = hashOf(target, index.base)
   const found: Array<[number, number]> = []
-  for (let from = 0; from < sentences.length; from++) {
-    const head = sentences[from]!.key
-    if (head !== target && !target.startsWith(`${head} `)) continue
-    let joined = head
-    for (let to = from; ; ) {
-      if (joined === target) {
-        found.push([from, to])
-        break
-      }
-      to++
-      const next = sentences[to]
-      if (!next) break
-      joined = `${joined} ${next.key}`
-      if (joined !== target && !target.startsWith(`${joined} `)) break
-    }
+  for (let from = 0; from < starts.length; from++) {
+    const at = starts[from]!
+    if (at + target.length > joined.length) break
+    const to = endAt[at + target.length]!
+    if (to < from) continue
+    if (!hashMatches(index, at, target.length, hash, power)) continue
+    if (!joined.startsWith(target, at)) continue
+    found.push([from, to])
+    if (found.length >= limit) break
   }
   return found
+}
+
+/** True when sentences `[from, to]` read exactly `quote` (normalized). */
+export function passageMatchesAt(
+  source: Sentence[] | PassageIndex,
+  quote: string,
+  from: number,
+  to: number
+): boolean {
+  const target = normalizePassageText(quote)
+  const { joined, starts, endAt } = asIndex(source)
+  const at = starts[from]
+  if (!target || at === undefined || at + target.length > joined.length)
+    return false
+  return endAt[at + target.length] === to && joined.startsWith(target, at)
 }
 
 // ---------------------------------------------------------------------------
@@ -633,19 +801,20 @@ export async function passageIdOf(
   return (await sha256Hex(input)).slice(0, PASSAGE_ID_LENGTH)
 }
 
-/** Names an already snapped range. */
+/** Names an already snapped range. Pass `index` to reuse a built one. */
 export async function identifyRange(
   articleId: string,
   canonical: CanonicalText,
   sentences: Sentence[],
-  range: SentenceRange
+  range: SentenceRange,
+  index?: PassageIndex
 ): Promise<PassageIdentity> {
   const key = sentenceRangeText(
     sentences,
     range.sentenceStart,
     range.sentenceEnd
   )
-  const ambiguous = findPassage(sentences, key).length > 1
+  const ambiguous = findPassage(index ?? sentences, key, 2).length > 1
   return {
     ...range,
     passageId: await passageIdOf(articleId, key, { ...range, ambiguous }),

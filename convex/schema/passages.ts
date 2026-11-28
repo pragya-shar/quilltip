@@ -37,7 +37,10 @@ export const passagesTables = {
     createdAt: v.number(),
     /** When the quote was last confirmed against the article (`sweep`). */
     checkedAt: v.number(),
-    /** When the quote and passage fields were cleared. */
+    /**
+     * When the quote and passage fields were cleared. The sweep deletes the
+     * row `CLEARED_SHARE_RETENTION_MS` later.
+     */
     clearedAt: v.optional(v.number()),
   })
     .index('by_code', ['code'])
@@ -50,8 +53,15 @@ export const passagesTables = {
   /** The sweep's position over `shares` (one row, key `shares`). */
   shareSweeps: defineTable({
     key: v.literal('shares'),
+    /** The page the walk is on (null: the start of a pass). */
     cursor: v.union(v.string(), v.null()),
+    /** Inside that page, the last share handled when a step stopped early. */
+    resumeAfter: v.optional(v.id('shares')),
     lastRunAt: v.number(),
     lastPassAt: v.optional(v.number()),
+    /** Shares whose check threw, in all; and the latest such article. */
+    failures: v.optional(v.number()),
+    lastFailedArticleId: v.optional(v.id('articles')),
+    lastFailureAt: v.optional(v.number()),
   }).index('by_key', ['key']),
 }

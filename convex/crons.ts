@@ -116,8 +116,8 @@ crons.interval(
 )
 
 // Re-check passage share quotes whose article changed without its reconcile
-// call (convex/shares.ts sweep). Bounded per run; writes nothing when no
-// article changed.
+// call, and delete rows cleared long ago (convex/shares.ts sweep). Bounded
+// per step; each step that reads a share also writes the sweep's position.
 crons.interval(
   'sweep passage share quotes',
   { hours: 6 },

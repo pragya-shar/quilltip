@@ -16,6 +16,8 @@ import {
   legacyPassageOf,
   normalizePassageText,
   highlightTextAt,
+  passageIndexOf,
+  passageMatchesAt,
   passageText,
   rangeOfSentences,
   sentenceRange,
@@ -308,6 +310,81 @@ describe('cost', () => {
     expect(findPassage(sentences, 'Same line.')).toHaveLength(10_000)
     expect(findPassage(sentences, 'Same line. Same line. Other.')).toEqual([])
     expect(Date.now() - started).toBeLessThan(2_000)
+  })
+})
+
+describe('cost of the worst shapes', () => {
+  test('10,000 copies of "5!" and a 167-sentence quote: finding is linear', () => {
+    const text = Array.from({ length: 10_000 }, () => '5!').join(' ')
+    const sentences = sentencesOf(canonicalText(para(text)))
+    expect(sentences).toHaveLength(10_000)
+    const quote = Array.from({ length: 167 }, () => '5!').join(' ')
+    const index = passageIndexOf(sentences)
+    const started = performance.now()
+    expect(findPassage(index, quote)).toHaveLength(10_000 - 166)
+    expect(findPassage(index, quote, 2)).toEqual([
+      [0, 166],
+      [1, 167],
+    ])
+    // Fails only at the last sentence of every candidate.
+    expect(findPassage(index, `${quote.slice(0, -2)}6!`)).toEqual([])
+    for (let k = 0; k < 100; k++) findPassage(index, quote, 2)
+    expect(performance.now() - started).toBeLessThan(1_000)
+  })
+
+  test('20,000 "中." joined by hard breaks: snapping is linear', () => {
+    const content = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: Array.from({ length: 20_000 }, (_, i) =>
+            i
+              ? [{ type: 'hardBreak' }, { type: 'text', text: '中.' }]
+              : [{ type: 'text', text: '中.' }]
+          ).flat(),
+        },
+      ],
+    }
+    const started = performance.now()
+    const canonical = canonicalText(content)
+    expect(canonical.blocks[0]!.gaps).toHaveLength(19_999)
+    const sentences = sentencesOf(canonical)
+    // Each "中" is one letter before a stop (an initial): one sentence.
+    expect(sentences).toHaveLength(1)
+    expect(sentences[0]!.text).toBe(Array(20_000).fill('中.').join(' '))
+    expect(performance.now() - started).toBeLessThan(1_000)
+  })
+
+  test('a word with no whitespace is read back at most 32 units from a stop', () => {
+    const long = `${'x'.repeat(5_000)}.`
+    const text = Array.from({ length: 400 }, () => long).join(' ')
+    const started = performance.now()
+    expect(sentencesOf(canonicalText(para(text)))).toHaveLength(1)
+    expect(performance.now() - started).toBeLessThan(1_000)
+  })
+})
+
+describe('findPassage limit and passageMatchesAt', () => {
+  const sentences = sentencesOf(
+    canonicalText(para('One line. Two lines. One line. Two lines.'))
+  )
+  test('the limit stops the search early, in order', () => {
+    expect(findPassage(sentences, 'One line. Two lines.')).toEqual([
+      [0, 1],
+      [2, 3],
+    ])
+    expect(findPassage(sentences, 'One line. Two lines.', 1)).toEqual([[0, 1]])
+    expect(findPassage(sentences, 'One line.', 0)).toEqual([])
+  })
+  test('passageMatchesAt checks one range word for word', () => {
+    expect(passageMatchesAt(sentences, 'One line. Two lines.', 2, 3)).toBe(true)
+    expect(passageMatchesAt(sentences, 'One line. Two lines.', 1, 2)).toBe(
+      false
+    )
+    expect(passageMatchesAt(sentences, 'One line.', 0, 1)).toBe(false)
+    expect(passageMatchesAt(sentences, 'One line', 0, 0)).toBe(false)
+    expect(passageMatchesAt(sentences, 'One line.', 9, 9)).toBe(false)
   })
 })
 

@@ -12,6 +12,9 @@ import { api, internal } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
 import {
   CANONICAL_GENERATIONS,
+  CLEARED_SHARE_RETENTION_MS,
+  MAX_SHAREABLE_BREAKS,
+  MAX_SHAREABLE_CHARACTERS,
   MAX_SHAREABLE_SENTENCES,
   MAX_SHARE_QUOTE,
   RECONCILE_BATCH,
@@ -21,7 +24,10 @@ import {
   SHARE_CODE_SECRET_ENV,
   SIGNED_IN_SHARES_PER_ARTICLE_PER_HOUR,
   SIGNED_OUT_SHARES_PER_ARTICLE_PER_DAY,
+  SHARE_CODE_SECRET_PLACEHOLDERS,
+  SWEEP_ARTICLES_PER_STEP,
   canonicalCode,
+  shareCodeSecret,
 } from '../../convex/shares'
 import crons from '../../convex/crons'
 import {
@@ -313,7 +319,42 @@ describe('create', () => {
     expect(await errorData(shareAt(reader, ids.article, 0))).toEqual({
       code: 'ARTICLE_TOO_LONG',
       maxSentences: MAX_SHAREABLE_SENTENCES,
+      maxCharacters: MAX_SHAREABLE_CHARACTERS,
+      maxBreaks: MAX_SHAREABLE_BREAKS,
     })
+  })
+
+  test('an article past the character or hard break limit is ARTICLE_TOO_LONG', async () => {
+    const wide = doc('A line. ' + 'x'.repeat(MAX_SHAREABLE_CHARACTERS))
+    const broken = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          content: Array.from({ length: MAX_SHAREABLE_BREAKS + 2 }, () => [
+            { type: 'text', text: 'Word' },
+            { type: 'hardBreak' },
+          ]).flat(),
+        },
+      ],
+    }
+    for (const content of [wide, broken]) {
+      const { ids, reader } = await setup(content)
+      expect(await errorCode(shareAt(reader, ids.article, 0))).toBe(
+        'ARTICLE_TOO_LONG'
+      )
+    }
+  })
+
+  test('the documented placeholders are never used as the key', () => {
+    for (const placeholder of SHARE_CODE_SECRET_PLACEHOLDERS) {
+      vi.stubEnv(SHARE_CODE_SECRET_ENV, placeholder)
+      expect(shareCodeSecret()).toBeNull()
+    }
+    vi.stubEnv(SHARE_CODE_SECRET_ENV, 'x'.repeat(31))
+    expect(shareCodeSecret()).toBeNull()
+    vi.stubEnv(SHARE_CODE_SECRET_ENV, SECRET)
+    expect(shareCodeSecret()).toBe(SECRET)
   })
 
   test('signed in: new codes are limited per person; returning a code is not counted', async () => {
@@ -582,6 +623,39 @@ describe('resolve', () => {
     expect(answers).toEqual([null, null, null, null, null, null])
   })
 
+  test('a cleared row is read as an unknown code: no article work', async () => {
+    const { t, ids, reader } = await setup()
+    const tide = await shareTide(reader, ids.article)
+    const live = await shareAt(reader, ids.article, PEOPLE_START)
+    await edit(t, ids.article, doc('People read on the crossing.'))
+    await t.mutation(internal.shares.clearIfStale, {
+      shareId: (await shareRow(t, tide.code))!._id,
+    })
+    expect((await shareRow(t, tide.code))!.quote).toBeNull()
+    const normalize = vi.spyOn(String.prototype, 'normalize')
+    try {
+      expect(
+        await t.mutation(api.shares.resolve, { code: tide.code })
+      ).toBeNull()
+      expect(
+        await t.mutation(api.shares.resolve, { code: 'zzzzzzzz' })
+      ).toBeNull()
+      // Splitting sentences normalizes each one; neither call split any.
+      expect(normalize).not.toHaveBeenCalled()
+      expect(
+        await t.mutation(api.shares.resolve, { code: live.code })
+      ).toMatchObject({ status: 'moved' })
+      expect(normalize).toHaveBeenCalled()
+    } finally {
+      normalize.mockRestore()
+    }
+    expect(
+      await t.run((ctx) =>
+        ctx.db.system.query('_scheduled_functions').collect()
+      )
+    ).toHaveLength(0)
+  })
+
   test('the returned text is normalized and capped', async () => {
     const spaced = `Wide${' '.repeat(5_000)}spaces here.`
     const { t, ids, reader } = await setup(doc(spaced))
@@ -788,6 +862,9 @@ describe('sweep', () => {
       seen: 0,
       rechecked: 0,
       cleared: 0,
+      purged: 0,
+      skipped: 0,
+      failed: 0,
       done: true,
     })
     expect(await t.run((ctx) => ctx.db.query('shareSweeps').collect())).toEqual(
@@ -888,5 +965,114 @@ describe('sweep', () => {
     expect(
       await t.run((ctx) => ctx.db.query('shareSweeps').unique())
     ).toMatchObject({ cursor: null, lastPassAt: expect.any(Number) })
+  })
+  test('deletes a cleared row only after the retention period', async () => {
+    const { t, ids, reader } = await setup()
+    const tide = await shareTide(reader, ids.article)
+    const people = await shareAt(reader, ids.article, PEOPLE_START)
+    await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
+    await t.mutation(internal.shares.sweep, {})
+    expect((await shareRow(t, tide.code))!.clearedAt).toEqual(
+      expect.any(Number)
+    )
+    vi.advanceTimersByTime(CLEARED_SHARE_RETENTION_MS - 1000)
+    expect(await t.mutation(internal.shares.sweep, {})).toMatchObject({
+      purged: 0,
+    })
+    vi.advanceTimersByTime(2000)
+    expect(await t.mutation(internal.shares.sweep, {})).toMatchObject({
+      purged: 2,
+    })
+    expect(await shareRow(t, tide.code)).toBeNull()
+    expect(await shareRow(t, people.code)).toBeNull()
+  })
+
+  test('reads at most a fixed number of articles per step and resumes there', async () => {
+    const { t, ids } = await setup()
+    const extra = SWEEP_ARTICLES_PER_STEP + 3
+    const articleIds = await t.run(async (ctx) => {
+      const out: Id<'articles'>[] = []
+      for (let i = 0; i < extra; i++) {
+        const source = (await ctx.db.get(ids.article))!
+        const { _id, _creationTime, ...rest } = source
+        void _id
+        void _creationTime
+        out.push(
+          await ctx.db.insert('articles', {
+            ...rest,
+            slug: `copy-${i}`,
+            updatedAt: 5,
+          })
+        )
+      }
+      for (const [i, articleId] of out.entries()) {
+        await ctx.db.insert('shares', {
+          code: `r${String(i).padStart(7, '2')}`,
+          kind: 'canonical',
+          articleId,
+          passageId: `p${i}`,
+          sentenceStart: 1,
+          sentenceEnd: 1,
+          quote: `A line that is not in the article, number ${i}.`,
+          contentVersion: 1,
+          createdAt: 1,
+          checkedAt: 1,
+        })
+      }
+      return out
+    })
+    const first = await t.mutation(internal.shares.sweep, { steps: 1 })
+    expect(first).toMatchObject({
+      seen: SWEEP_ARTICLES_PER_STEP,
+      cleared: SWEEP_ARTICLES_PER_STEP,
+      done: false,
+    })
+    const state = await t.run((ctx) => ctx.db.query('shareSweeps').unique())
+    expect(state).toMatchObject({
+      cursor: null,
+      resumeAfter: expect.any(String),
+    })
+    const second = await t.mutation(internal.shares.sweep, { steps: 1 })
+    expect(second).toMatchObject({ seen: 3, cleared: 3, done: true })
+    const rows = await t.run((ctx) => ctx.db.query('shares').collect())
+    expect(rows.filter((r) => articleIds.includes(r.articleId))).toHaveLength(
+      extra
+    )
+    expect(rows.every((r) => r.quote === null)).toBe(true)
+    expect(
+      await t.run((ctx) => ctx.db.query('shareSweeps').unique())
+    ).toMatchObject({ cursor: null, lastPassAt: expect.any(Number) })
+  })
+
+  test('an article past the size limits is skipped and marked checked', async () => {
+    const { t, ids, reader } = await setup()
+    const tide = await shareTide(reader, ids.article)
+    vi.advanceTimersByTime(1000)
+    await edit(
+      t,
+      ids.article,
+      doc(SHARED + ' ' + 'x'.repeat(MAX_SHAREABLE_CHARACTERS))
+    )
+    expect(await t.mutation(internal.shares.sweep, {})).toMatchObject({
+      skipped: 1,
+      cleared: 0,
+    })
+    const row = (await shareRow(t, tide.code))!
+    expect(row.quote).toBe(SHARED)
+    expect(row.checkedAt).toBe(Date.now())
+    expect(await t.mutation(internal.shares.sweep, {})).toMatchObject({
+      skipped: 0,
+      rechecked: 0,
+    })
+    expect(
+      await t.mutation(internal.shares.reconcileArticle, {
+        articleId: ids.article,
+      })
+    ).toEqual({ cleared: 0, done: true })
+    expect(
+      await t.mutation(internal.shares.clearIfStale, { shareId: row._id })
+    ).toBe(false)
+    expect(await t.mutation(api.shares.resolve, { code: tide.code })).toBeNull()
+    expect((await shareRow(t, tide.code))!.quote).toBe(SHARED)
   })
 })
