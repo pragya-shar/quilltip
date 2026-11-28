@@ -52,7 +52,7 @@ Avoid launching a duplicate backend or stopping another chat's server.
 
 `efficient-tern-39` (`https://efficient-tern-39.convex.cloud`) is the shared
 non-production backend for v2 work. It is configured with `STELLAR_NETWORK=TESTNET`,
-the testnet tipping contract, `ARWEAVE_ENABLED=false`, and its own Auth signing
+the payments v2 testnet contracts, `ARWEAVE_ENABLED=false`, and its own Auth signing
 keys. To target it, put these lines in `.env.local`:
 
 ```bash
