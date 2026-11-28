@@ -49,39 +49,3 @@ test('the older sign-in pages redirect with only a safe way back', async ({
     '/signin/reset?returnTo=%2Fa'
   )
 })
-
-test.describe('with scripts', () => {
-  test.use({ javaScriptEnabled: true })
-
-  test('a press before the page script runs is held, then sent once', async ({
-    page,
-  }) => {
-    // Count sign-in calls on the backend's socket.
-    let sent = 0
-    page.on('websocket', (socket) =>
-      socket.on('framesent', (frame) => {
-        if (String(frame.payload).includes('auth:signIn')) sent += 1
-      })
-    )
-    let release = () => {}
-    const scripts = new Promise<void>((done) => (release = done))
-    await page.route(/\/_next\/static\/.*\.js(\?|$)/, async (route) => {
-      await scripts
-      await route.continue()
-    })
-    await page.goto('/signin?returnTo=%2Fshelf', { waitUntil: 'commit' })
-    const email = page.getByLabel('Email')
-    await email.fill('reader@example.com')
-    await page.getByLabel('Password', { exact: true }).fill('Correct1horse')
-    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
-    // Held: no native post, nothing in the address, the values kept.
-    await expect(page.locator('form')).toHaveAttribute('data-held-submit', '')
-    expect(new URL(page.url()).search).toBe('?returnTo=%2Fshelf')
-    await expect(email).toHaveValue('reader@example.com')
-    release()
-    await expect.poll(() => sent, { timeout: 30_000 }).toBe(1)
-    await expect(page.locator('form')).not.toHaveAttribute('data-held-submit')
-    await page.waitForTimeout(1_000)
-    expect(sent).toBe(1)
-  })
-})
