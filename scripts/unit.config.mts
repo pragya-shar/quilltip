@@ -33,6 +33,8 @@ export default defineConfig({
       'scripts/tab-ui/*.test.ts',
       // Dialog focus: where focus returns on close (components/ui).
       'scripts/ui/*.test.ts',
+      // Article content: links, embeds and images in the readers (happy-dom).
+      'scripts/article-content/*.test.{ts,tsx}',
       // Convex default-runtime code bundled as Convex bundles it.
       'scripts/convex-runtime/*.test.ts',
     ],
