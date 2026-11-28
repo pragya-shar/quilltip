@@ -337,6 +337,11 @@
   font: 600 15px/1.4 var(--ui-font);
 }
 .tip-tab-free {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 2px 10px;
   color: var(--ui-muted-foreground);
   font-size: 14px;
   font-variant-numeric: tabular-nums;

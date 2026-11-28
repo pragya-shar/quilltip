@@ -32,13 +32,13 @@ import { useTipV2Flow } from '@/hooks/useTipV2Flow'
 import { useTipBasket } from '@/hooks/useTipBasket'
 import { useWalletOwnership } from '@/hooks/useWalletOwnership'
 import { resolvePaymentView } from '@/lib/payments/ui-state'
-import { coreTipSplit } from '@/lib/payments/format'
+import { coreTipSplit, formatXlm } from '@/lib/payments/format'
 import { buildLoginHref } from '@/lib/auth/safeReturnPath'
 import { v2Runtime } from '@/lib/stellar/v2/chain-runtime'
 import { AMOUNT_ERRORS, BASKET_COPY, TIP_DIALOG } from '@/lib/copy/tip-flow'
 import { TAB_TIP_DIALOG } from '@/lib/copy/tab'
 import { ESTIMATE } from '@/lib/copy/payment-states'
-import { tabTipPresets } from '@/lib/tab-ui/tip-limits'
+import { tabTipPresets, type TabTipMax } from '@/lib/tab-ui/tip-limits'
 import {
   TIP_MAX_CENTS,
   TIP_PRESET_CENTS,
@@ -108,7 +108,8 @@ export function TipDialogV2({
   /** The preset the reader pressed; null until then (the first preset). */
   const [picked, setPicked] = useState<number | null>(null)
   /** The largest tab tip at today's price while the tab can send. */
-  const [tabMaxCents, setTabMaxCents] = useState<number | null>(null)
+  const [tabMax, setTabMax] = useState<TabTipMax | null>(null)
+  const tabMaxCents = tabMax?.cents ?? null
   const [tabPhase, setTabPhase] = useState<TabTipDialogPhase>('unavailable')
   const [custom, setCustom] = useState('')
   const [message, setMessage] = useState('')
@@ -549,8 +550,8 @@ export function TipDialogV2({
                       data-covered={amountError ? '' : undefined}
                     >
                       {TIP_DIALOG.customHint(minLabel, maxLabel)}
-                      {tabMaxCents !== null
-                        ? ` ${TAB_TIP_DIALOG.maxHint(formatCents(tabMaxCents))}`
+                      {tabMax !== null
+                        ? ` ${TAB_TIP_DIALOG.maxHint(formatXlm(tabMax.stroops), formatCents(tabMax.cents))}`
                         : null}
                     </p>
                     {amountError ? (
@@ -615,7 +616,7 @@ export function TipDialogV2({
             writerName={authorName}
             manageHref="/dashboard/tab"
             amountCents={check.ok ? check.cents : null}
-            onMaxChange={setTabMaxCents}
+            onMaxChange={setTabMax}
             onPhaseChange={onTabPhase}
             onInvalidAmount={onTabInvalidAmount}
             onDone={onDone}

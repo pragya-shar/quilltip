@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import Link from 'next/link'
 import {
   PaymentNotice,
+  TestnetLabel,
   TransactionProgress,
   XlmAmount,
 } from '@/components/payments'
@@ -12,13 +13,14 @@ import { useTabServices } from '@/hooks/tab/TabServicesContext'
 import { useTabTip, type TabTipTarget } from '@/hooks/tab/useTabTip'
 import { TAB_ACTIONS, TAB_TIP, TAB_TIP_DIALOG } from '@/lib/copy/tab'
 import { NOTICE_COPY, TAB_REFUSAL_COPY } from '@/lib/copy/payment-states'
-import { formatUsd } from '@/lib/copy/network-status'
 import { formatXlm } from '@/lib/payments/format'
+import { formatCents } from '@/lib/tip/v2/amount'
 import {
   checkTabTipAmount,
   nextLimitsChange,
   tabTipLimitsAt,
   type TabTipAmountCheck,
+  type TabTipMax,
 } from '@/lib/tab-ui/tip-limits'
 import { TabTipAvailabilityNotice } from './TabTipAvailabilityNotice'
 import { TabTipDialogSkeleton } from './TabTipDialogSkeleton'
@@ -50,7 +52,8 @@ export type TabTipDialogProps = TabTipTarget & {
    * The largest tab tip in whole cents at today's price while a quick tip is
    * on offer, else null. The dialog offers no preset above it.
    */
-  onMaxChange?: (maxCents: number | null) => void
+  /** The tab maximum at the current price, or null (#676). */
+  onMaxChange?: (max: TabTipMax | null) => void
   onPhaseChange?: (phase: TabTipDialogPhase) => void
   /** "Send from your tab" was pressed without a valid amount. */
   onInvalidAmount?: () => void
@@ -60,7 +63,9 @@ export type TabTipDialogProps = TabTipTarget & {
 }
 
 function limitCopy(
-  check: Exclude<TabTipAmountCheck, { ok: true }>
+  check: Exclude<TabTipAmountCheck, { ok: true }>,
+  /** `TAB_TIP_MAX` in base units, for the above-max notice. */
+  tipMax: string | null
 ): { title: string; detail: string } | null {
   switch (check.reason) {
     case 'no-price':
@@ -68,7 +73,13 @@ function limitCopy(
     case 'below-minimum':
       return TAB_REFUSAL_COPY.belowMinimum
     case 'above-max':
-      return TAB_TIP_DIALOG.aboveMax(formatUsd(check.maxCents / 100))
+      // Without the limit in hand, the server's own words: no figure.
+      return tipMax === null
+        ? TAB_REFUSAL_COPY.aboveMax
+        : TAB_TIP_DIALOG.aboveMax(
+            formatXlm(tipMax),
+            formatCents(check.maxCents)
+          )
     case 'daily-limit':
       return TAB_TIP_DIALOG.dailyLimit(formatXlm(check.left))
     case 'key-limit':
@@ -146,7 +157,16 @@ export function TabTipDialogSection({
   // current price; a stale price offers no tab maximum.
   const maxCents =
     ready && limits ? tabTipLimitsAt(limits, now).tipMaxCents : null
-  useEffect(() => onMaxChange?.(maxCents), [maxCents, onMaxChange])
+  const tipMax = limits?.tipMax ?? null
+  useEffect(
+    () =>
+      onMaxChange?.(
+        maxCents !== null && tipMax !== null
+          ? { cents: maxCents, stroops: tipMax }
+          : null
+      ),
+    [maxCents, tipMax, onMaxChange]
+  )
   useEffect(() => onPhaseChange?.(phase), [phase, onPhaseChange])
   useEffect(() => () => onMaxChange?.(null), [onMaxChange])
 
@@ -216,7 +236,7 @@ export function TabTipDialogSection({
     check && !check.ok
       ? check.reason === 'balance'
         ? NOTICE_COPY.insufficientTab(formatXlm(check.free))
-        : limitCopy(check)
+        : limitCopy(check, limits?.tipMax ?? null)
       : null
   const explain =
     check && !check.ok ? (
@@ -232,7 +252,14 @@ export function TabTipDialogSection({
       ) : (
         <PaymentNotice
           kind="refused"
-          copy={limitCopy(check)!}
+          copy={limitCopy(check, limits?.tipMax ?? null)!}
+          // The daily and device limits, and the maximum when its XLM limit
+          // is in hand, state an XLM amount (#676).
+          showsAmount={
+            check.reason === 'daily-limit' ||
+            check.reason === 'key-limit' ||
+            (check.reason === 'above-max' && limits?.tipMax != null)
+          }
           announce
           headingLevel={4}
         />
@@ -247,7 +274,11 @@ export function TabTipDialogSection({
         </h3>
         {ready ? (
           <span className="tip-tab-free">
-            <XlmAmount amount={availability.free} /> {TAB_TIP_DIALOG.free}
+            <span>
+              <XlmAmount amount={availability.free} /> {TAB_TIP_DIALOG.free}
+            </span>
+            {/* The amount carries the network beside it (#676). */}
+            <TestnetLabel />
           </span>
         ) : null}
       </div>
@@ -306,7 +337,8 @@ export function TabTipDialogSection({
           >
             {amountCents === null
               ? TAB_TIP_DIALOG.heading
-              : TAB_TIP_DIALOG.send(formatUsd(amountCents / 100))}
+              : // The wallet button's form: "$1", "$0.10" (#676).
+                TAB_TIP_DIALOG.send(formatCents(amountCents))}
           </Button>
         </>
       ) : null}

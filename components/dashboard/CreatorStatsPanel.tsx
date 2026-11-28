@@ -1,8 +1,8 @@
+import { ExactXlmFigure } from '@/components/dashboard/ExactXlmFigure'
 import {
   AT_LEAST,
   EARNINGS_UPDATING_NOTE,
   earningsLabel,
-  formatXlmFromStroops,
   usdEstimateNote,
 } from '@/lib/copy/network-status'
 
@@ -54,7 +54,16 @@ export function CreatorStatsPanel({
     {
       label: isTestnet ? 'Earned (testnet)' : earningsLabel(),
       bound,
-      value: formatXlmFromStroops(earnedStroops, 2),
+      // A settled, server-summed figure: every stroop (#676). The unit is
+      // smaller, and a long figure breaks only after a thousands comma or
+      // the decimal point, so it fits at 200% zoom on a phone.
+      value: (
+        <ExactXlmFigure
+          stroops={earnedStroops}
+          figureClassName="account-stat-figure"
+          unitClassName="account-stat-unit"
+        />
+      ),
       note: usdEstimateNote(
         estimatedUsd,
         isTestnet,
