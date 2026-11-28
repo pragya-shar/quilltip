@@ -3053,9 +3053,11 @@
   details:nth-child(n + 4) {
   display: none;
 }
+/* Any depth: the section sits in a display: contents wrapper, which carries
+   inert while the opening plays (#598). */
 :where(.landing-blend).onboarding-study[data-onboarding='landing']
   main
-  > .writer-tips {
+  .writer-tips {
   max-width: 1120px;
   width: calc(100% - 48px);
   margin: 0 auto 40px;
@@ -3063,7 +3065,7 @@
 @media (max-width: 650px) {
   :where(.landing-blend).onboarding-study[data-onboarding='landing']
     main
-    > .writer-tips {
+    .writer-tips {
     width: calc(100% - 40px);
   }
 }
