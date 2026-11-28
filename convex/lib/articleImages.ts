@@ -1,8 +1,6 @@
 import { ConvexError } from 'convex/values'
-import {
-  imageSourceRefusal,
-  isAllowedImageSource,
-} from '../../lib/security/imageSources'
+import { isAllowedImageSource } from '../../lib/security/imageSources'
+import { imageSourceRefusal } from '../../lib/security/imageSourceRefusal'
 
 /** Node types that carry an article image. */
 const IMAGE_NODE_TYPES = new Set(['image', 'resizableImage'])

@@ -5,7 +5,7 @@ import Underline from '@tiptap/extension-underline'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
 import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
-import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
+import { createReaderYoutubeNode } from '@/lib/tiptap/youtubeEmbed'
 import {
   HIDDEN_ARTICLE_IMAGE,
   isArticleImageShown,
@@ -70,6 +70,6 @@ export function getReadOnlyExtensions() {
       lowlight,
     }),
     ReadOnlyResizableImage,
-    createYoutubeExtension(),
+    createReaderYoutubeNode(),
   ]
 }

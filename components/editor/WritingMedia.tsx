@@ -12,7 +12,7 @@ import {
 import { WritingDialog } from './WritingDialog'
 import type { WritingWorkspace } from './useWritingWorkspace'
 import type { ArticleStyle } from '@/lib/editor/articleAppearance'
-import { imageSourceRefusal } from '@/lib/security/imageSources'
+import { imageSourceRefusal } from '@/lib/security/imageSourceRefusal'
 import { isArticleImageShown } from '@/lib/tiptap/articleImage'
 import {
   youtubeVideoId,

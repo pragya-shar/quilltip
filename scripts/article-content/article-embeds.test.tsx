@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { Editor, type JSONContent } from '@tiptap/core'
+import StarterKit from '@tiptap/starter-kit'
 import { describe, expect, it } from 'vitest'
+import { createReaderYoutubeNode } from '../../lib/tiptap/youtubeEmbed'
 import {
   articleEmbedSrc,
+  createYoutubeExtension,
   youtubeVideoId,
 } from '../../lib/tiptap/youtubeExtension'
 import { EMBED, ID, doc, inspect, readers, video } from './readers'
@@ -73,4 +79,69 @@ describe('video embeds (#615)', () => {
       })
     }
   )
+
+  // The readers use their own video node, so the article page does not
+  // load @tiptap/extension-youtube; it must render what the editors render.
+  it('the reader node and the editor extension render the same HTML', () => {
+    const render = (
+      extension: ReturnType<typeof createReaderYoutubeNode>,
+      content: JSONContent
+    ) => {
+      const editor = new Editor({
+        extensions: [StarterKit, extension],
+        content,
+        editable: false,
+      })
+      const html = editor.getHTML()
+      const dom = editor.view.dom.innerHTML
+      editor.destroy()
+      return { html, dom }
+    }
+    const content = doc(
+      video(`https://www.youtube.com/watch?v=${ID}`),
+      video(`https://www.youtube.com/embed/${ID}?autoplay=1&mute=1`, {
+        start: 30,
+        width: 320,
+        height: 180,
+      }),
+      video(`https://youtu.be/${ID}`, { start: -4, width: '1px' }),
+      video(`https://www.youtube.com/embed/videoseries?list=PL${ID}`),
+      video(null)
+    )
+    const reader = render(createReaderYoutubeNode(), content)
+    const editor = render(
+      createYoutubeExtension() as unknown as ReturnType<
+        typeof createReaderYoutubeNode
+      >,
+      content
+    )
+    expect(reader.html).toBe(editor.html)
+    expect(reader.dom).toBe(editor.dom)
+    expect(inspect(reader.html)).toMatchObject({
+      frames: [
+        { src: EMBED, width: '640' },
+        {
+          src: `https://www.youtube-nocookie.com/embed/${ID}?start=30&rel=1`,
+          width: '320',
+        },
+        { src: EMBED, width: '640' },
+      ],
+      hiddenVideos: 2,
+    })
+  })
+
+  it('the reader paths do not import @tiptap/extension-youtube', () => {
+    const root = join(__dirname, '../..')
+    for (const file of [
+      'lib/tiptap/readExtensions.ts',
+      'lib/tiptap/youtubeEmbed.ts',
+      'lib/articles/youtubeVideo.ts',
+      'components/articles/HighlightableArticle.tsx',
+    ]) {
+      const source = readFileSync(join(root, file), 'utf8')
+      expect(source, file).not.toMatch(
+        /from '(@tiptap\/extension-youtube|[^']*\/youtubeExtension)'/
+      )
+    }
+  })
 })

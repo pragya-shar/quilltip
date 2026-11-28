@@ -7,7 +7,7 @@ import StarterKit from '@tiptap/starter-kit'
 import { ArticleReadOnlyBody } from '../../components/articles/ArticleReadOnlyBody'
 import { renderArticleHtml } from '../../lib/tiptap/renderArticleHtml'
 import { getReadOnlyExtensions } from '../../lib/tiptap/readExtensions'
-import { createYoutubeExtension } from '../../lib/tiptap/youtubeExtension'
+import { createReaderYoutubeNode } from '../../lib/tiptap/youtubeEmbed'
 
 export const ID = 'dQw4w9WgXcQ'
 export const EMBED = `https://www.youtube-nocookie.com/embed/${ID}?rel=1`
@@ -54,7 +54,7 @@ export const readers: [string, (content: JSONContent) => string][] = [
       const editor = new Editor({
         extensions: [
           StarterKit,
-          createYoutubeExtension(),
+          createReaderYoutubeNode(),
           ...getReadOnlyExtensions().filter((e) => e.name === 'resizableImage'),
         ],
         content,

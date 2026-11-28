@@ -42,6 +42,21 @@ export function youtubeVideoId(src: unknown): string | null {
   return id && VIDEO_ID.test(id) && id !== 'videoseries' ? id : null
 }
 
+/**
+ * The only embed address an article renders: the video's id on the
+ * no-cookie host, with fixed parameters (`rel=1`, and the node's own start
+ * time in whole seconds). A stored embed address is never used as it is.
+ */
+export function articleEmbedSrc(src: unknown, start: unknown): string | null {
+  const id = youtubeVideoId(src)
+  if (!id) return null
+  const seconds =
+    typeof start === 'number' && Number.isSafeInteger(start) && start > 0
+      ? start
+      : 0
+  return `https://www.youtube-nocookie.com/embed/${id}?${seconds ? `start=${seconds}&` : ''}rel=1`
+}
+
 /** The address a video is stored with: its id, on the watch page. */
 export function youtubeWatchAddress(id: string): string {
   return `https://www.youtube.com/watch?v=${id}`

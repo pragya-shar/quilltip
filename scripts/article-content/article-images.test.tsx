@@ -11,10 +11,8 @@ import { ArticleReadOnlyBody } from '../../components/articles/ArticleReadOnlyBo
 import { ResizableImage } from '../../components/editor/extensions/ResizableImage'
 import ResizableImageComponent from '../../components/editor/extensions/ResizableImageComponent'
 import { WritingImageView } from '../../components/editor/WritingImage'
-import {
-  imageSourceRefusal,
-  isAllowedImageSource,
-} from '../../lib/security/imageSources'
+import { isAllowedImageSource } from '../../lib/security/imageSources'
+import { imageSourceRefusal } from '../../lib/security/imageSourceRefusal'
 import { renderArticleHtml } from '../../lib/tiptap/renderArticleHtml'
 
 // The writing view's upload client; nothing is uploaded here.

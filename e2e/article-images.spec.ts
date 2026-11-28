@@ -11,10 +11,8 @@ import {
   OWN_ORIGIN,
   UNSPLASH_IMAGE,
 } from './fixtures/article-images/article'
-import {
-  imageSourceRefusal,
-  isAllowedImageSource,
-} from '../lib/security/imageSources'
+import { isAllowedImageSource } from '../lib/security/imageSources'
+import { imageSourceRefusal } from '../lib/security/imageSourceRefusal'
 
 /**
  * Article images load only from this deployment's file storage and the

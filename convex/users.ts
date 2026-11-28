@@ -7,10 +7,8 @@ import { isArticleListingReady } from './lib/articleListingReady'
 import { syncAvatarUploadReference } from './lib/uploadReferences'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import { profileBioError, profileNameError } from '../lib/profile/profileRules'
-import {
-  AVATAR_SOURCE_REFUSAL,
-  isOwnStorageAddress,
-} from '../lib/security/imageSources'
+import { isOwnStorageAddress } from '../lib/security/imageSources'
+import { AVATAR_SOURCE_REFUSAL } from '../lib/security/imageSourceRefusal'
 
 // Get the current authenticated user
 export const getCurrentUser = query({

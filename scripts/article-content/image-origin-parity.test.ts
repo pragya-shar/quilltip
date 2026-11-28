@@ -132,3 +132,14 @@ describe('one deployment origin for images in every place (#615)', () => {
     )
   })
 })
+
+// The readers, cards and avatars import imageSources; the refusal text is
+// for the writing editor and Convex only (lib/security/imageSourceRefusal).
+it('imageSources carries no refusal text', () => {
+  const source = readFileSync(
+    join(__dirname, '../../lib/security/imageSources.ts'),
+    'utf8'
+  )
+  expect(source).not.toContain('cannot be used')
+  expect(source).not.toContain('must be uploaded')
+})

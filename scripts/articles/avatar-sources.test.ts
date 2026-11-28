@@ -4,7 +4,7 @@ import { ConvexError } from 'convex/values'
 import { afterEach, beforeEach, expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
-import { AVATAR_SOURCE_REFUSAL } from '../../lib/security/imageSources'
+import { AVATAR_SOURCE_REFUSAL } from '../../lib/security/imageSourceRefusal'
 
 const modules = import.meta.glob('../../convex/**/*.ts')
 

@@ -38,7 +38,7 @@ import { convexErrorMessage } from '../../lib/feedback/convexErrorMessage'
 import {
   AVATAR_SOURCE_REFUSAL,
   imageSourceRefusal,
-} from '../../lib/security/imageSources'
+} from '../../lib/security/imageSourceRefusal'
 import { uploadAvatarFile, uploadFile } from '../../lib/upload'
 
 const modules = import.meta.glob('../../convex/**/*.ts')

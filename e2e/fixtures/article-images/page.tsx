@@ -10,6 +10,7 @@ import { WritingImage } from '../../../components/editor/WritingImage'
 import { WritingMedia } from '../../../components/editor/WritingMedia'
 import { getArticleAppearance } from '../../../lib/editor/articleAppearance'
 import { UserAvatar } from '../../../components/ui/user-avatar'
+import { createReaderYoutubeNode } from '../../../lib/tiptap/youtubeEmbed'
 import { createYoutubeExtension } from '../../../lib/tiptap/youtubeExtension'
 import '../../../components/articles/reader.css'
 import '../../../components/editor/writing-workspace.css'
@@ -21,7 +22,7 @@ function Fixture() {
     extensions: [
       StarterKit.configure({ link: false }),
       ResizableImage,
-      createYoutubeExtension(),
+      createReaderYoutubeNode(),
     ],
     content: article,
     editable: false,
