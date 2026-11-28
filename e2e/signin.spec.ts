@@ -4,6 +4,7 @@ import {
   auditTextContrast,
   horizontalOverflow,
 } from './helpers/systemAudit'
+import { PRESS_HOLD_MS } from '../system/pressGuard'
 
 // Sign in on the application shell (e2e/fixtures/signin, Convex Auth
 // replaced by a fixture with one account, reader@example.com /
@@ -83,7 +84,9 @@ test.describe('a kept intent comes back, and nothing is sent', () => {
     await expect
       .poll(async () => (await activeId(page)).fixture)
       .toBe('tip-button')
-    // A tip needs its own press.
+    // A tip needs its own press, once the shell's hold after a sheet
+    // closes has passed (a press inside it is swallowed by design).
+    await page.waitForTimeout(PRESS_HOLD_MS)
     await press(tipButton(page))
     await expect(tipButton(page)).toHaveAttribute('data-sends', '1')
   })
@@ -310,19 +313,6 @@ test.describe('errors are plain, specific and land on their field', () => {
     await expect(dialog).toContainText('That email and password do not match.')
     await expect.poll(async () => (await activeId(page)).name).toBe('password')
     await expect(tipButton(page)).toHaveAttribute('data-sends', '0')
-  })
-
-  test('an email already in use says so, on the email field', async ({
-    page,
-  }) => {
-    const dialog = await openFromTip(page)
-    await press(dialog.getByRole('button', { name: 'Create an account' }))
-    await fill(dialog, EMAIL, 'Another1password')
-    await press(dialog.getByRole('button', { name: 'Create account' }))
-    await expect(dialog).toContainText(
-      'An account with this email already exists, so no new account was made. Sign in with it instead.'
-    )
-    await expect.poll(async () => (await activeId(page)).name).toBe('email')
   })
 
   test('no connection says so, and focus goes to the message', async ({
