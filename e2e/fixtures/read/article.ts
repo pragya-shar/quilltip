@@ -111,7 +111,8 @@ export const CONTENT = {
 }
 
 export const ARTICLE = {
-  _id: 'readfixturearticle00000000000001',
+  // A document id's shape: the money layer's `tipTargetOf` checks it.
+  _id: 'k57rdfxtrartc1e0000000000000000001',
   slug: SLUG,
   title: TITLE,
   content: CONTENT,

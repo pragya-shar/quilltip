@@ -309,3 +309,26 @@ export function passagePlacement(
   const bottom = Math.max(...rects.map((rect) => rect.bottom))
   return { top: top - origin.top, height: bottom - top }
 }
+
+/**
+ * The anchor of the sentence that starts at `startOffset`, `s-{p}-{k}`,
+ * when its block is a body paragraph (its id is `s-{p}-0`); null for a
+ * line in a list item or a nested paragraph, which have no anchor.
+ */
+export function anchorAt(root: Element, startOffset: number): string | null {
+  let at = 0
+  for (const node of textNodes(root)) {
+    if (startOffset < at + node.length) {
+      const block = lineBlockOf(root, node)
+      const match = block?.id.match(/^s-(\d+)-0$/)
+      if (!block || !match) return null
+      const { start, text, gaps } = blockText(root, block)
+      const index = sentenceSpans(text, gaps).findIndex(
+        (span) => start + span.start === startOffset
+      )
+      return index < 0 ? null : `s-${match[1]}-${index}`
+    }
+    at += node.length
+  }
+  return null
+}

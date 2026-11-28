@@ -8,7 +8,6 @@ import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { TestnetNote } from '@/system/components/TestnetNote'
 import { TipControl } from '@/system/components/TipControl'
 import { DoneIcon, TipIcon } from '@/system/icons'
-import { useBalanceReading } from '@/shell/balance'
 import { Dock } from '@/shell/Dock'
 import { sheetFor } from '@/shell/sheetRegistry'
 import { declaredSheet } from '@/shell/sheets'
@@ -18,15 +17,25 @@ import { preloadSheet } from '@/shell/sheets/loadSheet'
 import { LiveArrivalSlot } from './LiveArrivalSlot'
 import { RECEIPT_SHEET, type ReceiptProps } from './receipt'
 import type { ChosenPassage } from '@/hooks/read/usePassageSelection'
+import { anchorAt } from '@/hooks/read/passageOffsets'
 import {
+  formatMoney,
   tipTargetOf,
+  useBalance,
   useTip,
   type Money,
+  type TipController,
   type TipMeta,
   type TipTarget,
   type UnavailableReason,
 } from '@/hooks/read/payments'
-import type { ReadArticle } from './readModel'
+import { READ_BODY_ID, type ReadArticle } from './readModel'
+import {
+  rememberIntent,
+  returnPathFor,
+  signInHref,
+  type ReadSignInIntent,
+} from './signInIntent'
 
 /** What a tip that the server accepted was for. */
 export type SentTip = {
@@ -95,10 +104,19 @@ const UNAVAILABLE_WORDS: Partial<Record<UnavailableReason, string>> = {
   absent: 'Tipping is not available now',
 }
 
-/** The sign-in page for a reader with no sign-in sheet (and no script). */
-export function signInHref(returnTo: string) {
-  return `/login?next=${encodeURIComponent(returnTo)}`
+/** Why no amount can be sent now, when a limit stops it. */
+const BLOCKED_WORDS: Partial<
+  Record<NonNullable<TipController['blocked']>, string>
+> = {
+  cap: 'Above your limit for one tip',
+  daily: 'You have reached today’s tipping limit',
 }
+
+/** A button's amount: "$1", "$0.50" (the layer's short form). */
+const short = (amount: Money): Money => ({
+  ...amount,
+  display: formatMoney(amount.cents, { short: true }),
+})
 
 /** The Pocket's add-money sheet (`ADD_MONEY_SHEET`), with the tip it is
  * for; the balance until the Pocket has registered it. */
@@ -110,12 +128,13 @@ function openAddMoney(need: Money | null) {
 }
 
 /**
- * The tip bar under the article: the balance as a caption, the system's
- * tip control ("Tip $1", or "Tip this line $1" while a line is chosen) with
- * its visible amount choice, and Keep for a chosen line. Amounts, limits
- * and sending come from the money layer (`useTip`); this bar formats and
- * adds nothing. A tip does nothing else: it never keeps, follows or
- * shares, and never names the reader.
+ * The tip bar under the article: the balance as a button that opens it,
+ * the system's tip control ("Tip $1", or "Tip this line $1" while a line
+ * is chosen) with its visible amount choice, and Keep for a chosen line.
+ * Amounts, limits and sending come from the money layer (`useTip`,
+ * `useBalance`); this bar writes the button's amounts in the layer's short
+ * form and adds nothing. A tip does nothing else: it never keeps, follows
+ * or shares, and never names the reader.
  */
 export function TipBar({
   article,
@@ -129,22 +148,22 @@ export function TipBar({
   arrivalArmed = false,
   onArrivalDone = () => {},
 }: TipBarProps) {
-  const balance = useBalanceReading()
+  const balance = useBalance()
   const target = useMemo<TipTarget>(
     () =>
-      passage
-        ? {
-            kind: 'passage',
-            articleId: article.id,
-            passage: {
+      // The island renders the bar only for a valid article id.
+      tipTargetOf(
+        article.id,
+        passage
+          ? {
               text: passage.text,
               startOffset: passage.startOffset,
               endOffset: passage.endOffset,
               startContainerPath: passage.startContainerPath,
               endContainerPath: passage.endContainerPath,
-            },
-          }
-        : tipTargetOf(article.id),
+            }
+          : undefined
+      ) as TipTarget,
     [article.id, passage]
   )
   const meta = useMemo<TipMeta>(
@@ -208,17 +227,27 @@ export function TipBar({
     return () => clearTimeout(hide)
   }, [peek])
 
-  const signedOut =
-    balance.auth === 'signed-out' || tip.unavailable === 'signed-out'
   // A signed-out visitor sees the default amount from public data.
   const offer = tip.signedOut
-  const intent = {
-    kind: 'tip' as const,
+  const signedOut =
+    offer !== null ||
+    tip.unavailable === 'signed-out' ||
+    balance.status === 'signed-out'
+  // Where sign-in returns: the article, at the chosen line. A line is only
+  // chosen in the browser, so this never differs from the server HTML.
+  const returnTo = useMemo(() => {
+    const root = passage ? document.getElementById(READ_BODY_ID) : null
+    return returnPathFor(
+      article.href,
+      root && passage ? anchorAt(root, passage.startOffset) : null
+    )
+  }, [article.href, passage])
+  const intentFor = (kind: ReadSignInIntent['kind']): ReadSignInIntent => ({
+    kind,
     articleId: article.id,
-    href: article.href,
-    // A ceiling, not an order: on return the money layer checks it
-    // against the reader's own ladder and never raises it, and signing in sends nothing.
-    amount: offer?.amount ?? null,
+    href: returnTo,
+    // A ceiling, not an order: see signInIntent.ts.
+    amount: offer?.amount.cents ?? null,
     passage: passage
       ? {
           text: passage.text,
@@ -226,7 +255,11 @@ export function TipBar({
           endOffset: passage.endOffset,
         }
       : null,
-  }
+    at: Date.now(),
+  })
+
+  // What a tip at the default would need, when the balance is short.
+  const need = tip.amount ?? balance.limits?.defaultTip ?? null
 
   let control: React.ReactNode
   if (tip.unavailable === 'own-article') {
@@ -235,10 +268,13 @@ export function TipBar({
     control = (
       <a
         className="qt-read__signin"
-        href={signInHref(article.href)}
+        href={signInHref(returnTo)}
         onClick={(event) => {
           if (event.metaKey || event.ctrlKey || event.shiftKey) return
+          const intent = intentFor('tip')
           if (openSignIn(intent)) event.preventDefault()
+          // No sheet: the link goes to the sign-in page; the intent waits.
+          else rememberIntent(intent)
         }}
       >
         <span className="qt-read__signin-nib" aria-hidden="true">
@@ -248,28 +284,39 @@ export function TipBar({
           {passage ? 'Tip this line' : `Tip ${article.writer.firstName}`}
         </span>
         {offer ? (
-          <span className="qt-read__signin-amount">{offer.amount.display}</span>
+          <span className="qt-read__signin-amount">
+            {short(offer.amount).display}
+          </span>
         ) : null}
       </a>
     )
-  } else if (tip.unavailable === 'no-balance') {
+  } else if (tip.unavailable === 'no-balance' || tip.blocked === 'balance') {
+    // Not enough balance, before any press: a way forward, with the need.
     control = (
       <Button
         variant="primary"
         icon={TipIcon}
         block
-        onClick={() => openAddMoney(tip.amount)}
+        onClick={() => openAddMoney(need)}
       >
-        {tip.amount ? `Add money to tip ${tip.amount.display}` : 'Add money'}
+        {need ? `Add money to tip ${short(need).display}` : 'Add money'}
       </Button>
+    )
+  } else if (tip.blocked === 'price') {
+    control = (
+      <p className="qt-read__dock-line">
+        The dollar value is not available right now.
+      </p>
     )
   } else {
     const loading = !tip.ready && !tip.warming
     const words = tip.unavailable
       ? (UNAVAILABLE_WORDS[tip.unavailable] ?? 'Tipping is not available now')
-      : loading
-        ? 'Tip'
-        : null
+      : tip.blocked && BLOCKED_WORDS[tip.blocked]
+        ? BLOCKED_WORDS[tip.blocked]
+        : loading
+          ? 'Tip'
+          : null
     control = (
       <TipControl
         // The hold is the controller's: its phase and controls pass
@@ -277,11 +324,11 @@ export function TipBar({
         onNotNow={tip.reset}
         state={state}
         hold={state.phase === 'holding' ? (tip.hold ?? null) : null}
-        amount={tip.amount}
-        amounts={tip.amounts}
+        amount={tip.amount ? short(tip.amount) : null}
+        amounts={tip.amounts.map(short)}
         onAmountChange={tip.setAmount}
         onTip={press}
-        onAddMoney={() => openAddMoney(tip.amount)}
+        onAddMoney={() => openAddMoney(need)}
         recipient={article.writer.name}
         recipientFirstName={article.writer.firstName}
         target={passage ? 'passage' : 'article'}
@@ -291,7 +338,9 @@ export function TipBar({
     )
   }
 
-  const showsMoney = !signedOut && balance.auth === 'signed-in'
+  const showsMoney =
+    !signedOut && (balance.status === 'ready' || balance.status === 'closing')
+  const available = balance.available
 
   return (
     // The shell's dock: it reports its height, so toasts sit above the
@@ -332,22 +381,37 @@ export function TipBar({
               if (!signedOut) return onKeepChange(next)
               // Signed out: sign in first, carrying the line; nothing is
               // kept by signing in alone.
-              if (!openSignIn({ ...intent, kind: 'keep' }))
-                window.location.assign(signInHref(article.href))
+              const intent = intentFor('keep')
+              if (openSignIn(intent)) return
+              rememberIntent(intent)
+              window.location.assign(signInHref(returnTo))
             }}
           />
         </div>
       ) : null}
       <div className="qt-read__dock-row">
         {showsMoney && !passage ? (
+          // The way to the balance on a pushed screen, where the bar is
+          // hidden: the caption opens the balance sheet.
           <div className="qt-read__wallet">
-            <MoneyFigure
-              size="s"
-              value={balance.available}
-              status={balance.status}
-              label="to tip"
-              unavailableText="Balance"
-            />
+            <button
+              type="button"
+              className="qt-read__wallet-open"
+              aria-label={
+                available
+                  ? `${available.spoken ?? available.display} ready to tip. Open balance`
+                  : 'Balance. Open balance'
+              }
+              onClick={() => sheetStack.open('pocket')}
+            >
+              <MoneyFigure
+                size="s"
+                value={available}
+                status={available ? 'ready' : 'unavailable'}
+                label="ready to tip"
+                unavailableText="Balance"
+              />
+            </button>
             <TestnetNote>Testnet</TestnetNote>
           </div>
         ) : null}

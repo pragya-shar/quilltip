@@ -574,7 +574,7 @@ test('the reader comes back to their place, with a tick and nothing chosen', asy
 test('an article edited since the page was rendered says so, quietly', async ({
   page,
 }) => {
-  await open(page, '&live=changed')
+  await open(page, '&doc=changed')
   await expect(page.getByText('This article was updated.')).toBeVisible()
   await expect(page.locator('#read-body')).toContainText(LINES.opening)
 })
@@ -637,7 +637,7 @@ test('reaching the end marks the article finished for Today', async ({
     .toBe(true)
   const cookies = await page.context().cookies()
   expect(cookies.find((c) => c.name === 'qt_finished')?.value).toBe(
-    'readfixturearticle00000000000001'
+    'k57rdfxtrartc1e0000000000000000001'
   )
 })
 
@@ -686,7 +686,7 @@ test('opening an article records it for Today in qt_opened', async ({
         (await page.context().cookies()).find((c) => c.name === 'qt_opened')
           ?.value
     )
-    .toBe('readfixturearticle00000000000001')
+    .toBe('k57rdfxtrartc1e0000000000000000001')
 })
 
 test('after a tip, the confirmation is a quiet row in the bar: one announcement, nothing covered', async ({
@@ -819,12 +819,12 @@ test('the second tap of a double tap on Keep reading never tips', async ({
 test('a tip by another reader moves no "updated" notice; a removed article leaves the page', async ({
   page,
 }) => {
-  await open(page, '&live=tipped')
+  await open(page, '&doc=tipped')
   await page.waitForTimeout(400)
   await expect(page.getByText('This article was updated.')).toHaveCount(0)
 
   // Gone: the title leaves with the text, so no wait for it here.
-  await page.goto(`${ARTICLE_PATH}?run=${run}&live=gone`)
+  await page.goto(`${ARTICLE_PATH}?run=${run}&doc=gone`)
   await expect(page.getByText('This article is not here')).toBeVisible()
   await expect(page.locator('#read-body')).not.toContainText(LINES.opening)
   await expect(page.locator('.qt-read__dock')).toHaveCount(0)
@@ -967,4 +967,126 @@ test('a stale or wrong-article token does nothing', async ({ page }) => {
     await expect(page).not.toHaveURL(/[?&]live=/)
     await expect(arrival(page)).toHaveCount(0)
   }
+})
+
+// --- The money layer's answers before a press ---------------------------
+
+/** The balance, opened: a sheet on a phone, the side panel on a desktop. */
+const balanceOpen = (page: Page) =>
+  page.getByRole('dialog').or(page.locator('aside.qt-pocket-panel:visible'))
+
+const mineText = (page: Page) =>
+  page.evaluate(() =>
+    Array.from(document.querySelectorAll('mark.qt-mark[data-state="mine"]'))
+      .map((m) => m.textContent)
+      .join('')
+  )
+
+test('not enough balance offers Add money with the need, before any press', async ({
+  page,
+}) => {
+  await open(page, '&pay=needs-funds')
+  const add = page
+    .locator('.qt-read__dock')
+    .getByRole('button', { name: 'Add money to tip $1' })
+  await expect(add).toBeVisible()
+  await expect(page.locator('.qt-read__dock')).not.toContainText(
+    'Choose an amount'
+  )
+  await press(page, add)
+  await expect(balanceOpen(page).first()).toBeVisible()
+  expect((await server(page)).requests).toBe(0)
+})
+
+test('with no price known, the dock says so plainly and offers no tip', async ({
+  page,
+}) => {
+  await open(page, '&pay=no-price')
+  await expect(page.locator('.qt-read__dock')).toContainText(
+    'The dollar value is not available right now.'
+  )
+  await expect(tipButton(page)).toHaveCount(0)
+  await expect(page.locator('.qt-read__dock')).not.toContainText(
+    'Choose an amount'
+  )
+})
+
+test('a tipped line is still marked after a reload', async ({ page }) => {
+  await open(page)
+  await tapLine(page, 'person next to')
+  await press(page, tipButton(page))
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  // The mark is painted a frame after "Sent".
+  await expect.poll(() => mineText(page)).toBe(LINES.gate)
+  await open(page)
+  await expect.poll(() => mineText(page), { timeout: 5_000 }).toBe(LINES.gate)
+  // Nothing is chosen, and no second tip went out.
+  await expect(page.locator('mark.qt-mark[data-state="chosen"]')).toHaveCount(0)
+  expect((await server(page)).requests).toBe(1)
+})
+
+test('signed out with no sign-in sheet, the link returns to the line and keeps the intent', async ({
+  page,
+}) => {
+  await open(page, '&pay=signed-out&offer=high')
+  await tapLine(page, 'person next to')
+  const link = page
+    .locator('.qt-read__dock')
+    .getByRole('link', { name: 'Tip this line $1', exact: true })
+  const href = (await link.getAttribute('href'))!
+  const next = new URL(href, 'http://x').searchParams.get('next')!
+  expect(next).toMatch(
+    new RegExp(`^${ARTICLE_PATH.replace(/\//g, '\\/')}#s-\\d+-\\d+$`)
+  )
+  await press(page, link)
+  await expect(page).toHaveURL(/\/login\?next=/)
+  const intent = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('quilltip:sign-in-intent:v1') ?? 'null')
+  )
+  expect(intent).toMatchObject({
+    kind: 'tip',
+    articleId: ARTICLE._id,
+    href: next,
+    amount: 100,
+    passage: { text: LINES.gate },
+  })
+  expect((await server(page)).requests).toBe(0)
+})
+
+test('the balance caption opens the balance, and says what it holds', async ({
+  page,
+}) => {
+  await open(page)
+  const open_ = page.getByRole('button', {
+    name: 'about 18 dollars 40 ready to tip. Open balance',
+  })
+  await expect(open_).toBeVisible()
+  await expect(page.locator('.qt-read__wallet')).toContainText('≈')
+  await press(page, open_)
+  await expect(balanceOpen(page).first()).toBeVisible()
+})
+
+test('the tip control comes back when the connection does', async ({
+  page,
+  context,
+}) => {
+  await open(page)
+  await context.setOffline(true)
+  await press(page, tipButton(page))
+  await expect(page.locator('.qt-read__dock')).toContainText('Offline')
+  expect((await server(page)).requests).toBe(0)
+  await context.setOffline(false)
+  await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1', {
+    timeout: 1_500,
+  })
+  await expect(tipButton(page)).toBeEnabled()
+  // Past the bar's double-press guard, so this press is a new tip.
+  await page.waitForTimeout(500)
+  await press(page, tipButton(page))
+  await expect(page.locator('.qt-read__dock .qt-tip__button')).toContainText(
+    'Sent'
+  )
+  expect((await server(page)).requests).toBe(1)
 })

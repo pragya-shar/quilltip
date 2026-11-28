@@ -10,10 +10,12 @@ import { registerSheet } from '../../../shell/sheetRegistry'
 import { SIGN_IN_SHEET } from '../../../shell/signIn'
 import { ArticleView } from '../../../components/read/ArticleView'
 import { toReadArticle } from '../../../components/read/readModel'
-import { ReadPaymentsContext } from '../../../hooks/read/payments'
+import { TippedLinesSourceContext } from '../../../hooks/read/tippedLines'
+import { PaymentsRuntimeContext } from '../../../lib/payments/runtime'
 import { DemoSignInSheet } from '../system/DemoSignInSheet'
 import { ARTICLE } from './article'
 import { fakeRuntime, useFakeBalanceReading } from './payments'
+import { useFixtureTippedLines } from './tippedLines'
 
 // The article view inside the real application shell, with no backend: the
 // body HTML is rendered by the fixture server with the server renderer and
@@ -41,21 +43,23 @@ const readNext = [
 
 createRoot(document.getElementById('root')!).render(
   <BalanceSourceContext.Provider value={useFakeBalanceReading}>
-    <ReadPaymentsContext.Provider value={fakeRuntime}>
-      <AppShell
-        beside={
-          <>
-            <SheetHost />
-            <ToastRegion />
-          </>
-        }
-      >
-        <ArticleView
-          article={toReadArticle(ARTICLE, Date.UTC(2026, 10, 28))}
-          bodyHtml={window.__READ_BODY__}
-          readNext={readNext}
-        />
-      </AppShell>
-    </ReadPaymentsContext.Provider>
+    <PaymentsRuntimeContext.Provider value={fakeRuntime}>
+      <TippedLinesSourceContext.Provider value={useFixtureTippedLines}>
+        <AppShell
+          beside={
+            <>
+              <SheetHost />
+              <ToastRegion />
+            </>
+          }
+        >
+          <ArticleView
+            article={toReadArticle(ARTICLE, Date.UTC(2026, 10, 28))}
+            bodyHtml={window.__READ_BODY__}
+            readNext={readNext}
+          />
+        </AppShell>
+      </TippedLinesSourceContext.Provider>
+    </PaymentsRuntimeContext.Provider>
   </BalanceSourceContext.Provider>
 )

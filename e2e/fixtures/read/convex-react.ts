@@ -1,12 +1,12 @@
 // convex/react for the read suite: no backend. The live article answers as
-// `?live=` says (current by default, changed or gone); mutations are
+// `?doc=` says (current by default, changed, tipped or gone); mutations are
 // recorded by the fixture server, so the spec can see what was saved.
 import { getFunctionName, type FunctionReference } from 'convex/server'
 import { ARTICLE } from './article'
 
 const params = new URLSearchParams(location.search)
 const run = params.get('run') ?? 'default'
-const live = params.get('live') ?? 'current'
+const live = params.get('doc') ?? 'current'
 
 const kept = params.get('kept') === '1'
 

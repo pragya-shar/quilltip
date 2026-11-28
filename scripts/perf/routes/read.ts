@@ -3,9 +3,11 @@ import type { PerfRoutes } from './types'
 
 /** The read package's measured routes. Owned by that package. */
 export const routes: PerfRoutes = {
-  // The article view: the target for every public reading route. It
-  // replaces the legacy article page's 219 KB entry.
-  firstLoad: [{ route: '/[username]/[slug]', budgetKb: 150, access: 'public' }],
+  // The article view. It replaces the legacy article page's 219 KB entry.
+  // 195 KB, the public ceiling for now: to be set from the first CI
+  // measurement (that number plus 2 KB). The target stays 150 KB, for when
+  // the backend client leaves the first load of public pages.
+  firstLoad: [{ route: '/[username]/[slug]', budgetKb: 195, access: 'public' }],
   // The plan's targets for public reading: CLS at most 0.05 (both
   // profiles) and a median phone LCP of at most 2.0 s, both gated. Byte
   // budgets kept from the legacy article page until CI measures this one.

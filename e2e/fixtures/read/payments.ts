@@ -1,20 +1,25 @@
-// A fake of the money hooks for the read suite, with the interface of
-// hooks/payments (pull request 561: lib/payments/README.md and types.ts),
-// and the behaviour the suite checks: a tap sends once; "Sent" only after
-// the fixture server accepted; a tip not yet answered is kept in an outbox
-// and resent unchanged after a reload, and the server accepts a request id
-// once. It is written for the suite, not copied from the money layer.
+// The money layer for the read suite: the layer's own types and fake
+// (lib/payments/fake.ts) for every view, with the behaviour the suite
+// checks on top: a tap sends once; "Sent" only after the fixture server
+// accepted; a tip not yet answered is kept in an outbox and resent
+// unchanged after a reload, and the server accepts a request id once; the
+// connection is the browser's, and the control comes back with it (as the
+// layer resets on `online`). The writer's page uses it too.
+//
+// `?pay=` picks a scenario. `needs-funds` and `no-price` are blocked before
+// any press, as the layer answers (`blocked: 'balance' | 'price'`, no
+// amount). `not-tippable` answers that the article is not registered.
 import { useSyncExternalStore } from 'react'
-import {
-  signedOutOfferFor,
-  type BalanceView,
-  type Money,
-  type ReadPaymentsRuntime,
-  type TipController,
-  type TipPhase,
-  type TipTarget,
-  type UnavailableReason,
-} from '../../../hooks/read/payments'
+import { fakePayments } from '../../../lib/payments/fake'
+import { convertedMoney, money } from '../../../lib/payments/money'
+import type {
+  BalanceView,
+  PaymentsRuntime,
+  TipController,
+  TipPhase,
+  TipTarget,
+  UnavailableReason,
+} from '../../../lib/payments/types'
 import type { BalanceReading } from '../../../shell/balance'
 
 export type Scenario =
@@ -22,35 +27,41 @@ export type Scenario =
   | 'signed-out'
   | 'no-balance'
   | 'unavailable'
-  | 'offline'
   | 'failed'
   | 'needs-funds'
+  | 'no-price'
   | 'own-article'
+  | 'not-tippable'
   | 'loading'
 
 const params = new URLSearchParams(location.search)
 export const scenario = (params.get('pay') ?? 'ready') as Scenario
 const run = params.get('run') ?? 'default'
-/**
- * The per-tip cap a signed-out visitor's offer is cut to: `low` is today's
- * testnet (about 64¢: 10¢, 25¢, 50¢), `high` a cap of $10 ($1 and up).
- */
-const OFFER_CAPS = { low: 64, high: 1000 } as const
-const offerCap =
-  OFFER_CAPS[(params.get('offer') ?? 'low') as keyof typeof OFFER_CAPS] ??
-  OFFER_CAPS.low
 const OUTBOX = `read-fixture:outbox:${run}`
 
-const money = (cents: number): Money => ({
-  cents,
-  display: cents % 100 ? `$${(cents / 100).toFixed(2)}` : `$${cents / 100}`,
-})
+/**
+ * The layer's base views: its signed-out offers (`offer=low`, today's cap
+ * of about 64¢: 10¢, 25¢, 50¢; `offer=high`: $1 and up), loading and
+ * unavailable; otherwise ready.
+ */
+const base = fakePayments(
+  scenario === 'signed-out'
+    ? params.get('offer') === 'high'
+      ? 'signed-out-dollar'
+      : 'signed-out'
+    : scenario === 'loading'
+      ? 'loading'
+      : scenario === 'unavailable'
+        ? 'unavailable'
+        : 'ready'
+)
 
 type Sent = { requestId: string; cents: number; target: TipTarget }
 
 let state = {
   cents: 100,
-  available: scenario === 'needs-funds' ? 40 : 1840,
+  available: 1840,
+  online: navigator.onLine,
   phase: { phase: 'idle' } as TipPhase,
 }
 const listeners = new Set<() => void>()
@@ -63,6 +74,18 @@ const subscribe = (listener: () => void) => {
   listeners.add(listener)
   return () => listeners.delete(listener)
 }
+
+// The connection is the browser's. Back online, an offline tip control
+// returns to idle, as the layer's controller does.
+window.addEventListener('offline', () => set({ online: false }))
+window.addEventListener('online', () =>
+  set({
+    online: true,
+    ...(state.phase.phase === 'offline'
+      ? { phase: { phase: 'idle' } as TipPhase }
+      : {}),
+  })
+)
 
 function readOutbox(): Sent[] {
   try {
@@ -100,6 +123,12 @@ async function flushOutbox() {
 void flushOutbox()
 
 const AMOUNTS = [100, 200, 300, 500, 1000].map(money)
+const LIMITS = {
+  perTip: money(1000),
+  dailyLeft: money(5000),
+  minTip: money(10),
+  defaultTip: money(100),
+}
 
 function unavailable(): UnavailableReason | null {
   switch (scenario) {
@@ -111,22 +140,36 @@ function unavailable(): UnavailableReason | null {
       return 'not-loaded'
     case 'own-article':
       return 'own-article'
+    case 'not-tippable':
+      return 'not-tippable'
     default:
       return null
   }
 }
 
+const blocked: TipController['blocked'] =
+  scenario === 'needs-funds'
+    ? 'balance'
+    : scenario === 'no-price'
+      ? 'price'
+      : null
+/** No amount fits: loading, signed out, unavailable or blocked. */
+const noAmount =
+  blocked !== null ||
+  scenario === 'loading' ||
+  scenario === 'signed-out' ||
+  scenario === 'unavailable'
+
 async function tip(target: TipTarget) {
-  if (state.phase.phase === 'sending') return
+  if (state.phase.phase === 'sending' || noAmount) return
   const amount = money(state.cents)
-  if (scenario === 'offline')
-    return set({ phase: { phase: 'offline', amount } })
+  if (!state.online) return set({ phase: { phase: 'offline', amount } })
   if (state.cents > state.available)
     return set({
       phase: {
         phase: 'needs-funds',
         amount,
-        available: money(state.available),
+        available: convertedMoney(state.available),
       },
     })
   const requestId = `req-${Date.now()}-${Math.random().toString(36).slice(2)}`
@@ -152,9 +195,9 @@ async function tip(target: TipTarget) {
 function controller(target: TipTarget): TipController {
   return {
     state: state.phase,
-    amount: scenario === 'loading' ? null : money(state.cents),
-    blocked: null,
-    amounts: scenario === 'loading' ? [] : AMOUNTS,
+    amount: noAmount ? null : money(state.cents),
+    blocked,
+    amounts: noAmount ? [] : AMOUNTS,
     setAmount: (cents) => set({ cents }),
     tip: () => tip(target),
     reset: () => set({ phase: { phase: 'idle' } }),
@@ -162,55 +205,65 @@ function controller(target: TipTarget): TipController {
     warming: false,
     queued: false,
     unavailable: unavailable(),
-    // The public default for a signed-out visitor (minimum, cap, price).
-    signedOut:
-      scenario === 'signed-out'
-        ? signedOutOfferFor({ minCents: 10, perTipCents: offerCap })
-        : null,
+    // Always present: the layer's public offer while signed out, else null.
+    signedOut: scenario === 'signed-out' ? base.tip.signedOut : null,
   }
 }
 
-let cached: { key: unknown; value: TipController } | null = null
-
-const NO_ACTIVITY = {
-  status: 'ready' as const,
-  items: [],
-  canLoadMore: false,
-  loadMore: () => {},
+function balanceView(s: typeof state): BalanceView {
+  if (scenario === 'signed-out' || scenario === 'loading') return base.balance
+  if (scenario === 'unavailable') return base.balance
+  if (scenario === 'no-balance')
+    return { ...base.balance, status: 'none', available: money(0), amounts: [] }
+  return {
+    ...base.balance,
+    available: scenario === 'no-price' ? null : convertedMoney(s.available),
+    price: scenario === 'no-price' ? null : base.balance.price,
+    noAmountReason:
+      scenario === 'no-price'
+        ? 'price'
+        : scenario === 'needs-funds'
+          ? 'balance'
+          : null,
+    limits: LIMITS,
+    amounts: noAmount ? [] : AMOUNTS,
+    online: s.online,
+  }
 }
 
-/** The money layer's full runtime shape (`PaymentsRuntime` of 561). */
-export const fakeRuntime: ReadPaymentsRuntime & {
-  useActivity(role: 'reader' | 'writer'): typeof NO_ACTIVITY
-  useEarnings(): { status: 'loading' }
-} = {
-  useActivity: () => NO_ACTIVITY,
-  useEarnings: () => ({ status: 'loading' }),
-  useBalance(): BalanceView {
+let cached: { key: unknown; target: TipTarget; value: TipController } | null =
+  null
+let cachedBalance: { key: unknown; value: BalanceView } | null = null
+
+/** The layer's runtime (`PaymentsRuntime`), for `PaymentsRuntimeContext`. */
+export const fakeRuntime: PaymentsRuntime = {
+  useActivity: (role) =>
+    role === 'reader' ? base.readerActivity : base.writerActivity,
+  useEarnings: () => base.earnings,
+  useBalance() {
     const s = useSyncExternalStore(subscribe, () => state)
-    return {
-      status: scenario === 'signed-out' ? 'signed-out' : 'ready',
-      available: money(s.available),
-      online: scenario !== 'offline',
-    }
+    if (cachedBalance?.key !== s)
+      cachedBalance = { key: s, value: balanceView(s) }
+    return cachedBalance.value
   },
   useTip(target) {
     const s = useSyncExternalStore(subscribe, () => state)
-    if (!cached || cached.key !== s || cachedTarget !== target) {
-      cachedTarget = target
-      cached = { key: s, value: controller(target) }
-    }
+    if (!cached || cached.key !== s || cached.target !== target)
+      cached = { key: s, target, value: controller(target) }
     return cached.value
   },
 }
-let cachedTarget: TipTarget | null = null
 
-/** The shell's balance item and the tip bar's caption read this. */
+/** The shell's balance item reads this. */
 export function useFakeBalanceReading(): BalanceReading {
   const s = useSyncExternalStore(subscribe, () => state)
   if (scenario === 'signed-out')
     return { auth: 'signed-out', available: null, status: 'unavailable' }
-  if (scenario === 'unavailable')
+  if (scenario === 'unavailable' || scenario === 'no-price')
     return { auth: 'signed-in', available: null, status: 'unavailable' }
-  return { auth: 'signed-in', available: money(s.available), status: 'ready' }
+  return {
+    auth: 'signed-in',
+    available: convertedMoney(s.available),
+    status: 'ready',
+  }
 }

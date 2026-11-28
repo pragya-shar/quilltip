@@ -1,7 +1,7 @@
 'use client'
 
 import type { Id } from '@/convex/_generated/dataModel'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { Button } from '@/system/components/Button'
 import { useBalanceReading } from '@/shell/balance'
@@ -18,8 +18,11 @@ import {
   passagePlacement,
   rangeAt,
   sentenceAtLine,
+  textBetween,
   textNodes,
 } from '@/hooks/read/passageOffsets'
+import { articleIdOf } from '@/hooks/read/payments'
+import { useTippedLines } from '@/hooks/read/tippedLines'
 import {
   FINISHED_AT,
   markOpened,
@@ -87,7 +90,10 @@ function blockAtReadingLine(root: HTMLElement): HTMLElement | null {
  * changed since the page was rendered.
  */
 export function ReaderIsland({ article }: { article: ReadArticle }) {
-  const [tipped, setTipped] = useState<PaintedSpan[]>([])
+  // Lines tipped on this visit, marked from the press, and the reader's
+  // earlier tips on this article, from the money layer's read.
+  const [tippedHere, setTipped] = useState<PaintedSpan[]>([])
+  const tippedBefore = useTippedLines(article.id)
   const signedIn = useBalanceReading().auth === 'signed-in'
   const keptOnServer = useKeptLines(article.id, signedIn)
   const [kept, setKept] = useState<(PaintedSpan & { id: Id<'highlights'> })[]>(
@@ -150,6 +156,26 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
 
   // The margin layer is server HTML beside the body.
   useEffect(() => setMargin(document.getElementById(READ_MARGIN_ID)), [])
+
+  // Earlier tips are marked only where the text still reads as tipped.
+  const tipped = useMemo(() => {
+    const root = body()
+    const before = root
+      ? tippedBefore.lines.filter(
+          (line) =>
+            textBetween(root, line.startOffset, line.endOffset) === line.text
+        )
+      : []
+    const all = [...before, ...tippedHere]
+    return all.filter(
+      (span, index) =>
+        all.findIndex(
+          (other) =>
+            other.startOffset === span.startOffset &&
+            other.endOffset === span.endOffset
+        ) === index
+    )
+  }, [tippedBefore.lines, tippedHere])
 
   // Paint the chosen and tipped lines; place the chosen line's tick.
   useEffect(() => {
@@ -413,18 +439,21 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
       <p className="qt-visually-hidden" aria-live="polite">
         {cursor ? cursor.text : ''}
       </p>
-      <TipBar
-        article={article}
-        passage={passage}
-        onClear={clear}
-        kept={Boolean(keptHere)}
-        keepPending={keepPending}
-        onKeepChange={(next) => void onKeepChange(next)}
-        onLockChange={setLocked}
-        onSent={onSent}
-        arrivalArmed={arrivalArmed}
-        onArrivalDone={arrivalDone}
-      />
+      {/* An id that is not a document id gets no tip control. */}
+      {articleIdOf(article.id) ? (
+        <TipBar
+          article={article}
+          passage={passage}
+          onClear={clear}
+          kept={Boolean(keptHere)}
+          keepPending={keepPending}
+          onKeepChange={(next) => void onKeepChange(next)}
+          onLockChange={setLocked}
+          onSent={onSent}
+          arrivalArmed={arrivalArmed}
+          onArrivalDone={arrivalDone}
+        />
+      ) : null}
     </>
   )
 }
