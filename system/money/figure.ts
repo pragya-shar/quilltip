@@ -145,5 +145,7 @@ export function spokenValue(value: MoneyValue): string | null {
   if (!value.spoken) return spokenDollars(state.parts)
   const { sign } = state.parts
   const direction = sign === '−' ? 'minus ' : sign === '+' ? 'plus ' : ''
+  // The money layer's words may say the sign already ("minus 1 dollar").
+  if (!direction || value.spoken.startsWith(direction)) return value.spoken
   return `${direction}${value.spoken}`
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { MONEY_TEXT_SAMPLES } from '@/lib/payments/money-samples'
 import {
   figureParts,
   figureState,
@@ -230,6 +231,16 @@ describe('spokenDollars', () => {
     expect(
       spokenValue({ cents: 100, display: '−$1.00', spoken: '1 dollar' })
     ).toBe('minus 1 dollar')
+    // Words that already say the sign keep it once.
+    for (const sample of MONEY_TEXT_SAMPLES)
+      expect(
+        spokenValue({
+          cents: sample.cents,
+          display: sample.text,
+          spoken: sample.spoken,
+        }),
+        sample.name
+      ).toBe(sample.spoken)
     expect(spokenValue({ cents: 195, display: '$1.95' })).toBe('1 dollar 95')
     expect(spokenValue({ cents: 0, display: '<$0.01' })).toBeNull()
   })
