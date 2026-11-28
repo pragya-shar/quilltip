@@ -108,6 +108,7 @@ import type * as lib_walletVerification from "../lib/walletVerification.js";
 import type * as lib_wikimediaFileUrl from "../lib/wikimediaFileUrl.js";
 import type * as lib_write_clientIds from "../lib/write/clientIds.js";
 import type * as lib_write_clock from "../lib/write/clock.js";
+import type * as lib_write_deskRow from "../lib/write/deskRow.js";
 import type * as lib_write_document from "../lib/write/document.js";
 import type * as lib_xlmPrice from "../lib/xlmPrice.js";
 import type * as nftMetadataUpload from "../nftMetadataUpload.js";
@@ -253,6 +254,7 @@ declare const fullApi: ApiFromModules<{
   "lib/wikimediaFileUrl": typeof lib_wikimediaFileUrl;
   "lib/write/clientIds": typeof lib_write_clientIds;
   "lib/write/clock": typeof lib_write_clock;
+  "lib/write/deskRow": typeof lib_write_deskRow;
   "lib/write/document": typeof lib_write_document;
   "lib/xlmPrice": typeof lib_xlmPrice;
   nftMetadataUpload: typeof nftMetadataUpload;
