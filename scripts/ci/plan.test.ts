@@ -355,7 +355,7 @@ describe('inputs named as strings', () => {
       "const modules = import.meta.glob('../../convex/**/*.ts')",
     'scripts/integration/tab-ui.config.mts':
       "setupFiles: ['scripts/lib/edge-runtime-uint8array.ts']",
-    'scripts/contracts/bindings.ts': 'readdirSync(dir)',
+    'scripts/contracts/bindings.ts': 'readdirSync(d) '.repeat(7),
     'scripts/integration/client.ts': 'export const a = 1',
     'scripts/integration/new-helper.ts': "readFileSync('contracts/x.json')",
   }
@@ -401,7 +401,47 @@ describe('inputs named as strings', () => {
       ]),
       read
     )
-    expect(result.uncovered).toEqual(['scripts/integration/new-helper.ts'])
+    expect(result.uncovered).toEqual([
+      'scripts/integration/new-helper.ts (1 reads, no entry)',
+    ])
+  })
+
+  it('counts a path-keyed input only when a file is added or deleted', () => {
+    const named = { ...inputs([]), paths: ['app/(legacy)/**/page.*'] }
+    const edit = decide(
+      changed('app/(legacy)/x/page.tsx'),
+      context({ shared: named })
+    )
+    expect(shards(edit)).toEqual([])
+    for (const change of [
+      { path: 'app/(legacy)/x/page.tsx', deleted: false, added: true },
+      { path: 'app/(legacy)/x/page.tsx', deleted: true },
+    ]) {
+      expect(shards(decide([change], context({ shared: named })))).toEqual([
+        'ab:a,b',
+        'c:c',
+      ])
+    }
+  })
+
+  it('applies an entry to a listed file even with no construct, and checks its count', () => {
+    const result = withStringInputs(
+      inputs([
+        'scripts/integration/tab-ui-flow.test.ts',
+        'scripts/contracts/bindings.ts',
+      ]),
+      (file) =>
+        file === 'scripts/contracts/bindings.ts'
+          ? 'readdirSync(d)'
+          : 'nothing here'
+    )
+    expect(result.inputs.patterns).toEqual(
+      expect.arrayContaining(['convex/**', 'lib/stellar/v2/bindings/**'])
+    )
+    expect(result.uncovered).toEqual([
+      'scripts/contracts/bindings.ts (1 reads, its entry says 7)',
+      'scripts/integration/tab-ui-flow.test.ts (0 reads, its entry says 1)',
+    ])
   })
 
   it('runs everything for a dependency patch', () => {
