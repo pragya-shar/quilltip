@@ -824,11 +824,19 @@ and rendered the page.
   (3,050 ms), from its arrival, on a monotonic clock. Time spent waiting in
   the queue counts. This is the worst case for the proxy's decision; the page
   worst case stays as above.
-- The cost: on a slow but healthy backend, a request that arrives while a
-  check runs waits for that check and then for its own, so it can answer up
-  to one read later. If its budget ends while it waits, the proxy lets it
-  through unchecked (`unknown`, not an outage), and the page makes one
-  uncached article read. The answer is never wrong.
+- The numbers. A request waits at most 3,050 ms for its route check. One path
+  has at most one read in flight (and one queued). A burst on one path costs
+  one route read per read time, not one per request: ten requests over 1.35 s
+  on 1.4 s reads make two reads.
+- The cost. A request that arrives while a check runs waits for that check and
+  then for its own, so it can answer up to one read later. On a path whose
+  reads finish inside the limit, the two reads end within 3,000 ms of its
+  arrival, so no request runs out of time in the queue. Only when reads run
+  past the limit can a queued request run out of time; the proxy then lets it
+  through unchecked (`unknown`, never an outage), and the page makes one
+  uncached article read. The answer is never wrong. A wait in the queue never
+  counts as a backend failure, and the shared read has its own limit, not the
+  signal of any one request.
 - A later option, not taken: `skipProxyUrlNormalize: true` would let the proxy
   see prefetch requests and answer them without a backend read for every
   link, including links the new shell adds. It changes what every proxy rule
