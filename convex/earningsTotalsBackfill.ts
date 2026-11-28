@@ -46,8 +46,7 @@ import type { TipRow } from './lib/tipReads'
 // against its pair's `paidOnChain`). An interrupted run resumes from the
 // stored position. A credit made meanwhile also goes into the rebuild's sums
 // when the rebuild has already read the row or pair it changes
-// (`creditV1TipTotals`, `reverseV1TipTotals`, `creditTabTipTotals`,
-// `notePairEarned`); a row or pair not read yet is read later with the change.
+// (`creditTabTipTotals`, `notePairEarned`); a row or pair not read yet is read later with the change.
 //
 // The last step writes the v1 and tab totals, and the wallet part of
 // `earnedBaseUnits` (`walletEarnedBaseUnits`: `earnedBaseUnits` less the

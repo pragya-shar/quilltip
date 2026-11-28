@@ -8,7 +8,7 @@ import { TipsUnavailableNote } from '@/components/tipping/TipsUnavailableNote'
 
 /**
  * Shows the passage tip action, or the paused note while no payment flow can
- * take a tip (`getArticleTipAvailability` returns `paused` or `disabled`).
+ * take a tip (`getArticleTipAvailability` returns `paused`).
  * Other states render the action; the v2 button handles them itself.
  */
 export function HighlightTipGate({
@@ -21,11 +21,7 @@ export function HighlightTipGate({
   const availability = useQuery(api.chain.articles.getArticleTipAvailability, {
     articleId,
   })
-  // `disabled`: payments v2 is off, so no flow can take the tip.
-  if (
-    availability?.status === 'paused' ||
-    availability?.status === 'disabled'
-  ) {
+  if (availability?.status === 'paused') {
     return <TipsUnavailableNote reason="paused" />
   }
   return <>{children}</>

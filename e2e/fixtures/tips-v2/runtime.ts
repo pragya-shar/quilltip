@@ -373,7 +373,7 @@ export function useQuery(ref: unknown, args?: unknown) {
     case 'chain.articles.getArticleTipAvailability':
       // v1 preparation paused before v2 is on (cutover step 4, #520).
       if (SCENARIO.article === 'v1-paused') return { status: 'paused' }
-      if (SCENARIO.v2 === 'off') return { status: 'disabled' }
+      if (SCENARIO.v2 === 'off') return { status: 'paused' }
       if (a.articleId === ARTICLES.main.id) {
         if (SCENARIO.article === 'unregistered')
           return { status: 'unregistered' }

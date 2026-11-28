@@ -2,6 +2,14 @@
 
 Phrase-level tipping — readers select text, tip specific highlights, authors see earnings heatmap.
 
+> **v1, retired.** This page describes the v1 highlight tip flow and its
+> contracts. All v1 contracts are retired, and the v1 functions that recorded
+> tips are removed. Since the payments v2 cutover, highlight tips go through
+> the v2 Core contract ([flows, section 5.3](architecture/v2/05-flows-and-admin.md#53-highlight-tip);
+> [testnet deployment record](contracts/v2-testnet-deployment.md)). v1
+> highlight tips stay readable as history, labelled v1. The highlight ID
+> formula below is still used.
+
 ## Highlight ID Formula
 
 ```text
@@ -17,14 +25,14 @@ Same formula is used in:
 
 ## Contract History
 
-| Contract                     | ID            | Role                                               | Status     |
-| ---------------------------- | ------------- | -------------------------------------------------- | ---------- |
-| Original article tipping     | `CBSV...HWAM` | Article tips only                                  | Retired    |
-| Standalone highlight tipping | `CDON...64AB` | Highlight tips only (two-contract safety approach) | Retired    |
-| Initial unified tipping      | `CASU...CVWG` | Article + highlight tips, Pausable, Arweave-aware  | Retired    |
-| **Unified tipping**          | `CC7Q...ZMZY` | Article + highlight tips, batch settlement         | **Active** |
+| Contract                     | ID            | Role                                               | Status  |
+| ---------------------------- | ------------- | -------------------------------------------------- | ------- |
+| Original article tipping     | `CBSV...HWAM` | Article tips only                                  | Retired |
+| Standalone highlight tipping | `CDON...64AB` | Highlight tips only (two-contract safety approach) | Retired |
+| Initial unified tipping      | `CASU...CVWG` | Article + highlight tips, Pausable, Arweave-aware  | Retired |
+| Unified tipping              | `CC7Q...ZMZY` | Article + highlight tips, batch settlement         | Retired |
 
-The unified contract (`CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY`) has:
+The last v1 contract (`CC7Q3HDXQHMSI2WUE6C2KC35TRLPL22T3WEGZ67AB7KK5PDDJHQPZMZY`) had:
 
 - `tip_article()` / `tip_article_with_arweave()`
 - `tip_highlight_direct()` / `tip_highlight_with_arweave()`
@@ -70,7 +78,7 @@ Existing table — extended with `highlightId: v.string()` (required after migra
 | ---------------------------------------------- | -------------------------------------------------------------------------------- |
 | `lib/stellar/highlight-utils.ts`               | `generateHighlightId()`, `getHeatmapColor()`, `formatTipAmount()`                |
 | `lib/stellar/client.ts`                        | `buildHighlightTipTransaction()` — builds Soroban call to `tip_highlight_direct` |
-| `convex/highlightTips.ts`                      | `create`, `getByHighlight`, `getByArticle` mutations/queries                     |
+| `convex/highlightTips.ts`                      | `getByHighlight`, `getByArticle` and the other reads (v1 `create` is removed)    |
 | `components/highlights/HighlightTipButton.tsx` | Tip popover (10c / 50c / $1 presets)                                             |
 | `components/highlights/HighlightHeatmap.tsx`   | Author dashboard — top tipped phrases, Yellow→Orange→Red gradient                |
 | `components/highlights/HighlightExtension.ts`  | TipTap mark extension for inline highlight rendering                             |
@@ -78,7 +86,7 @@ Existing table — extended with `highlightId: v.string()` (required after migra
 | `components/highlights/HighlightNotes.tsx`     | Sidebar showing highlights that have notes                                       |
 | `components/articles/ArweaveStatus.tsx`        | Shows "Permanent Storage" badge on article page                                  |
 
-## Inline UX Model
+## Inline UX Model (v1)
 
 1. Reader selects text → TipTap `onSelectionUpdate` fires
 2. Popover appears with color picker + tip buttons
@@ -94,7 +102,7 @@ Existing table — extended with `highlightId: v.string()` (required after migra
 - Notes indicator: small icon on highlights with attached notes
 - Overlap: first-color wins (simple, acceptable for MVP)
 
-## Tipping Flow (Sequence)
+## Tipping Flow (v1 sequence)
 
 ```text
 Reader selects text
@@ -106,7 +114,7 @@ Reader selects text
   → UI updates via Convex real-time subscription
 ```
 
-## Status
+## Status (v1, before the cutover)
 
 - Implementation: Complete
 - User validation: Pending (need 10–20 real highlight tips)

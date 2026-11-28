@@ -52,7 +52,7 @@ Avoid launching a duplicate backend or stopping another chat's server.
 
 `efficient-tern-39` (`https://efficient-tern-39.convex.cloud`) is the shared
 non-production backend for v2 work. It is configured with `STELLAR_NETWORK=TESTNET`,
-the testnet tipping contract, `ARWEAVE_ENABLED=false`, and its own Auth signing
+the payments v2 testnet contracts, `ARWEAVE_ENABLED=false`, and its own Auth signing
 keys. To target it, put these lines in `.env.local`:
 
 ```bash
@@ -274,12 +274,6 @@ cutover. Its Convex variables, all testnet:
   are set.
 - `OPS_USER_IDS`: comma-separated Convex user IDs that may read the indexer
   status at `/ops/chain`.
-- `CHAIN_V1_PREPARES_ENABLED`: unset (or `true`) keeps v1 tip and NFT
-  preparation running. `false` pauses it for the cutover: the v1 prepare
-  functions refuse new records, while v1 submit, verification, recovery and
-  reads continue, so v1 tips already in flight complete. Any other value also
-  pauses. With v2 off and v1 paused, articles show "Tips are paused for a short
-  time while payments are updated."
 
 The Next.js side reads `NEXT_PUBLIC_CORE_CONTRACT_ID`,
 `NEXT_PUBLIC_TAB_CONTRACT_ID`, `NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` and

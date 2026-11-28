@@ -1591,17 +1591,6 @@ describe('v1 rows', () => {
     expect(
       await t.query(api.nfts.getNFTsByOwner, { ownerId: s.authorId })
     ).toHaveLength(0)
-
-    const details = await t.query(api.nfts.getNFTDetails, {
-      nftId: (await v2Rows(t))[0]!._id,
-    })
-    expect(details).toMatchObject({
-      contractVersion: 'v2',
-      owner: { username: 'collector' },
-      transferHistory: [
-        { fromAddress: AUTHOR, toAddress: COLLECTOR, transactionId: HASH2 },
-      ],
-    })
   })
 
   it('keep a v1 record labelled when no v2 NFT exists', async () => {
@@ -1616,6 +1605,38 @@ describe('v1 rows', () => {
       recordLabel: 'v1 record',
       tokenId: 'QUILL-v1',
     })
+  })
+
+  it('return an article cover only from an allowed image source', async () => {
+    const own = 'https://own-name-123.convex.cloud'
+    vi.stubEnv('CONVEX_CLOUD_URL', own)
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await seedV1(t, s)
+    const covers = async () => [
+      ...(
+        await t.query(api.nfts.getNFTsByOwner, { ownerId: s.collectorId })
+      ).map((n) => n.article?.coverImage),
+      ...(
+        await t.query(api.nfts.getNFTsByOwnerPaginated, {
+          ownerId: s.collectorId,
+        })
+      ).nfts.map((n) => n.article?.coverImage),
+      ...(
+        await t.query(api.nfts.getUserMintedNFTsPaginated, {
+          userId: s.authorId,
+        })
+      ).nfts.map((n) => n.article?.coverImage),
+    ]
+
+    await t.run(({ db }) =>
+      db.patch(s.articleId, { coverImage: 'https://example.com/cover.png' })
+    )
+    expect(await covers()).toEqual([undefined, undefined, undefined])
+
+    const stored = `${own}/api/storage/0123abcd`
+    await t.run(({ db }) => db.patch(s.articleId, { coverImage: stored }))
+    expect(await covers()).toEqual([stored, stored, stored])
   })
 
   it('resolve a v2 owner from ownerAddress, not the currentOwner cache', async () => {
@@ -1640,22 +1661,6 @@ describe('v1 rows', () => {
     expect(
       await t.query(api.nfts.getNFTsByOwner, { ownerId: s.authorId })
     ).toHaveLength(0)
-    expect(
-      await t.query(api.nfts.getNFTDetails, { nftId: row._id })
-    ).toMatchObject({ owner: { username: 'collector' } })
-  })
-
-  it('cannot move a v2 row through the v1 transfer mutation', async () => {
-    const t = convexTest(schema, modules)
-    const s = await seed(t)
-    const row = await indexMint(t)
-    await expect(
-      as(t, s.authorId).mutation(api.nfts.transferNFT, {
-        nftId: row._id,
-        toUsername: 'collector',
-      })
-    ).rejects.toThrow('Transfer this NFT with your wallet on Stellar.')
-    expect((await v2Rows(t))[0]!.ownerAddress).toBe(AUTHOR)
   })
 })
 

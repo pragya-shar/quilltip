@@ -39,7 +39,7 @@ choices rather than imposing a different component library.
 
 - [Article slug stability](article-slug-policy.md)
 - [Highlight tipping](highlight-tipping.md): domain details and historical contract evolution
-- [Tipping testnet deployment note](tipping-contract-testnet-deploy.md): recorded contract and active entry points
+- [Testnet contract deployment](contracts/v2-testnet-deployment.md): recorded contract sets
 - [Environment and local startup](SETUP.md)
 
 Contract IDs and earlier QA notes are dated records. Confirm the active environment
