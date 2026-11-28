@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { ArticleForDisplay } from '@/types/index'
 import { canLinkAuthorProfile } from '@/components/articles/ArticleAuthorByline'
 import { ArticleListingThumbnail } from '@/components/articles/ArticleListingThumbnail'
@@ -63,6 +64,7 @@ export default function ArticleFeedRow({
         <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1">
           {linkableAuthor ? (
             <Link
+              prefetch={ARTICLE_LINK_PREFETCH}
               href={`/${article.author.username}`}
               className="focus-ring truncate rounded-sm font-medium text-foreground hover:underline"
             >
@@ -103,6 +105,7 @@ export default function ArticleFeedRow({
       <div className="flex items-start gap-4 sm:gap-6">
         <div className="min-w-0 flex-1">
           <Link
+            prefetch={ARTICLE_LINK_PREFETCH}
             href={articleHref}
             scroll={false}
             className="focus-ring rounded-md"

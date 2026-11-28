@@ -7,6 +7,7 @@ import { articleHref } from '@/lib/library/bookmarks'
 import Pagination from '@/components/articles/Pagination'
 import { PaginationTransition } from '@/components/profile/PaginationTransition'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import {
   PROFILE_ARTICLES_PER_PAGE,
   toProfileArticlesPage,
@@ -68,7 +69,11 @@ export function ProfileArticlesTabContent({
     return (
       <div className="library-empty">
         <p>There are no articles on this page.</p>
-        <Link href={basePath} className="library-browse">
+        <Link
+          prefetch={ARTICLE_LINK_PREFETCH}
+          href={basePath}
+          className="library-browse"
+        >
           Return to the first page
         </Link>
       </div>
@@ -81,6 +86,7 @@ export function ProfileArticlesTabContent({
         const topic = article.topic
         return (
           <Link
+            prefetch={ARTICLE_LINK_PREFETCH}
             className="library-row"
             key={article._id}
             href={articleHref({ username, slug: article.slug })}
