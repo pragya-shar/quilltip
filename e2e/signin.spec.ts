@@ -41,6 +41,15 @@ const activeId = (page: Page) =>
     }
   })
 
+/** Waits for the sheet's slide-in (and any other motion in it) to end, so
+ * positions are measured where they rest. */
+const settled = (dialog: Locator) =>
+  dialog.evaluate((el) =>
+    Promise.all(
+      el.getAnimations({ subtree: true }).map((animation) => animation.finished)
+    )
+  )
+
 /** Opens the sheet from the tip; it starts with creating an account, and
  * `asReturning` switches it to signing in, as a returning reader does. */
 async function openFromTip(page: Page, path = '/article', asReturning = true) {
@@ -50,6 +59,7 @@ async function openFromTip(page: Page, path = '/article', asReturning = true) {
   await press(tipButton(page))
   const dialog = sheet(page, /^Tip this line/)
   await expect(dialog).toBeVisible()
+  await settled(dialog)
   if (asReturning)
     await press(dialog.getByRole('button', { name: 'I have an account' }))
   return dialog
@@ -199,7 +209,9 @@ test('the first open draws the sheet with its form in the same frame', async ({
           pressed: tip.matches(':active') || tip.hasAttribute('data-opening'),
           afterPress: pressedYet,
         })
-        if (w.__frames.length < 90) requestAnimationFrame(tick)
+        // Until the sheet has been open a few frames, or five seconds.
+        const opened = w.__frames.filter((frame) => frame.open).length
+        if (opened < 5 && w.__frames.length < 300) requestAnimationFrame(tick)
       }
       requestAnimationFrame(tick)
     }
