@@ -7,6 +7,7 @@ import { AmountIcon, CloseIcon, DoneIcon, TipIcon } from '../icons'
 import type { MoneyValue } from '../money/figure'
 import {
   HOLD_CANCELLED,
+  amountChoosable,
   buttonAmount,
   tipButtonParts,
   tipNote,
@@ -45,8 +46,9 @@ export type TipControlProps = {
   /** The quick amounts, within every limit. */
   amounts: readonly MoneyValue[]
   onAmountChange: (cents: number) => void
-  /** Sends the chosen amount, or retries after a failure. */
-  onTip: () => void
+  /** Sends the chosen amount, or retries after a failure: the amount is
+   * the one the button states (`buttonAmount`). */
+  onTip: (amount: MoneyValue) => void
   /** Opens the add-money sheet when the balance is short. */
   onAddMoney?: () => void
   /** After a failure: leaves it, back to idle ("Not now"). */
@@ -252,13 +254,14 @@ export function TipControl({
       return
     }
     // The amount the button states is the one a press sends.
-    if (!buttonAmount(state, amount)) {
+    const sending = buttonAmount(state, amount)
+    if (!sending) {
       // Nothing to send: the tray opens to choose one.
       setTrayOpen(true)
       return
     }
     latch.current = window.setTimeout(releaseLatch, PRESS_LATCH_MS)
-    onTip()
+    onTip(sending)
   }
 
   const closeTray = (returnFocus: boolean) => {
@@ -360,7 +363,7 @@ export function TipControl({
             <Icon icon={CloseIcon} size={24} />
           </button>
         ) : null}
-        {!unavailable && !busy ? (
+        {!unavailable && !busy && amountChoosable(state) ? (
           <button
             ref={amountButton}
             type="button"

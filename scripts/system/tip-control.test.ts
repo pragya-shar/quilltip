@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  amountChoosable,
   buttonAmount,
   centsFromInput,
   firstName,
@@ -165,5 +166,28 @@ describe('one amount for the label and the press', () => {
     } as const
     expect(buttonAmount(other, null)).toBe(three)
     expect(tipButtonLabel(other, null, 'article')).toBe('Adding $3')
+  })
+  it('lets the reader choose the amount only where the button sends it', () => {
+    const one = { cents: 100, display: '$1' }
+    const phases = [
+      { phase: 'idle' },
+      { phase: 'holding', amount: three },
+      { phase: 'sending', amount: three },
+      { phase: 'sent', amount: three },
+      { phase: 'failed', amount: three },
+      { phase: 'offline', amount: three },
+      { phase: 'needs-funds', amount: three, available: null },
+      { phase: 'other', words: 'Adding', amount: three, busy: false },
+    ] as const
+    for (const state of phases) {
+      // Where the amount control is hidden, a chosen amount changes nothing
+      // the button says or sends.
+      const reads = buttonAmount(state, one) !== buttonAmount(state, two)
+      expect(amountChoosable(state), state.phase).toBe(reads)
+      if (!amountChoosable(state))
+        expect(tipButtonParts(state, one, 'article')).toEqual(
+          tipButtonParts(state, two, 'article')
+        )
+    }
   })
 })

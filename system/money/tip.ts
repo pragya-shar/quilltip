@@ -49,6 +49,20 @@ export function buttonAmount(
   }
 }
 
+/**
+ * Whether the reader may choose the amount in this phase: only where the
+ * button's amount is the chosen one (`buttonAmount` reads it). In every
+ * other phase the amount is the phase's own, so the amount control is not
+ * shown and the words and the press can never differ.
+ */
+export function amountChoosable(state: TipControlPhase): boolean {
+  return (
+    state.phase === 'idle' ||
+    state.phase === 'failed' ||
+    state.phase === 'needs-funds'
+  )
+}
+
 /** "Tomás Reyes" → "Tomás": the button names the writer by first name. */
 export function firstName(name: string): string {
   return name.trim().split(/\s+/u)[0] ?? name
