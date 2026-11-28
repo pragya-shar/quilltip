@@ -171,7 +171,7 @@ const SCENARIOS: Record<string, Expect> = {
     rows: 6,
     texts: [
       'Held in Lumens. The dollar figure moves with the price.',
-      'Add testnet money from a Stellar wallet.',
+      'Money comes from a Stellar testnet wallet.',
       'You can withdraw in a later update. Until then, what has arrived stays here.',
       'These are your share. You keep 97.5% of every tip.',
       'Quilltip runs on Stellar testnet. Tips are practice money.',
@@ -389,7 +389,7 @@ test.describe('every money scenario', () => {
       await page.goto(`/pocket?scenario=${scenario}`)
       const root = page.locator('.qt-pocket:visible')
       await expect(root).toContainText(
-        'Add testnet money from a Stellar wallet.'
+        'Money comes from a Stellar testnet wallet.'
       )
       await expect(
         root.getByRole('link', { name: 'Add testnet money' })

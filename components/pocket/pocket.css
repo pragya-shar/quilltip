@@ -23,6 +23,9 @@
   /* A converted Ready to tip is a button that opens the exact amount. */
   .qt-pocket__figure-button {
     display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--qt-space-2);
     padding: 0;
     border: 0;
     background: none;
@@ -31,6 +34,13 @@
     text-align: start;
     border-radius: var(--qt-radius-tag);
     cursor: pointer;
+  }
+  .qt-pocket__figure-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--qt-space-1);
+    color: var(--qt-ink-2);
+    font-size: var(--qt-text-ui-s);
   }
   @media (hover: hover) and (pointer: fine) {
     .qt-pocket__figure-button:hover .qt-money__label {
@@ -100,10 +110,18 @@
     padding-block: var(--qt-space-3);
     border-radius: var(--qt-radius-tag);
   }
+  .qt-pocket__add {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--qt-space-3);
+  }
+  /* Top-aligned: the figures share one line whatever their labels hold
+     (On its way carries an icon). */
   .qt-pocket__pair {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
+    align-items: flex-start;
     gap: var(--qt-space-4) var(--qt-space-8);
   }
   .qt-pocket__with-icon {
