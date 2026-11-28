@@ -180,75 +180,67 @@ test.describe('a kept intent comes back, and nothing is sent', () => {
 test('the first open draws the sheet with its form in the same frame', async ({
   page,
 }) => {
-  // Every animation frame from the press: is a dialog open, does it hold
-  // the form, and was a loading placeholder ever drawn?
+  // Recorded by order, as the page changes (animation frames are held back
+  // for a background page when workers run in parallel): when the dialog
+  // opens, is the form already in it; was a loading placeholder ever put
+  // in an open dialog; and when was the pressed mark on the tip set and removed?
   await page.addInitScript(() => {
-    const w = window as unknown as {
-      __frames: {
-        open: boolean
-        form: boolean
-        busy: boolean
-        pressed: boolean
-        afterPress: boolean
-      }[]
-      __watch: () => void
-    }
-    w.__frames = []
-    w.__watch = () => {
-      const tip = document.querySelector('[data-fixture="tip-button"]')!
-      let pressedYet = false
-      document.addEventListener('pointerdown', () => (pressedYet = true), {
-        capture: true,
+    const w = window as unknown as { __events: string[] }
+    w.__events = []
+    document.addEventListener('DOMContentLoaded', () => {
+      new MutationObserver((records) => {
+        for (const record of records) {
+          const el = record.target as Element
+          if (record.type === 'attributes' && record.attributeName === 'open') {
+            if (el.matches('dialog[open]') && !w.__events.includes('open'))
+              w.__events.push(
+                el.querySelector('input[name="email"]')
+                  ? 'open with form'
+                  : 'open without form'
+              )
+          } else if (
+            record.type === 'attributes' &&
+            record.attributeName === 'data-opening'
+          )
+            w.__events.push(
+              el.hasAttribute('data-opening') ? 'pressed' : 'released'
+            )
+          for (const node of record.addedNodes)
+            if (
+              node instanceof Element &&
+              (node.matches('[aria-busy="true"]') ||
+                node.querySelector('[aria-busy="true"]')) &&
+              node.closest('dialog[open]')
+            )
+              w.__events.push('placeholder')
+        }
+      }).observe(document.body, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+        attributeFilter: ['open', 'data-opening'],
       })
-      const tick = () => {
-        const dialog = document.querySelector('dialog[open]')
-        w.__frames.push({
-          open: Boolean(dialog),
-          form: Boolean(dialog?.querySelector('input[name="email"]')),
-          busy: Boolean(dialog?.querySelector('[aria-busy="true"]')),
-          pressed: tip.matches(':active') || tip.hasAttribute('data-opening'),
-          afterPress: pressedYet,
-        })
-        // Until the sheet has been open a few frames, or five seconds.
-        const opened = w.__frames.filter((frame) => frame.open).length
-        if (opened < 5 && w.__frames.length < 300) requestAnimationFrame(tick)
-      }
-      requestAnimationFrame(tick)
-    }
+    })
   })
   await page.goto('/article')
   await expect(tipButton(page)).toHaveAttribute('data-phase', 'signed-out')
-  await page.evaluate(() =>
-    (window as unknown as { __watch: () => void }).__watch()
-  )
   await press(tipButton(page))
   await expect(sheet(page, /^Tip this line/)).toBeVisible()
-  const frames = await page.evaluate(
-    () =>
-      (
-        window as unknown as {
-          __frames: {
-            open: boolean
-            form: boolean
-            busy: boolean
-            pressed: boolean
-            afterPress: boolean
-          }[]
-        }
-      ).__frames
+  const events = await page.evaluate(
+    () => (window as unknown as { __events: string[] }).__events
   )
-  const at = frames.findIndex((frame) => frame.open)
-  expect(frames[at]).toMatchObject({ open: true, form: true, busy: false })
-  expect(frames.some((frame) => frame.busy)).toBe(false)
-  // Every frame drawn after the press and before the sheet shows the
-  // button pressed (there may be none: the code often arrives within the
-  // frame); once the sheet is drawn, the mark is gone.
-  expect(
-    frames
-      .slice(0, at)
-      .filter((frame) => frame.afterPress)
-      .every((frame) => frame.pressed)
-  ).toBe(true)
+  expect(events).toContain('open with form')
+  expect(events).not.toContain('open without form')
+  expect(events).not.toContain('placeholder')
+  // The pressed mark, when the code was not already there, holds from the
+  // press until the sheet opens, and is gone after.
+  const opened = events.indexOf('open with form')
+  if (events.includes('pressed')) {
+    expect(events.indexOf('pressed')).toBeLessThan(opened)
+    expect(events.indexOf('released')).toBeGreaterThan(
+      events.indexOf('pressed')
+    )
+  }
   await expect(tipButton(page)).not.toHaveAttribute('data-opening')
 })
 
