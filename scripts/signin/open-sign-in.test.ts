@@ -17,11 +17,11 @@ const tip = tipIntent({
 })!
 
 const top = () => sheetStack.get().at(-1)
+const title = (props: unknown) =>
+  (sheets['sign-in']!.title as (p: unknown) => string)(props)
 
 describe('openSignIn', () => {
-  beforeEach(() => {
-    vi.spyOn(console, 'error').mockImplementation(() => {})
-  })
+  beforeEach(() => {})
   afterEach(() => {
     sheetStack.closeAll()
     vi.unstubAllEnvs()
@@ -42,37 +42,25 @@ describe('openSignIn', () => {
     expect(top()!.props).toEqual({})
   })
 
-  it('in production, opens the sheet without an intent it cannot read', () => {
-    vi.stubEnv('NODE_ENV', 'production')
-    const handMade = { kind: 'draft', draft: 'l-1' } as never
-    expect(() => openSignIn(handMade)).not.toThrow()
-    expect(top()).toMatchObject({ id: SIGN_IN_SHEET, open: true })
-    expect(top()!.props).toEqual({})
-    expect(console.error).toHaveBeenCalledTimes(1)
-  })
-
-  it('in production, a value whose reading throws is no intent either', () => {
-    vi.stubEnv('NODE_ENV', 'production')
-    const hostile = {
-      get kind(): string {
-        throw new Error('no')
-      },
-    } as never
-    expect(() => openSignIn(hostile)).not.toThrow()
-    expect(top()!.props).toEqual({})
-  })
-
-  it('in development, says at once that the intent is wrong', () => {
-    vi.stubEnv('NODE_ENV', 'development')
-    expect(() => openSignIn({ kind: 'publish', draft: 'x' } as never)).toThrow(
-      /publishIntent/
-    )
-  })
+  for (const env of ['production', 'development'])
+    it(`in ${env}, never throws, and the title ignores an intent it cannot read`, () => {
+      vi.stubEnv('NODE_ENV', env)
+      const handMade = { kind: 'draft', draft: 'l-1' } as never
+      expect(() => openSignIn(handMade)).not.toThrow()
+      expect(top()).toMatchObject({ id: SIGN_IN_SHEET, open: true })
+      expect(title(top()!.props)).toBe('Sign in to Quilltip')
+      sheetStack.closeAll()
+      const hostile = {
+        get kind(): string {
+          throw new Error('no')
+        },
+      } as never
+      expect(() => openSignIn(hostile)).not.toThrow()
+      expect(title(top()!.props)).toBe('Sign in to Quilltip')
+    })
 })
 
 describe('the sheet title says the act', () => {
-  const title = (props: unknown) =>
-    (sheets['sign-in']!.title as (p: unknown) => string)(props)
   it('names a draft to save, a tip and a plain sign-in', () => {
     expect(
       title({ intent: draftIntent({ path: '/write/l-1', draftId: 'l-1' }) })

@@ -39,10 +39,23 @@ export default function SignInBody({
   props,
   close,
 }: SheetBodyProps<SignInProps>) {
-  const intent = useMemo(() => parseIntent(props?.intent), [props])
+  const intent = useMemo(() => {
+    try {
+      return parseIntent(props?.intent)
+    } catch {
+      // A value whose reading throws is no intent.
+      return null
+    }
+  }, [props])
   useEffect(() => {
     if (intent) saveIntent(intent)
-  }, [intent])
+    // A caller that built its intent by hand: the person still signs in,
+    // without it; the caller's mistake is said where its author looks.
+    else if (props?.intent)
+      console.error(
+        'openSignIn: that intent is not valid. Build it with tipIntent, keepIntent, publishIntent, followIntent or draftIntent from lib/auth/intent.'
+      )
+  }, [intent, props])
   const line = intent && 'passage' in intent ? intent.passage : null
   const words = lead(intent)
   return (
@@ -54,6 +67,7 @@ export default function SignInBody({
       ) : null}
       {words ? <p className="qt-signin-sheet__lead">{words}</p> : null}
       <SignInForm
+        idPrefix="signin-sheet"
         // Opened from an act (a tip, a keep, a follow, a publish), the
         // person is most likely new: the sheet starts with creating an
         // account. Opened plainly, or to save a draft whose session ended,

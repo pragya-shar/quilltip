@@ -1,4 +1,4 @@
-import { parseIntent, type SignInIntent } from '@/lib/auth/intent'
+import type { SignInIntent } from '@/lib/auth/intent'
 import { getSafeReturnPath } from '@/lib/auth/safeReturnPath'
 import { SIGN_IN_PATH } from './navigation'
 import { knownSheet, sheetStack } from './sheetStack'
@@ -9,14 +9,15 @@ export const SIGN_IN_SHEET = 'sign-in'
 
 /**
  * Asks the person to sign in, over the current page. Pass what they were
- * doing as an intent built by `tipIntent`, `keepIntent`, `publishIntent` or
- * `followIntent` (lib/auth/intent), so the sheet can show it and the page
- * can take it back after sign-in; nothing is sent by signing in. An intent
- * that was not built there is refused: an error in development, and in
- * production the sheet opens without it, so the person still signs in and
- * stays on the page (the sheet's way back is the page itself); it never
- * throws there. Returns false while no sign-in sheet is registered: the
- * caller then follows its link to the sign-in page.
+ * doing as an intent built by `tipIntent`, `keepIntent`, `publishIntent`,
+ * `followIntent` or `draftIntent` (lib/auth/intent), so the sheet can show
+ * it and the page can take it back after sign-in; nothing is sent by
+ * signing in. The sheet reads the intent again when it loads and drops
+ * anything that was not built there (saying so in the console), so the
+ * person still signs in and stays on the page; this never throws. The
+ * reading happens in the sheet, not here, so the intent rules stay out of
+ * every page's first load. Returns false while no sign-in sheet is
+ * registered: the caller then follows its link to the sign-in page.
  */
 export function openSignIn(
   intent?: SignInIntent | null,
@@ -28,25 +29,13 @@ export function openSignIn(
 ): boolean {
   // Registered by loaded code, or declared in shell/sheets: either counts.
   if (!knownSheet(SIGN_IN_SHEET)) return false
-  let kept: SignInIntent | null = null
-  try {
-    kept = intent ? parseIntent(intent) : null
-  } catch {
-    // A value whose reading throws is no intent.
-  }
-  if (intent && !kept) {
-    const message =
-      'openSignIn: that intent is not valid. Build it with tipIntent, keepIntent, publishIntent or followIntent from lib/auth/intent.'
-    if (process.env.NODE_ENV !== 'production') throw new Error(message)
-    console.error(message)
-  }
   const mode =
     options.mode === 'sign-in' || options.mode === 'create'
       ? { mode: options.mode }
       : {}
   return sheetStack.open(
     SIGN_IN_SHEET,
-    kept ? { intent: kept, ...mode } : { ...mode }
+    intent ? { intent, ...mode } : { ...mode }
   )
 }
 
