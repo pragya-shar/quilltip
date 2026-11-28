@@ -70,9 +70,22 @@ type Behaviour = 'silent' | 'slow' | 'error'
  * cached real content, as it should.
  */
 function coldPath(path: string, run: number) {
-  if (path === READING.list) return `${path}?tag=cold-${run}`
+  if (path === READING.list && path !== '/') return `${path}?tag=cold-${run}`
   if (path === READING.article) return fixtureArticlePath(2 + run)
   return path // The writer's reads are not cached.
+}
+
+/**
+ * Today (`/`) keys its cache by the minute, not the address, so its cold
+ * load is a reader with a skip list (the `qt_opened` cookie): Today reads
+ * that one directly and never caches it. A Convex-id-shaped value per run.
+ */
+function coldCookie(path: string, run: number) {
+  if (path !== '/') return null
+  return {
+    name: 'qt_opened',
+    value: `coldreadrun${String(run).padStart(8, '0')}`,
+  }
 }
 
 const boundFor = (readsInSequence: number) =>
@@ -164,6 +177,8 @@ async function main() {
               viewport: { width: 375, height: 812 },
               javaScriptEnabled: false,
             })
+            const cookie = coldCookie(path, run)
+            if (cookie) await context.addCookies([{ ...cookie, url: BASE_URL }])
             const page = await context.newPage()
             const label = `${behaviour} backend, ${name}, javascript off, ${path}`
             const loaded = await page
