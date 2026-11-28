@@ -103,9 +103,9 @@ async function expectDestination(page: Page, label: string, path: string) {
 }
 
 async function expectGuestHeader(page: Page) {
-  await expect(page).toHaveURL(/\/login$/)
+  await expect(page).toHaveURL(/\/signin$/)
   await expect(
-    page.getByRole('button', { name: 'Log in', exact: true })
+    page.getByRole('button', { name: 'Sign in', exact: true })
   ).toBeVisible()
   // The login route renders before Convex finishes revoking the session.
   await expect(
@@ -140,14 +140,14 @@ test.describe('signed-in account navigation on a development backend', () => {
   test.setTimeout(120_000)
 
   test.beforeEach(async ({ page }) => {
-    await page.goto('/login?returnTo=%2Fsupport')
+    await page.goto('/signin?returnTo=%2Fsupport')
     await page
       .getByLabel('Email', { exact: true })
       .fill(process.env.PLAYWRIGHT_QA_EMAIL!)
     await page
       .getByLabel('Password', { exact: true })
       .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
-    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await expect(page).toHaveURL(/\/support$/)
     await expect(accountButton(page)).toBeVisible()
   })

@@ -12,10 +12,9 @@ import { FIXTURE_ARTICLE_PATH } from '../scripts/perf/convex-fixture'
 
 /** Pages with a form a reader can fill in before the page scripts run. */
 const FORM_PAGES = [
-  '/login',
-  '/register',
-  '/forgot-password',
-  '/reset-password',
+  '/signin',
+  '/signin?mode=create',
+  '/signin/reset',
   '/waitlist',
 ]
 
@@ -108,12 +107,9 @@ test.describe('forms in the server HTML', () => {
         )
       }
     }
-    // Sign-in, sign-up and the new password form are all in the server HTML.
-    expect(passwordPages.sort()).toEqual([
-      '/login',
-      '/register',
-      '/reset-password',
-    ])
+    // Sign-in and sign-up are in the server HTML; the reset page asks for
+    // the email first and draws its new-password form after.
+    expect(passwordPages.sort()).toEqual(['/signin', '/signin?mode=create'])
   })
 
   test('every form with a named personal field posts', async ({ page }) => {
@@ -138,45 +134,36 @@ test.describe('forms in the server HTML', () => {
       )
     }
   })
-
-  test('a native sign-in post shows the sign-in page again', async ({
-    page,
-  }) => {
-    // With scripts turned off, the browser posts the form to the page's own
-    // URL. The password goes in the request body, never in a URL, and the
-    // server answers with the same page and empty fields.
-    const password = 'Native-post-1234'
-    await page.goto('/login', { waitUntil: 'domcontentloaded' })
-    await page.locator('#email').fill('native@example.invalid')
-    await page.locator('#password').fill(password)
-    const request = page.waitForRequest(
-      (r) => r.isNavigationRequest() && r.method() === 'POST'
-    )
-    await page.locator('form button[type="submit"]').click()
-    const sent = await request
-    expect(new URL(sent.url()).pathname).toBe('/login')
-    expect(sent.url()).not.toContain(password)
-    const response = await sent.response()
-    expect(response?.status()).toBeLessThan(400)
-    await page.waitForLoadState('domcontentloaded')
-    expect(new URL(page.url()).pathname).toBe('/login')
-    expect(page.url()).not.toContain(password)
-    await expect(page.locator('#password')).toHaveValue('')
-  })
 })
 
 test.describe('auth forms in the first flush', () => {
   // React streams a boundary separately, behind the loading fallback, when the
   // HTML flushed so far passes its chunk size (12,800 bytes). A browser
-  // without scripts then shows only the fallback, and WebKit shows nothing
-  // until the scripts run. Each auth form must be in the first flush.
+  // whose scripts have not run then shows only the fallback, and WebKit
+  // shows nothing until they run. Each auth form must be in the first flush.
+  test.use({ javaScriptEnabled: true })
   for (const path of FORM_PAGES) {
-    test(`${path} shows its form without scripts`, async ({ page }) => {
+    test(`${path} shows its form before the scripts run`, async ({ page }) => {
+      await page.route(/\/_next\/static\/.+\.js(\?.*)?$/, () => {})
       await page.goto(path, { waitUntil: 'domcontentloaded' })
       await expect(page.locator('form').first()).toBeVisible()
       await expect(page.getByText('Loading page…')).toHaveCount(0)
     })
   }
+})
+
+test.describe('sign-in without JavaScript', () => {
+  // Signing in needs the page script (the session lives in the browser), so
+  // with JavaScript off the sign-in pages say so instead of showing a form
+  // that cannot work.
+  for (const path of ['/signin', '/signin?mode=create', '/signin/reset'])
+    test(`${path} says it needs JavaScript`, async ({ page }) => {
+      await page.goto(path, { waitUntil: 'domcontentloaded' })
+      await expect(page.locator('.qt-signin-page__noscript')).toContainText(
+        'needs JavaScript'
+      )
+      await expect(page.locator('form:visible')).toHaveCount(0)
+    })
 })
 
 test.describe('the inline hold blocked', () => {
@@ -187,28 +174,22 @@ test.describe('the inline hold blocked', () => {
   // the browser submits natively. No field value may reach a URL.
   const cases = [
     {
-      path: '/login',
+      path: '/signin',
       fields: {
-        '#email': 'blocked@example.invalid',
-        '#password': 'Blocked-hold-1234',
+        'input[name="email"]': 'blocked@example.invalid',
+        'input[name="password"]': 'Blocked-hold-1234',
       },
     },
     {
-      path: '/register',
+      path: '/signin?mode=create',
       fields: {
-        '#name': 'Blocked Hold',
-        '#email': 'blocked@example.invalid',
-        '#password': 'Blocked-hold-1234',
+        'input[name="email"]': 'blocked@example.invalid',
+        'input[name="password"]': 'Blocked-hold-1234',
       },
     },
     {
-      path: '/reset-password',
-      fields: {
-        '#reset-email': 'blocked@example.invalid',
-        '#reset-code': '12345678',
-        '#reset-password': 'Blocked-hold-1234',
-        '#reset-confirm': 'Blocked-hold-1234',
-      },
+      path: '/signin/reset',
+      fields: { 'input[name="email"]': 'blocked@example.invalid' },
     },
     {
       path: '/waitlist',
@@ -216,6 +197,7 @@ test.describe('the inline hold blocked', () => {
     },
   ]
   for (const { path, fields } of cases) {
+    const pathname = new URL(path, 'http://x').pathname
     test(`${path} keeps every value out of URLs`, async ({
       page,
       browserName,
@@ -226,7 +208,7 @@ test.describe('the inline hold blocked', () => {
       page.on('framenavigated', (frame) => urls.push(frame.url()))
       await page.route(/\/_next\/static\/.+\.js(\?.*)?$/, () => {})
       await page.route(
-        (url) => url.pathname === path,
+        (url) => url.pathname === pathname,
         async (route) => {
           if (route.request().method() !== 'GET') return route.continue()
           const response = await route.fetch()
@@ -242,12 +224,15 @@ test.describe('the inline hold blocked', () => {
         await page.locator(selector).fill(value)
       const submitted = page.waitForRequest(
         (request) =>
-          request.isNavigationRequest() && request.url().includes(path),
+          request.isNavigationRequest() &&
+          new URL(request.url()).pathname === pathname,
         { timeout: 5000 }
       )
       await page.locator('form button[type="submit"]').click()
       const request = await submitted
       expect(request.method()).toBe('POST')
+      // The server answers the post with the page again.
+      expect((await request.response())?.status()).toBeLessThan(400)
       await page.waitForLoadState('domcontentloaded').catch(() => {})
       for (const value of Object.values(fields)) {
         const forms = [

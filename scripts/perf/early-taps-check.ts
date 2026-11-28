@@ -23,7 +23,7 @@ async function waitForApp(): Promise<void> {
   const deadline = Date.now() + 60_000
   while (Date.now() < deadline) {
     try {
-      if ((await fetch(`${BASE_URL}/login`)).ok) return
+      if ((await fetch(`${BASE_URL}/signin`)).ok) return
     } catch {
       /* Not listening yet. */
     }
@@ -51,14 +51,7 @@ async function main(): Promise<number> {
   try {
     await waitForApp()
     // Warm the routes, so a cold start cannot race the first assertions.
-    for (const path of [
-      '/login',
-      '/register',
-      '/forgot-password',
-      '/reset-password',
-      '/waitlist',
-      '/articles',
-    ])
+    for (const path of ['/signin', '/signin/reset', '/waitlist', '/articles'])
       await fetch(`${BASE_URL}${path}`).catch(() => {})
     return await run(
       'bunx',

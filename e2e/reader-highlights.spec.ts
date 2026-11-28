@@ -266,7 +266,7 @@ test.describe('saved passages on a development backend', () => {
     await tip
       .getByRole('button', { name: 'Sign in to tip', exact: true })
       .click()
-    await expect(page).toHaveURL(/\/login\?returnTo=/)
+    await expect(page).toHaveURL(/\/signin\?returnTo=/)
     expect(new URL(page.url()).searchParams.get('returnTo')).toBe(returnPath)
     await page
       .getByLabel('Email', { exact: true })
@@ -274,7 +274,7 @@ test.describe('saved passages on a development backend', () => {
     await page
       .getByLabel('Password', { exact: true })
       .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
-    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await expect(page).toHaveURL(
       new URL(returnPath, process.env.PLAYWRIGHT_BASE_URL!).href
     )
@@ -323,14 +323,14 @@ test.describe('saved passages on a development backend', () => {
         } else server.send(message)
       })
     })
-    await page.goto('/login')
+    await page.goto('/signin')
     await page
       .getByLabel('Email', { exact: true })
       .fill(process.env.PLAYWRIGHT_QA_EMAIL!)
     await page
       .getByLabel('Password', { exact: true })
       .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
-    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
     await page.setViewportSize({ width: 1440, height: 1000 })
     await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -428,14 +428,14 @@ test.describe('saved passages on a development backend', () => {
     page,
   }) => {
     test.setTimeout(90000)
-    await page.goto('/login')
+    await page.goto('/signin')
     await page
       .getByLabel('Email', { exact: true })
       .fill(process.env.PLAYWRIGHT_QA_EMAIL!)
     await page
       .getByLabel('Password', { exact: true })
       .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
-    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
     await page.setViewportSize({ width: 1440, height: 1000 })
     await page.emulateMedia({ reducedMotion: 'reduce' })
@@ -559,14 +559,14 @@ test.describe('saved passages on a development backend', () => {
         } else server.send(message)
       })
     })
-    await page.goto('/login')
+    await page.goto('/signin')
     await page
       .getByLabel('Email', { exact: true })
       .fill(process.env.PLAYWRIGHT_QA_EMAIL!)
     await page
       .getByLabel('Password', { exact: true })
       .fill(process.env.PLAYWRIGHT_QA_PASSWORD!)
-    await page.getByRole('button', { name: 'Log in', exact: true }).click()
+    await page.getByRole('button', { name: 'Sign in', exact: true }).click()
     await expect(page).toHaveURL(/\/$/)
     await page.goto(articlePath)
     const create = await selectPassage(page, 6)
@@ -803,7 +803,7 @@ for (const authPath of ['login', 'register']) {
       await page
         .getByLabel('Password', { exact: true })
         .fill(process.env.PLAYWRIGHT_QA_PASSWORD)
-      await page.getByRole('button', { name: 'Log in', exact: true }).click()
+      await page.getByRole('button', { name: 'Sign in', exact: true }).click()
       await expect(page).toHaveURL(
         new URL(
           returnPath,

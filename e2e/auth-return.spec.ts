@@ -4,14 +4,18 @@
  * (scripts/auth-e2e/run.ts), which starts the backend and the app.
  *
  * Convex Auth's `signIn` resolves before the backend confirms the new token.
- * A slow confirmation sent the reader back to /login. `slowAuthConfirmation`
+ * A slow confirmation sent the reader back to sign in. `slowAuthConfirmation`
  * holds the backend's messages after the client authenticates, so every run
  * meets that window instead of only some.
+ *
+ * Sign-in is /signin; the older pages' guards still link to /login, which
+ * redirects there with only a safe `returnTo`.
  */
 import { createSign } from 'crypto'
 import { test, expect, type BrowserContext, type Page } from '@playwright/test'
 
 import { TOKEN_CONFIRMATION_TIMEOUT_MS } from '../lib/auth/sessionConfirmation'
+import { CONFIRM_MS } from '../lib/auth/session'
 
 const CONVEX_URL = process.env.AUTH_E2E_CONVEX_URL
 /** How long the backend's answer is held after the client authenticates. */
@@ -87,10 +91,13 @@ async function watchProtectedContent(page: Page) {
 async function signIn(page: Page, password = account.password) {
   await page.getByLabel('Email').fill(account.email)
   await page.getByLabel('Password', { exact: true }).fill(password)
-  await page.getByRole('button', { name: 'Log in' }).click()
+  await page.getByRole('button', { name: 'Sign in', exact: true }).click()
 }
 
-const loginUrl = (path: string) => `/login?returnTo=${encodeURIComponent(path)}`
+const loginUrl = (path: string) =>
+  `/signin?returnTo=${encodeURIComponent(path)}`
+const signInButton = (page: Page) =>
+  page.getByRole('button', { name: 'Sign in', exact: true })
 
 /** Stays on the path for the whole interval. */
 async function staysOn(page: Page, path: string, ms: number) {
@@ -140,13 +147,13 @@ for (const route of PROTECTED) {
   })
 }
 
-test('a signed-out reader is sent to login and sees no dashboard', async ({
+test('a signed-out reader is sent to sign in and sees no dashboard', async ({
   page,
 }) => {
   await watchProtectedContent(page)
   await page.goto('/dashboard/stats')
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
-  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+  await expect(signInButton(page)).toBeVisible()
   expect(
     await page.evaluate(
       () => (window as unknown as { __sawProtected?: boolean }).__sawProtected
@@ -186,29 +193,27 @@ test('a stored token the backend rejects does not hold a signed-out reader', asy
   ).toBe(false)
 })
 
-test('a sign-in the backend never answers ends on login at the bound', async ({
+test('a sign-in the backend never answers says so on the sign-in page', async ({
   page,
 }) => {
-  test.setTimeout(TOKEN_CONFIRMATION_TIMEOUT_MS + 45_000)
+  test.setTimeout(CONFIRM_MS * 2 + 45_000)
   await slowAuthConfirmation(page, 'never')
   await watchProtectedContent(page)
   await page.goto(loginUrl('/dashboard/stats'))
   await signIn(page)
-  await expect(page).toHaveURL('/dashboard/stats')
-  const landed = Date.now()
-  // Waits for the answer: no redirect well before the bound.
-  await staysOn(page, '/dashboard/stats', TOKEN_CONFIRMATION_TIMEOUT_MS - 3_000)
-  // Then treats the reader as signed out.
-  await expect(page).toHaveURL(loginUrl('/dashboard/stats'), {
-    timeout: 10_000,
-  })
-  expect(Date.now() - landed).toBeLessThan(
-    TOKEN_CONFIRMATION_TIMEOUT_MS + 8_000
-  )
-  // A second sign-in stores a new token, which gets its own wait.
+  // Waits for the backend on the sign-in page, saying so, and never goes on
+  // to the protected page with a token nobody confirmed.
+  await expect(page.getByText('Signing you in…')).toBeVisible()
+  const started = Date.now()
+  await expect(
+    page.getByText('Signing in is taking longer than usual.', { exact: false })
+  ).toBeVisible({ timeout: CONFIRM_MS + 10_000 })
+  expect(Date.now() - started).toBeGreaterThan(CONFIRM_MS - 3_000)
+  await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
+  // A second sign-in gets its own wait.
   await signIn(page)
-  await expect(page).toHaveURL('/dashboard/stats')
-  await staysOn(page, '/dashboard/stats', 5_000)
+  await expect(page.getByText('Signing you in…')).toBeVisible()
+  await staysOn(page, loginUrl('/dashboard/stats'), 3_000)
   expect(
     await page.evaluate(
       () => (window as unknown as { __sawProtected?: boolean }).__sawProtected
@@ -221,8 +226,9 @@ test('a wrong password shows the error on the form', async ({ page }) => {
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
   await signIn(page, `${account.password}x`)
   await expect(
-    page.getByRole('alert').filter({ hasText: 'Invalid email or password' })
-  ).toHaveText('Invalid email or password. Please try again.')
+    page.getByText('That email and password do not match.')
+  ).toBeVisible()
+  await expect(page.getByLabel('Password', { exact: true })).toBeFocused()
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'))
 })
 
@@ -257,7 +263,7 @@ const walletKeys = (page: Page) =>
       .sort()
   )
 
-test('signing out from the dashboard lands on login and stays', async ({
+test('signing out from the dashboard lands on sign in and stays', async ({
   page,
 }) => {
   await page.goto(loginUrl('/dashboard/stats'))
@@ -286,9 +292,9 @@ test('signing out from the dashboard lands on login and stays', async ({
     .getByRole('dialog', { name: 'Find your way' })
     .getByRole('button', { name: 'Sign out', exact: true })
     .click()
-  await expect(page).toHaveURL('/login')
-  await staysOn(page, '/login', 2_000)
-  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+  await expect(page).toHaveURL('/signin')
+  await staysOn(page, '/signin', 2_000)
+  await expect(signInButton(page)).toBeVisible()
   // Signed out, the browser keeps no wallet choice.
   await expect.poll(() => walletKeys(page)).toEqual([])
 })
@@ -482,10 +488,11 @@ test.describe('a returning reader with an expired token', () => {
   })
 })
 
-/** How long the sign-out's own navigation to /login is held (#608). */
+/** How long the sign-out's own navigation to /login (which redirects to
+ * /signin) is held (#608). */
 const SIGN_OUT_NAVIGATION_HOLD_MS = 3_000
 
-test('a sign-out whose navigation is slow still lands on login without a return path', async ({
+test('a sign-out whose navigation is slow still lands on sign in without a return path', async ({
   page,
 }) => {
   await page.goto(loginUrl('/dashboard/stats'))
@@ -513,12 +520,12 @@ test('a sign-out whose navigation is slow still lands on login without a return 
     .getByRole('dialog', { name: 'Find your way' })
     .getByRole('button', { name: 'Sign out', exact: true })
     .click()
-  await expect(page).toHaveURL('/login', {
+  await expect(page).toHaveURL('/signin', {
     timeout: SIGN_OUT_NAVIGATION_HOLD_MS + 10_000,
   })
-  await staysOn(page, '/login', 2_000)
+  await staysOn(page, '/signin', 2_000)
   expect(held).toBeGreaterThan(0)
-  await expect(page.getByRole('button', { name: 'Log in' })).toBeVisible()
+  await expect(signInButton(page)).toBeVisible()
 })
 
 test('a session ended in another tab keeps the return path', async ({
@@ -536,8 +543,49 @@ test('a session ended in another tab keeps the return path', async ({
     .getByRole('dialog', { name: 'Find your way' })
     .getByRole('button', { name: 'Sign out', exact: true })
     .click()
-  await expect(other).toHaveURL('/login')
+  await expect(other).toHaveURL('/signin')
   await expect(page).toHaveURL(loginUrl('/dashboard/stats'), {
     timeout: PROMPT_MS,
   })
+})
+
+test('someone signed in who opens sign-in goes straight back', async ({
+  page,
+}) => {
+  await page.goto(loginUrl('/shelf'))
+  await signIn(page)
+  await page.waitForURL((url) => url.pathname === '/shelf')
+  await page.goto(loginUrl('/pocket'))
+  await page.waitForURL((url) => url.pathname === '/pocket', {
+    timeout: PROMPT_MS,
+  })
+  // Replaced: Back goes to the page before, not to the sign-in page.
+  await page.goBack()
+  await expect(page).toHaveURL('/shelf')
+})
+
+test('a sign-in in another tab is picked up without a reload', async ({
+  context,
+}) => {
+  const page = await context.newPage()
+  await page.goto('/shelf')
+  const item = page.locator('[data-balance]:visible').first()
+  await expect(item).toHaveAccessibleName(/Sign in/)
+  const other = await context.newPage()
+  await other.goto(loginUrl('/shelf'))
+  await signIn(other)
+  await other.waitForURL((url) => url.pathname === '/shelf')
+  await expect(item).toHaveAccessibleName(/^Balance/, { timeout: PROMPT_MS })
+})
+
+test('on the sign-in page, a stored token the backend rejects shows the form', async ({
+  page,
+}) => {
+  const namespace = CONVEX_URL!.replace(/[^a-zA-Z0-9]/g, '')
+  await page.addInitScript((key) => {
+    localStorage.setItem(key, 'not-a-token-this-backend-issued')
+  }, `__convexAuthJWT_${namespace}`)
+  await page.goto(loginUrl('/pocket'))
+  await expect(page.getByLabel('Email')).toBeVisible({ timeout: PROMPT_MS })
+  await expect(page).toHaveURL(loginUrl('/pocket'))
 })

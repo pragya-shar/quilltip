@@ -11,7 +11,10 @@
 // - the list shows a link named after the article, and following it by
 //   native navigation shows the article's title and prose;
 // - the writer's page shows the writer and a link to the article;
-// - the sign-in pages (reset, log in, register) show a form field;
+// - the sign-in pages (/signin, its reset page, and the older /login,
+//   /register and /reset-password that redirect there) say that signing in
+//   needs JavaScript with JavaScript off, and show the form with scripts
+//   blocked (an inline script holds a press until they load);
 // - an unpublished article, an unknown article and an unknown writer answer
 //   404 and show no article text, and no public list names the unpublished
 //   article;
@@ -61,8 +64,17 @@ export const READING = {
     '/no-such-writer-428',
     '/no-such-writer-428/no-such-article',
   ],
-  /** Sign-in pages: each shows a form field without scripts. */
-  authPages: ['/reset-password', '/login', '/register'],
+  /** Sign-in pages and the older addresses that redirect to them. */
+  authPages: [
+    '/signin',
+    '/signin/reset',
+    '/login',
+    '/register',
+    '/reset-password',
+  ],
+  /** What a sign-in page says with JavaScript off: signing in cannot work
+   * without it, and the page says so instead of showing a dead form. */
+  authNeedsScript: /needs JavaScript/,
   /**
    * How a reader finds the way home on a public page at 375 px without
    * scripts: a role and accessible name, inside an optional landmark. v2:
@@ -77,7 +89,7 @@ export const READING = {
    * A signed-in section and where it sends a signed-out reader. The redirect
    * runs in the browser, so this one load has scripts on.
    */
-  signedIn: { path: '/dashboard', signInPath: '/login' },
+  signedIn: { path: '/dashboard', signInPath: '/signin' },
 }
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -110,7 +122,12 @@ const shown = (locator: ReturnType<Page['locator']>) =>
     .then(() => true)
     .catch(() => false)
 
-async function check(page: Page, failures: string[], label: string) {
+async function check(
+  page: Page,
+  failures: string[],
+  label: string,
+  mode: Mode
+) {
   const fail = (what: string) => failures.push(`${label}: ${what}`)
 
   await page.goto(BASE_URL + READING.home, { waitUntil: 'load' })
@@ -148,9 +165,17 @@ async function check(page: Page, failures: string[], label: string) {
   if (!(await shown(page.getByRole('link', { name: READING.articleTitle }))))
     fail(`${READING.writer} shows no link named "${READING.articleTitle}"`)
 
+  const scriptsOff = mode === 'javascript off'
   for (const path of READING.authPages) {
     await page.goto(BASE_URL + path, { waitUntil: 'load' })
-    if (!(await shown(page.getByRole('textbox'))))
+    if (!new URL(page.url()).pathname.startsWith('/signin'))
+      fail(`${path} ended at ${new URL(page.url()).pathname}, not sign-in`)
+    if (scriptsOff) {
+      if (!(await shown(page.getByText(READING.authNeedsScript))))
+        fail(`${path} does not say that signing in needs JavaScript`)
+      if (await page.getByRole('textbox').first().isVisible())
+        fail(`${path} shows a form that cannot work without JavaScript`)
+    } else if (!(await shown(page.getByRole('textbox'))))
       fail(`${path} shows no form field`)
   }
 }
@@ -210,7 +235,7 @@ async function main() {
         for (const mode of ['javascript off', 'scripts blocked'] as Mode[]) {
           const page = await newPage(browser, mode)
           const before = failures.length
-          await check(page, failures, `${name}, ${mode}`)
+          await check(page, failures, `${name}, ${mode}`, mode)
           console.log(
             `${name.padEnd(9)} ${mode.padEnd(16)} ${failures.length === before ? 'reads' : 'FAILS'}`
           )

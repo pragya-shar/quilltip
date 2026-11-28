@@ -74,7 +74,7 @@ async function expectCleanLoad(page: Page, path: string) {
   expect(await violations(), `${path} CSP violations`).toEqual([])
 }
 
-for (const path of ['/', '/login', '/articles', '/wallet/practice']) {
+for (const path of ['/', '/signin', '/articles', '/wallet/practice']) {
   test(`${path} loads with no CSP violations`, async ({ page }) => {
     await expectCleanLoad(page, path)
   })
@@ -90,7 +90,7 @@ test('an article page loads with no CSP violations', async ({ page }) => {
 test('each response gets a fresh nonce', async ({ request }) => {
   const nonces = await Promise.all(
     [0, 1].map(async () => {
-      const response = await request.get('/login')
+      const response = await request.get('/signin')
       return response
         .headers()
         ['content-security-policy']?.match(/'nonce-([^']+)'/)?.[1]
