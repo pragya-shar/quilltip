@@ -1703,26 +1703,30 @@ the variables are gone.
 
 ## 9. Maintenance schedule
 
-| Task                                 | When                                                                                           | Command or place                                                                                                                                                                                          |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                                                                                                                                        |
-| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                                                                                                                                       |
-| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3); any tab under "Waiting for a reconciliation" (chain runbook)                                                    |
-| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                                                                                                                                 |
-| Settler runs                         | Daily; never 3 days without a run (go/no-go item 8)                                            | `SETTLEMENT_ENABLED=true`; the `settle due tab vouchers` cron has a recent run (dashboard cron jobs list)                                                                                                 |
-| Tab reconciliation                   | Daily                                                                                          | [Chain runbook](chain-runbook.md#stale-settlement-reserves): a dry run for each tab listed, from the Convex dashboard (see the note below the table). The command waits up to 2.5 minutes for the indexer |
-| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                                                                                                                                  |
-| Live deployment snapshot             | Weekly, and before the v1 backend removal PR is deployed                                       | Convex dashboard snapshot export                                                                                                                                                                          |
-| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                                                                                                                                            |
-| v1 backend removal PR                | After the release site is live and the stage 5 drain is complete                               | Section 8                                                                                                                                                                                                 |
-| Writers' lifetime totals             | After a restore or an `earningsTotalsBackfill:reset`, and when `progress.failed` lists a row   | `bunx convex run earningsTotalsBackfill:progress`; `retryFailed` for a failed row (stage 5A)                                                                                                              |
+| Task                                 | When                                                                                           | Command or place                                                                                                                                                                                            |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                                                                                                                                          |
+| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                                                                                                                                         |
+| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3); any tab under "Waiting for a reconciliation" (chain runbook)                                                      |
+| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                                                                                                                                   |
+| Settler runs                         | Daily; never 3 days without a run (go/no-go item 8)                                            | `SETTLEMENT_ENABLED=true`; the `settle due tab vouchers` cron has a recent run (dashboard cron jobs list)                                                                                                   |
+| Tab reconciliation                   | Daily                                                                                          | [Chain runbook](chain-runbook.md#stale-settlement-reserves): a dry run for each tab listed, with `scripts/live-read.ts` (see the note below the table). The command waits up to 2.5 minutes for the indexer |
+| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                                                                                                                                    |
+| Live deployment snapshot             | Weekly, and before the v1 backend removal PR is deployed                                       | Convex dashboard snapshot export                                                                                                                                                                            |
+| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                                                                                                                                              |
+| v1 backend removal PR                | After the release site is live and the stage 5 drain is complete                               | Section 8                                                                                                                                                                                                   |
+| Writers' lifetime totals             | After a restore or an `earningsTotalsBackfill:reset`, and when `progress.failed` lists a row   | `npx bun@1.4.4 scripts/live-read.ts run earningsTotalsBackfill:progress`; `retryFailed` for a failed row is a window operation (stage 5A)                                                                   |
 
-**Tab reconciliation on the live deployment.** Outside a window, the network
-guard has no approval that allows the reconciliation dry run and refuses an
-apply: its operational approval does not tell the two apart. The window tool
-(section 5.0.3) refuses `chain/tabReconcile:run` in both forms, because the
-function is not on its list. Until a guard follow-up adds a dry-run-only
-approval, the owner runs the daily dry run from the Convex dashboard
-(**Functions**, `chain/tabReconcile:run`, without `apply`). An apply needs a new
-window approval, after a reviewed change that adds the function, with its
-`apply` and `note` arguments, to the window tool's list.
+**Tab reconciliation on the live deployment.** Run the daily dry run with the
+read-only tool
+([chain runbook, read-only operations](chain-runbook.md#read-only-operations-on-the-live-deployment)):
+
+```bash
+npx bun@1.4.4 scripts/live-read.ts run chain/tabReconcile:run '{"reader":"G…"}'
+```
+
+It needs `QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL=upbeat-mockingbird-579`
+and a development deploy key for the live deployment in the shell, and it
+refuses any argument other than `reader`, so it cannot apply. An apply is a
+window operation: a new window approval (section 5.0.3), then
+`bun scripts/live-window.ts run convex-run chain/tabReconcile:run '{"reader":"G…","apply":true,"note":"<ticket or reason>"}'`.

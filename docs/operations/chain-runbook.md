@@ -181,6 +181,67 @@ lag alert.
    `TabSettled` no source has keeps its reserve; correct it with
    [Stale settlement reserves](#stale-settlement-reserves).
 
+## Read-only operations on the live deployment
+
+`bun scripts/live-read.ts` runs a short, fixed list of read-only Convex
+functions on the live deployment, outside a maintenance window. It replaces
+the dashboard for the daily reconciliation dry run.
+
+| Function                            | Arguments                 | Used in                                                         |
+| ----------------------------------- | ------------------------- | --------------------------------------------------------------- |
+| `chain/tabReconcile:run`            | exactly `{"reader":"G…"}` | [Stale settlement reserves](#stale-settlement-reserves), step 2 |
+| `chain/config:getChainConfig`       | none                      | Cutover stages 1 and 3                                          |
+| `earningsTotalsBackfill:progress`   | none                      | Cutover stage 5A and section 9                                  |
+| `articleImageHosts:countImageHosts` | none                      | Cutover stage 1, step 4                                         |
+
+Every other function, argument or value is refused. The tool never sends
+`apply` or `note`: an apply is a [window operation](payments-v2-cutover.md#503-live-window-approval).
+It rebuilds the arguments it sends from the checked values.
+
+It runs only when all of these hold:
+
+- `QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL` is set in the shell, never in
+  a `.env` file, to exactly `upbeat-mockingbird-579`;
+- `CONVEX_DEPLOY_KEY` is a development deploy key for that deployment, and
+  no other Convex target is set (`CONVEX_DEPLOYMENT`, a URL for another
+  deployment, `CONVEX_SELF_HOSTED_URL` and similar);
+- `QUILLTIP_LIVE_WINDOW_APPROVAL` is not set;
+- the checkout is clean and the command runs from it;
+- the Stellar settings are TESTNET. Mainnet is refused as always.
+
+Each `run` builds the Convex CLI as a window run does: it exports the
+checkout's HEAD commit from git's objects into a private folder under
+`~/.quilltip/live-read/builds/`, checks it against the commit, installs the
+dependencies there with `bun install --frozen-lockfile --ignore-scripts`, and
+runs `convex run` there with system Node and an environment that holds only
+`CONVEX_DEPLOY_KEY`. It never pushes code. The first run after HEAD changes
+downloads the packages (about 10 seconds); the package caches of other
+commits are removed. Every check and run appends a line to
+`~/.quilltip/live-window.log`.
+
+The deploy key can run any function. The tool limits what it sends, not what
+the key allows. Use a development deploy key that the owner keeps for these
+runs in the password manager, enter it per shell, and never store it in a
+file.
+
+```bash
+unset CONVEX_DEPLOYMENT CONVEX_DEPLOYMENT_TOKEN CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY QUILLTIP_LIVE_WINDOW_APPROVAL
+export QUILLTIP_NETWORK_GUARD_OPT_IN=testnet NEXT_PUBLIC_STELLAR_NETWORK=TESTNET
+read -rs CONVEX_DEPLOY_KEY && export CONVEX_DEPLOY_KEY
+export QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL=upbeat-mockingbird-579
+npx bun@1.4.4 scripts/live-read.ts check
+npx bun@1.4.4 scripts/live-read.ts run chain/tabReconcile:run '{"reader":"G…"}'
+unset QUILLTIP_LIVE_BACKEND_OPERATIONAL_APPROVAL CONVEX_DEPLOY_KEY
+```
+
+`check` lists the functions, or checks one command with
+`check <function> '<json>'`, and sends nothing. Run the tool with Bun
+directly, not with `bun run`. Node 20 or later and git must be in `/usr/bin`,
+`/bin`, `/usr/local/bin` or `/opt/homebrew/bin`.
+
+There is no read-only function for the settler's last run yet. Check it in the
+dashboard's cron jobs list (`settle due tab vouchers`).
+
 ## Stale settlement reserves
 
 A tab settlement moves the paid amount from the reader's `outstanding` to
@@ -235,10 +296,15 @@ stays for an hour means a `TabSettled` the indexer has not applied.
    bunx convex run chain/tabReconcile:run '{"reader":"G…"}'
    ```
 
+   On the live deployment, run it with
+   [the read-only tool](#read-only-operations-on-the-live-deployment):
+   `npx bun@1.4.4 scripts/live-read.ts run chain/tabReconcile:run '{"reader":"G…"}'`.
+
    The result shows the ledger it read at, the account figures before and
    after, and for each pair the stored and on-chain paid amounts and the
-   amount it would mark as indexed. Add `"keyId"` and `"writer"` to limit
-   it to one pair.
+   amount it would mark as indexed. On other deployments, add `"keyId"` and
+   `"writer"` to limit it to one pair; the read-only tool accepts only
+   `reader`.
 
    The RPC reads the contract only at the newest ledger, and the indexer
    applies the newest ledger once a minute. So the command waits until the
@@ -252,6 +318,13 @@ stays for an hour means a `TabSettled` the indexer has not applied.
    ```bash
    bunx convex run chain/tabReconcile:run '{"reader":"G…","apply":true,"note":"<ticket or reason>"}'
    ```
+
+   On the live deployment an apply is a window operation, with a new window
+   approval
+   ([cutover runbook, 5.0.3](payments-v2-cutover.md#503-live-window-approval)):
+   `bun scripts/live-window.ts run convex-run chain/tabReconcile:run '{"reader":"G…","apply":true,"note":"<ticket or reason>"}'`.
+   The window accepts exactly these three arguments: `apply` must be `true`
+   and the note is printable ASCII, up to 500 characters.
 
    It applies the contract's balance as the account's balance at the end of
    the ledger it read, and marks each pair's `[0, paid]` as indexed.
