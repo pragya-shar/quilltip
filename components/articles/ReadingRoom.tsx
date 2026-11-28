@@ -430,7 +430,9 @@ export function ReadingRoom({
       <footer className="reading-room-footer">
         <span>Read freely. Support the words that stay.</span>
         <details>
-          <summary>Public-domain artwork · Credits ↗</summary>
+          <summary>
+            Public-domain artwork · Credits <span aria-hidden="true">↗︎</span>
+          </summary>
           <p>Artwork appears when an article has no cover image.</p>
           <a
             href="https://www.metmuseum.org/art/collection/search/436535"

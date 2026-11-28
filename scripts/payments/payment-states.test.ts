@@ -10,6 +10,8 @@ import {
 import {
   CHECKING_SLOW,
   ESTIMATE,
+  estimateFigureCopy,
+  estimateXlmCopy,
   FAILURE_COPY,
   FLOW_COPY,
   GATE_BUSY,
@@ -52,6 +54,7 @@ import {
   formatCentsQuote,
   formatDay,
   formatXlm,
+  estimateSummary,
   shortAddress,
 } from '../../lib/payments/format'
 import {
@@ -875,14 +878,137 @@ describe('amounts and dates', () => {
     expect(formatXlm('1.5')).toBe('–')
   })
 
-  test('the cents quote is optional and reads as real XLM', () => {
+  test('the cents quote is optional and says the XLM is not real (#670)', () => {
     expect(formatCentsQuote(50)).toBe('$0.50')
     expect(formatCentsQuote(null)).toBeNull()
     expect(formatCentsQuote(Number.NaN)).toBeNull()
     expect(formatCentsQuote(0)).toBeNull()
     expect(formatCentsQuote(0.4)).toBe('under-a-cent')
-    expect(quoteCopy('$0.12')).toBe('About $0.12 in real XLM')
-    expect(quoteCopy('under-a-cent')).toBe('Under $0.01 in real XLM')
+    expect(quoteCopy('$1.00')).toBe('Worth about $1.00 if this were real XLM')
+    expect(quoteCopy('$0.12')).toBe('Worth about $0.12 if this were real XLM')
+    expect(quoteCopy('under-a-cent')).toBe(
+      'Worth under $0.01 if this were real XLM'
+    )
+    // The caption names where the exact amount shows; a tab tip has no
+    // wallet prompt, so its line does not mention the wallet.
+    expect(ESTIMATE.caption).toBe(
+      'Your wallet shows the exact amount before you approve.'
+    )
+    expect(ESTIMATE.tabCaption).toBe('The exact amount shows once you send.')
+    expect(ESTIMATE.tabCaption).not.toMatch(/wallet/i)
+    // No kit string states that testnet funds are real XLM.
+    const strings: string[] = []
+    const add = (value: unknown): void => {
+      if (typeof value === 'string') strings.push(value)
+      else if (typeof value === 'function') {
+        try {
+          add(value('{a}', '{b}', '{c}'))
+        } catch {
+          // A template that needs real arguments.
+        }
+      } else if (value && typeof value === 'object')
+        for (const inner of Object.values(value)) add(inner)
+    }
+    add(kitCopyModule)
+    add(tabCopyModule)
+    expect(strings.filter((text) => /\bin real XLM\b/i.test(text))).toEqual([])
+  })
+
+  const stroopsOf = (xlm: string) => {
+    const [whole = '0', fraction = ''] = xlm.split('.')
+    return (
+      BigInt(whole) * BigInt(10_000_000) +
+      BigInt(fraction.padEnd(7, '0'))
+    ).toString()
+  }
+
+  test('an estimate rounds to 2 decimals from 1 XLM, 3 below (#670)', () => {
+    const at = (xlm: string) => estimateXlmCopy(stroopsOf(xlm))
+    expect(at('8.1052384')).toBe('About 8.11 XLM')
+    expect(at('0.2026309')).toBe('About 0.203 XLM')
+    // The 1 XLM boundary: three decimals below it, two from it.
+    expect(at('0.9994999')).toBe('About 0.999 XLM')
+    expect(at('0.9995')).toBe('About 1 XLM')
+    expect(at('1')).toBe('About 1 XLM')
+    expect(at('1.0049999')).toBe('About 1 XLM')
+    expect(at('1.005')).toBe('About 1.01 XLM')
+    // Half up at three decimals; a non-zero amount never reads as 0.
+    expect(at('0.0005')).toBe('About 0.001 XLM')
+    expect(at('0.0004999')).toBe('Under 0.001 XLM')
+    expect(estimateXlmCopy('1')).toBe('Under 0.001 XLM')
+    expect(at('12345678901.2345678')).toBe('About 12,345,678,901.23 XLM')
+    // An exact figure keeps every stroop.
+    expect(formatXlm('81052384')).toBe('8.1052384 XLM')
+    expect(formatXlm('4999')).toBe('0.0004999 XLM')
+  })
+
+  test('a zero or missing estimate is a dash, never "About 0 XLM" (#670)', () => {
+    for (const value of ['0', '', '1.5', '-5', 'abc']) {
+      expect(estimateXlmCopy(value)).toBe('–')
+      const summary = estimateSummary(value, ['0', '0'])
+      expect(summary.total).toBeNull()
+      expect(summary.parts).toEqual([null, null])
+    }
+    // A zero part of a real total is a dash too.
+    const summary = estimateSummary(stroopsOf('1'), [stroopsOf('1'), '0'])
+    expect(summary.parts.map(estimateFigureCopy)).toEqual(['About 1 XLM', '–'])
+    expect(estimateFigureCopy(null)).toBe('–')
+  })
+
+  test('the parts of an estimate add up to its total (#670)', () => {
+    const shown = (xlm: string) => {
+      const split = coreTipSplit(stroopsOf(xlm))!
+      const summary = estimateSummary(split.gross, [split.writer, split.fee])
+      return [summary.total, ...summary.parts].map(estimateFigureCopy)
+    }
+    // The audit's figures: 7.9 + 0.203 read as 8.103 against 8.11.
+    expect(shown('8.1052384')).toEqual([
+      'About 8.11 XLM',
+      'About 7.91 XLM',
+      'About 0.2 XLM',
+    ])
+    expect(shown('0.5')).toEqual([
+      'About 0.5 XLM',
+      'About 0.487 XLM',
+      'About 0.013 XLM',
+    ])
+    expect(shown('1.005')).toEqual([
+      'About 1.01 XLM',
+      'About 0.98 XLM',
+      'About 0.03 XLM',
+    ])
+    // A sweep: from 1 stroop to 100,000 XLM, dense around 1 XLM.
+    let seed = 670
+    const next = () => {
+      seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648
+      return seed
+    }
+    const totals: bigint[] = []
+    for (let i = 0; i < 40_000; i++) {
+      const magnitude = BigInt(10) ** BigInt(next() % 13)
+      totals.push((BigInt(next()) % (magnitude * BigInt(10))) + BigInt(1))
+    }
+    for (let i = 9_900_000; i <= 10_100_000; i += 37) totals.push(BigInt(i))
+    let checked = 0
+    for (const gross of totals) {
+      const split = coreTipSplit(gross.toString())!
+      const { total, parts } = estimateSummary(split.gross, [
+        split.writer,
+        split.fee,
+      ])
+      expect(total).not.toBeNull()
+      const [writer, fee] = parts
+      expect(writer).not.toBeNull()
+      // Every figure at the total's precision.
+      for (const part of parts) {
+        if (part) expect(part.decimals).toBe(total!.decimals)
+      }
+      if (total!.under || writer!.under) continue
+      const feeShown = fee && !fee.under ? BigInt(fee.stroops) : BigInt(0)
+      expect(BigInt(writer!.stroops) + feeShown).toBe(BigInt(total!.stroops))
+      checked++
+    }
+    expect(checked).toBeGreaterThan(30_000)
   })
 
   test('the Core split rounds the fee down and gives the writer the rest', () => {

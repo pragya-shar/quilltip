@@ -10,6 +10,14 @@
  */
 import { createSign } from 'crypto'
 import { test, expect, type BrowserContext, type Page } from '@playwright/test'
+import {
+  accountRow,
+  addTwoSections,
+  expectCurrentInView,
+  expectKeyboardReachesEveryLink,
+  expectMenuButtonWorks,
+  pageOverflow,
+} from './helpers/accountRow'
 
 import { TOKEN_CONFIRMATION_TIMEOUT_MS } from '../lib/auth/sessionConfirmation'
 
@@ -238,6 +246,57 @@ const walletKeys = (page: Page) =>
       .sort()
   )
 
+for (const width of [375, 390, 412]) {
+  test(`the account sections row fits a ${width} px screen (#635)`, async ({
+    page,
+    browserName,
+  }) => {
+    await page.setViewportSize({ width, height: 812 })
+    await page.goto(loginUrl('/dashboard/stats'))
+    await signIn(page)
+    await expect(PROTECTED[0]!.signedIn(page)).toBeVisible({ timeout: 15_000 })
+    const row = accountRow(page)
+
+    // Each section as it ships: no sideways page scroll, and the current
+    // section's link fully in view on load.
+    const hrefs = await row
+      .getByRole('link')
+      .evaluateAll((links) => links.map((link) => link.getAttribute('href')!))
+    expect(hrefs.length).toBeGreaterThan(0)
+    for (const href of hrefs) {
+      await page.goto(href)
+      await expectCurrentInView(page)
+      expect(await pageOverflow(page), href).toBeLessThanOrEqual(0)
+    }
+
+    // A move between sections inside the app: the row stays mounted and
+    // shows the new current link. A script click, because Playwright's own
+    // click scrolls the link into view first.
+    await page.goto(hrefs[0]!)
+    await expectCurrentInView(page)
+    await row
+      .getByRole('link')
+      .last()
+      .evaluate((link: HTMLElement) => link.click())
+    await expect(page).toHaveURL(hrefs.at(-1)!)
+    await expectCurrentInView(page)
+
+    await expectKeyboardReachesEveryLink(page, browserName)
+    expect(await pageOverflow(page)).toBeLessThanOrEqual(0)
+    await expectMenuButtonWorks(page)
+
+    // Two more sections than ship today, added by the test only.
+    await addTwoSections(page)
+    expect(await pageOverflow(page)).toBeLessThanOrEqual(0)
+    expect(
+      await row.evaluate((element) => element.scrollWidth > element.clientWidth)
+    ).toBe(true)
+    await expectKeyboardReachesEveryLink(page, browserName)
+    expect(await pageOverflow(page)).toBeLessThanOrEqual(0)
+    await expectMenuButtonWorks(page)
+  })
+}
+
 test('signing out from the dashboard lands on login and stays', async ({
   page,
 }) => {
@@ -402,7 +461,8 @@ async function expectRefreshedInOneLoad(page: Page, expired: string) {
   expect(await loadsOf(page)).toBe(1)
   const token = await storedToken(page)
   expect(token).not.toBeNull()
-  expect(token).not.toBe(expired)
+  // A boolean, so a failure prints no token in the job log.
+  expect(token === expired, 'the expired token was replaced').toBe(false)
   expect(claimsOf(token!).exp).toBeGreaterThan(Date.now() / 1000)
 }
 

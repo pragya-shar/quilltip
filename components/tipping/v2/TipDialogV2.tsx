@@ -37,6 +37,7 @@ import { buildLoginHref } from '@/lib/auth/safeReturnPath'
 import { v2Runtime } from '@/lib/stellar/v2/chain-runtime'
 import { AMOUNT_ERRORS, BASKET_COPY, TIP_DIALOG } from '@/lib/copy/tip-flow'
 import { TAB_TIP_DIALOG } from '@/lib/copy/tab'
+import { ESTIMATE } from '@/lib/copy/payment-states'
 import { tabTipPresets } from '@/lib/tab-ui/tip-limits'
 import {
   TIP_MAX_CENTS,
@@ -113,13 +114,7 @@ export function TipDialogV2({
   const [message, setMessage] = useState('')
   const [amountError, setAmountError] = useState<string | null>(null)
   const [added, setAdded] = useState<AddResult>(null)
-  const ids = {
-    custom: useId(),
-    error: useId(),
-    note: useId(),
-    hint: useId(),
-    summary: useId(),
-  }
+  const ids = { custom: useId(), error: useId(), note: useId(), hint: useId() }
   const customRef = useRef<HTMLInputElement>(null)
   const sendRef = useRef<HTMLButtonElement>(null)
   /** The reader acted in the gate; focus "Send tip" once it opens. */
@@ -151,6 +146,24 @@ export function TipDialogV2({
         : presets[presets.length - 1]!
   const cents = custom.trim() ? parseDollars(custom) : preset
   const check = checkAmount(cents, eligibility.minTipCents, custom)
+  const minLabel = formatCents(Math.max(eligibility.minTipCents ?? 1, 1))
+  const maxLabel = formatCents(TIP_MAX_CENTS)
+  /** The error does not state the range, so the range follows it. */
+  const rangeAfter = (error: string) =>
+    error === AMOUNT_ERRORS.empty || error === AMOUNT_ERRORS.invalid
+  /** An amount error as shown: with the range when the error does not say it. */
+  const amountErrorText = (error: string) =>
+    rangeAfter(error)
+      ? `${error} ${TIP_DIALOG.range(minLabel, maxLabel)}`
+      : error
+  const longestAmountError = [
+    amountErrorText(AMOUNT_ERRORS.empty),
+    amountErrorText(AMOUNT_ERRORS.invalid),
+    AMOUNT_ERRORS.belowMinimum(minLabel),
+    AMOUNT_ERRORS.aboveMaximum(maxLabel),
+  ].reduce((a, b) => (b.length > a.length ? b : a))
+  // The amount is in the button's name (#645), as the reader chose it.
+  const chosen = check.ok ? formatCents(check.cents) : null
   const running = flow.state.stage === 'preparing' || flow.state.step !== null
   const tabBusy = tabPhase === 'busy'
   /** A quick tip is sending or answered: the dialog shows only its section. */
@@ -158,6 +171,13 @@ export function TipDialogV2({
   const tabReady = tabPhase === 'ready'
   /** The tab section has its heading: the wallet tip gets one too. */
   const tabShown = tabReady || tabPhase === 'blocked'
+  const sendLabel = tabReady
+    ? chosen
+      ? TAB_TIP_DIALOG.sendFromWalletAmount(chosen)
+      : TAB_TIP_DIALOG.sendFromWallet
+    : chosen
+      ? TIP_DIALOG.sendAmount(chosen)
+      : TIP_DIALOG.send
 
   useEffect(() => {
     onBusyChange(running || tabBusy)
@@ -519,21 +539,45 @@ export function TipDialogV2({
                       data-lpignore="true"
                     />
                   </div>
-                  {amountError ? (
-                    <p id={ids.error} className="tip-v2-field-error">
-                      <CircleAlert aria-hidden="true" />
-                      {amountError}
+                  {/* The error takes the hint's place in one box, so nothing
+                      under the field moves while a press is on its way
+                      (#658). The hint stays in the field's description. */}
+                  <div className="tip-v2-field-note">
+                    <p
+                      id={ids.hint}
+                      className="tip-hint"
+                      data-covered={amountError ? '' : undefined}
+                    >
+                      {TIP_DIALOG.customHint(minLabel, maxLabel)}
+                      {tabMaxCents !== null
+                        ? ` ${TAB_TIP_DIALOG.maxHint(formatCents(tabMaxCents))}`
+                        : null}
                     </p>
-                  ) : null}
-                  <p id={ids.hint} className="tip-hint">
-                    {TIP_DIALOG.customHint(
-                      formatCents(Math.max(eligibility.minTipCents ?? 1, 1)),
-                      formatCents(TIP_MAX_CENTS)
-                    )}
-                    {tabMaxCents !== null
-                      ? ` ${TAB_TIP_DIALOG.maxHint(formatCents(tabMaxCents))}`
-                      : null}
-                  </p>
+                    {amountError ? (
+                      <p id={ids.error} className="tip-v2-field-error">
+                        <CircleAlert aria-hidden="true" />
+                        <span>
+                          {amountError}
+                          {rangeAfter(amountError) ? (
+                            // Seen only: the hint, which the field's
+                            // description also reads, states the range.
+                            <span aria-hidden="true">
+                              {` ${TIP_DIALOG.range(minLabel, maxLabel)}`}
+                            </span>
+                          ) : null}
+                        </span>
+                      </p>
+                    ) : null}
+                    {/* The longest error, unseen: the box keeps its room. */}
+                    <p
+                      className="tip-v2-field-error"
+                      data-sizer=""
+                      aria-hidden="true"
+                    >
+                      <CircleAlert aria-hidden="true" />
+                      <span>{longestAmountError}</span>
+                    </p>
+                  </div>
                 </div>
               </fieldset>
 
@@ -551,9 +595,10 @@ export function TipDialogV2({
                   })()}
                   quoteCents={check.ok ? check.cents : null}
                   estimate
-                  // "Send tip" reads the total as its description, so the
-                  // reader hears the chosen amount before sending.
-                  totalId={ids.summary}
+                  // A tab tip has no wallet prompt (#670).
+                  estimateCaption={
+                    tabReady ? ESTIMATE.tabCaption : ESTIMATE.caption
+                  }
                 />
               ) : (
                 <TestnetLabel detail />
@@ -654,13 +699,12 @@ export function TipDialogV2({
                     type="submit"
                     variant={tabReady ? 'outline' : 'default'}
                     className={tabReady ? 'tip-v2-secondary' : 'tip-primary'}
-                    aria-disabled={blocked || undefined}
-                    aria-describedby={
-                      estimate && estimate !== '0' ? ids.summary : undefined
-                    }
+                    // Not valid yet: no amount in the name, and marked
+                    // disabled; pressing it still explains why.
+                    aria-disabled={blocked || !check.ok || undefined}
                   >
                     <Heart className="w-4 h-4" aria-hidden="true" />
-                    {tabReady ? TAB_TIP_DIALOG.sendFromWallet : TIP_DIALOG.send}
+                    {sendLabel}
                   </Button>
                 </WalletGate>
                 {gate.kind !== 'signed-out' && gate.kind !== 'checking' ? (

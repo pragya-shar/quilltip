@@ -195,6 +195,21 @@
 .nft-v2-input[aria-invalid='true'] {
   border-color: var(--ui-danger);
 }
+/*
+ * The recipient's hint and error share one box (#658): the error covers the
+ * hint, and an unseen copy of the longest error keeps the box's height, so
+ * the footer buttons do not move when the error appears.
+ */
+.nft-v2-field-note {
+  display: grid;
+}
+.nft-v2-field-note > p {
+  grid-area: 1 / 1;
+}
+.nft-v2-field-note > .nft-v2-note[data-covered],
+.nft-v2-field-note > [data-sizer] {
+  visibility: hidden;
+}
 .nft-v2-error {
   display: flex;
   align-items: flex-start;

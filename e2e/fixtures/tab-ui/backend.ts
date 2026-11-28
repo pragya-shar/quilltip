@@ -86,13 +86,19 @@ export type FixtureState = {
   tab: MyTab | null
   tips: TabTipRow[]
   settlementEnabled: boolean
+  /** `getTabSettlement.tabReady`: the settlement keys and the Tab are ready. */
+  tabReady: boolean
   oldestUnsettledAt: number | null
   settleWindowEndsSoon: boolean
   earnings: MyTabEarnings | null
   claimable: string
   clock: LedgerClock
+  /** How old the latest ledger read is, in ms (#671). */
+  clockLagMs?: number
   /** Stellar RPC cannot be reached: the ledger read fails. */
   rpcDown: boolean
+  /** `getMyTab` has not answered yet; every other read has (#643). */
+  tabPending: boolean
   funds: WalletFunds | null
   limits: TabLimits | null
   send: SendBehaviour
@@ -197,12 +203,14 @@ export function baseState(scenario: string): FixtureState {
     tab: null,
     tips: [],
     settlementEnabled: true,
+    tabReady: true,
     oldestUnsettledAt: null,
     settleWindowEndsSoon: false,
     earnings: null,
     claimable: '0',
     clock: { sequence: LEDGER, closedAt: NOW },
     rpcDown: false,
+    tabPending: false,
     funds: {
       balance: (BigInt(120) * XLM).toString(),
       reserve: (BigInt(1) * XLM).toString(),

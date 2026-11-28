@@ -33,6 +33,12 @@ export type TabStatusView =
       /** Formatted estimate, for example "Monday 30 November". */
       unlocksAround: string | null
       unlocksAt: Date | null
+      /**
+       * The estimated moment has passed but the unlock ledger has not been
+       * reached (ledgers ran slower, or the clock read is old): the copy
+       * says "soon", never a date in the past (#671).
+       */
+      overdue: boolean
     }
   | { kind: 'closed' }
 
@@ -41,6 +47,8 @@ export function tabStatusView(input: {
   chainConfig: ChainConfigView | undefined
   clock: LedgerClock | null
   locale?: string
+  /** The time now, in ms; `Date.now()` when not given. */
+  now?: number
 }): TabStatusView {
   const { tab, chainConfig, clock } = input
   if (chainConfig === undefined || tab === undefined) return { kind: 'loading' }
@@ -57,13 +65,18 @@ export function tabStatusView(input: {
     unlockLedger !== null && clock
       ? estimateLedgerTime(unlockLedger, clock)
       : null
+  const ready =
+    unlockLedger !== null && clock !== null && clock.sequence >= unlockLedger
   return {
     kind: 'closing',
     unlockLedger,
-    ready:
-      unlockLedger !== null && clock !== null && clock.sequence >= unlockLedger,
+    ready,
     unlocksAt,
     unlocksAround: unlocksAt ? formatDay(unlocksAt, input.locale) : null,
+    overdue:
+      !ready &&
+      unlocksAt !== null &&
+      unlocksAt.getTime() < (input.now ?? Date.now()),
   }
 }
 
@@ -89,17 +102,8 @@ export type TabBalances = {
   free: string
 }
 
-/**
- * How far the tips still settling exceed the tab balance, or null when the
- * tab covers them. `available` goes below 0 only when the balance fell under
- * what was already accepted, for example after a settlement paid outside
- * the app; nothing more settles and no quick tip is accepted until the
- * reader tops up.
- */
-export function tabShortBy(tab: Pick<MyTab, 'available'>): string | null {
-  const free = BigInt(tab.available)
-  return free < BigInt(0) ? (-free).toString() : null
-}
+// The short-tab rules live in `./tab-short`, which the wallet page loads.
+export { tabIsShort, tabShortBy } from './tab-short'
 
 export function tabBalances(tab: MyTab): TabBalances {
   return {

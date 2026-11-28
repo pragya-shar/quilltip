@@ -3053,9 +3053,11 @@
   details:nth-child(n + 4) {
   display: none;
 }
+/* Any depth: the section sits in a display: contents wrapper, which carries
+   inert while the opening plays (#598). */
 :where(.landing-blend).onboarding-study[data-onboarding='landing']
   main
-  > .writer-tips {
+  .writer-tips {
   max-width: 1120px;
   width: calc(100% - 48px);
   margin: 0 auto 40px;
@@ -3063,7 +3065,7 @@
 @media (max-width: 650px) {
   :where(.landing-blend).onboarding-study[data-onboarding='landing']
     main
-    > .writer-tips {
+    .writer-tips {
     width: calc(100% - 40px);
   }
 }
@@ -3813,6 +3815,10 @@
 .landing-blend[data-stage-active='true'] .sample-wallet-layout {
   opacity: 0;
 }
+/* A wrapper that only carries inert while the opening plays. */
+.landing-contents {
+  display: contents;
+}
 .landing-blend[data-stage-active='true'] .value-headline {
   will-change: transform;
 }
@@ -3892,6 +3898,25 @@
     'Work Sans Fallback',
     sans-serif;
   cursor: pointer;
+}
+/* The opening's controls: its reading link, then "Skip opening" in the
+   corner where it has always been. */
+.opening-controls {
+  position: fixed;
+  z-index: 10000;
+  top: max(20px, env(safe-area-inset-top));
+  right: max(20px, env(safe-area-inset-right));
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.opening-controls .opening-skip {
+  position: static;
+}
+.opening-read {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
 }
 .opening-skip span {
   padding: 5px 9px;

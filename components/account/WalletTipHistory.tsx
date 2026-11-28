@@ -2,15 +2,24 @@
 import { useState } from 'react'
 import { ArrowRight } from 'lucide-react'
 import type { TipActivityItem } from '@/lib/account/tipActivity'
+import { TIP_HISTORY_USD_NOTE } from '@/lib/copy/network-status'
 import {
   recordedUsd,
+  shownTipStatus,
   TipReceiptDialog,
   tipGenerationLabel,
   tipStatusLabel,
 } from './TipReceiptDialog'
 
 type Filter = 'all' | 'received' | 'sent'
-export function WalletTipHistory({ items }: { items: TipActivityItem[] }) {
+export function WalletTipHistory({
+  items,
+  readerTabShort = false,
+}: {
+  items: TipActivityItem[]
+  /** The reader's open tab is short: their accepted tab tips wait (#643). */
+  readerTabShort?: boolean
+}) {
   const [filter, setFilter] = useState<Filter>('all')
   const [limit, setLimit] = useState(20)
   const [selectedKey, setSelectedKey] = useState<string | null>(null)
@@ -81,7 +90,10 @@ export function WalletTipHistory({ items }: { items: TipActivityItem[] }) {
                     ? item.direction === 'sent'
                       ? 'Sent'
                       : 'Received'
-                    : tipStatusLabel(item.status, item.mismatchReason)}
+                    : tipStatusLabel(
+                        shownTipStatus(item, readerTabShort),
+                        item.mismatchReason
+                      )}
                 </span>
                 {tipGenerationLabel(item) ? (
                   <span>{tipGenerationLabel(item)}</span>
@@ -117,8 +129,8 @@ export function WalletTipHistory({ items }: { items: TipActivityItem[] }) {
       {rows.length > 0 && (
         <div className="account-history-bottom">
           <p>
-            {Math.min(limit, rows.length)} of {rows.length} tips · Amounts are
-            recorded USD equivalents.
+            {Math.min(limit, rows.length)} of {rows.length} tips ·{' '}
+            {TIP_HISTORY_USD_NOTE}
           </p>
           {rows.length > limit && (
             <button
@@ -134,6 +146,7 @@ export function WalletTipHistory({ items }: { items: TipActivityItem[] }) {
         item={selected}
         onClose={() => setSelectedKey(null)}
         returnFocusTo={returnFocusTo}
+        readerTabShort={readerTabShort}
       />
     </section>
   )

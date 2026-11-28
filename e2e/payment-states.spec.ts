@@ -3,6 +3,11 @@ import AxeBuilder from '@axe-core/playwright'
 import { mkdirSync } from 'node:fs'
 import path from 'node:path'
 import { STATES } from './fixtures/payments/states'
+import {
+  ESTIMATE,
+  TESTNET_LABEL_DETAIL,
+  quoteCopy,
+} from '../lib/copy/payment-states'
 import { SETTLE_MS } from '../components/payments/useAnnouncement'
 import { contrastScan, surfaceColours } from './helpers/lightSurface'
 
@@ -681,24 +686,44 @@ test.describe('details', () => {
     await expect(page.getByText('Sent to updated address')).toBeVisible()
   })
 
-  test('the quote reads as real XLM and an estimate says About', async ({
+  test('the quote says the XLM is not real, and an estimate says About and rounds (#670)', async ({
     page,
   }) => {
     await open(page, 'amount-tip')
-    await expect(page.locator('.pay-amount-caption')).toContainText(
-      'About $0.12 in real XLM'
+    const caption = page.locator('.pay-amount-caption')
+    await expect(caption).toContainText(quoteCopy('$0.12'))
+    await expect(caption).not.toContainText(TESTNET_LABEL_DETAIL)
+    await expect(caption).toContainText('Stellar testnet')
+    await expect(caption).not.toContainText('in real XLM')
+    // An exact figure keeps every stroop.
+    await open(page, 'amount-long')
+    await expect(page.locator('.pay-amount-total strong')).toHaveText(
+      '10,000.0000001 XLM'
     )
     await open(page, 'amount-basket-full')
-    await expect(page.locator('.pay-amount-caption')).toContainText(
-      'Under $0.01 in real XLM'
-    )
+    await expect(caption).toContainText(quoteCopy('under-a-cent'))
     await open(page, 'amount-estimate')
     await expect(page.locator('.pay-amount-total strong')).toHaveText(
       'About 1 XLM'
     )
-    await expect(page.locator('.pay-amount-caption')).toContainText(
-      'Final amount shown before you approve'
+    await expect(caption).toContainText(ESTIMATE.caption)
+    // An estimate is where a reader first meets the amount: the label's
+    // detail shows; an exact summary keeps the label alone.
+    await expect(caption).toContainText(TESTNET_LABEL_DETAIL)
+    await open(page, 'amount-estimate-rounded')
+    await expect(page.locator('.pay-amount-total strong')).toHaveText(
+      'About 8.11 XLM'
     )
+    // The parts add up to the total shown: 7.91 + 0.2 = 8.11.
+    await expect(page.locator('.pay-amount-breakdown dd')).toHaveText([
+      'About 7.91 XLM',
+      'About 0.2 XLM',
+    ])
+    await expect(caption).toContainText(quoteCopy('$1.00'))
+    // Without a price there is no estimate: dashes, never "About 0 XLM".
+    await open(page, 'amount-estimate-none')
+    await expect(page.locator('.pay-amount-total strong')).toHaveText('–')
+    await expect(page.locator('.pay-amount')).not.toContainText('About 0')
   })
 
   test('only the other-account gate links to wallet settings for changing the linked address (#582)', async ({

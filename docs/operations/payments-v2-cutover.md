@@ -29,16 +29,16 @@ later work.
    It also contains the v1 client removal (#559, `fd39cf71`), the short-paid
    pair fix (#619, `e650829f`), the short tab notice (#620, `3854cfd8`), the
    live window tool (#593, `7b69c565`), the auth import change (#624,
-   `f4704e6d`) and the public copy refresh after an article leaves its
-   address (#627, `116e356e`). Still open: the content limits for article
-   image sources (#625 for #615) and for profile image sources (#633, PR to
-   follow). The checks
-   in section 1.3 pass on that commit. The tab debit fix (#585) is merged and
-   needs no operator step: its table and field ship with the stage 1 push,
-   and its test variables `TAB_DEBIT_SCAN_LIMIT` and `TAB_DEBIT_READ_BUDGET`
-   stay unset on the live deployment. #619, #620, #624 and #627 need no
-   operator step.
-   #559 raises the page-load budgets of
+   `f4704e6d`), the public copy refresh after an article leaves its address
+   (#627, `116e356e`), the article image sources (#625 for #615,
+   `077f08bd`) and the profile photo, embed and cover sources (#642 for
+   #633, `034e0b25`) and the reconciliation wait for the indexer (#650 for
+   #648, `85446463`). The checks in section 1.3 pass on that commit. The tab debit fix (#585) is
+   merged and needs no operator step: its table and field ship with the
+   stage 1 push, and its test variables `TAB_DEBIT_SCAN_LIMIT` and
+   `TAB_DEBIT_READ_BUDGET` stay unset on the live deployment. #619, #620,
+   #624, #627, #625, #642 and #650 need no operator step beyond the image
+   sources check (stage 1, step 4). #559 raises the page-load budgets of
    `/articles` and `/[username]/[slug]` by 1 KB, to 217 KB and 220 KB, for a
    bundler chunk split.
 2. The owner has decided the backend push method, and the push uses a deploy
@@ -60,6 +60,16 @@ later work.
    own `https://<name>.convex.cloud`, not a custom domain. Uploaded images
    load only from that origin (stage 1, step 4). The Vercel owner sets the
    site variable.
+8. Before the window closes, `SETTLEMENT_ENABLED` is `true` on the live
+   deployment and the `settle due tab vouchers` cron has run in the last 10
+   minutes (Convex dashboard, **Schedules**, cron jobs). A healthy settler
+   run is recorded (stage 3, **Check**: `nothing_due` with `rejected` 0, or a
+   verified `confirmed` settlement), and the acceptor check returned
+   `listed` (stage 3, **Check**). The logs show no `TAB_SETTLER_UNAVAILABLE`,
+   no `TAB_SETTLER_RUN_FAILED` and no `TAB_ACCEPTOR_UNAVAILABLE`. The settler must run at least once
+   within the 3-day withdrawal delay (51,840 ledgers): a reader who starts a
+   withdrawal can withdraw after it, and receipts not settled by then stay
+   unpaid. The settler settles every pair of a closing tab first.
 
 ## Terms
 
@@ -405,7 +415,7 @@ does not read that name. Remove it from Vercel after stage 2 passes
 
 Set by the operator, in this order. Secrets go in the Convex dashboard
 (**Settings → Environment Variables**), never on a command line or in a file
-in the repository.
+in the repository, and are never printed (stage 3, step 3, **Tab secrets**).
 
 | Order | Variable                                                                      | Value                                                          | Stage | Effect when set                                                                             |
 | ----- | ----------------------------------------------------------------------------- | -------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------- |
@@ -774,29 +784,41 @@ the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
    records it before step 3.
 3. The operator pushes the tagged release commit's functions and schema with
    the procedure in section 5.0.2 (dry run, confirm the target, push).
-4. Image sources check (#615). Run the internal, read-only report of the
-   sources of article images:
+4. Image sources check (#615, #633). Run the internal, read-only report of
+   the sources of article images, video embeds and profile photos:
 
    ```bash
    bunx convex run articleImageHosts:countImageHosts
    ```
 
-   It takes no arguments. It returns `storageOrigin`, the article counts
-   (`articles.published` and `articles.draft`), and `images` and `covers`:
-   one row per host with `publishedAllowed`, `publishedRefused`,
-   `draftAllowed` and `draftRefused`. Each address is judged on its own, so
-   one host can have both allowed and refused addresses (for example
-   `http` against `https`). It returns no address, article text, title,
-   author or ID. The function exists only in the
-   release code, so it runs after the push and before the merge in step 5.
+   It takes no arguments. It returns:
+   - `storageOrigin`: the origin of this deployment's own file storage.
+   - `articles.published` and `articles.draft`: the article counts.
+   - `images` and `covers`: one row per host with `publishedAllowed`,
+     `publishedRefused`, `draftAllowed` and `draftRefused`. Each address is
+     judged on its own, so one host can have both allowed and refused
+     addresses (for example `http` against `https`).
+   - `embeds`: `publishedRebuilt`, `publishedNoFrame`, `draftRebuilt` and
+     `draftNoFrame`. A rebuilt embed shows its video from the video ID; a
+     no-frame embed shows no video frame.
+   - `avatars`: one row per host with `allowed` and `refused`, one count per
+     account with a stored profile photo. Only addresses in this
+     deployment's own storage are allowed. A photo on any other host,
+     listed stock image hosts included, shows the account's initials.
+
+   It returns no address, article text, title, author, name or ID. The
+   function exists only in the release code, so it runs after the push and
+   before the merge in step 5.
    - `storageOrigin` must equal the origin of the site's
      `NEXT_PUBLIC_CONVEX_URL` (go/no-go item 7). If they differ, stop and do
      not merge: every uploaded image would stop showing.
-   - List for the owner, before step 5, every host in `images` or `covers`
-     with `publishedRefused` above 0. After the merge, those images stop
-     showing in published articles. Older articles
-     can hold storage addresses of other Convex deployments; those images
-     stop showing too.
+   - List for the owner, before step 5: every host in `images` or `covers`
+     with `publishedRefused` above 0, with that count;
+     `embeds.publishedNoFrame`; and the sum of `refused` in `avatars`, which
+     is the number of accounts whose photo will show initials, with its
+     hosts. After the merge, those images and video frames stop showing in
+     published articles. Older articles and accounts can hold storage
+     addresses of other Convex deployments; those stop showing too.
    - The owner's default is to continue and record the hosts. The check
      makes this a decision before the release site goes live. Record the
      full output.
@@ -813,9 +835,6 @@ the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
      once. Its card can stay on `/articles` for up to 60 seconds, and the
      card's link answers 404 (#628). Each article request makes one route
      check in the proxy (#630).
-   - **Pending (#633):** the same command will also report profile image
-     (avatar) hosts once the change for #633 is merged. Its output fields
-     are added here after they are checked on that change.
 
 5. Merge the release PR (`overhaul/v2` into `main`) right after step 4, and
    continue with stage 2. With the default plan, Vercel builds and promotes
@@ -939,7 +958,40 @@ payments off if needed (section 6).
    ```
 
 3. The operator sets variables 2 to 12 of section 3.1 on the live
-   deployment, in that order, with `CHAIN_V2_ENABLED=false`.
+   deployment, in that order, with `CHAIN_V2_ENABLED=false`. The owner sets
+   the two secrets (variables 9 and 10) in the dashboard, as below, before
+   `SETTLEMENT_ENABLED=true`.
+
+   **Tab secrets.** Never run a command that prints the secret of a real
+   identity (`live` or `integration`): not `stellar keys secret` (or the
+   older `stellar keys show`) without a pipe, and not `cat` of an identity
+   file. A
+   printed secret ends up in terminal history, logs or a session transcript,
+   and the key must then be rotated. Copy each secret straight to the
+   clipboard instead, paste it into the dashboard, then clear the clipboard
+   with `pbcopy < /dev/null`:
+
+   ```bash
+   stellar keys secret qt-v2-live-acceptor --config-dir <dir>/live | tr -d '\n' | pbcopy
+   stellar keys secret <settler identity> --config-dir <dir>/live | tr -d '\n' | pbcopy
+   ```
+
+   `<settler identity>` is `qt-v2-live-settler`, or the identity of a
+   rotated settler key.
+
+   Field check, by the owner, on the live deployment's dashboard
+   (**Settings → Environment Variables**), for `TAB_ACCEPTOR_SECRET` and
+   `TAB_SETTLER_SECRET`: the variable is on that deployment, and its value is
+   56 characters long, starts with `S`, and has no quotes, spaces or line
+   breaks. The settler trims white space around the value and refuses
+   anything that is not then a valid Stellar secret seed with
+   `TAB_SETTLER_UNAVAILABLE` (`StrKey.isValidEd25519SecretSeed`,
+   `convex/tabSettler.ts`). The acceptor accepts the same seed, or 64 hex
+   characters (`parseAcceptorSeed`, `convex/lib/chain/voucher.ts`); the `live`
+   set uses `S…` seeds. A valid seed of the wrong identity (for example the
+   acceptor seed in the settler variable) passes both checks, so copy each
+   secret from the identity named above.
+
 4. Hand-off to the Vercel owner: set the Vercel contract IDs from section 3.2
    and redeploy the site if stage 2 already ran. Check: the Vercel owner
    reports the four contract IDs (they are public); the operator compares
@@ -966,8 +1018,67 @@ payments off if needed (section 6).
   it at once, run the internal action `chain/config:refreshChainConfig` from
   the dashboard. Do not start stage 6 before this check passes: until the
   config is loaded, v2 tips refuse with `CHAIN_CONFIG_MISSING`.
-- The Convex logs show no `TAB_ACCEPTOR_MISMATCH` and no
-  `TAB_SETTLER_RUN_FAILED`.
+- The Convex logs show no `TAB_ACCEPTOR_MISMATCH`, no
+  `TAB_SETTLER_UNAVAILABLE` and no `TAB_SETTLER_RUN_FAILED`.
+- One healthy settler run after the settler is enabled. After
+  `SETTLEMENT_ENABLED=true` is set, and again after any change to
+  `TAB_SETTLER_SECRET`, the operator runs `tabSettler:settleDue` once from
+  the Convex dashboard (**Functions**; it is an internal action with no
+  arguments) and reads the value it returns. A successful run writes no log
+  line, so the logs alone cannot show it.
+  The function takes the same lease as the `settle due tab vouchers` cron,
+  so it cannot overlap a cron run. The run is healthy only with one of these
+  results:
+  - `"status": "nothing_due"` with `"rejected": 0`;
+  - `"status": "confirmed"` with a `settlementId`, whose `tabSettlements`
+    row is `CONFIRMED` with a transaction hash that the testnet RPC or
+    Horizon reports as successful.
+
+  Before stage 6 no tab holds receipts, so the result is `nothing_due`. That
+  proves that the settler secret is a valid seed and that the cycle reached
+  the RPC and the database. It does not sign anything, so it does not prove
+  that the key holds the Tab's settler role or that its account is funded.
+  Only a `confirmed` settlement proves that: the first one after the tab tip
+  of section 7.1 (section 7.3).
+
+  `"busy"` or `"pending"` proves nothing: run it again after the open
+  settlement resolves (within 10 minutes). Stop on `"failed"`, `"expired"`,
+  `"rejected"` above 0, `"status": "disabled"`, or an error. Record the time
+  and the result of the healthy run. A missing or malformed settler secret
+  fails the run with `TAB_SETTLER_UNAVAILABLE` before the settlement cycle
+  starts, so that run logs no `TAB_SETTLER_RUN_FAILED`: a scan for
+  `TAB_SETTLER_RUN_FAILED` alone does not find it. Do not start stage 6 until
+  a healthy run is recorded.
+
+- The acceptor, before stage 6. After `TAB_ACCEPTOR_SECRET` is saved, and
+  again after any change to it, the operator runs the internal action
+  `chain/config:checkAcceptor` once from the Convex dashboard (**Functions**,
+  no arguments) and reads the value it returns. It derives the public key of
+  the exact saved value as acceptance does (`parseAcceptorSeed`), reads the
+  Tab contract's `acceptor_keys` at that moment, and compares them. It
+  returns the public key and the listed keys only, never the secret, and
+  writes nothing. It works with settlement on or off.
+  - `"status": "listed"` with `"whitespace": false`: ready. Record the time
+    and the public key.
+  - `"malformed"` or `"unset"`: the first tab tip would refuse with
+    `TAB_ACCEPTOR_UNAVAILABLE`. Save the secret again (step 3, **Tab
+    secrets**) and run the check again.
+  - `"not_listed"`: a valid seed of another key, for example the settler
+    seed in the acceptor variable. The tip would refuse with
+    `TAB_ACCEPTOR_MISMATCH`. Save the acceptor identity's secret.
+  - `"keys_unread"`: no Tab contract is set, or the view failed (`error`).
+    Fix that and run the check again.
+  - `"whitespace": true`: acceptance trims it, but the field check does not
+    allow it. Save the value again without it.
+
+  Do not start stage 6 until the check returns `listed`. The config refresh
+  (`chain/config:refreshChainConfig`, hourly) also logs
+  `TAB_ACCEPTOR_UNAVAILABLE` for a missing or malformed acceptor secret while
+  `SETTLEMENT_ENABLED=true`, and adds it to `chainConfig.lastError`. Before
+  #684 it treated such a secret as acceptance being off and logged nothing.
+  Both changes reach a deployment with its next backend push. On a backend
+  without them, the field check in step 3 is the only check of the format,
+  and the tab tip of section 7.1 is the first proof.
 
 **Rollback:** set `SETTLEMENT_ENABLED=false` and remove the contract IDs and
 `INDEXER_START_LEDGER`. Nothing user-facing uses the set while
@@ -992,7 +1103,7 @@ with `"cursor"` set to the returned `continueCursor`. Repeat for
 these with the credential from section 5.0.2.
 
 v1 rows confirmed after this stage (tips in flight at the freeze) have no
-`contractVersion`. Stage 6, step 1 runs this backfill once more after the
+`contractVersion`. Stage 6, step 2 runs this backfill once more after the
 drain.
 
 **Claim records (#596).** The release records each applied `Claimed` event of
@@ -1184,15 +1295,34 @@ row again.
 
 ### Stage 6. Switch on v2
 
-1. Run the stage 4 backfill again for the three tables (dry run, apply, dry
+1. Confirm that the healthy settler run and the `listed` acceptor check of
+   stage 3 (**Check**) are recorded, with their times and results. If
+   `TAB_SETTLER_SECRET` or `TAB_ACCEPTOR_SECRET` changed after them, record
+   a new run or check first.
+2. Run the stage 4 backfill again for the three tables (dry run, apply, dry
    run), so that the v1 rows confirmed during the drain carry
    `contractVersion: 'v1'`.
-2. Set `CHAIN_V2_ENABLED=true` on the live deployment. Record the time.
-3. Run the post-cutover verification (section 7) at once.
+3. Set `CHAIN_V2_ENABLED=true` on the live deployment. Record the time.
+4. Run the post-cutover verification (section 7) at once.
 
 **Check:** the backfill's final dry runs report `"toUpdate": 0`, and
 section 7.1 passes.
 **Rollback:** payments off (section 6, row D), then fix forward.
+
+**Tab readiness first (#692).** Immediately before `CHAIN_V2_ENABLED=true`
+in this stage, refresh the chain config and read `tabReady`:
+
+```bash
+bunx convex run chain/config:refreshChainConfig '{}'
+bunx convex run chain/tabReadiness:read '{}'
+```
+
+Go on only when it reports `"ready": true` and `"causes": []`. Otherwise
+fix each cause first ([chain runbook, tab tips not ready](chain-runbook.md#tab-tips-not-ready))
+and read it again. The switch cannot turn tab tips on while it is false:
+opening, top-ups and tab tips stay off and readers see "Quick tips are
+unavailable right now". Wallet tips are not affected. After the switch,
+`/api/health` and `chain/config:getChainConfig` report `"tabReady": true`.
 
 ## 6. Rollback plan
 
@@ -1505,8 +1635,9 @@ earlier figures.
 
 #### Step 7. Reopen payments
 
-Set `CHAIN_V2_ENABLED=true` only when all of these are true. Leave
-`CHAIN_V1_PREPARES_ENABLED=false`:
+Set `CHAIN_V2_ENABLED=true` only when all of these are true, and
+`chain/tabReadiness:read` reports `"ready": true` (stage 6, **Tab readiness
+first**). Leave `CHAIN_V1_PREPARES_ENABLED=false`:
 
 1. Every transaction from step 3 that creates an app record has one: tips
    and registrations (`tips`, `highlightTips`, `chainSubmissions`), NFT mints
@@ -1605,7 +1736,8 @@ stay at the front. If `checked` equals the limit, run again with
 
 After the tab tip in 7.1, the next `settle due tab vouchers` run (every 10
 minutes) submits a settlement. Check the Convex logs for the cron: no
-`TAB_SETTLER_RUN_FAILED`, `TAB_SETTLER_REJECTED` or `TAB_SETTLER_BALANCE_LOW`.
+`TAB_SETTLER_UNAVAILABLE`, `TAB_SETTLER_RUN_FAILED`, `TAB_SETTLER_REJECTED` or
+`TAB_SETTLER_BALANCE_LOW`.
 The settler account holds more than 50 testnet XLM.
 
 A settled amount stays held back from the reader's free balance until the
@@ -1687,14 +1819,26 @@ the variables are gone.
 
 ## 9. Maintenance schedule
 
-| Task                                 | When                                                                                           | Command or place                                                                                                                                       |
-| ------------------------------------ | ---------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                                                                                     |
-| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                                                                                    |
-| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3); any tab under "Waiting for a reconciliation" (chain runbook) |
-| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                                                                              |
-| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                                                                               |
-| Live deployment snapshot             | Weekly, and before the v1 backend removal PR is deployed                                       | Convex dashboard snapshot export                                                                                                                       |
-| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                                                                                         |
-| v1 backend removal PR                | After the release site is live and the stage 5 drain is complete                               | Section 8                                                                                                                                              |
-| Writers' lifetime totals             | After a restore or an `earningsTotalsBackfill:reset`, and when `progress.failed` lists a row   | `bunx convex run earningsTotalsBackfill:progress`; `retryFailed` for a failed row (stage 5A)                                                           |
+| Task                                 | When                                                                                           | Command or place                                                                                                                                                                                                              |
+| ------------------------------------ | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| TTL report and extension, `live` set | Twice a week (for example Monday and Thursday), and within 3 days of any deploy or role change | `bun run contracts:extend-v2 --set live --keys-dir <dir> --submit`                                                                                                                                                            |
+| TTL report, `integration` set        | Same                                                                                           | `--set integration`                                                                                                                                                                                                           |
+| Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3); any tab under "Waiting for a reconciliation" (chain runbook); no open record under "Tab activity not accepted here" (chain runbook) |
+| Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                                                                                                                                                     |
+| Settler runs                         | Daily; never 3 days without a run (go/no-go item 8)                                            | `SETTLEMENT_ENABLED=true`; the `settle due tab vouchers` cron has a recent run (dashboard cron jobs list); `/ops/chain` "Last settler run" under 30 min (chain runbook, settler not running)                                  |
+| Tab reconciliation                   | Daily                                                                                          | [Chain runbook](chain-runbook.md#stale-settlement-reserves): a dry run for each tab listed, from the Convex dashboard (see the note below the table). The command waits up to 2.5 minutes for the indexer                     |
+| Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                                                                                                                                                      |
+| Live deployment snapshot             | Weekly, and before the v1 backend removal PR is deployed                                       | Convex dashboard snapshot export                                                                                                                                                                                              |
+| Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                                                                                                                                                                |
+| v1 backend removal PR                | After the release site is live and the stage 5 drain is complete                               | Section 8                                                                                                                                                                                                                     |
+| Writers' lifetime totals             | After a restore or an `earningsTotalsBackfill:reset`, and when `progress.failed` lists a row   | `bunx convex run earningsTotalsBackfill:progress`; `retryFailed` for a failed row (stage 5A)                                                                                                                                  |
+
+**Tab reconciliation on the live deployment.** Outside a window, the network
+guard has no approval that allows the reconciliation dry run and refuses an
+apply: its operational approval does not tell the two apart. The window tool
+(section 5.0.3) refuses `chain/tabReconcile:run` in both forms, because the
+function is not on its list. Until a guard follow-up adds a dry-run-only
+approval, the owner runs the daily dry run from the Convex dashboard
+(**Functions**, `chain/tabReconcile:run`, without `apply`). An apply needs a new
+window approval, after a reviewed change that adds the function, with its
+`apply` and `note` arguments, to the window tool's list.

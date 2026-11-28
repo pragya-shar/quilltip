@@ -8,7 +8,7 @@
 import { convexTest } from 'convex-test'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Buffer } from 'buffer'
-import { Address, nativeToScVal, xdr } from '@stellar/stellar-sdk'
+import { Address, Keypair, nativeToScVal, xdr } from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
 import { api, internal } from '../../convex/_generated/api'
 import type { Doc, Id, TableNames } from '../../convex/_generated/dataModel'
@@ -46,6 +46,12 @@ import {
   signTabTip,
   type SessionKeyScope,
 } from '../../lib/stellar/v2/tab'
+import {
+  INDEXER_POLL_MS,
+  INDEXER_WAIT_MS,
+  coveredLedgerOf,
+  reconcileWhenIndexed,
+} from '../../convex/chain/tabReconcile'
 import { depsFor, freshDb, plantKey } from '../tab/helpers'
 import shared from '../../contracts/shared/test-vectors.json'
 import { rpcEventId } from './coreEvents'
@@ -78,6 +84,8 @@ const LEDGER = 7_000_000
 const VALID_UNTIL = LEDGER + 7 * DAY_LEDGERS
 const T0 = Date.UTC(2026, 11, 2, 12, 0, 0)
 const XLM = BigInt(10_000_000)
+/** Holds the Tab's `settler` role in the seeded chain config (#692). */
+const SETTLER = Keypair.fromRawEd25519Seed(new Uint8Array(32).fill(61))
 
 beforeEach(() => {
   vi.useFakeTimers({ now: T0 })
@@ -90,6 +98,7 @@ beforeEach(() => {
     TOKEN_CONTRACT_ID: TOKEN,
     SETTLEMENT_ENABLED: 'true',
     TAB_ACCEPTOR_SECRET: shared.keys.acceptor.seed,
+    TAB_SETTLER_SECRET: SETTLER.secret(),
   })) {
     vi.stubEnv(k, v)
   }
@@ -114,6 +123,7 @@ function eventId(ledger: number): string {
 }
 
 type ScEntry = [string, xdr.ScVal]
+type EventOptions = { ledger?: number; id?: string }
 
 /** A Tab event in the `getEvents` shape: topics, then a map of fields. */
 function tabEvent(
@@ -167,14 +177,17 @@ const ev = {
     keyId: number,
     validUntil = VALID_UNTIL,
     spendLimit = BigInt(50) * XLM,
-    o = {}
+    {
+      publicKey = SESSION_PUBLIC,
+      ...o
+    }: EventOptions & { publicKey?: string } = {}
   ) =>
     tabEvent(
       'key_registered',
       [reader],
       [
         ['key_id', u32(keyId)],
-        ['public_key', bytes(SESSION_PUBLIC)],
+        ['public_key', bytes(publicKey)],
         ['valid_until', u32(validUntil)],
         ['spend_limit', i128(spendLimit)],
       ],
@@ -198,12 +211,14 @@ const ev = {
       gross: bigint
       fee?: bigint
       writer?: string
+      reader?: string
+      byWriter?: boolean
     },
     o = {}
   ) =>
     tabEvent(
       'tab_settled',
-      [READER, f.writer ?? WRITER],
+      [f.reader ?? READER, f.writer ?? WRITER],
       [
         ['key_id', u32(f.keyId ?? 0)],
         ['cumulative', i128(f.cumulative)],
@@ -211,7 +226,7 @@ const ev = {
         ['gross', i128(f.gross)],
         ['fee', i128(f.fee ?? BigInt(0))],
         ['receipts_root', bytes('00'.repeat(32))],
-        ['by_writer', xdr.ScVal.scvBool(false)],
+        ['by_writer', xdr.ScVal.scvBool(f.byWriter ?? false)],
       ],
       o
     ),
@@ -246,6 +261,25 @@ const ev = {
 
 async function ingest(t: T, ...events: RawRpcEvent[]) {
   return t.mutation(internal.chain.indexer.ingestBackfill, { events })
+}
+
+/** `declareKey` in `convex/tabs.ts`: the app declares a key before it is registered. */
+async function declareKey(
+  t: T,
+  publicKey = SESSION_PUBLIC,
+  reader = READER
+): Promise<void> {
+  await t.run(async (ctx) => {
+    const row = (await ctx.db.query('tabAccounts').collect()).find(
+      (a) => a.readerAddress === reader
+    )!
+    await ctx.db.patch(row._id, {
+      pendingKeys: [
+        ...row.pendingKeys,
+        { publicKey, extractable: false, declaredAt: Date.now() },
+      ],
+    })
+  })
 }
 
 async function setLedger(t: T, latestLedger: number) {
@@ -334,7 +368,9 @@ async function seed(t: T, options: { open?: boolean } = {}) {
       minTip: '100000',
       feeBps: 250,
       tabAcceptorKeys: [ACCEPTOR_PUBLIC],
-      paused: {},
+      tabSettlers: [SETTLER.publicKey()],
+      tabStateReadAt: now,
+      paused: { core: false, tab: false },
       refreshedAt: now,
     })
     await db.insert('chainCursor', {
@@ -366,6 +402,7 @@ async function seed(t: T, options: { open?: boolean } = {}) {
   })
   if (options.open !== false) {
     await ingest(t, ev.deposited(READER, BigInt(10) * XLM, BigInt(10) * XLM))
+    await declareKey(t)
     await ingest(t, ev.keyRegistered(READER, 0))
   }
   return ids
@@ -3173,12 +3210,13 @@ describe('settler inputs', () => {
       const c = await ctx.db.query('chainConfig').first()
       await ctx.db.patch(c!._id, { tabAcceptorKeys: ['ab'.repeat(32)] })
     })
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_MISMATCH')
+    // Readiness (#692) refuses first; acceptance would refuse too.
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     await t.run(async (ctx) => {
       const c = await ctx.db.query('chainConfig').first()
       await ctx.db.patch(c!._id, { tabAcceptorKeys: undefined })
     })
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_MISMATCH')
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     await t.run(async (ctx) => {
       const c = await ctx.db.query('chainConfig').first()
       await ctx.db.patch(c!._id, {
@@ -3194,10 +3232,10 @@ describe('settler inputs', () => {
     const s = await seed(t)
     const p = await prepare(t, s)
     vi.stubEnv('SETTLEMENT_ENABLED', 'false')
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_UNAVAILABLE')
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     vi.stubEnv('SETTLEMENT_ENABLED', 'true')
     vi.stubEnv('TAB_ACCEPTOR_SECRET', '')
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_ACCEPTOR_UNAVAILABLE')
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     vi.stubEnv('STELLAR_NETWORK', 'PUBLIC')
     expect(await errorCode(submit(t, s, p))).not.toBe('no error')
   })
@@ -3324,8 +3362,10 @@ describe('signature bytes and key state at acceptance', () => {
     const p = await prepare(t, s)
     // The Tab contract changes without a new chain epoch.
     vi.stubEnv('TAB_CONTRACT_ID', TOKEN)
-    expect(await errorCode(prepare(t, s))).toBe('TAB_CONTRACT_MISMATCH')
-    expect(await errorCode(submit(t, s, p))).toBe('TAB_CONTRACT_MISMATCH')
+    // The cached config describes the old contract, so readiness (#692)
+    // refuses first; TAB_CONTRACT_MISMATCH stays behind it.
+    expect(await errorCode(prepare(t, s))).toBe('TAB_NOT_READY')
+    expect(await errorCode(submit(t, s, p))).toBe('TAB_NOT_READY')
     expect((await account(t)).outstanding).toBe('0')
   })
 })
@@ -3545,12 +3585,20 @@ describe('tab screens read models (tabActivity)', () => {
 
   it('reports whether settlement is on without a tab or a sign-in', async () => {
     const t = convexTest(schema, modules)
+    // No chain config cached yet: not ready.
     expect(await t.query(api.tabActivity.getTabSettlement, {})).toEqual({
       settlementEnabled: true,
+      tabReady: false,
+    })
+    await seed(t, { open: false })
+    expect(await t.query(api.tabActivity.getTabSettlement, {})).toEqual({
+      settlementEnabled: true,
+      tabReady: true,
     })
     vi.stubEnv('SETTLEMENT_ENABLED', '')
     expect(await t.query(api.tabActivity.getTabSettlement, {})).toEqual({
       settlementEnabled: false,
+      tabReady: false,
     })
   })
 })
@@ -3729,6 +3777,7 @@ describe('spendable balance across settler records and indexed events', () => {
     const t = convexTest(schema, modules)
     const s = await seed(t, { open: false })
     await ingest(t, ev.deposited(READER, deposit, deposit))
+    await declareKey(t)
     await ingest(t, ev.keyRegistered(READER, 0))
     for (const c of cents) await tip(t, s, { cents: c })
     return { t, s }
@@ -6006,6 +6055,446 @@ describe('spendable balance across settler records and indexed events', () => {
     expect(flagged()).toEqual([])
   }, 30_000)
 
+  // -------------------------------------------------------------------------
+  // #648: the RPC reads the chain only at the newest ledger, and the indexer
+  // covers the newest ledger once a minute. `run` waits until the indexer
+  // has applied the ledger it read; `reconcile` keeps every check.
+
+  /** One indexer run: the cron runs every minute, a ledger closes every 5 s. */
+  const PERIOD_MS = 60_000
+  const LEDGER_MS = 5_000
+  const PERIOD_LEDGERS = PERIOD_MS / LEDGER_MS
+
+  type ChainAt = { ledger: number; balance: bigint; paid: Map<string, bigint> }
+
+  /**
+   * `run`'s steps against this deployment's functions. The chain answers
+   * `reads` in order. The clock moves only while `run` sleeps; after each
+   * sleep `indexer(waited)` runs with the time waited so far.
+   */
+  function runSteps(
+    t: T,
+    o: {
+      reads: ChainAt[]
+      indexer?: (waitedMs: number) => Promise<void>
+      apply?: boolean
+    }
+  ) {
+    const log = { slept: 0, sleeps: 0, reads: 0 }
+    let clock = 0
+    const result = reconcileWhenIndexed({
+      snapshot: () =>
+        t.query(internal.chain.tabReconcile.snapshot, { reader: READER }),
+      readChain: async (snap) => {
+        const read = o.reads[log.reads++]
+        if (!read) throw new Error('no chain read left')
+        return {
+          ledger: read.ledger,
+          balance: read.balance.toString(),
+          paid: snap.pairs.map((p) => ({
+            ...p,
+            paid: (read.paid.get(p.writer) ?? BigInt(0)).toString(),
+          })),
+        }
+      },
+      coveredLedger: async () =>
+        coveredLedgerOf(
+          await t.query(internal.chain.indexer.readCursor, {}),
+          EPOCH
+        ),
+      reconcile: (snap, read) =>
+        t.mutation(internal.chain.tabReconcile.reconcile, {
+          tabAccountId: snap.tabAccountId,
+          digest: snap.digest,
+          pairs: snap.pairs,
+          chain: read,
+          apply: o.apply ?? false,
+        }),
+      now: () => clock,
+      sleep: async (ms) => {
+        // A wait without a limit would never end: fail instead.
+        if (log.slept + ms > 10 * INDEXER_WAIT_MS) {
+          throw new Error('waited without a limit')
+        }
+        log.sleeps++
+        log.slept += ms
+        clock += ms
+        await o.indexer?.(log.slept)
+      },
+    })
+    return { result, log }
+  }
+
+  /** A 0.15 tab, 0.10 accepted and settled at L+1, its event lost. */
+  async function lostSettlement() {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    // The indexer's last run covered the chain up to L+2.
+    await caughtUp(t, LEDGER + 2)
+    return { t, s }
+  }
+
+  const chainAfterSettlement = (ledger: number): ChainAt => ({
+    ledger,
+    balance: BigInt(5) * CENT,
+    paid: new Map([[WRITER, BigInt(10) * CENT]]),
+  })
+
+  for (const lag of [1, PERIOD_LEDGERS / 2, PERIOD_LEDGERS]) {
+    it(`a healthy indexer ${lag} ledger(s) behind the chain read: the reconciliation waits for its next run, then reconciles (#648)`, async () => {
+      const flagged = negatives()
+      const { t, s } = await lostSettlement()
+      const read = chainAfterSettlement(LEDGER + 2 + lag)
+      const before = await ledgerState(t)
+      // Before #648, `run` called `reconcile` once with this read: refused.
+      expect(
+        await reconcileAt(t, read, { behind: true, apply: false })
+      ).toMatchObject({ status: 'refused', reason: 'INDEXER_BEHIND' })
+
+      // The indexer's next run covers the newest ledger, `lag` ledgers on.
+      const dry = runSteps(t, {
+        reads: [read],
+        indexer: async (waited) => {
+          if (waited >= lag * LEDGER_MS) await caughtUp(t, read.ledger)
+        },
+      })
+      expect(await dry.result).toMatchObject({
+        status: 'dry_run',
+        ledger: read.ledger,
+        after: {
+          confirmedBalance: (BigInt(5) * CENT).toString(),
+          outstanding: '0',
+          settledUnindexed: '0',
+          spendable: (BigInt(5) * CENT).toString(),
+        },
+        pairs: [{ writer: WRITER, marked: (BigInt(10) * CENT).toString() }],
+      })
+      expect(dry.log).toEqual({
+        slept: lag * LEDGER_MS,
+        sleeps: (lag * LEDGER_MS) / INDEXER_POLL_MS,
+        reads: 1,
+      })
+      // The dry run wrote nothing.
+      expect(await ledgerState(t)).toEqual(before)
+
+      // Apply. The indexer has covered the ledger: no wait.
+      const applied = runSteps(t, { reads: [read], apply: true })
+      expect(await applied.result).toMatchObject({
+        status: 'applied',
+        ledger: read.ledger,
+      })
+      expect(applied.log).toEqual({ slept: 0, sleeps: 0, reads: 1 })
+      expect(await account(t)).toMatchObject({
+        confirmedBalance: (BigInt(5) * CENT).toString(),
+        settledUnindexed: '0',
+        balanceLedger: read.ledger,
+      })
+      expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+      expect(await releases(t)).toMatchObject([
+        { source: 'reconcile', ledger: read.ledger },
+      ])
+      await screenSums(t, s)
+      expect(flagged()).toEqual([])
+    })
+  }
+
+  it('a real indexer lag still refuses: the reconciliation waits its limit, then INDEXER_BEHIND, and writes nothing (#648)', async () => {
+    const { t } = await lostSettlement()
+    const read = chainAfterSettlement(LEDGER + 2 + PERIOD_LEDGERS)
+    const before = await ledgerState(t)
+    // The indexer runs no more: its cursor stays at L+2.
+    const stuck = runSteps(t, { reads: [read, read, read], apply: true })
+    expect(await stuck.result).toMatchObject({
+      status: 'refused',
+      reason: 'INDEXER_BEHIND',
+    })
+    // It waited the whole limit, once, and did not read again.
+    expect(stuck.log).toEqual({
+      slept: INDEXER_WAIT_MS,
+      sleeps: INDEXER_WAIT_MS / INDEXER_POLL_MS,
+      reads: 1,
+    })
+    // An indexer that catches up only after the limit: the same.
+    const late = runSteps(t, {
+      reads: [read],
+      apply: true,
+      indexer: async (waited) => {
+        if (waited > INDEXER_WAIT_MS) await caughtUp(t, read.ledger)
+      },
+    })
+    expect(await late.result).toMatchObject({
+      status: 'refused',
+      reason: 'INDEXER_BEHIND',
+    })
+    expect(late.log.slept).toBe(INDEXER_WAIT_MS)
+    // An indexer that stopped, or a cursor of another epoch: waiting cannot
+    // help, so it refuses at once.
+    const setCursor = (patch: Partial<Doc<'chainCursor'>>) =>
+      t.run(async (ctx) => {
+        const cursor = (await ctx.db.query('chainCursor').first())!
+        await ctx.db.patch(cursor._id, patch)
+      })
+    for (const patch of [
+      { status: 'RESET_DETECTED' as const },
+      { status: 'BEHIND_RETENTION' as const },
+      { status: 'OK' as const, chainEpoch: 'another-epoch' },
+    ]) {
+      await setCursor(patch)
+      const stopped = runSteps(t, { reads: [read], apply: true })
+      expect(await stopped.result).toMatchObject({
+        status: 'refused',
+        reason: 'INDEXER_BEHIND',
+      })
+      expect(stopped.log).toEqual({ slept: 0, sleeps: 0, reads: 1 })
+    }
+    expect(await ledgerState(t)).toEqual(before)
+  })
+
+  it('a lagging node answers first: the reconciliation reads the chain again and never applies the old read (#648)', async () => {
+    const flagged = negatives()
+    const { t, s, a, b } = await twoPairs()
+    // Chain: A settles at L+1 (event lost), B settles at L+3 (indexed).
+    const first = await beginSettlement(t, [a])
+    await settlerRecord(t, first.settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    const second = await beginSettlement(t, [b])
+    const pb = paidOf(OTHER_WRITER, 10)
+    await settlerRecord(t, second.settlementId, [pb], LEDGER + 3)
+    await ingest(t, settledEvent(pb, { ledger: LEDGER + 3 }))
+    await caughtUp(t, LEDGER + 3)
+    // Truth from L+3 on: balance 0.10, nothing owed.
+    const truth = BigInt(10) * CENT
+    const paidBoth = new Map([
+      [WRITER, BigInt(10) * CENT],
+      [OTHER_WRITER, BigInt(10) * CENT],
+    ])
+    const fresh: ChainAt = {
+      ledger: LEDGER + 3 + PERIOD_LEDGERS,
+      balance: truth,
+      paid: paidBoth,
+    }
+    const r = runSteps(t, {
+      reads: [
+        // A node two ledgers behind the indexer: before B's settlement.
+        {
+          ledger: LEDGER + 1,
+          balance: BigInt(20) * CENT,
+          paid: new Map([[WRITER, BigInt(10) * CENT]]),
+        },
+        fresh,
+      ],
+      apply: true,
+      indexer: async (waited) => {
+        if (waited >= PERIOD_MS) await caughtUp(t, fresh.ledger)
+      },
+    })
+    expect(await r.result).toMatchObject({
+      status: 'applied',
+      ledger: fresh.ledger,
+      after: {
+        confirmedBalance: truth.toString(),
+        settledUnindexed: '0',
+        spendable: truth.toString(),
+      },
+    })
+    // The first read was refused (STALE_READ) without a wait; the second
+    // waited for the indexer's next run.
+    expect(r.log).toEqual({
+      slept: PERIOD_MS,
+      sleeps: PERIOD_MS / INDEXER_POLL_MS,
+      reads: 2,
+    })
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: truth.toString(),
+      balanceLedger: fresh.ledger,
+    })
+    expect(await spendable(t, s)).toBe(truth)
+    expect(await releases(t)).toHaveLength(1)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  }, 30_000)
+
+  it('the account changes while the reconciliation waits: a new snapshot and read each time, at most three (#648)', async () => {
+    const { t, s } = await lostSettlement()
+    const read = chainAfterSettlement(LEDGER + 2 + PERIOD_LEDGERS)
+    // The reader tips 0.01 during the first wait only.
+    let tips = 0
+    const once = runSteps(t, {
+      reads: [read, read],
+      indexer: async (waited) => {
+        if (tips === 0) {
+          tips++
+          await tip(t, s, { cents: 1 })
+        }
+        if (waited >= PERIOD_MS) await caughtUp(t, read.ledger)
+      },
+    })
+    // The first check sees the change (CHANGED); the second, from a new
+    // snapshot, counts the new tip as owed.
+    expect(await once.result).toMatchObject({
+      status: 'dry_run',
+      after: {
+        confirmedBalance: (BigInt(5) * CENT).toString(),
+        outstanding: CENT.toString(),
+        spendable: (BigInt(4) * CENT).toString(),
+      },
+    })
+    expect(once.log.reads).toBe(2)
+
+    // A tip during every wait: three attempts, then CHANGED. Nothing written.
+    // Each read is a minute newer; the indexer covers it after one poll, so
+    // each attempt sleeps once and sees one tip.
+    const before = await ledgerState(t)
+    const newer = [2, 3, 4, 5].map((k) =>
+      chainAfterSettlement(LEDGER + 2 + k * PERIOD_LEDGERS)
+    )
+    let polls = 0
+    const busy = runSteps(t, {
+      reads: newer,
+      indexer: async () => {
+        await tip(t, s, { cents: 1 })
+        await caughtUp(t, newer[polls++]!.ledger)
+      },
+    })
+    expect(await busy.result).toMatchObject({
+      status: 'refused',
+      reason: 'CHANGED',
+    })
+    expect(busy.log.reads).toBe(3)
+    const after = await ledgerState(t)
+    // Only the three new tips changed the tables, not the reconciliation.
+    expect(after.releases).toBe(before.releases)
+    expect(after.accounts[0]!.confirmedBalance).toBe(
+      before.accounts[0]!.confirmedBalance
+    )
+    expect(after.accounts[0]!.settledUnindexed).toBe(
+      before.accounts[0]!.settledUnindexed
+    )
+  }, 30_000)
+
+  // Review of #650: events the indexer applies while `run` waits.
+
+  it('review #650: a deposit at or below the read ledger lands during the wait; the read is not used with the old snapshot', async () => {
+    const flagged = negatives()
+    const { t, s } = await lostSettlement()
+    const L = LEDGER + 2 + PERIOD_LEDGERS
+    // Chain at L: the lost settlement and a later deposit of 0.20 (L - 1).
+    const read: ChainAt = {
+      ledger: L,
+      balance: BigInt(25) * CENT,
+      paid: new Map([[WRITER, BigInt(10) * CENT]]),
+    }
+    let indexed = false
+    const r = runSteps(t, {
+      reads: [read, read, read],
+      apply: true,
+      indexer: async (waited) => {
+        if (!indexed && waited >= PERIOD_MS) {
+          indexed = true
+          await ingest(
+            t,
+            ev.deposited(READER, BigInt(20) * CENT, BigInt(25) * CENT, {
+              ledger: L - 1,
+            })
+          )
+          await caughtUp(t, L)
+        }
+      },
+    })
+    const result = await r.result
+    // The deposit's absolute balance is after the payment's ledger, so it
+    // released the reserve itself; the second attempt finds nothing to do.
+    expect(result).toMatchObject({ status: 'nothing_to_do', ledger: L })
+    expect(r.log.reads).toBe(2)
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(25) * CENT).toString(),
+      settledUnindexed: '0',
+      balanceLedger: L - 1,
+    })
+    expect(await spendable(t, s)).toBe(BigInt(25) * CENT)
+    expect(await releases(t)).toMatchObject([{ source: 'balance_event' }])
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  }, 30_000)
+
+  it('review #650: an absolute balance after the read ledger lands during the wait; the old read is refused and a fresh one applies', async () => {
+    const flagged = negatives()
+    const { t, s } = await lostSettlement()
+    const L = LEDGER + 2 + PERIOD_LEDGERS
+    const old = chainAfterSettlement(L)
+    // Chain at L + 3: a withdrawal starts, balance 0.05 (absolute).
+    const fresh: ChainAt = { ...chainAfterSettlement(L + 4) }
+    let step = 0
+    const r = runSteps(t, {
+      reads: [old, fresh, fresh],
+      apply: true,
+      indexer: async () => {
+        step++
+        if (step === 1) {
+          await ingest(
+            t,
+            ev.withdrawStarted(BigInt(5) * CENT, L + 100, { ledger: L + 3 })
+          )
+          await caughtUp(t, L + 3)
+        } else {
+          await caughtUp(t, L + 4)
+        }
+      },
+    })
+    const result = await r.result
+    expect(result.status).not.toBe('refused')
+    expect(r.log.reads).toBe(2)
+    const acct = await account(t)
+    expect(acct.confirmedBalance).toBe((BigInt(5) * CENT).toString())
+    expect(acct.settledUnindexed ?? '0').toBe('0')
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    // Exactly one release of the 0.10, whichever path made it.
+    const rel = await releases(t)
+    expect(rel).toHaveLength(1)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  }, 30_000)
+
+  it('review #650: the lost event itself arrives during the wait; nothing is counted twice', async () => {
+    const flagged = negatives()
+    const { t, s } = await lostSettlement()
+    const L = LEDGER + 2 + PERIOD_LEDGERS
+    const read = chainAfterSettlement(L)
+    const lost = {
+      kind: 'settled' as const,
+      writer: WRITER,
+      cumulative: BigInt(10) * CENT,
+      paidAfter: BigInt(10) * CENT,
+      gross: BigInt(10) * CENT,
+    }
+    let indexed = false
+    const r = runSteps(t, {
+      reads: [read, read, read],
+      apply: true,
+      indexer: async (waited) => {
+        if (!indexed && waited >= PERIOD_MS) {
+          indexed = true
+          await ingest(t, settledEvent(lost, { ledger: LEDGER + 1 }))
+          await caughtUp(t, L)
+        }
+      },
+    })
+    expect(await r.result).toMatchObject({ status: 'nothing_to_do' })
+    expect(r.log.reads).toBe(2)
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      settledUnindexed: '0',
+    })
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    expect(await releases(t)).toHaveLength(0)
+    // A second run afterwards changes nothing.
+    const again = runSteps(t, { reads: [read], apply: true })
+    expect(await again.result).toMatchObject({ status: 'nothing_to_do' })
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await screenSums(t, s)
+    expect(flagged()).toEqual([])
+  }, 30_000)
+
   /** Everything a release can change, for "nothing was written" checks. */
   async function ledgerState(t: T) {
     return t.run(async (ctx) => ({
@@ -7716,5 +8205,446 @@ describe('review #596: claims through re-dispatch, restore and seeding', () => {
     ] as Record<string, unknown>
     expect(redispatched).toEqual(rebuilt)
     expect(await collectedOf(t, s.authorId)).toBe('61278360')
+  })
+})
+
+// ---------------------------------------------------------------------------
+// #647: tab activity this deployment did not originate. One record and one
+// log line per event; nothing else changes.
+
+describe('tab activity not accepted here (#647)', () => {
+  const OUTSIDER = seedAddress(77)
+  const CODE = 'CHAIN_TAB_OUTSIDE_EVENT'
+
+  const outsideRows = (t: T) =>
+    t.run(async (ctx) =>
+      (await ctx.db.query('tabOutsideEvents').collect()).sort(
+        (a, b) => a.ledger - b.ledger
+      )
+    )
+  /** Silences and collects `CHAIN_TAB_OUTSIDE_EVENT` log lines. */
+  function outsideLog() {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    return () =>
+      spy.mock.calls
+        .map((call) => String(call[0]))
+        .filter((line) => line.includes(`"${CODE}"`))
+        .map((line) => JSON.parse(line) as Record<string, unknown>)
+  }
+  const handled = (t: T, events: RawRpcEvent[]) =>
+    t.run(async (ctx) => {
+      const rows = await ctx.db.query('chainEvents').collect()
+      return events.map(
+        (e) => rows.find((r) => r.eventId === e.id)?.handled ?? 'missing'
+      )
+    })
+  async function forceRedispatch(t: T) {
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        await ctx.db.patch(row._id, { handled: 'pending' })
+      }
+    })
+    for (;;) {
+      const r = await t.mutation(internal.chain.indexer.redispatch, {
+        limit: 500,
+      })
+      if (r.checked === 0) break
+    }
+  }
+
+  /**
+   * The accounting check's cases on one reader with two accepted tab tips
+   * (key 0, cumulative 0.35 XLM): an undeclared key 1, a settlement on key 1
+   * to a writer with no voucher, a settlement of key 0 above the accepted
+   * amount, and a settlement for a reader with no account here.
+   */
+  async function outsideCase() {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    const events = {
+      undeclared: ev.keyRegistered(READER, 1, VALID_UNTIL, BigInt(50) * XLM, {
+        ledger: LEDGER + 1,
+      }),
+      noVoucher: ev.tabSettled(
+        {
+          keyId: 1,
+          writer: OTHER_WRITER,
+          cumulative: BigInt(6) * XLM,
+          paidAfter: BigInt(6) * XLM,
+          gross: BigInt(6) * XLM,
+          byWriter: true,
+        },
+        { ledger: LEDGER + 2 }
+      ),
+      above: ev.tabSettled(
+        {
+          cumulative: BigInt(5_000_000),
+          paidAfter: BigInt(5_000_000),
+          gross: BigInt(5_000_000),
+          byWriter: true,
+        },
+        { ledger: LEDGER + 3 }
+      ),
+      noAccount: ev.tabSettled(
+        {
+          reader: OUTSIDER,
+          cumulative: XLM,
+          paidAfter: XLM,
+          gross: XLM,
+          byWriter: false,
+        },
+        { ledger: LEDGER + 4 }
+      ),
+    }
+    return { t, s, events, all: Object.values(events) }
+  }
+
+  it('records the outside settlement and the undeclared key once, with the fields and no address', async () => {
+    const lines = outsideLog()
+    const { t, s, events, all } = await outsideCase()
+    expect(lines()).toEqual([])
+    await ingest(t, ...all)
+
+    // Handler results are as before the signal.
+    expect(await handled(t, all)).toEqual(['done', 'orphan', 'done', 'orphan'])
+    const acct = await account(t)
+    // 10 XLM less the two settlements of this reader.
+    expect(acct.confirmedBalance).toBe(
+      (BigInt(10) * XLM - BigInt(6) * XLM - BigInt(5_000_000)).toString()
+    )
+    expect((await voucherRow(t)).cumulative).toBe('3500000')
+
+    const common = {
+      network: 'TESTNET',
+      chainEpoch: EPOCH,
+      txHash: 'ab'.repeat(32),
+    }
+    const rows = await outsideRows(t)
+    expect(rows).toHaveLength(4)
+    expect(rows[0]).toMatchObject({
+      ...common,
+      kind: 'key_undeclared',
+      eventId: events.undeclared.id,
+      tabAccountId: acct._id,
+      keyId: 1,
+      ledger: LEDGER + 1,
+    })
+    expect(rows[0]!.gross).toBeUndefined()
+    expect(rows[0]!.byWriter).toBeUndefined()
+    expect(rows[1]).toMatchObject({
+      ...common,
+      kind: 'settled_no_voucher',
+      eventId: events.noVoucher.id,
+      tabAccountId: acct._id,
+      keyId: 1,
+      gross: '60000000',
+      byWriter: true,
+      ledger: LEDGER + 2,
+    })
+    expect(rows[2]).toMatchObject({
+      ...common,
+      kind: 'settled_above_accepted',
+      eventId: events.above.id,
+      tabAccountId: acct._id,
+      keyId: 0,
+      gross: '5000000',
+      cumulative: '5000000',
+      acceptedCumulative: '3500000',
+      byWriter: true,
+      ledger: LEDGER + 3,
+    })
+    expect(rows[3]).toMatchObject({
+      ...common,
+      kind: 'settled_no_account',
+      eventId: events.noAccount.id,
+      keyId: 0,
+      gross: '10000000',
+      byWriter: false,
+      ledger: LEDGER + 4,
+    })
+    expect(rows[3]!.tabAccountId).toBeUndefined()
+    expect(rows.every((r) => r.acknowledgedAt === undefined)).toBe(true)
+
+    const logged = lines()
+    expect(logged.map((l) => l.kind)).toEqual([
+      'key_undeclared',
+      'settled_no_voucher',
+      'settled_above_accepted',
+      'settled_no_account',
+    ])
+    expect(logged[1]).toEqual({
+      code: CODE,
+      kind: 'settled_no_voucher',
+      tabAccountId: String(acct._id),
+      keyId: 1,
+      gross: '60000000',
+      ledger: LEDGER + 2,
+      eventId: events.noVoucher.id,
+      chainEpoch: EPOCH,
+      byWriter: true,
+      txHash: 'ab'.repeat(32),
+    })
+    expect(logged[2]).toMatchObject({
+      cumulative: '5000000',
+      acceptedCumulative: '3500000',
+    })
+    expect(logged[3]).toMatchObject({ tabAccountId: null, byWriter: false })
+    const text = JSON.stringify(logged)
+    for (const address of [READER, WRITER, OTHER_WRITER, OUTSIDER]) {
+      expect(text).not.toContain(address)
+    }
+    void s
+  })
+
+  it('a replay, a backfill, a forced re-dispatch and rebuilt event rows raise nothing new; a new epoch does', async () => {
+    const lines = outsideLog()
+    const { t, events, all } = await outsideCase()
+    await ingest(t, ...all)
+    const indexed = await outsideRows(t)
+    expect(indexed).toHaveLength(4)
+    expect(lines()).toHaveLength(4)
+    const expectUnchanged = async (step: string) => {
+      expect(await outsideRows(t), step).toEqual(indexed)
+      expect(lines(), step).toHaveLength(4)
+    }
+
+    // A replay: the next run reads the same page again.
+    await t.mutation(internal.chain.indexer.replayFrom, { fromLedger: LEDGER })
+    expect(
+      await t.mutation(internal.chain.indexer.acquireIndexerLease, {
+        holder: 'replay',
+      })
+    ).toBe(true)
+    await t.mutation(internal.chain.indexer.ingestPage, {
+      holder: 'replay',
+      events: all,
+    })
+    await t.mutation(internal.chain.indexer.releaseIndexerLease, {
+      holder: 'replay',
+    })
+    await expectUnchanged('replay')
+    await ingest(t, ...all)
+    await expectUnchanged('backfill')
+
+    // Every event back to pending and dispatched again, twice; every table
+    // as it was.
+    await expectRedispatchChangesNothing(t)
+    await forceRedispatch(t)
+    await expectUnchanged('forced re-dispatch')
+
+    // Event rows rebuilt from RPC (a restore without them): same ids.
+    await t.run(async (ctx) => {
+      const ids = new Set(all.map((e) => e.id))
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        if (ids.has(row.eventId)) await ctx.db.delete(row._id)
+      }
+    })
+    await ingest(t, ...[...all].reverse())
+    expect(await handled(t, all)).toEqual(['done', 'orphan', 'done', 'orphan'])
+    await expectUnchanged('rows rebuilt')
+
+    // After a testnet reset the same event id is a new event.
+    vi.stubEnv('CHAIN_EPOCH', 'testnet-tab-after-reset')
+    await ingest(t, events.noAccount)
+    const after = await outsideRows(t)
+    expect(after).toHaveLength(5)
+    expect(
+      after
+        .filter((r) => r.eventId === events.noAccount.id)
+        .map((r) => r.chainEpoch)
+    ).toEqual(['testnet-tab', 'testnet-tab-after-reset'])
+    expect(lines()).toHaveLength(5)
+  })
+
+  it('no record for ordinary deposits, declared keys, the settler and a writer settle_own of accepted vouchers', async () => {
+    const lines = outsideLog()
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    const second = '11'.repeat(32)
+    await declareKey(t, second)
+    const events = [
+      ev.deposited(READER, BigInt(2) * XLM, BigInt(12) * XLM, {
+        ledger: LEDGER + 1,
+      }),
+      // A second key, declared in the app first.
+      ev.keyRegistered(READER, 2, VALID_UNTIL, BigInt(50) * XLM, {
+        ledger: LEDGER + 2,
+        publicKey: second,
+      }),
+      // The writer settles the first accepted voucher (0.1 XLM), older than
+      // the stored one.
+      ev.tabSettled(
+        {
+          cumulative: BigInt(1_000_000),
+          paidAfter: BigInt(1_000_000),
+          gross: BigInt(1_000_000),
+          byWriter: true,
+        },
+        { ledger: LEDGER + 3 }
+      ),
+      // The settler settles the latest one.
+      ev.tabSettled(
+        {
+          cumulative: BigInt(3_500_000),
+          paidAfter: BigInt(3_500_000),
+          gross: BigInt(2_500_000),
+          byWriter: false,
+        },
+        { ledger: LEDGER + 4 }
+      ),
+      // The writer's settle_own of the stored voucher, after the settler:
+      // nothing is left to pay.
+      ev.tabSettled(
+        {
+          cumulative: BigInt(3_500_000),
+          paidAfter: BigInt(3_500_000),
+          gross: BigInt(0),
+          byWriter: true,
+        },
+        { ledger: LEDGER + 5 }
+      ),
+      ev.withdrawStarted(BigInt(8_500_000), LEDGER + 51_840, {
+        ledger: LEDGER + 6,
+      }),
+    ]
+    await ingest(t, ...events)
+    expect(await handled(t, events)).toEqual([
+      'done',
+      'done',
+      'done',
+      'done',
+      'done',
+      'done',
+    ])
+    expect((await voucherRow(t)).paidOnChain).toBe('3500000')
+    await expectRedispatchChangesNothing(t)
+    expect(await outsideRows(t)).toEqual([])
+    expect(lines()).toEqual([])
+  })
+
+  it('review #662: replays and forced re-dispatches after later honest activity, and after an acknowledgement, add no record', async () => {
+    const lines = outsideLog()
+    const { t, s, events, all } = await outsideCase()
+    await ingest(t, ...all)
+    expect(await outsideRows(t)).toHaveLength(4)
+    expect(lines()).toHaveLength(4)
+
+    // A later honest tip raises the stored cumulative above the outside
+    // settlement's (0.35 + 0.50 > 0.50 XLM), and the writer settles it.
+    await tip(t, s, { cents: 50 })
+    expect((await voucherRow(t)).cumulative).toBe('8500000')
+    const honest = ev.tabSettled(
+      {
+        cumulative: BigInt(8_500_000),
+        paidAfter: BigInt(8_500_000),
+        gross: BigInt(3_500_000),
+        byWriter: true,
+      },
+      { ledger: LEDGER + 5 }
+    )
+    await ingest(t, honest)
+    expect(await handled(t, [honest])).toEqual(['done'])
+    const settled = await outsideRows(t)
+    expect(settled).toHaveLength(4)
+
+    // Close one record, then replay everything and force every event
+    // through the handlers twice, out of order.
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await t.mutation(internal.chain.tabOutside.acknowledge, {
+      chainEpoch: EPOCH,
+      eventId: events.above.id,
+      note: 'review test',
+    })
+    const closed = await outsideRows(t)
+    for (let i = 0; i < 2; i++) {
+      await ingest(t, ...[honest, ...all].reverse())
+      await forceRedispatch(t)
+    }
+    await expectRedispatchChangesNothing(t)
+    expect(await outsideRows(t)).toEqual(closed)
+    expect(lines()).toHaveLength(4)
+    expect((await voucherRow(t)).paidOnChain).toBe('8500000')
+    const open = await t.query(internal.chain.tabOutside.listOpen, {})
+    expect(open.rows.map((r) => r.kind)).toEqual([
+      'key_undeclared',
+      'settled_no_voucher',
+      'settled_no_account',
+    ])
+  })
+
+  it('operators see the open records; acknowledge needs a note, keeps the row and changes nothing the second time', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const { t, s, events, all } = await outsideCase()
+    await ingest(t, ...all)
+    vi.stubEnv('OPS_USER_IDS', String(s.otherAuthorId))
+    const read = (userId?: Id<'users'>) =>
+      userId
+        ? as(t, userId).query(api.chain.tabOutside.getOutsideTabActivity, {})
+        : t.query(api.chain.tabOutside.getOutsideTabActivity, {})
+    expect(await read()).toBeNull()
+    expect(await read(s.readerId)).toBeNull()
+    const open = await read(s.otherAuthorId)
+    expect(open?.more).toBe(false)
+    expect(open?.rows.map((r) => r.kind)).toEqual([
+      'key_undeclared',
+      'settled_no_voucher',
+      'settled_above_accepted',
+      'settled_no_account',
+    ])
+    expect(JSON.stringify(open)).not.toContain(READER)
+
+    const target = { chainEpoch: EPOCH, eventId: events.noVoucher.id }
+    expect(
+      await errorCode(
+        t.mutation(internal.chain.tabOutside.acknowledge, {
+          ...target,
+          note: '  ',
+        })
+      )
+    ).toBe('NOTE_REQUIRED')
+    expect(
+      await errorCode(
+        t.mutation(internal.chain.tabOutside.acknowledge, {
+          chainEpoch: 'other-epoch',
+          eventId: events.noVoucher.id,
+          note: 'checked',
+        })
+      )
+    ).toBe('NOT_FOUND')
+    const first = await t.mutation(internal.chain.tabOutside.acknowledge, {
+      ...target,
+      note: 'checked on chain',
+    })
+    expect(first.changed).toBe(true)
+    vi.advanceTimersByTime(60_000)
+    const second = await t.mutation(internal.chain.tabOutside.acknowledge, {
+      ...target,
+      note: 'again',
+    })
+    expect(second).toEqual({
+      acknowledgedAt: first.acknowledgedAt,
+      changed: false,
+    })
+
+    expect((await read(s.otherAuthorId))?.rows).toHaveLength(3)
+    expect(
+      (await t.query(internal.chain.tabOutside.listOpen, {})).rows.map(
+        (r) => r.eventId
+      )
+    ).not.toContain(events.noVoucher.id)
+    const kept = (await outsideRows(t)).find(
+      (r) => r.eventId === events.noVoucher.id
+    )
+    expect(kept).toMatchObject({
+      acknowledgedAt: first.acknowledgedAt,
+      acknowledgedNote: 'checked on chain',
+    })
+    // A dispatch of the acknowledged event does not reopen it.
+    await expectRedispatchChangesNothing(t)
+    expect((await read(s.otherAuthorId))?.rows).toHaveLength(3)
   })
 })

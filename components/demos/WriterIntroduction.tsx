@@ -199,7 +199,13 @@ export function WriterIntroduction() {
                       : 'Sample reader preview'}
                   </span>
                   <button onClick={() => choose(1 - step)}>
-                    {step === 0 ? 'Preview ↗' : 'Back to draft'}
+                    {step === 0 ? (
+                      <>
+                        Preview <span aria-hidden="true">↗︎</span>
+                      </>
+                    ) : (
+                      'Back to draft'
+                    )}
                   </button>
                 </div>
                 <div className="writer-intro-prose">

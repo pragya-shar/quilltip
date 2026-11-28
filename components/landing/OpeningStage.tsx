@@ -1,5 +1,6 @@
 'use client'
 
+import Link from 'next/link'
 import { useLayoutEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { OpeningQuill, OpeningInkpot } from './OpeningInk'
@@ -501,9 +502,16 @@ export function OpeningStage({ onFinish }: { onFinish: () => void }) {
           <span ref={inkpot} className="opening-inkpot" aria-hidden="true">
             <OpeningInkpot />
           </span>
-          <button ref={skip} className="opening-skip" onClick={onFinish}>
-            <span>Skip opening</span>
-          </button>
+          {/* The way to reading while the hero waits (#598): the hero's own
+              link is inert until the opening ends. */}
+          <div className="opening-controls">
+            <Link href="/articles" className="opening-skip opening-read">
+              <span>I’m here to read</span>
+            </Link>
+            <button ref={skip} className="opening-skip" onClick={onFinish}>
+              <span>Skip opening</span>
+            </button>
+          </div>
         </>,
         document.body
       )}

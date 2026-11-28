@@ -1,6 +1,10 @@
 import { useId } from 'react'
-import { ESTIMATE, quoteCopy } from '@/lib/copy/payment-states'
-import { formatCentsQuote } from '@/lib/payments/format'
+import {
+  ESTIMATE,
+  estimateFigureCopy,
+  quoteCopy,
+} from '@/lib/copy/payment-states'
+import { estimateSummary, formatCentsQuote } from '@/lib/payments/format'
 import { cn } from '@/lib/utils'
 import { PaymentStatusLabel } from './PaymentStatusLabel'
 import { TestnetLabel } from './TestnetLabel'
@@ -28,14 +32,17 @@ interface AmountSummaryProps {
    * before the wallet prompt.
    */
   estimate?: boolean
-  /** An id for the total line, so an action can read it as its description. */
-  totalId?: string
+  /**
+   * The line under an estimate. Defaults to the wallet sentence; pass
+   * `ESTIMATE.tabCaption` while a tab can send the same amount.
+   */
+  estimateCaption?: string
   className?: string
 }
 
 /**
  * The amount and its split. XLM is primary; the cents quote is secondary.
- * Every summary carries the testnet label.
+ * Every summary carries the testnet label; an estimate adds its detail.
  */
 export function AmountSummary({
   label = 'Tip amount',
@@ -44,11 +51,32 @@ export function AmountSummary({
   items = [],
   quoteCents,
   estimate = false,
-  totalId,
+  estimateCaption = ESTIMATE.caption,
   className,
 }: AmountSummaryProps) {
   const labelId = useId()
   const quote = formatCentsQuote(quoteCents)
+  // An estimate rounds as one summary: every figure at the total's
+  // precision, and the breakdown adds up to the total shown (#670). Items
+  // round to the same precision.
+  const figures = estimate
+    ? {
+        ...estimateSummary(
+          total,
+          breakdown.map((line) => line.amount)
+        ),
+        items: estimateSummary(
+          total,
+          items.map((item) => item.amount)
+        ).parts,
+      }
+    : null
+  const figure = (amount: BaseUnits, shown: string | undefined) =>
+    shown === undefined ? (
+      <XlmAmount className="pay-amount-figure" amount={amount} />
+    ) : (
+      <span className="pay-xlm pay-amount-figure">{shown}</span>
+    )
   return (
     <section
       className={cn('pay-amount', className)}
@@ -60,11 +88,10 @@ export function AmountSummary({
           {items.map((item, index) => (
             <li key={`${index}-${item.label}`}>
               <span className="pay-amount-item-label">{item.label}</span>
-              <XlmAmount
-                className="pay-amount-figure"
-                amount={item.amount}
-                estimate={estimate}
-              />
+              {figure(
+                item.amount,
+                figures ? estimateFigureCopy(figures.items[index]!) : undefined
+              )}
               {item.status || item.note ? (
                 <span className="pay-amount-item-state">
                   {item.status ? (
@@ -79,20 +106,20 @@ export function AmountSummary({
           ))}
         </ul>
       ) : null}
-      <p className="pay-amount-total" id={totalId}>
+      <p className="pay-amount-total">
         <span id={labelId}>{label}</span>
         <strong>
-          <XlmAmount
-            className="pay-amount-figure"
-            amount={total}
-            estimate={estimate}
-          />
+          {figure(
+            total,
+            figures ? estimateFigureCopy(figures.total) : undefined
+          )}
         </strong>
       </p>
       <p className="pay-amount-caption">
-        <TestnetLabel />
+        {/* An estimate is where a reader first meets the amount (#670). */}
+        <TestnetLabel detail={estimate} />
         {quote ? <span>{quoteCopy(quote)}</span> : null}
-        {estimate ? <span>{ESTIMATE.caption}</span> : null}
+        {estimate ? <span>{estimateCaption}</span> : null}
       </p>
       {breakdown.length > 0 ? (
         <dl className="pay-amount-breakdown">
@@ -100,11 +127,12 @@ export function AmountSummary({
             <div key={`${index}-${line.label}`}>
               <dt>{line.label}</dt>
               <dd>
-                <XlmAmount
-                  className="pay-amount-figure"
-                  amount={line.amount}
-                  estimate={estimate}
-                />
+                {figure(
+                  line.amount,
+                  figures
+                    ? estimateFigureCopy(figures.parts[index]!)
+                    : undefined
+                )}
               </dd>
             </div>
           ))}

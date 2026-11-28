@@ -20,8 +20,16 @@ export const TAB_BALANCE = {
   freeNote: 'What quick tips can use now.',
   /** The same figure while the tab is closing: quick tips are off (#547). */
   closingFree: 'Comes back to you',
-  closingFreeNote:
-    'Your tab is closing, so quick tips are off. This returns to your wallet with the withdrawal, after the tips still settling.',
+  /**
+   * Under the closing figure: when it unlocks and what the reader does then
+   * (#671). The date is an estimate from ledger times.
+   */
+  closingFreeNote: (date: string | null, ready: boolean, overdue = false) =>
+    ready
+      ? 'Unlocked. Choose Withdraw to move it to your wallet.'
+      : overdue
+        ? `${TAB_CLOSE.unlocksSoon}. Check back and choose Withdraw to move it to your wallet. Quick tips are off while your tab closes.`
+        : `${TAB_CLOSE.unlocks(date)}. Come back then and choose Withdraw to move it to your wallet. Quick tips are off while your tab closes.`,
   settling: 'Settling',
   settlingNote: 'Tips sent, not settled on chain yet.',
   confirmed: 'Tab balance',
@@ -146,6 +154,8 @@ export const TAB_CLOSE = {
   started: 'Withdrawal started',
   unlocks: (date: string | null) =>
     date ? `Unlocks around ${date}` : 'Unlocks after about 3 days',
+  /** The estimated day has passed, the unlock ledger has not (#671). */
+  unlocksSoon: 'Unlocks soon',
   ready: 'Ready to withdraw',
   nothingLeft: 'Nothing is left to withdraw.',
 } as const
@@ -227,6 +237,9 @@ export const TAB_TIP_DIALOG = {
   sending: 'Sending from your tab…',
   /** The wallet button while the tab can send. */
   sendFromWallet: 'Send from your wallet',
+  /** The same, with the amount as the reader chose it (#645). */
+  sendFromWalletAmount: (amount: string) =>
+    `Send ${amount} tip from your wallet`,
   walletHeading: 'From your wallet',
   noTab: 'Tip without a wallet prompt from a prepaid tab.',
   loading: 'Checking your tab…',

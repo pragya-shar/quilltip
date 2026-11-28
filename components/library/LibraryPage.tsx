@@ -30,7 +30,7 @@ export function LibraryPage() {
               className="library-browse"
               href={buildRegisterHref('/library')}
             >
-              Create an account ↗
+              Create an account <span aria-hidden="true">↗︎</span>
             </Link>
           )}
         </main>

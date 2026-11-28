@@ -124,6 +124,49 @@ describe('tabStatusView', () => {
       })
     ).toMatchObject({ kind: 'closing', ready: false, unlocksAround: null })
   })
+
+  it('says "soon" once the estimate has passed and the ledger has not (#671)', () => {
+    const view = (unlock: number, now: number, at = clock) =>
+      tabStatusView({
+        tab: tab({ status: 'CLOSING', withdrawUnlockLedger: unlock }),
+        chainConfig: config(),
+        clock: at,
+        now,
+      })
+    const unlock = clock.sequence + 100
+    const estimate = clock.closedAt + 100 * 5_000
+    // Before the estimate: a date, not overdue.
+    expect(view(unlock, estimate - 1)).toMatchObject({
+      ready: false,
+      overdue: false,
+    })
+    // A clock past the estimate, a ledger below the unlock: overdue.
+    expect(view(unlock, estimate + 1)).toMatchObject({
+      ready: false,
+      overdue: true,
+    })
+    // An old clock read: the estimated day is in the past.
+    expect(
+      view(unlock, clock.closedAt + 3 * 86_400_000, {
+        sequence: clock.sequence,
+        closedAt: clock.closedAt,
+      })
+    ).toMatchObject({ ready: false, overdue: true })
+    // Once the ledger is reached it is ready, never overdue.
+    expect(view(clock.sequence, estimate + 86_400_000)).toMatchObject({
+      ready: true,
+      overdue: false,
+    })
+    // No clock: no estimate, so nothing is overdue.
+    expect(
+      tabStatusView({
+        tab: tab({ status: 'CLOSING', withdrawUnlockLedger: unlock }),
+        chainConfig: config(),
+        clock: null,
+        now: estimate + 86_400_000,
+      })
+    ).toMatchObject({ overdue: false, unlocksAround: null })
+  })
 })
 
 describe('closeUnlockEstimate', () => {
@@ -190,7 +233,9 @@ describe('settlementHealth', () => {
       waiting: false,
     })
     // No tab, so no activity: the flag alone decides.
-    expect(settlementHealth(null, now, { settlementEnabled: false })).toEqual({
+    expect(
+      settlementHealth(null, now, { settlementEnabled: false, tabReady: false })
+    ).toEqual({
       kind: 'off',
       waiting: false,
     })
@@ -199,10 +244,12 @@ describe('settlementHealth', () => {
       settlementHealth(
         { ...off, settlementEnabled: true, oldestUnsettledAt: null },
         now,
-        { settlementEnabled: false }
+        { settlementEnabled: false, tabReady: false }
       )
     ).toEqual({ kind: 'off', waiting: false })
-    expect(settlementHealth(null, now, { settlementEnabled: true })).toEqual({
+    expect(
+      settlementHealth(null, now, { settlementEnabled: true, tabReady: true })
+    ).toEqual({
       kind: 'ok',
     })
   })

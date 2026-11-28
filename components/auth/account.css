@@ -306,6 +306,18 @@
   font-size: 13px;
   margin: 7px 0 0;
 }
+/* Room kept for a field's error (AccountField reserveError, #658). */
+.account-error-slot {
+  display: grid;
+  margin-top: 7px;
+}
+.account-error-slot > .account-error {
+  grid-area: 1 / 1;
+  margin: 0;
+}
+.account-error-slot > [data-sizer] {
+  visibility: hidden;
+}
 .account-error-banner {
   background: #9423390d;
   border-left: 2px solid #942339;

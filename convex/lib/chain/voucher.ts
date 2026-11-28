@@ -128,6 +128,22 @@ export function parseAcceptorSeed(secret: string): Uint8Array {
  * rules). It does not call `assertNonProductionBackend`: acceptance runs
  * wherever tab tips are accepted.
  */
+/** The acceptor's ed25519 public key, lowercase hex, from a parsed seed. */
+function acceptorPublicKeyOfSeed(seed: Uint8Array): string {
+  return bytesToHex(publicKeyOf(seed))
+}
+
+/**
+ * The acceptor's public key (lowercase hex) from `TAB_ACCEPTOR_SECRET` as
+ * saved. The one derivation that acceptance (`loadAcceptor`), the config
+ * refresh, `chain/config:checkAcceptor` and tab readiness compare with the
+ * Tab's `acceptor_keys`. Throws `TAB_ACCEPTOR_UNAVAILABLE` when it does not
+ * parse.
+ */
+export function acceptorPublicKeyHex(secret: string): string {
+  return acceptorPublicKeyOfSeed(parseAcceptorSeed(secret))
+}
+
 export function loadAcceptor(env: EnvLike = process.env): Acceptor {
   assertBackendTestnet(env)
   if (env.SETTLEMENT_ENABLED?.trim() !== 'true') {
@@ -137,7 +153,7 @@ export function loadAcceptor(env: EnvLike = process.env): Acceptor {
   if (!secret?.trim()) acceptorUnavailable('TAB_ACCEPTOR_SECRET is not set.')
   const seed = parseAcceptorSeed(secret)
   return {
-    publicKey: bytesToHex(publicKeyOf(seed)),
+    publicKey: acceptorPublicKeyOfSeed(seed),
     sign: (voucherPayload) =>
       bytesToHex(signEd25519(seed, acceptancePayloadBytes(voucherPayload))),
   }

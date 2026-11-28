@@ -22,10 +22,14 @@ import path from 'path'
 import { gzipSync } from 'zlib'
 import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
-import { startProductionApp } from './production-app'
+import {
+  fixtureBackendPort,
+  perfPort,
+  startProductionApp,
+} from './production-app'
 
-const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
-const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
+const CONVEX_PORT = fixtureBackendPort()
+const APP_PORT = await perfPort('PERF_APP_PORT')
 const BASE_URL = process.env.PERF_BASE_URL ?? `http://127.0.0.1:${APP_PORT}`
 const RUNS = Number(process.env.PERF_RUNS ?? 3)
 const OUTPUT = process.env.PERF_OUTPUT ?? 'perf-budget-results.json'
@@ -330,7 +334,7 @@ function warn(message: string) {
 
 async function main() {
   const backend = startFixtureBackend(CONVEX_PORT)
-  const app = await startProductionApp(APP_PORT, BASE_URL)
+  const app = await startProductionApp(APP_PORT, BASE_URL, { backend })
   const browser = await chromium.launch()
   const failures: string[] = []
   const report: Record<string, unknown>[] = []
