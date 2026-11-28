@@ -9,6 +9,7 @@ import {
 } from 'react'
 import { createPortal } from 'react-dom'
 import { modalStack } from '../modalStack'
+import { useOnlyOne } from '../onlyOne'
 import { toastStore, type ToastItem } from '../toast'
 import { Toast } from './Toast'
 
@@ -22,10 +23,13 @@ const none: readonly ToastItem[] = []
  *
  * The region is one element for the life of the page. Opening or closing a
  * modal moves that element in the document; React never remounts it, so a
- * toast keeps its time left, does not animate in again, and is not
- * announced twice.
+ * toast keeps its time left and is not announced twice. A moved element
+ * would start its entry animation again, so a toast drops it once it has
+ * played (Toast). One region per page: a second is an error in
+ * development.
  */
 export function ToastRegion() {
+  useOnlyOne('ToastRegion')
   const items = useSyncExternalStore(
     toastStore.subscribe,
     toastStore.get,
