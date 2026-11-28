@@ -151,7 +151,24 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
     }
     goToSentence()
     window.addEventListener('hashchange', goToSentence)
-    return () => window.removeEventListener('hashchange', goToSentence)
+    // The fonts can reflow the text after the browser looked: land again
+    // once they are in, unless the reader has moved by then.
+    let moved = false
+    const onMove = () => {
+      moved = true
+    }
+    const MOVES = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const
+    for (const type of MOVES)
+      window.addEventListener(type, onMove, { once: true, passive: true })
+    let live = true
+    void document.fonts?.ready.then(() => {
+      if (live && !moved) goToSentence()
+    })
+    return () => {
+      live = false
+      window.removeEventListener('hashchange', goToSentence)
+      for (const type of MOVES) window.removeEventListener(type, onMove)
+    }
   }, [])
 
   // The margin layer is server HTML beside the body.
@@ -159,7 +176,8 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
 
   // Earlier tips are marked only where the text still reads as tipped.
   const tipped = useMemo(() => {
-    const root = body()
+    // On the server, and before an answer, there is nothing to check.
+    const root = tippedBefore.lines.length ? body() : null
     const before = root
       ? tippedBefore.lines.filter(
           (line) =>

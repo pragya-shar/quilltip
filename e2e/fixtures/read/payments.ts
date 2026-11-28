@@ -60,7 +60,8 @@ type Sent = { requestId: string; cents: number; target: TipTarget }
 
 let state = {
   cents: 100,
-  available: 1840,
+  // Short of the $1 default when blocked on the balance.
+  available: scenario === 'needs-funds' ? 40 : 1840,
   online: navigator.onLine,
   phase: { phase: 'idle' } as TipPhase,
 }

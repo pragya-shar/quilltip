@@ -408,7 +408,7 @@ export function TipBar({
                 size="s"
                 value={available}
                 status={available ? 'ready' : 'unavailable'}
-                label="ready to tip"
+                label={available ? 'ready to tip' : undefined}
                 unavailableText="Balance"
               />
             </button>
