@@ -235,6 +235,40 @@ describe('PaymentsEngine tip()', () => {
     expect(await settle()).toHaveLength(1)
   })
 
+  it('says Offline for a press while offline, and is ready again online; nothing is sent', async () => {
+    start()
+    paymentsStore.register('control', { target: line('Line A', 0), meta })
+    await mountEngine()
+    const tip = await readyTip('control')
+    const setOnline = async (online: boolean) => {
+      Object.defineProperty(navigator, 'onLine', {
+        configurable: true,
+        get: () => online,
+      })
+      await act(async () => {
+        window.dispatchEvent(new Event(online ? 'online' : 'offline'))
+      })
+    }
+    try {
+      await setOnline(false)
+      await act(async () => paymentsStore.get().tips.control!.tip())
+      await vi.waitFor(() =>
+        expect(paymentsStore.get().tips.control!.state.phase).toBe('offline')
+      )
+      await setOnline(true)
+      await vi.waitFor(() =>
+        expect(paymentsStore.get().tips.control!.state.phase).toBe('idle')
+      )
+      expect(await settle()).toHaveLength(0)
+      expect(tip.amount?.cents).toBe(100)
+    } finally {
+      Object.defineProperty(navigator, 'onLine', {
+        configurable: true,
+        get: () => true,
+      })
+    }
+  })
+
   it('sends a press made before it loaded for that line, not a later one', async () => {
     start()
     const lineA = line('Line A', 0)

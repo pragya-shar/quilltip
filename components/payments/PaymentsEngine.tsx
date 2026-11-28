@@ -38,7 +38,12 @@ import {
 } from '@/lib/payments/outbox'
 import { paymentsStore } from '@/lib/payments/store'
 import { money } from '@/lib/payments/money'
-import { onJob, tapOnce, type JobStatus } from '@/lib/payments/tip-machine'
+import {
+  onJob,
+  onOnline,
+  tapOnce,
+  type JobStatus,
+} from '@/lib/payments/tip-machine'
 import type {
   BalanceView,
   Cents,
@@ -463,6 +468,26 @@ export function PaymentsEngine() {
   const balanceRef = useRef(balance)
   balanceRef.current = balance
   const chosenByTarget = useRef<Record<string, Cents>>({})
+
+  // Back online, a control that said "Offline" is ready again; nothing is
+  // sent by that.
+  useEffect(() => {
+    if (!online) return
+    for (const [id, phase] of Object.entries(phases.current))
+      phases.current[id] = onOnline(phase, true)
+    setTipState((all) => {
+      let changed = false
+      const next = { ...all }
+      for (const [id, t] of Object.entries(all)) {
+        const moved = onOnline(t.phase, true)
+        if (moved !== t.phase) {
+          next[id] = { ...t, phase: moved }
+          changed = true
+        }
+      }
+      return changed ? next : all
+    })
+  }, [online])
 
   const controllers = useMemo(() => {
     const out: Record<string, TipController> = {}

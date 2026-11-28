@@ -73,6 +73,14 @@ export function tapOnce(
   return decision
 }
 
+/**
+ * The phase when the connection comes back: a control that refused a tap
+ * as offline is ready again. Nothing is sent by this; the next tap decides.
+ */
+export function onOnline(phase: TipPhase, online: boolean): TipPhase {
+  return online && phase.phase === 'offline' ? { phase: 'idle' } : phase
+}
+
 /** The phase once the runtime reports on the tip in flight. */
 export function onJob(phase: TipPhase, job: JobStatus | undefined): TipPhase {
   if (phase.phase !== 'sending' || !job) return phase
