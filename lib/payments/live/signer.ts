@@ -63,6 +63,8 @@ export type Signer = {
     keyId: number,
     deps: Omit<BalanceTipDeps, 'sign' | 'commit'>
   ): ReturnType<typeof sendBalanceTip>
+  /** The on-chain key ids this browser holds for this reader. */
+  heldKeyIds(): Promise<number[]>
 }
 
 export function createSigner(readerAddress: string): Signer {
@@ -112,6 +114,9 @@ export function createSigner(readerAddress: string): Signer {
           view: 'storage-unavailable',
         }
       }
+    },
+    async heldKeyIds() {
+      return (await keys.list(scope)).flatMap((k) => k.info.keyIds)
     },
     send(entry, keyId, deps) {
       return sendBalanceTip(entry, keyId, {

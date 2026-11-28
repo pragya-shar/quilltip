@@ -219,7 +219,12 @@ export function AddMoneyFlow({
         })
       : null
 
-  const plan = addMoneyPlan({ entry, device: reading?.device ?? null })
+  // While a withdrawal is under way tipping is paused, and adding money
+  // cancels the withdrawal: money only, said on the button itself.
+  const plan =
+    reading?.status === 'closing'
+      ? ({ quickTipsByDefault: false, verb: 'set-up', choice: 'none' } as const)
+      : addMoneyPlan({ entry, device: reading?.device ?? null })
 
   const prepare = useCallback(
     (request: Request) => {
@@ -590,13 +595,15 @@ export function AddMoneyFlow({
           priceAt={priceAt}
           note={step.note}
           lead={
-            availableMoney
-              ? need
-                ? `You have ${availableMoney.display}. Nothing is sent until you tap Tip again.`
-                : `You have ${availableMoney.display} ready to tip.`
-              : need
-                ? 'Nothing is sent until you tap Tip again.'
-                : ''
+            reading?.status === 'closing'
+              ? 'A withdrawal of your balance is under way. Adding money cancels it.'
+              : availableMoney
+                ? need
+                  ? `You have ${availableMoney.display}. Nothing is sent until you tap Tip again.`
+                  : `You have ${availableMoney.display} ready to tip.`
+                : need
+                  ? 'Nothing is sent until you tap Tip again.'
+                  : ''
           }
           walletLine={
             offer.walletLimited && facts?.spendable

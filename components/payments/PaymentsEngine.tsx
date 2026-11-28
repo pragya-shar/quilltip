@@ -38,6 +38,7 @@ import {
   type OutboxEntry,
 } from '@/lib/payments/outbox'
 import { bindingHolds, pairOf, paymentsStore } from '@/lib/payments/store'
+import { signOutStop } from '@/lib/payments/signOutStop'
 import { tipAmount } from '@/lib/payments/money'
 import {
   onJob,
@@ -149,6 +150,7 @@ export function PaymentsEngine() {
   )
   const prepareTip = useMutation(api.tabs.prepareTip)
   const submitTip = useMutation(api.tabs.submitTip)
+  const stopKey = useMutation(api.tabs.prepareRevokeKey)
 
   const outbox = outboxStore()
   const outboxVersion = useSyncExternalStore(
@@ -254,6 +256,24 @@ export function PaymentsEngine() {
   const devicesKey = (session?.devices ?? [])
     .map((d) => `${d.keyId}:${d.publicKey}:${d.revoked}:${d.validUntilLedger}`)
     .join(',')
+
+  // Before a sign-out, Quilltip stops accepting tips under this browser's
+  // keys for this reader (shell/signOut/pocket.ts runs it, bounded).
+  useEffect(() => {
+    if (!signer) return
+    const live = new Set(
+      (session?.devices ?? []).filter((d) => !d.revoked).map((d) => d.keyId)
+    )
+    return signOutStop.set(async () => {
+      const held = await signer.heldKeyIds()
+      await Promise.all(
+        held
+          .filter((keyId) => live.has(keyId))
+          .map((keyId) => stopKey({ keyId }).catch(() => {}))
+      )
+    })
+  }, [signer, devicesKey, stopKey]) // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!signer || !session || session.status !== 'open') return
     if (signer.scope.readerAddress !== address) return

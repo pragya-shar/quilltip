@@ -39,5 +39,22 @@ export const cleanups: readonly SignOutCleanup[] = [
   },
 ]
 
+/**
+ * What the pocket package does before the session ends, while the token is
+ * still held: Quilltip stops accepting tips under this browser's quick-tips
+ * keys (no wallet step), so a key that somehow survived the cleanup above
+ * could not tip. The shell bounds it and never waits beyond that.
+ */
+export const beforeSignOut: readonly {
+  name: string
+  run: (who: { userId: string | null }) => Promise<void>
+}[] = [
+  {
+    name: 'stop quick tips keys',
+    run: () =>
+      import('@/lib/payments/signOutStop').then((m) => m.signOutStop.run()),
+  },
+]
+
 /** What the pocket package warns of before sign-out. Owned by that package. */
 export const warnings: readonly SignOutWarning[] = []

@@ -72,7 +72,8 @@ export function ReviewStep({
       <Rows rows={rows} />
       {cancelsWithdrawal ? (
         <p className="qt-add__body">
-          Adding money cancels the withdrawal you started.
+          A withdrawal of your balance is under way. Adding money cancels it,
+          and your balance stays here.
         </p>
       ) : null}
       {choice === 'switch' ? (
@@ -97,28 +98,48 @@ export function ReviewStep({
         )
       ) : null}
       <div className="qt-add__actions">
-        <Button
-          variant="primary"
-          size="l"
-          block
-          loading={busy}
-          onClick={onPrimary}
-        >
-          {primary}
-        </Button>
-        {choice === 'add-only' ? (
-          <Button
-            variant="quiet"
-            block
-            disabled={busy}
-            onClick={() => onChoice(!withQuickTips)}
-          >
-            {withQuickTips ? 'Add money only' : againLabel}
-          </Button>
-        ) : null}
-        <Button variant="quiet" block disabled={busy} onClick={onNotNow}>
-          Not now
-        </Button>
+        {cancelsWithdrawal ? (
+          // Adding money here cancels the withdrawal: never the primary
+          // action, and its button says so before the press.
+          <>
+            <Button variant="primary" size="l" block onClick={onNotNow}>
+              Keep the withdrawal
+            </Button>
+            <Button
+              variant="secondary"
+              block
+              loading={busy}
+              onClick={onPrimary}
+            >
+              {`${primary} and cancel the withdrawal`}
+            </Button>
+          </>
+        ) : (
+          <>
+            <Button
+              variant="primary"
+              size="l"
+              block
+              loading={busy}
+              onClick={onPrimary}
+            >
+              {primary}
+            </Button>
+            {choice === 'add-only' ? (
+              <Button
+                variant="quiet"
+                block
+                disabled={busy}
+                onClick={() => onChoice(!withQuickTips)}
+              >
+                {withQuickTips ? 'Add money only' : againLabel}
+              </Button>
+            ) : null}
+            <Button variant="quiet" block disabled={busy} onClick={onNotNow}>
+              Not now
+            </Button>
+          </>
+        )}
       </div>
     </div>
   )

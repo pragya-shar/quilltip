@@ -446,3 +446,44 @@ test.describe('turning quick tips off', () => {
     ).toBeVisible()
   })
 })
+
+test('a withdrawal under way: adding money says it cancels it, on its own button, and is not the primary action', async ({
+  page,
+}) => {
+  await open(page, 'connected&closing', '/balance')
+  await press(page.getByRole('button', { name: 'Add money' }))
+  const s = sheet(page)
+  await expect(s).toContainText(
+    'A withdrawal of your balance is under way. Adding money cancels it.'
+  )
+  await press(s.getByRole('button', { name: 'Review $10' }))
+  const keep = s.getByRole('button', { name: 'Keep the withdrawal' })
+  const add = s.getByRole('button', {
+    name: 'Add $10 and cancel the withdrawal',
+  })
+  await expect(keep).toHaveAttribute('data-variant', 'primary')
+  await expect(add).toHaveAttribute('data-variant', 'secondary')
+  await expect(s).not.toContainText('quick tips')
+  await press(keep)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  expect((await log(page)).signed).toEqual([])
+})
+
+test('nothing moves under the pointer: leaving the amount field with a wrong amount does not move the button', async ({
+  page,
+}) => {
+  await open(page, 'balance=0&connected')
+  await press(tipButton(page))
+  const s = sheet(page)
+  await press(s.getByRole('radio', { name: 'Other' }))
+  const field = s.getByLabel('Amount in dollars')
+  await field.fill('0.5')
+  const review = s.getByRole('button', { name: /^Review/ })
+  const before = await review.boundingBox()
+  await field.evaluate((el) => (el as HTMLInputElement).blur())
+  const after = await review.boundingBox()
+  expect(after).toEqual(before)
+  // The press lands: the error is said after it, never during it.
+  await press(review)
+  await expect(s).toContainText('The smallest you can add is $1.28.')
+})

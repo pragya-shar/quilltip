@@ -13,6 +13,7 @@
  *   ?connected        a wallet is already connected in the page
  *   ?other-key        another device has quick tips
  *   ?slow             the network takes 25 s to confirm
+ *   ?closing          a withdrawal of the balance is under way
  *
  * `window.__wallet.next`: approve (default), decline, close, blocked,
  * wrong-network, wrong-account, offline, fail, locked.
@@ -108,7 +109,11 @@ if (params.has('other-key'))
 let reading: Reading = {
   userId: 'reader',
   address: params.get('linked') === 'no' ? null : ADDRESS,
-  status: BigInt(balance) > BigInt(0) ? 'open' : 'none',
+  status: params.has('closing')
+    ? 'closing'
+    : BigInt(balance) > BigInt(0)
+      ? 'open'
+      : 'none',
   confirmed: balance,
   available: balance,
   priceUsd: params.get('price') === 'none' ? null : 0.1273,
@@ -337,6 +342,7 @@ export const emulatedServices: AddMoneyServices = {
           confirmed,
           available,
           keys,
+          // A deposit cancels a withdrawal under way (the contract).
           status: BigInt(confirmed) > BigInt(0) ? 'open' : reading.status,
           ...next,
         })
