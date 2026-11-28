@@ -79,8 +79,10 @@ overhaul branches, for a change to `package.json`, `bun.lock`, the workflow
 or `scripts/ci/`, for a path under a new top-level folder, and when What
 changed fails. `Required` always reports, and fails when a job fails, is
 cancelled or is skipped without a plan to skip it, or when What changed
-fails. **Re-run failed jobs** keeps the first plan; to force the full run on
-a pull request, choose **Re-run all jobs** on its run page. Details:
+fails. **Re-run failed jobs** keeps the first plan, so it is not a full run.
+To force the full run on a pull request, add the `ci-full` label for one
+that should run everything on every push, or choose **Re-run all jobs** on
+its run page for one run. Details:
 [how CI decides](ci-pipeline.md). The audit is a required job; its
 severity/exception rules are defined in the
 [audit policy](../../security/dependency-review.md).
