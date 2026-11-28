@@ -815,11 +815,14 @@ and rendered the page.
   most one article read while the server's copy of the article is under 60 s
   old. `bun run perf:prefetch-reads` (`scripts/perf/prefetch-reads.ts`) checks
   this in Chromium and WebKit in the Page-load Budget job, from the fixture
-  backend's read counts, on a fresh build.
+  backend's read counts, from an empty server cache: for each engine it empties
+  `.next/cache/fetch-cache` and starts a fresh app, so a rerun counts as CI
+  does.
 - A request that meets a copy older than 60 s makes two article reads: the
   direct read that keeps every copy under 60 s old, and the cache's own
   background refresh of the old entry. The next request uses the refreshed
-  copy. This holds for full loads and clicks alike and is not changed here.
+  copy. This holds for full loads and clicks alike and is not changed here
+  (#674).
 - The proxy keeps at most one route check in flight and one queued per path
   (`lib/seo/oneReadAtATime.ts`). A request that arrives while a check runs
   waits for the next one, which starts after it arrived, so an article hidden
