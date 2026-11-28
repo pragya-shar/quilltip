@@ -182,6 +182,7 @@ const WALLETS: WalletRow[] = [
 ]
 
 export const emulatedServices: AddMoneyServices = {
+  signer: 'wallet',
   useReading: () => useSyncExternalStore(subscribe, readingNow),
   async facts() {
     await pause(150)

@@ -170,6 +170,8 @@ export type ChainFacts = {
 }
 
 export type AddMoneyServices = {
+  /** Who approves: the reader's wallet, or a passkey account. */
+  signer: 'wallet' | 'passkey'
   /** The reader's money, reactive; undefined while loading. */
   useReading(): Reading | undefined
   /** The wallet's spendable funds and the contract's deposit limits. */

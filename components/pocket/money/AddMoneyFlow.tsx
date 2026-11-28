@@ -17,7 +17,7 @@ import {
 import type { Money } from '@/lib/payments/types'
 import { shortAddress } from '@/lib/payments/format'
 import { amountOffer, type AmountOffer } from '@/lib/addMoney/amounts'
-import { consentFigures, keyUntil } from '@/lib/addMoney/consent'
+import { consentFigures, keyUntilDate } from '@/lib/addMoney/consent'
 import { addOperation } from '@/lib/addMoney/operation'
 import { failureView, type FailureView } from '@/lib/addMoney/failures'
 import {
@@ -37,7 +37,6 @@ import {
 import {
   NOTHING_ADDED,
   TESTNET_FOOT,
-  capWords,
   replacesLine,
   feeRow,
   feeSpoken,
@@ -631,13 +630,12 @@ export function AddMoneyFlow({
     const current = reading.keys.find((k) => k.keyId === reading.deviceKeyId)
     const replaces =
       prepared.key && current?.spendLimit
-        ? replacesLine(
-            capWords(
-              current.spendLimit,
-              baseUnitsToCents(BigInt(current.spendLimit), price)
-            ),
-            keyUntil(current.validUntilLedger, reading.ledger)
-          )
+        ? replacesLine({
+            signer: services.signer,
+            spendLimit: current.spendLimit,
+            capCents: baseUnitsToCents(BigInt(current.spendLimit), price),
+            until: keyUntilDate(current.validUntilLedger, reading.ledger),
+          })
         : null
     const feeCents = (Number(prepared.fee.stroops) / 1e7) * price * 100
     body = (

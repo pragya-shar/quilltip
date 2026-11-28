@@ -373,6 +373,7 @@ export function createLiveServices(
 ): AddMoneyServices {
   // A connection this sheet made, so leaving without sending ends it.
   return {
+    signer: 'wallet',
     useReading: useLiveReading,
     async facts(address) {
       const c = config()

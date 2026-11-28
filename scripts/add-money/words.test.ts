@@ -40,9 +40,21 @@ describe('the consent, from the prepared request', () => {
     expect(capWords('500000000', 637)).toBe('50 XLM (≈ $6.37)')
   })
 
-  it('says what the current approval allows when a new one replaces it', () => {
-    expect(replacesLine('39.2772977 XLM (≈ $5.00)', 'Fri 4 Dec, 14:20')).toBe(
+  it('says what the current approval allows when a new one replaces it: XLM exact for a wallet, dollars and the day for a passkey', () => {
+    const base = {
+      spendLimit: '392772977',
+      capCents: 500,
+      until: new Date(Date.UTC(2026, 11, 4, 14, 20)),
+      timeZone: 'UTC',
+    }
+    expect(replacesLine({ ...base, signer: 'wallet' })).toBe(
       "This replaces this device's current approval, which allows up to 39.2772977 XLM (≈ $5.00) until Fri 4 Dec, 14:20."
+    )
+    expect(replacesLine({ ...base, signer: 'passkey' })).toBe(
+      "This replaces this device's current approval, which allows up to about $5.00 until Fri 4 Dec."
+    )
+    expect(replacesLine({ ...base, signer: 'passkey' })).not.toMatch(
+      /XLM|\d\d:\d\d/
     )
   })
 

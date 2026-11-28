@@ -79,14 +79,34 @@ export function consentLine(until: string, cap: string): string {
 }
 
 /**
- * The approval this device holds now, which the new one replaces: its own
- * cap and end, so a reader whose approval covered only a small amount sees
- * what changes.
+ * The approval this device holds now, which the new one replaces. Dollars
+ * lead; XLM shows only where the reader's approval will show it: a wallet
+ * prompt shows the exact XLM figure, so a wallet reader gets it to match
+ * the two, to the seventh decimal; a passkey prompt shows no figure, so a
+ * passkey reader gets dollars and the day only.
  */
-export function replacesLine(cap: string, until: string | null): string {
-  return until
-    ? `This replaces this device's current approval, which allows up to ${cap} until ${until}.`
-    : `This replaces this device's current approval, which allows up to ${cap}.`
+export function replacesLine(input: {
+  signer: 'wallet' | 'passkey'
+  spendLimit: string
+  capCents: number | null
+  until: Date | null
+  timeZone?: string
+}): string {
+  const lead =
+    "This replaces this device's current approval, which allows up to"
+  if (input.signer === 'passkey') {
+    const dollars =
+      input.capCents === null
+        ? null
+        : `about ${formatMoney(input.capCents, { converted: true }).replace('≈ ', '')}`
+    const day = input.until ? formatDayShort(input.until, input.timeZone) : null
+    const cap = dollars ?? capWords(input.spendLimit, null)
+    return day ? `${lead} ${cap} until ${day}.` : `${lead} ${cap}.`
+  }
+  const cap = capWords(input.spendLimit, input.capCents)
+  return input.until
+    ? `${lead} ${cap} until ${formatUntil(input.until, input.timeZone)}.`
+    : `${lead} ${cap}.`
 }
 
 /** "≈ $0.000054": a fee in dollars, six decimals at most. */

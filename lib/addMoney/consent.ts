@@ -27,6 +27,16 @@ export function consentFigures(
   return { until, cap: capWords(key.spendLimit, capCents) }
 }
 
+/** When an approval on the balance stops accepting tips. */
+export function keyUntilDate(
+  validUntilLedger: number,
+  clock: LedgerClock | null
+): Date | null {
+  return clock
+    ? estimateLedgerTime(acceptsUntilLedger(validUntilLedger), clock)
+    : null
+}
+
 /** When an approval on the balance stops accepting tips, as a date. */
 export function keyUntil(
   validUntilLedger: number,
