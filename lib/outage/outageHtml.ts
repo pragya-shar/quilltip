@@ -32,3 +32,21 @@ export function escapeHtml(value: string): string {
     .replaceAll('"', '&quot;')
     .replaceAll("'", '&#39;')
 }
+
+/** Seconds a crawler should wait before asking again. */
+export const OUTAGE_RETRY_AFTER_SECONDS = 30
+
+/**
+ * The outage document's own policy: nothing loads but its inline style,
+ * which carries the request's nonce. No scripts, no `unsafe-inline`.
+ */
+export function outageContentSecurityPolicy(nonce: string): string {
+  return [
+    "default-src 'none'",
+    `style-src 'nonce-${nonce}'`,
+    "img-src 'self'",
+    "base-uri 'none'",
+    "form-action 'none'",
+    "frame-ancestors 'none'",
+  ].join('; ')
+}

@@ -1,3 +1,5 @@
+import type { OutagePathKind } from '@/lib/outage/outageHtml'
+
 /**
  * The words of the "could not be loaded" state, shared by the in-page
  * fallback (components/articles/ReadingUnavailable.tsx) and the outage
@@ -11,8 +13,15 @@ export const UNAVAILABLE_WHAT = {
   article: 'This article',
 } as const
 
-export function unavailableHeading(what: string): string {
-  return `${what} could not be loaded right now.`
+/**
+ * What could not load: a public reading path kind, or a plain noun phrase
+ * for a surface the proxy never checks (for example `{ noun: 'Your balance' }`).
+ */
+export type UnavailableSubject = OutagePathKind | { noun: string }
+
+export function unavailableHeading(what: UnavailableSubject): string {
+  const noun = typeof what === 'string' ? UNAVAILABLE_WHAT[what] : what.noun
+  return `${noun} could not be loaded right now.`
 }
 
 export const UNAVAILABLE_DETAIL =

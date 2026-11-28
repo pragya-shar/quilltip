@@ -19,12 +19,11 @@ import {
   REQUEST_READ_BUDGET_MS,
   formatReadDeadline,
 } from '@/lib/seo/readDeadline'
+import { outageBodyFor, outagePathKind } from '@/lib/outage/outageBody'
 import {
   OUTAGE_RETRY_AFTER_SECONDS,
-  outageBodyFor,
   outageContentSecurityPolicy,
-  outagePathKind,
-} from '@/lib/outage/outageBody'
+} from '@/lib/outage/outageHtml'
 
 const ROUTE_CHECK_TIMEOUT_MS = PUBLIC_READ_TIMEOUT_MS
 

@@ -2,6 +2,7 @@ import {
   UNAVAILABLE_DETAIL,
   UNAVAILABLE_RETRY,
   unavailableHeading,
+  type UnavailableSubject,
 } from '@/lib/outage/unavailableCopy'
 
 /**
@@ -21,8 +22,8 @@ export function ReadingUnavailable({
   retryHref,
   headingLevel = 2,
 }: {
-  /** What could not load, for example "This article". */
-  what: string
+  /** What could not load: a path kind ("article") or `{ noun }`. */
+  what: UnavailableSubject
   /** The page's own URL, loaded again by "Try again". */
   retryHref: string
   headingLevel?: 1 | 2

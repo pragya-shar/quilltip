@@ -39,7 +39,6 @@ import {
 } from '@/lib/articles/readingRoomListArgs'
 import { getBrowseContextMessage } from './ArticlesBrowseDiscoveryHeader'
 import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
-import { UNAVAILABLE_WHAT } from '@/lib/outage/unavailableCopy'
 
 type ReadingRoomList = NonNullable<ReturnType<typeof useReadingRoomArticles>>
 
@@ -337,10 +336,7 @@ export function ReadingRoom({
           </Link>
         </section>
       ) : !result && unavailableRetryHref ? (
-        <ReadingUnavailable
-          what={UNAVAILABLE_WHAT.articles}
-          retryHref={unavailableRetryHref}
-        />
+        <ReadingUnavailable what="articles" retryHref={unavailableRetryHref} />
       ) : !result ? (
         <div className="reading-room-loading" role="status" aria-live="polite">
           <span>Loading articles…</span>

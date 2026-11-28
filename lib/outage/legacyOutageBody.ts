@@ -6,7 +6,6 @@ import {
 import {
   UNAVAILABLE_DETAIL,
   UNAVAILABLE_RETRY,
-  UNAVAILABLE_WHAT,
   unavailableHeading,
 } from '@/lib/outage/unavailableCopy'
 
@@ -61,7 +60,7 @@ function style(): string {
  * request appears but the escaped same-site path and query of that link.
  */
 export const legacyOutageBody: OutageBody = (kind, url, nonce) => {
-  const heading = unavailableHeading(UNAVAILABLE_WHAT[kind])
+  const heading = unavailableHeading(kind)
   const retry = escapeHtml(sameSiteRetryHref(url))
   return [
     '<!doctype html>',

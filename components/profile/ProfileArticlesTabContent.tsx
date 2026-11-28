@@ -8,7 +8,6 @@ import Pagination from '@/components/articles/Pagination'
 import { PaginationTransition } from '@/components/profile/PaginationTransition'
 import Link from 'next/link'
 import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
-import { UNAVAILABLE_WHAT } from '@/lib/outage/unavailableCopy'
 import {
   PROFILE_ARTICLES_PER_PAGE,
   toProfileArticlesPage,
@@ -48,10 +47,7 @@ export function ProfileArticlesTabContent({
 
   if (data === undefined) {
     return unavailableRetryHref ? (
-      <ReadingUnavailable
-        what={UNAVAILABLE_WHAT.articles}
-        retryHref={unavailableRetryHref}
-      />
+      <ReadingUnavailable what="articles" retryHref={unavailableRetryHref} />
     ) : (
       <p role="status">Loading articles…</p>
     )

@@ -9,12 +9,17 @@ import {
 } from '../../lib/outage/legacyOutageBody'
 import {
   outageBodyFor,
-  outageContentSecurityPolicy,
   outagePathKind,
   type OutagePathKind,
 } from '../../lib/outage/outageBody'
-import { sameSiteRetryHref } from '../../lib/outage/outageHtml'
-import { UNAVAILABLE_WHAT } from '../../lib/outage/unavailableCopy'
+import {
+  outageContentSecurityPolicy,
+  sameSiteRetryHref,
+} from '../../lib/outage/outageHtml'
+import {
+  UNAVAILABLE_WHAT,
+  unavailableHeading,
+} from '../../lib/outage/unavailableCopy'
 
 /**
  * The outage document of the legacy pages (#609): structure, the same words
@@ -37,6 +42,8 @@ const text = (html: string) =>
     .trim()
 const headingOf = (html: string) =>
   text(html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? '')
+const headingOfAny = (html: string) =>
+  text(html.match(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/)?.[1] ?? '')
 const paragraphs = (html: string) =>
   all(html, /<p[^>]*>([\s\S]*?)<\/p>/g).map((m) => text(m[1]!))
 const links = (html: string) =>
@@ -65,7 +72,7 @@ describe('the legacy outage document', () => {
       const outage = page(kind, `https://quilltip.test${retryHref}`)
       const inPage = renderToStaticMarkup(
         createElement(ReadingUnavailable, {
-          what: UNAVAILABLE_WHAT[kind],
+          what: kind,
           retryHref,
           headingLevel: 1,
         })
@@ -95,6 +102,29 @@ describe('the legacy outage document', () => {
     expect(all(html, /secret-value/g)).toHaveLength(1)
     expect(links(html).find((l) => l.label === 'Try again')?.href).toBe(
       '/a/b?q=secret-value'
+    )
+  })
+})
+
+describe('the unavailable heading', () => {
+  it.each(KINDS)('names the %s path kind', (kind) => {
+    expect(unavailableHeading(kind)).toBe(
+      `${UNAVAILABLE_WHAT[kind]} could not be loaded right now.`
+    )
+  })
+
+  it('takes a plain noun for surfaces the proxy never checks', () => {
+    expect(unavailableHeading({ noun: 'Your balance' })).toBe(
+      'Your balance could not be loaded right now.'
+    )
+    const html = renderToStaticMarkup(
+      createElement(ReadingUnavailable, {
+        what: { noun: 'Your balance' },
+        retryHref: '/balance',
+      })
+    )
+    expect(headingOfAny(html)).toBe(
+      'Your balance could not be loaded right now.'
     )
   })
 })

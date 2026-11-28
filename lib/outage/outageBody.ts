@@ -12,9 +12,6 @@ export type { OutageBody, OutagePathKind } from '@/lib/outage/outageHtml'
  * bundle: no React, no Node-only module, no app CSS file.
  */
 
-/** Seconds a crawler should wait before asking again. */
-export const OUTAGE_RETRY_AFTER_SECONDS = 30
-
 /**
  * The path kind of a public reading path, or null. `/` is not one: its page
  * makes no server read, so it keeps 200 with its own content.
@@ -38,19 +35,4 @@ export function outageBodyFor(
 ): { kind: OutagePathKind; body: OutageBody } | null {
   const kind = outagePathKind(pathname)
   return kind ? { kind, body: legacyOutageBody } : null
-}
-
-/**
- * The outage document's own policy: nothing loads but its inline style,
- * which carries the request's nonce. No scripts, no `unsafe-inline`.
- */
-export function outageContentSecurityPolicy(nonce: string): string {
-  return [
-    "default-src 'none'",
-    `style-src 'nonce-${nonce}'`,
-    "img-src 'self'",
-    "base-uri 'none'",
-    "form-action 'none'",
-    "frame-ancestors 'none'",
-  ].join('; ')
 }
