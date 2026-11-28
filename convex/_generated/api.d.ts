@@ -102,6 +102,9 @@ import type * as lib_verifiedTips from "../lib/verifiedTips.js";
 import type * as lib_walletChallenge from "../lib/walletChallenge.js";
 import type * as lib_walletVerification from "../lib/walletVerification.js";
 import type * as lib_wikimediaFileUrl from "../lib/wikimediaFileUrl.js";
+import type * as lib_write_clientIds from "../lib/write/clientIds.js";
+import type * as lib_write_clock from "../lib/write/clock.js";
+import type * as lib_write_document from "../lib/write/document.js";
 import type * as lib_xlmPrice from "../lib/xlmPrice.js";
 import type * as nftMetadataUpload from "../nftMetadataUpload.js";
 import type * as nfts from "../nfts.js";
@@ -109,9 +112,11 @@ import type * as nftsV2 from "../nftsV2.js";
 import type * as passwordReset from "../passwordReset.js";
 import type * as permanentStorage from "../permanentStorage.js";
 import type * as publicRoutes from "../publicRoutes.js";
+import type * as publishing from "../publishing.js";
 import type * as readingRoomIndex from "../readingRoomIndex.js";
 import type * as reconcileTips from "../reconcileTips.js";
 import type * as schema_passages from "../schema/passages.js";
+import type * as schema_write from "../schema/write.js";
 import type * as shares from "../shares.js";
 import type * as stellarVerify from "../stellarVerify.js";
 import type * as tabActivity from "../tabActivity.js";
@@ -130,6 +135,7 @@ import type * as users from "../users.js";
 import type * as waitlist from "../waitlist.js";
 import type * as walletLink from "../walletLink.js";
 import type * as wikimedia from "../wikimedia.js";
+import type * as write from "../write.js";
 import type * as xlmPrice from "../xlmPrice.js";
 
 import type {
@@ -233,6 +239,9 @@ declare const fullApi: ApiFromModules<{
   "lib/walletChallenge": typeof lib_walletChallenge;
   "lib/walletVerification": typeof lib_walletVerification;
   "lib/wikimediaFileUrl": typeof lib_wikimediaFileUrl;
+  "lib/write/clientIds": typeof lib_write_clientIds;
+  "lib/write/clock": typeof lib_write_clock;
+  "lib/write/document": typeof lib_write_document;
   "lib/xlmPrice": typeof lib_xlmPrice;
   nftMetadataUpload: typeof nftMetadataUpload;
   nfts: typeof nfts;
@@ -240,9 +249,11 @@ declare const fullApi: ApiFromModules<{
   passwordReset: typeof passwordReset;
   permanentStorage: typeof permanentStorage;
   publicRoutes: typeof publicRoutes;
+  publishing: typeof publishing;
   readingRoomIndex: typeof readingRoomIndex;
   reconcileTips: typeof reconcileTips;
   "schema/passages": typeof schema_passages;
+  "schema/write": typeof schema_write;
   shares: typeof shares;
   stellarVerify: typeof stellarVerify;
   tabActivity: typeof tabActivity;
@@ -261,6 +272,7 @@ declare const fullApi: ApiFromModules<{
   waitlist: typeof waitlist;
   walletLink: typeof walletLink;
   wikimedia: typeof wikimedia;
+  write: typeof write;
   xlmPrice: typeof xlmPrice;
 }>;
 

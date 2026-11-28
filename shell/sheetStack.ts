@@ -1,8 +1,9 @@
 /**
  * The shell's sheet stack: sheets that open over whatever the person is
  * doing and never navigate away (the Pocket, and the money acts and sign-in
- * that the surfaces add). It lives in the shell, so a sheet survives a
- * change of place. `SheetHost` renders it.
+ * that the surfaces add). It lives in the shell; `SheetHost` renders it and
+ * closes every open sheet when the path changes, so a link followed from a
+ * sheet never leaves the sheet over the new page.
  *
  * The Pocket is the shell's own sheet. A surface adds its sheets with
  * `registerSheet` (shell/sheetRegistry.ts) and opens them here.
@@ -75,6 +76,20 @@ export const sheetStack = {
     emit()
     setTimeout(() => {
       entries = entries.filter((entry) => entry.key !== target.key)
+      emit()
+    }, EXIT_MS)
+  },
+  /** Closes every open sheet: the place changed under them. */
+  closeAll() {
+    const open = entries.filter((entry) => entry.open)
+    if (open.length === 0) return
+    const keys = new Set(open.map((entry) => entry.key))
+    entries = entries.map((entry) =>
+      keys.has(entry.key) ? { ...entry, open: false } : entry
+    )
+    emit()
+    setTimeout(() => {
+      entries = entries.filter((entry) => !keys.has(entry.key))
       emit()
     }, EXIT_MS)
   },

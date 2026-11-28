@@ -1,8 +1,12 @@
 'use client'
 
-import Link from 'next/link'
-import { prefetchFor } from '@/lib/routing/legacyRoutes'
-import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
+import { AppLink as Link } from './AppLink'
+import {
+  useId,
+  type ButtonHTMLAttributes,
+  type ReactNode,
+  type Ref,
+} from 'react'
 import { cx } from '../cx'
 import { Icon, type IconGlyph } from './Icon'
 import { Spinner } from './Spinner'
@@ -26,11 +30,17 @@ type Common = {
 type AsButton = Common &
   Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children' | 'className'> & {
     href?: undefined
+    /** Shown but not usable now, and still focusable: `aria-disabled`, a
+     * press does nothing. A string is the reason, given as the button's
+     * description. A caller's own `aria-disabled` counts too. Buttons
+     * only: a link that goes nowhere is not drawn. */
+    unavailable?: boolean | string
   }
 
 type AsLink = Common & {
   /** Renders a link that looks like a button: navigation, not an action. */
   href: string
+  unavailable?: undefined
   onClick?: () => void
   disabled?: undefined
   type?: undefined
@@ -50,10 +60,14 @@ export function Button(props: ButtonProps) {
     block,
     icon,
     loading,
+    unavailable,
     className,
     children,
     ref,
   } = props
+  const reasonId = useId()
+  const reason =
+    typeof unavailable === 'string' && unavailable ? unavailable : null
   const inner = (
     <>
       {loading ? <Spinner /> : icon ? <Icon icon={icon} size={20} /> : null}
@@ -69,13 +83,7 @@ export function Button(props: ButtonProps) {
   }
   if (props.href !== undefined) {
     return (
-      <Link
-        href={props.href}
-        prefetch={prefetchFor(props.href)}
-        onClick={props.onClick}
-        ref={ref}
-        {...data}
-      >
+      <Link href={props.href} onClick={props.onClick} ref={ref} {...data}>
         {inner}
       </Link>
     )
@@ -86,6 +94,7 @@ export function Button(props: ButtonProps) {
     block: _b,
     icon: _i,
     loading: _l,
+    unavailable: _u,
     className: _c,
     children: _ch,
     ref: _r,
@@ -93,21 +102,40 @@ export function Button(props: ButtonProps) {
     type = 'button',
     onClick,
     disabled,
+    'aria-disabled': callerDisabled,
+    'aria-describedby': callerDescribedBy,
     ...rest
   } = props
+  // Busy, unavailable, or marked so by the caller: it stays focusable (focus
+  // is not lost) but ignores presses.
+  const blocked =
+    Boolean(loading) ||
+    Boolean(unavailable) ||
+    callerDisabled === true ||
+    callerDisabled === 'true'
+  const describedBy =
+    [callerDescribedBy, reason ? reasonId : null].filter(Boolean).join(' ') ||
+    undefined
   return (
-    <button
-      {...rest}
-      {...data}
-      ref={ref}
-      type={type}
-      disabled={disabled}
-      aria-busy={loading || undefined}
-      // A busy button stays focusable (focus is not lost) but ignores presses.
-      aria-disabled={loading || undefined}
-      onClick={loading ? (event) => event.preventDefault() : onClick}
-    >
-      {inner}
-    </button>
+    <>
+      <button
+        {...rest}
+        {...data}
+        ref={ref}
+        type={type}
+        disabled={disabled}
+        aria-busy={loading || undefined}
+        aria-disabled={blocked || undefined}
+        aria-describedby={describedBy}
+        onClick={blocked ? (event) => event.preventDefault() : onClick}
+      >
+        {inner}
+      </button>
+      {reason ? (
+        <span id={reasonId} className="qt-visually-hidden">
+          {reason}
+        </span>
+      ) : null}
+    </>
   )
 }

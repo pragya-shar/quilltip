@@ -1,8 +1,15 @@
 'use client'
 
 import { useEffect, useRef, type RefObject } from 'react'
-import { focusDestination, watchInputModality } from '../inputModality'
+import {
+  focusDestination,
+  inputModality,
+  pointerJustUsed,
+  recentlyPressed,
+  watchInputModality,
+} from '../inputModality'
 import { modalStack } from '../modalStack'
+import { holdPresses } from '../pressGuard'
 
 /** Open modals, so scroll stays locked until the last one closes. */
 let openCount = 0
@@ -32,9 +39,14 @@ export function focusables(root: HTMLElement): HTMLElement[] {
  * - Tab and Shift+Tab move through every control and wrap, with or without
  *   Option (Safari reaches buttons only with Option+Tab; both wrap here).
  * - Escape goes through `onClose`, so React stays the source of truth.
- * - Focus returns to the element that opened it, or to the page content if
- *   that element is gone.
+ * - Focus returns to the element that opened it (the focused one, or the
+ *   one pressed when Safari focused none), or to the page content if
+ *   that element is gone (never the page body); if the page moved focus
+ *   elsewhere while it closed, focus stays there.
  * - The page behind does not scroll (iOS Safari included).
+ * - For a moment after a press closes it, pointer presses are swallowed
+ *   (system/pressGuard.ts), so a second tap never reaches the sliding
+ *   panel or the page under it.
  */
 export function useModal(
   open: boolean,
@@ -54,11 +66,17 @@ export function useModal(
     // Remember the opener only when opening, not when an effect re-runs
     // with the dialog already open (React StrictMode in development).
     if (!dialog.open) {
-      openerRef.current =
+      // Opened by a key: the focused control. Opened by a press: the control
+      // that was pressed, since Safari focuses no pressed button and leaves
+      // focus wherever it was (the body, or the page's main).
+      const active =
         document.activeElement instanceof HTMLElement &&
         document.activeElement !== document.body
           ? document.activeElement
           : null
+      const pressedControl =
+        inputModality() === 'pointer' ? recentlyPressed() : null
+      openerRef.current = pressedControl ?? active
     }
     delete dialog.dataset.closing
     const wasOpen = dialog.open
@@ -106,16 +124,45 @@ export function useModal(
       if (openCount === 0) delete root.dataset.scrollLocked
       dialog.dataset.closing = ''
       modalStack.remove(dialog)
+      // Closed by a press or a drag (not a key, and not a script or a
+      // timer: closeAll on a path change, a sheet that closes itself after a
+      // result), and a real close, not an effect re-run (React StrictMode
+      // opens it again in the same task).
+      const byPointer = inputModality() === 'pointer' && pointerJustUsed()
+      queueMicrotask(() => {
+        if (byPointer && dialog.dataset.closing !== undefined) holdPresses()
+      })
       const finish = () => {
         // Opened again before the exit finished: keep it open.
         if (dialog.dataset.closing === undefined) return
         delete dialog.dataset.closing
+        // The page already moved focus elsewhere while the sheet closed (a
+        // navigation, a new sheet): leave it there.
+        const active = document.activeElement
+        const moved =
+          active instanceof HTMLElement &&
+          active !== document.body &&
+          !dialog.contains(active)
         if (dialog.open) dialog.close()
+        if (moved) {
+          if (document.activeElement !== active)
+            active.focus({ preventScroll: true })
+          return
+        }
         const opener = openerRef.current
+        // Back to the opener, or, if it is gone, to the page content: never
+        // the page body.
         const target =
           opener?.isConnected && opener.getClientRects().length > 0
             ? opener
-            : document.getElementById('content')
+            : (document.getElementById('content') ??
+              document.querySelector<HTMLElement>('main'))
+        if (
+          target &&
+          !target.hasAttribute('tabindex') &&
+          target.tagName === 'MAIN'
+        )
+          target.tabIndex = -1
         target?.focus({ preventScroll: true })
       }
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')

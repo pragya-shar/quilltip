@@ -24,7 +24,8 @@ import { PocketContent } from '../../../components/pocket/PocketContent'
 // The design system gallery, the sample reading page and the shell's own
 // pages inside the real application shell, with no backend: what
 // e2e/system-*.spec.ts drives. `?balance=` picks the balance source:
-// ready (default), loading, unavailable, signed-out.
+// ready (default), converted, loading, unavailable, signed-out, and
+// auth-loading (who is here is not known yet).
 const readings: Record<string, BalanceReading> = {
   ready: {
     auth: 'signed-in',
@@ -39,6 +40,7 @@ const readings: Record<string, BalanceReading> = {
   loading: { auth: 'signed-in', available: null, status: 'loading' },
   unavailable: { auth: 'signed-in', available: null, status: 'unavailable' },
   'signed-out': { auth: 'signed-out', available: null, status: 'unavailable' },
+  'auth-loading': { auth: 'loading', available: null, status: 'unavailable' },
 }
 const reading =
   readings[new URLSearchParams(location.search).get('balance') ?? 'ready'] ??

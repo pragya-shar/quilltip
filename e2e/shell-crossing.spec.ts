@@ -81,3 +81,25 @@ test('before scripts run, a held session shows Balance, never Sign in, at the sa
   const held = await slot.boundingBox()
   expect(held!.width).toBe(signedOut!.width)
 })
+
+test('the first tap after a full page load is never lost', async ({ page }) => {
+  // A same-origin full load (a reload, or a crossing from the legacy pages),
+  // then a press at once where the balance item is drawn, with no wait for
+  // it to take input. Signed out, the item is the link to sign in.
+  for (let run = 0; run < 3; run++) {
+    await page.goto('/system/reading')
+    await page.goto('/shelf', { waitUntil: 'commit' })
+    const box = await page.waitForFunction(() => {
+      const items = [...document.querySelectorAll('[data-balance]')]
+      const item = items.find((el) => el.getClientRects().length > 0)
+      if (!item) return null
+      const r = item.getBoundingClientRect()
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 }
+    })
+    const at = (await box.jsonValue())!
+    await page.mouse.click(at.x, at.y)
+    await expect(page, `run ${run + 1}`).toHaveURL(/\/(login|signin)/, {
+      timeout: 3000,
+    })
+  }
+})

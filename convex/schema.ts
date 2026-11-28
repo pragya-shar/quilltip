@@ -6,6 +6,7 @@ import { nftChainFields, nftTransferChainFields } from './lib/chain/nftSchema'
 import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
 import { lifetimeTotalsFields } from './lib/lifetimeTotalsFields'
 import { passagesTables } from './schema/passages'
+import { writeTables } from './schema/write'
 
 export default defineSchema({
   ...authTables,
@@ -876,4 +877,5 @@ export default defineSchema({
   ...chainTables,
   ...tabTables,
   ...passagesTables,
+  ...writeTables,
 })

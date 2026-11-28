@@ -20,6 +20,10 @@ const ANYWHERE = [
   /\bdecision D[0-9]{1,2}\b/i,
   /\bdesign N[0-9]\b/i,
   /\bthe plan's\b/i,
+  // A planning record's labels: package ids ("(F2)"), slices, D-"…".
+  /\(F[0-9]{1,2}\)/,
+  /\bslice [0-9]+\b/i,
+  /\bD-"/,
   /\bplan (?:section )?[0-9]+\.[0-9]+/i,
 ]
 
@@ -75,6 +79,12 @@ describe('no references to private planning records', () => {
       privateReferences('a.ts', "// the plan's public-route limits")
     ).toHaveLength(1)
     expect(privateReferences('a.ts', '// see plan 4.1')).toHaveLength(1)
+    expect(
+      privateReferences('a.ts', " * the Pocket surface's (F2)")
+    ).toHaveLength(1)
+    expect(privateReferences('a.ts', ' * as slice 1 does')).toHaveLength(1)
+    expect(privateReferences('a.ts', ' * D-"Your place"')).toHaveLength(1)
+    expect(privateReferences('a.ts', 'const s = text.slice(1)')).toEqual([])
     expect(privateReferences('a.ts', 'const R1 = articleRef()')).toEqual([])
     expect(privateReferences('a.tsx', '<path d="M29 17h49v7H29Z" />')).toEqual(
       []

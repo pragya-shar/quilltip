@@ -17,7 +17,9 @@ export const AUTH_TOKEN_PREFIX = '__convexAuthJWT'
 export const SESSION_ATTR = 'data-session'
 
 /** Whether this browser holds a session token (signed in, or was). */
-export function hasAuthToken(storage: Storage): boolean {
+export function hasAuthToken(
+  storage: Pick<Storage, 'key' | 'length'>
+): boolean {
   try {
     for (let i = 0; i < storage.length; i++) {
       if (storage.key(i)?.startsWith(AUTH_TOKEN_PREFIX)) return true
