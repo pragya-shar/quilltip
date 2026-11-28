@@ -2,7 +2,6 @@
 
 import './signin.css'
 import { useEffect, useState, type ReactNode } from 'react'
-import { useConvex } from 'convex/react'
 import { Heading } from '@/system/components/Heading'
 import { useAuthPhase } from '@/hooks/auth/useAuthPhase'
 import type { AuthMode } from '@/lib/auth/authErrors'
@@ -39,7 +38,6 @@ export function SignInPage({
   children?: ReactNode
 }) {
   const phase = useAuthPhase()
-  const convex = useConvex()
   const destination = sameSitePath(returnTo)
   const [mode, setMode] = useState<AuthMode>(initialMode)
   // Whether the person was already signed in when the page opened; a
@@ -52,8 +50,8 @@ export function SignInPage({
   }, [arrivedSignedIn, phase])
   useEffect(() => {
     if (arrivedSignedIn)
-      void leaveWhenQuiet(convex, () => window.location.replace(destination))
-  }, [arrivedSignedIn, destination, convex])
+      void leaveWhenQuiet(() => window.location.replace(destination))
+  }, [arrivedSignedIn, destination])
   useEffect(() => {
     const id = window.setTimeout(() => setWaitedLong(true), HELD_WAIT_MS)
     return () => window.clearTimeout(id)
@@ -82,9 +80,7 @@ export function SignInPage({
               initialMode={initialMode}
               onModeChange={setMode}
               onSignedIn={() =>
-                void leaveWhenQuiet(convex, () =>
-                  window.location.assign(destination)
-                )
+                void leaveWhenQuiet(() => window.location.assign(destination))
               }
               returnTo={destination}
             />

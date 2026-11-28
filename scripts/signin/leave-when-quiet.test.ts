@@ -1,43 +1,56 @@
 import { describe, expect, it, vi } from 'vitest'
-import { leaveWhenQuiet } from '@/lib/auth/leaveWhenQuiet'
+import { leaveWhenQuiet, wouldWarn } from '@/lib/auth/leaveWhenQuiet'
 
-const client = (busy: () => boolean) => ({
-  connectionState: () => ({ hasInflightRequests: busy() }),
-})
+/** A page with an unload guard that warns while `busy()` is true. */
+function pageWithGuard(busy: () => boolean) {
+  const target = new EventTarget()
+  target.addEventListener('beforeunload', (event) => {
+    if (busy()) event.preventDefault()
+  })
+  return target
+}
 
 describe('leaving the sign-in page', () => {
-  it('goes once the backend client has nothing in flight', async () => {
+  it('waits while a guard on the page would warn, then goes', async () => {
     let busy = true
-    const go = vi.fn()
     setTimeout(() => (busy = false), 120)
+    const go = vi.fn()
     const started = Date.now()
     await leaveWhenQuiet(
-      client(() => busy),
-      go
+      go,
+      2_000,
+      pageWithGuard(() => busy)
     )
     expect(go).toHaveBeenCalledTimes(1)
     expect(Date.now() - started).toBeGreaterThanOrEqual(100)
   })
 
-  it('goes at the limit even if a request never ends', async () => {
+  it('goes at the limit if a guard never stops warning', async () => {
     const go = vi.fn()
     const started = Date.now()
     await leaveWhenQuiet(
-      client(() => true),
       go,
-      150
+      150,
+      pageWithGuard(() => true)
     )
     expect(go).toHaveBeenCalledTimes(1)
     expect(Date.now() - started).toBeLessThan(1_000)
   })
 
-  it('goes at once with no client or nothing in flight', async () => {
+  it('goes at once when nothing would warn, or with no page', async () => {
     const go = vi.fn()
-    await leaveWhenQuiet(null, go)
     await leaveWhenQuiet(
-      client(() => false),
-      go
+      go,
+      2_000,
+      pageWithGuard(() => false)
     )
+    await leaveWhenQuiet(go, 2_000, null)
     expect(go).toHaveBeenCalledTimes(2)
+  })
+
+  it('asks without silencing anything: the guard still warns on a real unload', () => {
+    const target = pageWithGuard(() => true)
+    expect(wouldWarn(target)).toBe(true)
+    expect(wouldWarn(target)).toBe(true)
   })
 })
