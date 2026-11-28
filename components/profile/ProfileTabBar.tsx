@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import type { LucideIcon } from 'lucide-react'
 import type { ProfileTabId } from '@/lib/profile/profileTab'
 
@@ -47,6 +48,7 @@ export function ProfileTabBar({
           <Link
             key={tab.id}
             href={getHref(tab.id)}
+            prefetch={ARTICLE_LINK_PREFETCH}
             scroll={false}
             data-tab={tab.id}
             aria-current={activeTab === tab.id ? 'page' : undefined}

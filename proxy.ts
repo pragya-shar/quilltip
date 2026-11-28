@@ -12,7 +12,8 @@ import {
   formatArticleRoute,
   formatWriterRoute,
 } from '@/lib/seo/articleRoute'
-import { countsAsOutage, publicQuery } from '@/lib/seo/publicQuery'
+import { countsAsOutage, publicQuery, ReadTimeout } from '@/lib/seo/publicQuery'
+import { oneReadAtATime } from '@/lib/seo/oneReadAtATime'
 import { readingListState } from '@/lib/seo/readingListState'
 import {
   READ_DEADLINE_HEADER,
@@ -144,6 +145,67 @@ function rememberFound(key: string) {
   recentlyFound.set(key, Date.now() + FOUND_TTL_MS)
 }
 
+/**
+ * Route checks for one path: at most one read in flight and one queued
+ * (lib/seo/oneReadAtATime.ts, #630). A request that arrives while a read
+ * runs waits for the next read, which starts after it arrived.
+ */
+const routeChecks = oneReadAtATime<RouteCheck>()
+
+/**
+ * How long the proxy may spend on one request's route check: two read limits
+ * (the check and its one retry, #609) and a small margin, so that a read's
+ * own time limit always ends it first. Measured from the request's arrival,
+ * and shared by both attempts, so time spent waiting for another request's
+ * read (#630) counts too.
+ */
+const ROUTE_CHECK_BUDGET_MS = 2 * ROUTE_CHECK_TIMEOUT_MS + 50
+
+/**
+ * A request whose budget ran out while it waited for its path's next read,
+ * not while its own read ran. The backend has not failed this request, so it
+ * is not an outage: the request goes on unchecked and the page reads for
+ * itself. The answer is never wrong; it costs one uncached article read.
+ */
+class QueuedTimeout extends Error {}
+
+/**
+ * One attempt of a request's route check. It joins its path's reads
+ * (lib/seo/oneReadAtATime.ts): a read that fails, fails its waiters too, so a
+ * dead backend still counts against every request; an answer always comes
+ * from a read that started after the request arrived. The attempt stops at
+ * the request's budget.
+ */
+function routeCheckAttempt(
+  target: { username: string; slug?: string },
+  deadline: number
+): Promise<RouteCheck> {
+  const { result, first } = routeChecks(foundKey(target), () =>
+    publicQuery(
+      ROUTE_CHECK_TIMEOUT_MS,
+      api.publicRoutes.resolvePublicRoute,
+      target
+    )
+  )
+  // Other waiters may still use this read; this attempt has stopped waiting.
+  result.catch(() => {})
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return Promise.race([
+    result,
+    new Promise<never>((_, reject) => {
+      timer = setTimeout(
+        () =>
+          reject(
+            first
+              ? new ReadTimeout(ROUTE_CHECK_TIMEOUT_MS)
+              : new QueuedTimeout('waited past the route check budget')
+          ),
+        Math.max(0, deadline - performance.now())
+      )
+    }),
+  ]).finally(() => clearTimeout(timer))
+}
+
 async function checkPublicContent(
   request: NextRequest
 ): Promise<RouteCheck | null> {
@@ -171,13 +233,9 @@ async function checkPublicContent(
   const key = target.slug === undefined ? foundKey(target) : null
   if (key && wasRecentlyFound(key)) return { kind: 'found' }
 
-  const check = await checkWithRetry(() =>
-    publicQuery(
-      ROUTE_CHECK_TIMEOUT_MS,
-      api.publicRoutes.resolvePublicRoute,
-      target
-    )
-  )
+  // A monotonic clock: the budget must not move with the wall clock.
+  const deadline = performance.now() + ROUTE_CHECK_BUDGET_MS
+  const check = await checkWithRetry(() => routeCheckAttempt(target, deadline))
   if (check === WRONG) return null
   if (check === FAILED) return { kind: 'outage' }
   if (key && check.kind === 'found') rememberFound(key)

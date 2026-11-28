@@ -41,6 +41,27 @@ export const fixtureBackendBehaviour: {
   open: number
 } = { mode: 'normal', delayMs: 0, reads: 0, open: 0 }
 
+/**
+ * Queries answered, by function path (#630). Every query is counted once its
+ * body has been read, so a check can state the backend reads a page view
+ * makes. `resetFixtureBackendReads` starts a new count.
+ */
+export const fixtureBackendReads = new Map<string, number>()
+
+/**
+ * When set, only queries that carry this run id (the app's server sends it
+ * when started with PERF_RUN_TOKEN, lib/seo/publicQuery.ts) are counted in
+ * `fixtureBackendReads`; the others, from another process using the same
+ * port, are counted in `foreignBackendReads` (#630).
+ */
+export const fixtureRun: { token?: string } = {}
+export const foreignBackendReads = new Map<string, number>()
+
+export function resetFixtureBackendReads() {
+  fixtureBackendReads.clear()
+  foreignBackendReads.clear()
+}
+
 export function startFixtureBackend(port: number): Server {
   const server = createServer(async (request, response) => {
     if (request.method === 'POST' && request.url === '/api/query') {
@@ -85,6 +106,12 @@ export function startFixtureBackend(port: number): Server {
         path: string
         args: Record<string, unknown> | Record<string, unknown>[]
       }
+      const runOf = request.headers['x-quilltip-perf-run']
+      const counter =
+        fixtureRun.token && runOf !== fixtureRun.token
+          ? foreignBackendReads
+          : fixtureBackendReads
+      counter.set(body.path, (counter.get(body.path) ?? 0) + 1)
       if (mode === 'slow' && (!slowPaths || slowPaths.includes(body.path)))
         await new Promise((r) => setTimeout(r, delayMs))
       if (

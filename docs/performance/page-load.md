@@ -802,6 +802,80 @@ profile, for comparing builds on a quiet machine: TTFB, and the time until the
 first reading link (`/`, `/articles`, a writer) or the first paragraph of prose
 (an article) is on screen, with scripts delayed, blocked or off.
 
+## Link prefetches and backend reads (#630)
+
+Links to article and writer pages do not prefetch
+(`prefetch={ARTICLE_LINK_PREFETCH}`, `lib/articles/linkPrefetch.ts`). Their
+pages are dynamic and have no loading boundary, so a prefetch fetched almost
+nothing a click could reuse (#597), while each one ran the proxy's route check
+and rendered the page.
+
+- A source guard keeps this true: `scripts/perf/link-prefetch-guard.test.ts`
+  (in `test:unit`) scans `app/`, `components/`, `lib/` and `hooks/` and fails,
+  naming the file and line, on a `Link` to an article or writer page without
+  the flag, and on a `.prefetch(…)` call (`router.prefetch`) with such a path.
+  It reads `Link` under any default import name from `next/link`, and an href
+  that is a literal path, a template or a `'/' + …` concatenation that starts
+  with a handle, an object with such a `pathname`, `articleHref(…)` and
+  similar helpers, or a name defined in the same file as such a template.
+  Files that pass a public path through a prop (the card thumbnail,
+  pagination, a writer page's tabs and NFT pages) are listed, and every
+  non-literal `href` there needs the flag.
+- Limits of the guard: it does not see an href built by a helper imported
+  from another module (`href={toArticle(u, s)}`), or a component that wraps
+  `Link` and forwards its href (other than the listed prop-fed files). It
+  does not scan a plain `<a>`, which Next.js does not prefetch. The account
+  menus' link to the reader's own writer page is not covered, by name: it
+  renders only while a menu is open.
+- A view of `/articles` with every card in view and the pointer over each link
+  makes no backend read for those links. A click makes one route check and at
+  most one article read while the server's copy of the article is under 60 s
+  old. `bun run perf:prefetch-reads` (`scripts/perf/prefetch-reads.ts`) checks
+  this in Chromium and WebKit in the Page-load Budget job, from the fixture
+  backend's read counts, from an empty server cache: for each engine it empties
+  `.next/cache/fetch-cache` and starts a fresh app, so a rerun counts as CI
+  does.
+  Other pages with such links (a writer page and its NFT tab, the dashboard,
+  the library) are covered by the source guard, not by this browser check.
+- On a shared machine another process can query the same fixture port, so
+  each run stamps a random id: the check starts the app with
+  `PERF_RUN_TOKEN`, `publicQuery` sends it on every server read
+  (`x-quilltip-perf-run`, set only when that variable is), and the fixture
+  backend counts only reads that carry it; others are printed as foreign. The
+  check also fails when the view of `/articles` shows no read of this run, so
+  a different server answering on the app's port cannot pass as zero reads.
+- A request that meets a copy older than 60 s makes two article reads: the
+  direct read that keeps every copy under 60 s old, and the cache's own
+  background refresh of the old entry. The next request uses the refreshed
+  copy. This holds for full loads and clicks alike and is not changed here
+  (#674).
+- The proxy keeps at most one route check in flight and one queued per path
+  (`lib/seo/oneReadAtATime.ts`). A request that arrives while a check runs
+  waits for the next one, which starts after it arrived, so an article hidden
+  in between is never seen as visible. A failed check fails its waiters too,
+  so an outage is still declared for every request (#609).
+- Each request has one budget for its route check: two read limits and 50 ms
+  (3,050 ms), from its arrival, on a monotonic clock. Time spent waiting in
+  the queue counts. This is the worst case for the proxy's decision; the page
+  worst case stays as above.
+- The numbers. A request waits at most 3,050 ms for its route check. One path
+  has at most one read in flight (and one queued). A burst on one path costs
+  one route read per read time, not one per request: ten requests over 1.35 s
+  on 1.4 s reads make two reads.
+- The cost. A request that arrives while a check runs waits for that check and
+  then for its own, so it can answer up to one read later. On a path whose
+  reads finish inside the limit, the two reads end within 3,000 ms of its
+  arrival, so no request runs out of time in the queue. Only when reads run
+  past the limit can a queued request run out of time; the proxy then lets it
+  through unchecked (`unknown`, never an outage), and the page makes one
+  uncached article read. The answer is never wrong. A wait in the queue never
+  counts as a backend failure, and the shared read has its own limit, not the
+  signal of any one request.
+- A later option, not taken: `skipProxyUrlNormalize: true` would let the proxy
+  see prefetch requests and answer them without a backend read for every
+  link, including links the new shell adds. It changes what every proxy rule
+  sees (raw URLs and the flight headers), so it needs its own tests first.
+
 ## Regression check
 
 `bun run perf:budget` (`scripts/perf/page-load-budget.ts`) runs without

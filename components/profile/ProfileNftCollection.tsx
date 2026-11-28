@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import Pagination from '@/components/articles/Pagination'
 import { PaginationTransition } from './PaginationTransition'
 
@@ -51,6 +52,7 @@ export function ProfileNftCollection({
           <Link
             className="profile-action focus-ring"
             href={getPageHref(Math.max(1, totalPages))}
+            prefetch={ARTICLE_LINK_PREFETCH}
           >
             Go to last available page
           </Link>
