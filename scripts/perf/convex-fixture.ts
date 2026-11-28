@@ -222,17 +222,19 @@ export function answerFixtureQuery(
               }
             : null,
       }
-    case 'articles:listArticles':
+    case 'articles:listArticles': {
+      const articles = publishedRows()
       return {
         value: {
-          articles: ARTICLES,
+          articles,
           browseMeta: {},
           limit: 9,
           page: 1,
-          total: ARTICLES.length,
+          total: articles.length,
           totalPages: 1,
         },
       }
+    }
     default:
       return undefined
   }

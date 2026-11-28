@@ -113,7 +113,8 @@ const fetchPublishedArticleCached = cachedFor(
 /**
  * Whether the article is published now, and its version. The proxy has asked
  * already on a full page load and passes its answer in a request header;
- * client navigations skip the proxy's check, so the page asks here.
+ * client navigations skip the proxy's check, so the page asks here. A check
+ * that runs out of time here rejects, and the page shows its fallback.
  */
 async function currentArticleRoute(
   username: string,
@@ -133,12 +134,14 @@ export const getPublishedArticle = cache(
     try {
       const route = await currentArticleRoute(username, slug)
       // Missing or moved; the page checks for a moved handle itself.
-      if (route.kind !== 'found') return null
+      if (route.kind === 'missing' || route.kind === 'moved') return null
+      // A cached copy only for the version just confirmed. Otherwise (the
+      // proxy's check ran out of time, or the backend has no versions) read
+      // directly: a hidden article never comes back from the cache.
       return await withinLimit(
-        route.version
+        route.kind === 'found' && route.version
           ? fetchPublishedArticleCached(username, slug, route.version)
-          : // A backend without versions: read directly, never a cached copy.
-            fetchPublishedArticle(username, slug)
+          : fetchPublishedArticle(username, slug)
       )
     } catch (error) {
       if (error instanceof ArticleMissing) return null

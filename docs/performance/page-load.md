@@ -679,9 +679,17 @@ scripts: the site header, "… could not be loaded right now." and a plain "Try
 again" link to the same URL. With scripts, the live query keeps trying and
 replaces the fallback. The worst-case first byte is 1.5 s on `/articles`, 3 s
 on a writer or article page (route check, then the page's reads), and 4.5 s for
-a missing writer or article whose moved-handle lookup also runs out. A timeout
-is never cached; a read that finishes after its page gave up still fills the
-cache for the next reader.
+a missing writer or article whose moved-handle lookup also runs out. A client
+navigation into an article also waits up to 3 s: it skips the proxy, so the
+page runs the route check itself before the article read (#613; it was 1.5 s).
+A timeout is never cached; a read that finishes after its page gave up still
+fills the cache for the next reader.
+
+An article page uses its cached copy only for the version the route check has
+just confirmed (#613). When that check runs out of time or fails, the page
+reads the article directly and never serves a cached copy of unknown
+freshness: with the backend down, a reader gets the fallback even when a copy
+is cached, and an article seen as hidden never comes back from the cache.
 
 The fallback answers 200, because a page cannot set its own status once it
 renders. It carries `<meta name="robots" content="noindex">`, and dynamic

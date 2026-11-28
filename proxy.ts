@@ -136,14 +136,23 @@ export async function proxy(request: NextRequest) {
         })
       : null
   const requestHeaders = new Headers(request.headers)
-  // Only the proxy's own answer may reach the article page.
+  // Only the proxy's own answer may reach the article page: a copy the client
+  // sent is removed on every request. Client navigations are not checked
+  // here, so they carry no answer and the page asks for itself.
   requestHeaders.delete(ARTICLE_ROUTE_HEADER)
-  const articleRoute =
+  if (
     publicContentPath(pathname)?.slug !== undefined &&
-    (check?.kind === 'found' || check?.kind === 'missing')
-      ? formatArticleRoute(check)
-      : null
-  if (articleRoute) requestHeaders.set(ARTICLE_ROUTE_HEADER, articleRoute)
+    request.headers.get('rsc') !== '1'
+  ) {
+    requestHeaders.set(
+      ARTICLE_ROUTE_HEADER,
+      formatArticleRoute(
+        check?.kind === 'found' || check?.kind === 'missing'
+          ? check
+          : { kind: 'unknown' }
+      )
+    )
+  }
   if (csp) {
     requestHeaders.set('Content-Security-Policy', csp)
     // Server components read the nonce here for scripts Next.js does not

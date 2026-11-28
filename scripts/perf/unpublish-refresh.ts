@@ -31,7 +31,8 @@ import {
   setFixtureWriterHandle,
 } from './convex-fixture'
 import { ARTICLE_ROUTE_HEADER } from '../../lib/seo/articleRoute'
-import { startFixtureBackend } from './fixture-backend'
+import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
+import { fixtureBackendBehaviour, startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
 import { READING } from './no-script-reading'
 
@@ -44,6 +45,9 @@ const CACHE_SECONDS = 60
 const PROSE = READING.prose
 const NEW_TEXT = 'A different article now lives at this address.'
 const RENAMED = `${FIXTURE_WRITER}-renamed`
+const FALLBACK_TEXT = 'could not be loaded right now'
+/** Two reads in sequence (the route check, then the article), plus a margin. */
+const TROUBLE_BOUND_MS = 2 * PUBLIC_READ_TIMEOUT_MS + 1000
 
 type Load = 'page' | 'navigation'
 
@@ -62,6 +66,7 @@ async function load(
       },
       signal: AbortSignal.timeout(15_000),
     })
+  const startedAt = performance.now()
   let response = await get(path)
   // Next.js first sends an RSC request without its cache key to the same path
   // with one; the browser follows that redirect.
@@ -71,7 +76,13 @@ async function load(
     if (next.pathname === path && next.searchParams.has('_rsc'))
       response = await get(next.pathname + next.search)
   }
-  return { status: response.status, body: await response.text(), response }
+  const body = await response.text()
+  return {
+    status: response.status,
+    body,
+    response,
+    ms: performance.now() - startedAt,
+  }
 }
 
 const failures: string[] = []
@@ -90,9 +101,11 @@ async function expectLoad(
     /** The proxy ran: the response carries its security policy. */
     csp?: boolean
     headers?: Record<string, string>
+    /** Longest the whole answer may take. */
+    maxMs?: number
   }
 ) {
-  const { status, body, response } = await load(path, kind, expect.headers)
+  const { status, body, response, ms } = await load(path, kind, expect.headers)
   const problems: string[] = []
   if (expect.status !== undefined && status !== expect.status)
     problems.push(`status ${status}, expected ${expect.status}`)
@@ -107,6 +120,8 @@ async function expectLoad(
     if (!location.endsWith(expect.location))
       problems.push(`location "${location}", expected ${expect.location}`)
   }
+  if (expect.maxMs !== undefined && ms > expect.maxMs)
+    problems.push(`took ${Math.round(ms)} ms, limit ${expect.maxMs} ms`)
   if (expect.csp && !response.headers.get('content-security-policy'))
     problems.push('no Content-Security-Policy header: the proxy did not run')
   const seconds = ((Date.now() - started) / 1000).toFixed(1)
@@ -138,19 +153,45 @@ async function main() {
     // Unpublished, then published again.
     const hidden = fixtureArticlePath(4)
     await warm('unpublish', hidden)
+    const other = fixtureArticlePath(7)
+    await warm('other article', other)
     const publishedVersion = fixtureArticleVersion('fixture-article-4')
     setFixtureArticlePublished('fixture-article-4', false)
-    // A client cannot hand the page an older answer of the proxy's check.
-    await expectLoad('unpublished, old route header sent', hidden, 'page', {
-      status: 404,
-      lacks: [PROSE],
-      headers: { [ARTICLE_ROUTE_HEADER]: `found ${publishedVersion}` },
-    })
     for (const kind of ['page', 'navigation'] as const)
       await expectLoad('unpublished', hidden, kind, {
         ...(kind === 'page' ? { status: 404 } : { notStatus: 200 }),
         lacks: [PROSE],
       })
+    // A client cannot hand the page the proxy's answer: not the version the
+    // page cached before the unpublish, and not another article's.
+    const forged = {
+      'its old version': `found ${publishedVersion}`,
+      "another article's version": `found ${fixtureArticleVersion('fixture-article-7')}`,
+    }
+    for (const [name, value] of Object.entries(forged))
+      for (const kind of ['page', 'navigation'] as const)
+        await expectLoad(`unpublished, sent ${name}`, hidden, kind, {
+          ...(kind === 'page' ? { status: 404 } : { notStatus: 200 }),
+          lacks: [PROSE],
+          headers: { [ARTICLE_ROUTE_HEADER]: value },
+        })
+
+    // The backend stops answering. No copy of unknown freshness is served:
+    // the hidden article does not come back, and a cached published one shows
+    // the readable fallback too, within the read limits.
+    fixtureBackendBehaviour.mode = 'silent'
+    for (const [name, path] of [
+      ['unpublished', hidden],
+      ['published and cached', other],
+    ] as const)
+      for (const kind of ['page', 'navigation'] as const)
+        await expectLoad(`silent backend, ${name}`, path, kind, {
+          status: 200,
+          has: [FALLBACK_TEXT],
+          lacks: [PROSE],
+          maxMs: TROUBLE_BOUND_MS,
+        })
+    fixtureBackendBehaviour.mode = 'normal'
     setFixtureArticlePublished('fixture-article-4', true)
     for (const kind of ['page', 'navigation'] as const)
       await expectLoad('republished', hidden, kind, {

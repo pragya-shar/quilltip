@@ -7,21 +7,27 @@
  *   names the stored copy (it changes on every write to the article, and a new
  *   article with the same slug has a different one).
  * - missing: no published article at this address.
+ * - unknown: the check ran out of time or failed. The page then reads the
+ *   article directly and never uses a cached copy, whose freshness is unknown.
+ *
+ * Requests the proxy does not check (client navigations) carry no header; the
+ * page asks for itself.
  */
 export const ARTICLE_ROUTE_HEADER = 'x-quilltip-article-route'
 
 export type ArticleRoute =
   | { kind: 'found'; version?: string }
   | { kind: 'missing' }
+  | { kind: 'unknown' }
 
-export function formatArticleRoute(route: ArticleRoute): string | null {
-  if (route.kind === 'missing') return 'missing'
-  // Without a version the page checks for itself.
-  return route.version ? `found ${route.version}` : null
+export function formatArticleRoute(route: ArticleRoute): string {
+  if (route.kind !== 'found') return route.kind
+  // A backend without versions: the page reads the article directly.
+  return route.version ? `found ${route.version}` : 'unknown'
 }
 
 export function parseArticleRoute(value: string | null): ArticleRoute | null {
-  if (value === 'missing') return { kind: 'missing' }
+  if (value === 'missing' || value === 'unknown') return { kind: value }
   if (value?.startsWith('found ') && value.length > 'found '.length)
     return { kind: 'found', version: value.slice('found '.length) }
   return null
