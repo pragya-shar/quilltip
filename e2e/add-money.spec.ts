@@ -70,7 +70,7 @@ test.describe('from a tip, a first deposit (A)', () => {
     )
     await expect(s).not.toContainText(/7 days|a week/)
     await expect(s).toContainText(
-      'You can turn quick tips off for this device later'
+      'You can turn quick tips off in Balance, from any device you sign in on. Signing out turns them off on this device.'
     )
     await expect(
       s.getByRole('button', { name: 'Add $10 and set up quick tips' })
