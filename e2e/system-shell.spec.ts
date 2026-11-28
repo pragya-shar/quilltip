@@ -115,10 +115,12 @@ const goTo = (page: Page, path: string) =>
     dispatchEvent(new PopStateEvent('popstate'))
   }, path)
 
+// Loaded when the page is idle, after late fonts on a slow runner too.
 const secondNameLoaded = (page: Page) =>
   expect(page.locator('html')).toHaveAttribute(
     'data-reading-faces-loaded',
-    /\blatin\b/
+    /\blatin\b/,
+    { timeout: 15_000 }
   )
 
 test('the next page reads in the loaded face under its second name', async ({
