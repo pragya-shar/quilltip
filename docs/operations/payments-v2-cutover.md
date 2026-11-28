@@ -962,11 +962,13 @@ payments off if needed (section 6).
    `SETTLEMENT_ENABLED=true`.
 
    **Tab secrets.** Never run a command that prints the secret of a real
-   identity (`live` or `integration`): not `stellar keys secret` or
-   `stellar keys show` without a pipe, and not `cat` of an identity file. A
+   identity (`live` or `integration`): not `stellar keys secret` (or the
+   older `stellar keys show`) without a pipe, and not `cat` of an identity
+   file. A
    printed secret ends up in terminal history, logs or a session transcript,
    and the key must then be rotated. Copy each secret straight to the
-   clipboard instead, paste it into the dashboard, and clear the clipboard:
+   clipboard instead, paste it into the dashboard, then clear the clipboard
+   with `pbcopy < /dev/null`:
 
    ```bash
    stellar keys secret qt-v2-live-acceptor --config-dir <dir>/live | tr -d '\n' | pbcopy
@@ -980,9 +982,14 @@ payments off if needed (section 6).
    (**Settings → Environment Variables**), for `TAB_ACCEPTOR_SECRET` and
    `TAB_SETTLER_SECRET`: the variable is on that deployment, and its value is
    56 characters long, starts with `S`, and has no quotes, spaces or line
-   breaks. The settler refuses any other value with `TAB_SETTLER_UNAVAILABLE`
-   (`StrKey.isValidEd25519SecretSeed`, `convex/tabSettler.ts`). The healthy
-   settler run below is the proof that the value works.
+   breaks. The settler trims white space around the value and refuses
+   anything that is not then a valid Stellar secret seed with
+   `TAB_SETTLER_UNAVAILABLE` (`StrKey.isValidEd25519SecretSeed`,
+   `convex/tabSettler.ts`). The acceptor accepts the same seed, or 64 hex
+   characters (`parseAcceptorSeed`, `convex/lib/chain/voucher.ts`); the `live`
+   set uses `S…` seeds. A valid seed of the wrong identity (for example the
+   acceptor seed in the settler variable) passes both checks, so copy each
+   secret from the identity named above.
 
 4. Hand-off to the Vercel owner: set the Vercel contract IDs from section 3.2
    and redeploy the site if stage 2 already ran. Check: the Vercel owner
@@ -1015,16 +1022,23 @@ payments off if needed (section 6).
 - One healthy settler run after the settler is enabled. After
   `SETTLEMENT_ENABLED=true` is set, and again after any change to
   `TAB_SETTLER_SECRET`, the operator runs `tabSettler:settleDue` once from
-  the Convex dashboard (**Functions**) and reads the value it returns. A successful run
-  writes no log line, so the logs alone cannot show it, and a run that
-  completes without an error only proves that the settler secret was read.
+  the Convex dashboard (**Functions**; it is an internal action with no
+  arguments) and reads the value it returns. A successful run writes no log
+  line, so the logs alone cannot show it.
   The function takes the same lease as the `settle due tab vouchers` cron,
   so it cannot overlap a cron run. The run is healthy only with one of these
   results:
-  - `"status": "nothing_due"` or `"status": "idle"`, with `"rejected": 0`;
+  - `"status": "nothing_due"` with `"rejected": 0`;
   - `"status": "confirmed"` with a `settlementId`, whose `tabSettlements`
     row is `CONFIRMED` with a transaction hash that the testnet RPC or
     Horizon reports as successful.
+
+  Before stage 6 no tab holds receipts, so the result is `nothing_due`. That
+  proves that the settler secret is a valid seed and that the cycle reached
+  the RPC and the database. It does not sign anything, so it does not prove
+  that the key holds the Tab's settler role or that its account is funded.
+  Only a `confirmed` settlement proves that: the first one after the tab tip
+  of section 7.1 (section 7.3).
 
   `"busy"` or `"pending"` proves nothing: run it again after the open
   settlement resolves (within 10 minutes). Stop on `"failed"`, `"expired"`,
@@ -1034,6 +1048,18 @@ payments off if needed (section 6).
   starts, so that run logs no `TAB_SETTLER_RUN_FAILED`: a scan for
   `TAB_SETTLER_RUN_FAILED` alone does not find it. Do not start stage 6 until
   a healthy run is recorded.
+
+- The acceptor, as far as it can be checked before stage 6. After
+  `SETTLEMENT_ENABLED=true` is set, and again after any change to
+  `TAB_ACCEPTOR_SECRET`, run `chain/config:refreshChainConfig` from the
+  dashboard and check the logs. A valid acceptor seed whose public key is not
+  among the Tab's `acceptor_keys` logs `TAB_ACCEPTOR_MISMATCH`. A missing or
+  malformed acceptor secret logs nothing here: the refresh treats it as
+  acceptance being off. It shows only at the first tab tip, which refuses
+  with `TAB_ACCEPTOR_UNAVAILABLE`. So before stage 6 the field check in step
+  3 is the only check of the acceptor's format, and the tab tip in section
+  7.1 is the first proof that the acceptor works. If that tip refuses with
+  `TAB_ACCEPTOR_UNAVAILABLE` or `TAB_ACCEPTOR_MISMATCH`, follow section 6.
 
 **Rollback:** set `SETTLEMENT_ENABLED=false` and remove the contract IDs and
 `INDEXER_START_LEDGER`. Nothing user-facing uses the set while
