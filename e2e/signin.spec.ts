@@ -164,6 +164,46 @@ test.describe('a kept intent comes back, and nothing is sent', () => {
   })
 })
 
+test.describe('above a keyboard', () => {
+  // The visible height left by a phone keyboard: 390 x 844 and 360 x 640
+  // less the keyboard. The real keyboard (iOS Safari) is not run here.
+  for (const size of [
+    { width: 390, height: 508 },
+    { width: 360, height: 380 },
+  ])
+    test(`the password, its button and the other way in fit at ${size.width} x ${size.height}`, async ({
+      page,
+    }) => {
+      test.skip(!hasTouch(), 'phone widths')
+      await page.setViewportSize(size)
+      const dialog = await openFromTip(page, '/article', false)
+      await dialog.getByLabel('Email').fill('new.reader@example.com')
+      await dialog.getByLabel('Email').press('Enter')
+      const password = dialog.getByLabel('Password', { exact: true })
+      await expect(password).toBeFocused()
+      await expect(password).toHaveAttribute('enterkeyhint', 'go')
+      await expect(dialog.getByLabel('Email')).toHaveAttribute(
+        'enterkeyhint',
+        'next'
+      )
+      // Enter on the email moved on; it sent nothing and said nothing.
+      await expect(dialog.getByText('Enter your password.')).toHaveCount(0)
+      await page.waitForTimeout(300)
+      for (const target of [
+        password,
+        dialog.getByRole('button', { name: 'Create account' }),
+        dialog.getByRole('button', { name: 'I have an account' }),
+      ]) {
+        const box = (await target.boundingBox())!
+        expect(
+          box.y,
+          (await target.textContent()) ?? ''
+        ).toBeGreaterThanOrEqual(0)
+        expect(box.y + box.height).toBeLessThanOrEqual(size.height)
+      }
+    })
+})
+
 test.describe('a newcomer from a tip creates an account first', () => {
   test('the sheet starts with creating an account; signing in is one full-size press away', async ({
     page,

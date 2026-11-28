@@ -74,6 +74,7 @@ export function SignInForm({
   const password = useRef<HTMLInputElement>(null)
   const notice = useRef<HTMLDivElement>(null)
   const status = useRef<HTMLParagraphElement>(null)
+  const otherWay = useRef<HTMLDivElement>(null)
   // A press before the page script runs is held, then sent once from here.
   const early = useEarlySubmit('signin')
   const done = useRef(onSignedIn)
@@ -233,6 +234,13 @@ export function SignInForm({
           type={showPassword ? 'text' : 'password'}
           autoComplete={mode === 'create' ? 'new-password' : 'current-password'}
           enterKeyHint="go"
+          // With the password focused, its two buttons come into view too
+          // (in a sheet over a keyboard, the space left is short).
+          onFocus={() =>
+            requestAnimationFrame(() =>
+              otherWay.current?.scrollIntoView({ block: 'nearest' })
+            )
+          }
           {...(mode === 'create' ? PASSWORD_RULES : null)}
           // The rule shows once: an error about it takes the hint's place.
           hint={
@@ -266,9 +274,11 @@ export function SignInForm({
         <>
           {/* The other way in is as easy to find as this one: most people
               who meet the sheet from a first tip are new. */}
-          <Button variant="secondary" size="l" block onClick={switchMode}>
-            {mode === 'sign-in' ? 'Create an account' : 'I have an account'}
-          </Button>
+          <div ref={otherWay} className="qt-signin__other">
+            <Button variant="secondary" size="l" block onClick={switchMode}>
+              {mode === 'sign-in' ? 'Create an account' : 'I have an account'}
+            </Button>
+          </div>
           <div className="qt-signin__row">
             <button
               type="button"
