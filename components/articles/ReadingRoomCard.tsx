@@ -37,8 +37,7 @@ export function ReadingRoomCard({
   const fallback = `/prototype/articles/${artwork[index % artwork.length]}-museum.jpg`
   // A cover from another host counts as none (#615).
   const coverImage = shownCoverImage(article.coverImage)
-  const image =
-    coverImage && failedImage !== coverImage ? coverImage : fallback
+  const image = coverImage && failedImage !== coverImage ? coverImage : fallback
   // The first row is on screen at load: it shows at once (no load reveal), so
   // the largest paint does not wait for the page script.
   const firstRow = index < 3
