@@ -127,9 +127,10 @@ function validateArticleInput(args: {
 }
 
 function assertAuthorCanReceiveTips(user: Doc<'users'>) {
-  // Readers can tip only a wallet the writer proved control of.
+  // Readers can tip only a wallet the writer proved control of. A refusal for
+  // the writer: a ConvexError, so production keeps its text (#633).
   if (!verifiedStellarAddress(user)) {
-    throw new Error(PUBLISH_RECEIVING_WALLET_ERROR)
+    throw new ConvexError(PUBLISH_RECEIVING_WALLET_ERROR)
   }
 }
 
@@ -913,7 +914,7 @@ export const createArticle = mutation({
     if (args.published) {
       assertPublishableArticleTitle(args.title)
       if (!tiptapJsonHasNonEmptyText(content)) {
-        throw new Error('Cannot publish: article body is empty')
+        throw new ConvexError('Cannot publish: article body is empty')
       }
       assertPublishableImages({ content, coverImage: args.coverImage })
     }
@@ -1170,10 +1171,10 @@ export const publishArticle = mutation({
     // Validate article has required content before publishing
     assertPublishableArticleTitle(article.title)
     if (!article.content) {
-      throw new Error('Cannot publish: content is required')
+      throw new ConvexError('Cannot publish: content is required')
     }
     if (!tiptapJsonHasNonEmptyText(article.content)) {
-      throw new Error('Cannot publish: article body is empty')
+      throw new ConvexError('Cannot publish: article body is empty')
     }
     assertPublishableImages(article)
 

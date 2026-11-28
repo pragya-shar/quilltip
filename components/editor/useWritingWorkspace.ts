@@ -729,10 +729,9 @@ export function useWritingWorkspace() {
     } catch (error) {
       console.error('Publish error:', error)
       // The refusal's own words (a ConvexError's data); the raw client
-      // message is never shown, and a production deployment redacts it.
+      // message is never read, and a production deployment redacts it.
       const refusal = convexErrorMessage(error) ?? ''
-      const raw = error instanceof Error ? error.message : ''
-      if (`${refusal} ${raw}`.toLowerCase().includes('add a title')) {
+      if (refusal.toLowerCase().includes('add a title')) {
         setTitleError(TITLE_PUBLISH_ERROR)
         focusTitleField()
       } else {

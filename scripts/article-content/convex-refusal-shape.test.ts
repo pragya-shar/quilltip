@@ -86,7 +86,7 @@ async function setup() {
     })
   )
   const writer = t.withIdentity({ subject: `${authorId}|session` })
-  return { t, writer }
+  return { t, writer, authorId }
 }
 
 /** `publishArticle` refusing a draft with an image from another host. */
@@ -289,6 +289,89 @@ test.each(DEPLOYMENTS)(
   }
 )
 
+/**
+ * Refusals `publishArticle` makes on what is stored, which the page checks
+ * on what it has: they differ after an edit on another device, or for a
+ * wallet unlinked since the page loaded.
+ */
+const SERVER_REFUSALS = [
+  {
+    name: 'no verified receiving wallet',
+    text: 'Verify your receiving wallet before publishing so readers can tip this article',
+    change: { user: true },
+  },
+  {
+    name: 'a stored body with no text',
+    text: 'Cannot publish: article body is empty',
+    change: {
+      article: { content: { type: 'doc', content: [{ type: 'paragraph' }] } },
+    },
+  },
+  {
+    name: 'a stored title that is too short',
+    text: 'Cannot publish: add a title before publishing',
+    change: { article: { title: 'Hi' } },
+  },
+  {
+    name: 'no author username',
+    text: 'Cannot publish: author username is required',
+    change: { article: { authorUsername: ' ' } },
+  },
+] as const
+
+test.each(SERVER_REFUSALS)(
+  'publish: $name, refused on the server only, shows its own text on a production deployment',
+  async ({ text, change }) => {
+    const { t, writer, authorId } = await setup()
+    const id = await writer.mutation(api.articles.saveDraft, {
+      title: 'Pictures of words',
+      content: {
+        type: 'doc',
+        content: [
+          {
+            type: 'paragraph',
+            content: [{ type: 'text', text: 'Words to read.' }],
+          },
+        ],
+      },
+    })
+    await t.run(async (ctx) => {
+      await ctx.db.patch(id, {
+        excerpt: 'A short piece about pictures of words.',
+        ...('article' in change ? change.article : {}),
+      })
+      if ('user' in change)
+        await ctx.db.patch(authorId, {
+          stellarAddress: undefined,
+          stellarAddressVerifiedAt: undefined,
+          stellarAddressVerifiedNetwork: undefined,
+        })
+    })
+    // A ConvexError, so the refusal travels as data.
+    const refusal = await refusedBy(
+      writer.mutation(api.articles.publishArticle, { id })
+    )
+    expect(refusal.error.data).toBe(text)
+    const client = reactClient({
+      errorMessage: serverMessage('production', refusal.error),
+      errorData: refusal.errorData,
+    })
+    try {
+      const error = await thrownBy(
+        client.mutation(api.articles.publishArticle, { id })
+      )
+      expect((error as Error).message).not.toContain(text)
+      expect(publishErrorFeedback(error).detail).toBe(text)
+      // The workspace sends the title refusal to the title field.
+      expect(
+        (convexErrorMessage(error) ?? '').toLowerCase().includes('add a title')
+      ).toBe(text.includes('add a title'))
+    } finally {
+      await client.close()
+    }
+  }
+)
+
 test.each(DEPLOYMENTS)(
   'avatar save: the refusal of a photo that is not an upload reads alone, on a %s deployment',
   async (deployment) => {
@@ -415,16 +498,14 @@ test('the upload and photo paths never show an error message of their own', () =
     const source = readFileSync(join(root, file), 'utf8')
     expect(source, file).not.toMatch(/\b(e|err|error|caught)\.message\b/)
   }
-  // The workspace reads the raw message only to spot the title refusal.
+  // The title refusal is found in the refusal's data, not the raw message.
   const workspace = readFileSync(
     join(root, 'components/editor/useWritingWorkspace.ts'),
     'utf8'
   )
-  expect(
-    [...workspace.matchAll(/\b(e|err|error|caught)\.message\b/g)].length
-  ).toBe(1)
+  expect(workspace).not.toMatch(/\b(e|err|error|caught)\.message\b/)
   expect(workspace).toContain(
-    "const raw = error instanceof Error ? error.message : ''"
+    "if (refusal.toLowerCase().includes('add a title'))"
   )
 })
 
