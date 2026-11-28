@@ -32,6 +32,7 @@ import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
 import { useRouter } from 'next/navigation'
 import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
+import { UNAVAILABLE_WHAT } from '@/lib/outage/unavailableCopy'
 
 // The collapsed details panel sits below the article. The server renders it
 // into the HTML; its accordion, highlight notes and date code load while the
@@ -105,7 +106,7 @@ export function ArticlePageClient({
       <div className="min-h-screen reader-surface">
         <AppNavigation />
         <ReadingUnavailable
-          what="This article"
+          what={UNAVAILABLE_WHAT.article}
           retryHref={unavailableRetryHref}
           headingLevel={1}
         />

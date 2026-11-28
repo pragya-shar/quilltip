@@ -1,5 +1,13 @@
+import {
+  UNAVAILABLE_DETAIL,
+  UNAVAILABLE_RETRY,
+  unavailableHeading,
+} from '@/lib/outage/unavailableCopy'
+
 /**
  * Shown when a public page's server read failed or ran out of time (#428).
+ * Its words are shared with the proxy's outage response (lib/outage, #609),
+ * so a reader sees one message whichever of the two answers.
  * It reads without scripts: a plain message and a plain link that loads the
  * page again. With scripts, the page's live query keeps trying and replaces
  * this once the content arrives.
@@ -24,16 +32,12 @@ export function ReadingUnavailable({
     <section className="reading-unavailable mx-auto max-w-xl px-6 py-16">
       {/* React places this in the document head. */}
       <meta name="robots" content="noindex" />
-      <Heading className="text-2xl">
-        {what} could not be loaded right now.
-      </Heading>
-      <p className="mt-4">
-        Quilltip did not answer in time. Please try again in a moment.
-      </p>
+      <Heading className="text-2xl">{unavailableHeading(what)}</Heading>
+      <p className="mt-4">{UNAVAILABLE_DETAIL}</p>
       <p className="mt-6">
         {/* A plain link, so it reloads the page even without scripts. */}
         <a href={retryHref} className="underline underline-offset-4">
-          Try again
+          {UNAVAILABLE_RETRY}
         </a>
       </p>
     </section>

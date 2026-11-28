@@ -21,6 +21,7 @@ import { SiteFooter } from '@/components/layout/SiteFooter'
 import ProfileHeader from '@/components/profile/ProfileHeader'
 import { ProfileArticlesTabContent } from '@/components/profile/ProfileArticlesTabContent'
 import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
+import { UNAVAILABLE_WHAT } from '@/lib/outage/unavailableCopy'
 import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabContent'
 import { AuthorNotFoundPage } from '@/components/profile/AuthorNotFoundPage'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
@@ -132,7 +133,7 @@ export function ProfilePageClient({
   if (user === undefined && unavailableRetryHref) {
     const unavailable = (
       <ReadingUnavailable
-        what="This writer’s page"
+        what={UNAVAILABLE_WHAT.writer}
         retryHref={unavailableRetryHref}
         headingLevel={1}
       />

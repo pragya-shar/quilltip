@@ -39,6 +39,7 @@ import {
 } from '@/lib/articles/readingRoomListArgs'
 import { getBrowseContextMessage } from './ArticlesBrowseDiscoveryHeader'
 import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
+import { UNAVAILABLE_WHAT } from '@/lib/outage/unavailableCopy'
 
 type ReadingRoomList = NonNullable<ReturnType<typeof useReadingRoomArticles>>
 
@@ -337,7 +338,7 @@ export function ReadingRoom({
         </section>
       ) : !result && unavailableRetryHref ? (
         <ReadingUnavailable
-          what="The articles"
+          what={UNAVAILABLE_WHAT.articles}
           retryHref={unavailableRetryHref}
         />
       ) : !result ? (

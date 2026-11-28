@@ -5,11 +5,15 @@
  * fallback that reads without scripts. The proxy's route check uses the same
  * limit.
  *
- * Reads that run one after another add up, so the worst-case first byte is:
- * - `/articles`: 1.5 s (the list);
- * - a writer or article page: 3 s (the route check, then the page's reads,
- *   which run together);
- * - a missing writer or article: 4.5 s, when the moved-handle lookup also
- *   runs out of time.
+ * Since #609 the proxy checks `/articles`, writer and article pages first
+ * (each attempt within this limit, retried once) and stamps a request
+ * deadline of two limits; the page's reads get what is left, at least
+ * 500 ms (lib/seo/readDeadline.ts). So the worst-case first byte is:
+ * - an outage (the check failed twice): 3 s, the 503 outage response, or at
+ *   once while the outage is remembered;
+ * - a page whose check succeeded: within the 3 s budget, or 3.5 s when the
+ *   retry answered at the very end and the page's reads use their 500 ms;
+ * - a missing page whose moved-handle lookup also runs out: the same, then
+ *   the readable fallback, never a 404.
  */
 export const PUBLIC_READ_TIMEOUT_MS = 1500
