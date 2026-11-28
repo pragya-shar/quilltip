@@ -449,6 +449,32 @@ export const DESK_PUBLISHED_PAGE_MAX = 20
 
 const EMPTY_PAGE = { page: [], isDone: true, continueCursor: '' }
 
+/** Rows the "anything left?" peek reads at most. */
+const PEEK_ROWS = 64
+
+/**
+ * Whether rows remain after a full page, so a list that ends exactly at a
+ * page's end says `isDone` and the desk never offers "Show more" for an
+ * empty page. A function may run only one paginated read, so this peeks
+ * with a plain indexed read of at most `PEEK_ROWS` rows at or below the last
+ * row's sort key, in the same order, for one that comes after it. If every
+ * row read sorts before it (a long run of equal keys), rows may remain.
+ */
+async function rowsRemain(
+  page: Doc<'deskRows'>[],
+  numItems: number,
+  isDone: boolean,
+  key: 'updatedAt' | 'publishedAt',
+  peek: (value: number | null, take: number) => Promise<Doc<'deskRows'>[]>
+): Promise<boolean> {
+  if (isDone || page.length < numItems) return !isDone
+  const last = page[page.length - 1]!
+  const rows = await peek(last[key], PEEK_ROWS)
+  const after = (row: Doc<'deskRows'>) =>
+    row[key] !== last[key] || row._creationTime < last._creationTime
+  return rows.some(after) || rows.length === PEEK_ROWS
+}
+
 function pageOpts(
   opts: { numItems: number; cursor: string | null },
   max: number
@@ -485,15 +511,34 @@ export const deskDrafts = query({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) return EMPTY_PAGE
+    const opts = pageOpts(args.paginationOpts, DESK_PAGE_MAX)
     const result = await ctx.db
       .query('deskRows')
       .withIndex('by_author_published_updated', (q) =>
         q.eq('authorId', userId).eq('published', false)
       )
       .order('desc')
-      .paginate(pageOpts(args.paginationOpts, DESK_PAGE_MAX))
+      .paginate(opts)
+    const remain = await rowsRemain(
+      result.page,
+      opts.numItems,
+      result.isDone,
+      'updatedAt',
+      (value, take) =>
+        ctx.db
+          .query('deskRows')
+          .withIndex('by_author_published_updated', (q) =>
+            q
+              .eq('authorId', userId)
+              .eq('published', false)
+              .lte('updatedAt', value as number)
+          )
+          .order('desc')
+          .take(take)
+    )
     return {
       ...result,
+      isDone: !remain,
       page: result.page.map((row) => ({
         _id: row.articleId,
         title: row.title,
@@ -527,6 +572,7 @@ export const deskPublished = query({
   handler: async (ctx, args) => {
     const userId = await getAuthUserId(ctx)
     if (!userId) return EMPTY_PAGE
+    const opts = pageOpts(args.paginationOpts, DESK_PUBLISHED_PAGE_MAX)
     const [result, user] = await Promise.all([
       ctx.db
         .query('deskRows')
@@ -534,9 +580,26 @@ export const deskPublished = query({
           q.eq('authorId', userId).eq('published', true)
         )
         .order('desc')
-        .paginate(pageOpts(args.paginationOpts, DESK_PUBLISHED_PAGE_MAX)),
+        .paginate(opts),
       ctx.db.get(userId),
     ])
+    const remain = await rowsRemain(
+      result.page,
+      opts.numItems,
+      result.isDone,
+      'publishedAt',
+      (value, take) =>
+        ctx.db
+          .query('deskRows')
+          .withIndex('by_author_published_at', (q) =>
+            q
+              .eq('authorId', userId)
+              .eq('published', true)
+              .lte('publishedAt', value)
+          )
+          .order('desc')
+          .take(take)
+    )
     const chain = chainOrNull()
     const wallet = chain ? verifiedStellarAddress(user, chain.passphrase) : null
     const page = []
@@ -562,7 +625,7 @@ export const deskPublished = query({
             : { state: state.state },
       })
     }
-    return { ...result, page }
+    return { ...result, isDone: !remain, page }
   },
 })
 

@@ -172,6 +172,56 @@ describe('drafts page fully and in order', () => {
     await expectRowsMatch(w)
   })
 
+  test.each([20, 40])(
+    'a list of exactly %i ends on its last full page: no empty page after it',
+    async (n) => {
+      const w = await setup()
+      tRef = w.t
+      await makeDrafts(w.writer, n)
+      const { items, pages } = await draftPages(w.writer)
+      expect(items).toHaveLength(n)
+      expect(pages).toBe(n / 20)
+    }
+  )
+
+  test('published: exactly 20 ends on its one page', async () => {
+    const w = await setup()
+    tRef = w.t
+    const ids = await makeDrafts(w.writer, 20, 'Exact')
+    for (const id of ids) await publish(w.writer, id)
+    const first = await w.writer.query(api.write.deskPublished, {
+      paginationOpts: { numItems: 20, cursor: null },
+    })
+    expect(first.page).toHaveLength(20)
+    expect(first.isDone).toBe(true)
+  })
+
+  test('equal update times across a page end: nothing lost, done at the end', async () => {
+    const w = await setup()
+    tRef = w.t
+    // 25 drafts in one millisecond, written as an old deployment would.
+    await w.t.run(async (ctx) => {
+      for (let i = 0; i < 25; i++)
+        await ctx.db.insert('articles', {
+          title: `Same ${i}`,
+          slug: `same-${i}`,
+          content: doc(`Same time ${i}.`),
+          authorId: w.ids.writer,
+          authorUsername: 'ines',
+          published: false,
+          createdAt: 1,
+          updatedAt: 500,
+        })
+    })
+    await w.t.mutation(internal.write.backfillDeskRows, {})
+    await w.t.finishAllScheduledFunctions(vi.runAllTimers)
+    const { items } = await draftPages(w.writer)
+    expect(new Set(items.map((d) => d._id)).size).toBe(25)
+    const { items: tens, pages } = await draftPages(w.writer, 5)
+    expect(tens).toHaveLength(25)
+    expect(pages).toBe(5)
+  })
+
   test('a page is clamped to its maximum and never empty while rows remain', async () => {
     const w = await setup()
     tRef = w.t
