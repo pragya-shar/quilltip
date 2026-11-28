@@ -1436,8 +1436,6 @@ describe('window approval: the allowed operations', () => {
       'chain/tabClaims:seedClaimRecords',
       'chain/tabClaims:recomputeCollected',
       'chain/tabReconcile:run',
-      'reconcileTips:recoverStuckPendingArticleTips',
-      'reconcileTips:recoverStuckPendingHighlightTips',
       'earningsTotalsBackfill:dryRun',
       'earningsTotalsBackfill:progress',
       'earningsTotalsBackfill:retryFailed',
@@ -1514,9 +1512,6 @@ describe('window approval: every runbook command', () => {
       'chain/tabReconcile:run',
       `{"reader":"${READER}","apply":true,"note":"Ticket 451: TabSettled lost in a gap"}`,
     ],
-    // Stage 5 drain.
-    ['reconcileTips:recoverStuckPendingArticleTips', undefined],
-    ['reconcileTips:recoverStuckPendingHighlightTips', undefined],
     // Stage 5A.
     ['earningsTotalsBackfill:dryRun', '{}'],
     ['earningsTotalsBackfill:dryRun', `{"cursor":"${CURSOR}"}`],
@@ -1731,6 +1726,15 @@ describe('window approval: the tab reconciliation apply', () => {
     '{}',
   ])('refuses %s', (json) => {
     expect(apply(json)).toEqual(['LIVE_WINDOW_OPERATION'])
+  })
+
+  it('refuses the v1 stuck-tip recovery, removed from the backend after the cutover', () => {
+    for (const fn of [
+      'reconcileTips:recoverStuckPendingArticleTips',
+      'reconcileTips:recoverStuckPendingHighlightTips',
+    ]) {
+      expect(windowCodes(['convex-run', fn])).toEqual(['LIVE_WINDOW_OPERATION'])
+    }
   })
 
   it('refuses the functions it calls', () => {

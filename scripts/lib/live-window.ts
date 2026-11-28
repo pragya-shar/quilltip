@@ -360,9 +360,6 @@ export const LIVE_WINDOW_FUNCTION_SHAPES: Readonly<
     args: { reader: isAccountAddress, apply: isTrue, note: isNote },
     required: ['reader', 'apply', 'note'],
   },
-  // Stage 5 drain (dashboard in the runbook; recorded here when run).
-  'reconcileTips:recoverStuckPendingArticleTips': NO_ARGS,
-  'reconcileTips:recoverStuckPendingHighlightTips': NO_ARGS,
   // Stage 5A: writers' lifetime totals.
   'earningsTotalsBackfill:dryRun': {
     args: { cursor: isCursor, limit: integer(1, 50) },
