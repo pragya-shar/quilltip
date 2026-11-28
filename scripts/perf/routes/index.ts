@@ -139,3 +139,7 @@ export const FONT_FALLBACK_ROUTES = [
  * covers, and public routes left unmeasured, with why. */
 export const NO_SCRIPT_ROUTES = new Set(all.flatMap((p) => p.noScript ?? []))
 export const UNMEASURED = all.flatMap((p) => p.unmeasured ?? [])
+
+/** Protected old pages that send a signed-out reader to a package's page,
+ * which offers sign-in itself. */
+export const SIGNED_OUT_LANDING = all.flatMap((p) => p.signedOutLanding ?? [])

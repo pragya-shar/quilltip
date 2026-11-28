@@ -158,9 +158,10 @@ test('/pocket: with no script, the page asks to sign in, with no waiting figure'
   await expect(
     main.getByText('Sign in to tip and keep your lines.')
   ).toBeVisible()
+  // A plain link to sign in that comes back here.
   await expect(main.getByRole('link', { name: 'Sign in' })).toHaveAttribute(
     'href',
-    signInPathFromRoutes()
+    `${signInPathFromRoutes()}?returnTo=%2Fpocket`
   )
   // The live balance's waiting figure is in the page, and hidden.
   await expect(main.locator('[aria-busy="true"]:visible')).toHaveCount(0)

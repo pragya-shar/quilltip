@@ -3,7 +3,7 @@
  * the shell runs them and never imports a surface. A package adds its
  * file's entries.
  */
-import type { SignOutCleanup, SignOutWarning } from './types'
+import type { SignOutCleanup, SignOutWarning, SignOutWho } from './types'
 import * as ops from './ops'
 import * as pocket from './pocket'
 import * as read from './read'
@@ -16,7 +16,7 @@ import * as write from './write'
 import * as writer from './writer'
 import * as you from './you'
 
-export type { SignOutCleanup, SignOutWarning } from './types'
+export type { SignOutCleanup, SignOutWarning, SignOutWho } from './types'
 
 const PACKAGES = {
   ops,
@@ -59,14 +59,15 @@ export const WARNING_LIMIT_MS = 800
  */
 export async function signOutWarnings(
   warnings: readonly SignOutWarning[] = SIGN_OUT_WARNINGS,
-  limitMs = WARNING_LIMIT_MS
+  limitMs = WARNING_LIMIT_MS,
+  who: SignOutWho = { userId: null }
 ): Promise<string[]> {
   const answers = await Promise.all(
     warnings.map(async (warning) => {
       let timer: ReturnType<typeof setTimeout> | undefined
       try {
         return await Promise.race([
-          warning.check(),
+          warning.check(who),
           new Promise<null>((resolve) => {
             timer = setTimeout(() => resolve(null), limitMs)
           }),

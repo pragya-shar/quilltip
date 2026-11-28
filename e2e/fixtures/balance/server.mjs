@@ -13,7 +13,14 @@ const root = path.resolve(here, '../../..')
 const result = await Bun.build({
   entrypoints: [path.join(here, 'page.tsx')],
   target: 'browser',
-  define: { 'process.env.NODE_ENV': '"development"', 'process.env': '{}' },
+  // A deployment URL, so the payments shell reads the session token under
+  // its key (lib/payments/store.ts); backend.ts writes that token.
+  define: {
+    'process.env.NODE_ENV': '"development"',
+    'process.env': JSON.stringify({
+      NEXT_PUBLIC_CONVEX_URL: 'https://balance-fixture.convex.cloud',
+    }),
+  },
   plugins: [
     {
       name: 'balance-collaborators',
@@ -27,6 +34,10 @@ const result = await Bun.build({
         }))
         build.onResolve({ filter: /^next\/navigation$/ }, () => ({
           path: path.join(here, 'navigation.ts'),
+        }))
+        // The old dashboard's section row (screen=account) links with it.
+        build.onResolve({ filter: /^next\/link$/ }, () => ({
+          path: path.join(root, 'e2e/fixtures/system/link.tsx'),
         }))
         // The shell loads the engine through a wrapper that can delay it.
         build.onResolve({ filter: /^\.\/PaymentsEngine$/ }, (args) =>

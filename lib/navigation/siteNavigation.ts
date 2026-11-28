@@ -21,8 +21,8 @@ export function getAccountNavigationLinks(
     },
     { href: SETTINGS_PATH, label: 'Settings' },
     { href: '/drafts', label: 'Drafts' },
-    { href: '/dashboard/balance', label: 'Balance' },
-    { href: '/dashboard/earnings', label: 'Earnings' },
+    // The balance sheet, in the application shell (a page change).
+    { href: '/pocket', label: 'Balance' },
     { href: '/dashboard/stats', label: 'Stats' },
     { href: '/dashboard/wallet', label: 'Wallet' },
     { href: SUPPORT_PATH, label: 'Help & support' },

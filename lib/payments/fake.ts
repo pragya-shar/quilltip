@@ -19,7 +19,7 @@
  * The figures are the real run's (50¢, 10¢ and 10¢ tips; 68.25¢ to the
  * writer) at $0.127328 per testnet XLM.
  */
-import { convertedMoney, money } from './money'
+import { convertedMoney, money, tipAmount } from './money'
 import type {
   ActivityItem,
   ActivityView,
@@ -96,7 +96,7 @@ function balance(over: Partial<BalanceView>, asOf: number): BalanceView {
       minTip: money(10),
       defaultTip: money(10),
     },
-    amounts: [money(10), money(25), money(50)],
+    amounts: [tipAmount(10), tipAmount(25), tipAmount(50)],
     noAmountReason: null,
     settlement: { enabled: true, expectedWithinMs: 80_000 },
     online: true,
@@ -165,15 +165,16 @@ const NO_EARNINGS = earnings({
 function tipControl(over: Partial<TipController> = {}): TipController {
   return {
     state: { phase: 'idle' },
-    amount: money(10),
+    amount: tipAmount(10),
     blocked: null,
-    amounts: [money(10), money(25), money(50)],
+    amounts: [tipAmount(10), tipAmount(25), tipAmount(50)],
     setAmount: noop,
     tip: async () => {},
     reset: noop,
     ready: true,
     warming: false,
     queued: false,
+    missed: false,
     unavailable: null,
     signedOut: null,
     ...over,
@@ -182,7 +183,7 @@ function tipControl(over: Partial<TipController> = {}): TipController {
 
 /** A signed-out visitor: no figures, an offer from public terms only. */
 function signedOutViews(offer: number[], fallback: number): FakePayments {
-  const amounts = offer.map(money)
+  const amounts = offer.map(tipAmount)
   const def = offer.includes(100) ? 100 : (offer[0] ?? fallback)
   return {
     balance: balance(
@@ -197,7 +198,7 @@ function signedOutViews(offer: number[], fallback: number): FakePayments {
       amount: null,
       amounts: [],
       unavailable: 'signed-out',
-      signedOut: { signedOut: true, amount: money(def), amounts },
+      signedOut: { signedOut: true, amount: tipAmount(def), amounts },
     }),
     readerActivity: activity([], 'loading'),
     writerActivity: activity([], 'loading'),
@@ -230,8 +231,16 @@ function item(
         : { name: 'A reader', username: null },
     article:
       role === 'reader'
-        ? { title: 'The Winter Shelf', href: '/wen_hsu/the-winter-shelf' }
-        : { title: 'Leave It Overnight', href: '/theo/leave-it-overnight' },
+        ? {
+            id: 'article-winter-shelf',
+            title: 'The Winter Shelf',
+            href: '/wen_hsu/the-winter-shelf',
+          }
+        : {
+            id: 'article-leave-it-overnight',
+            title: 'Leave It Overnight',
+            href: '/theo/leave-it-overnight',
+          },
     passage: 'Leave it overnight.',
     amount: money(cents),
     net: status === 'sending' ? null : money(share(cents)),
@@ -349,9 +358,11 @@ function forRole(v: FakePayments, role: FakeRole): FakePayments {
           ? balance(
               {
                 status: 'none',
-                available: convertedMoney(0),
+                // No balance is held: an exact zero, not a conversion.
+                available: money(0),
                 pending: money(0),
-                exact: { token: 'XLM', available: '0' },
+                exact: null,
+                price: null,
                 deviceReady: false,
                 device: 'needs-setup',
                 limits: null,
@@ -511,5 +522,19 @@ export function fakeRuntime(
     useActivity: (role) =>
       role === 'reader' ? views.readerActivity : views.writerActivity,
     useEarnings: () => views.earnings,
+    // The reader's tips in this scenario, as their own tips on the article.
+    useOwnTips: () => ({
+      status: views.balance.status === 'signed-out' ? 'signed-out' : 'ready',
+      complete: true,
+      tips: views.readerActivity.items
+        .filter((i) => i.status === 'sent' || i.status === 'on-chain')
+        .map((i) => ({
+          requestId: i.requestId,
+          passage: null,
+          amount: i.amount,
+          state: i.status === 'on-chain' ? 'on-chain' : 'accepted',
+          at: i.at,
+        })),
+    }),
   }
 }
