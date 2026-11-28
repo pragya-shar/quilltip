@@ -7,7 +7,6 @@ import { LandingNavigation } from '@/components/landing/LandingNavigation'
 import { useAuth } from '@/components/providers/AuthContext'
 import { WriterTypewriter } from './WriterTypewriter'
 import { visibleTimer } from '@/components/landing/visibleTimer'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 const title = 'The words we carry'
 const passage =
@@ -202,7 +201,7 @@ export function WriterIntroduction() {
                   <button onClick={() => choose(1 - step)}>
                     {step === 0 ? (
                       <>
-                        Preview <NorthEastArrow />
+                        Preview <span aria-hidden="true">↗︎</span>
                       </>
                     ) : (
                       'Back to draft'

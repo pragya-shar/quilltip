@@ -39,7 +39,6 @@ import {
 } from '@/lib/articles/readingRoomListArgs'
 import { getBrowseContextMessage } from './ArticlesBrowseDiscoveryHeader'
 import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 type ReadingRoomList = NonNullable<ReturnType<typeof useReadingRoomArticles>>
 
@@ -432,7 +431,7 @@ export function ReadingRoom({
         <span>Read freely. Support the words that stay.</span>
         <details>
           <summary>
-            Public-domain artwork · Credits <NorthEastArrow />
+            Public-domain artwork · Credits <span aria-hidden="true">↗︎</span>
           </summary>
           <p>Artwork appears when an article has no cover image.</p>
           <a

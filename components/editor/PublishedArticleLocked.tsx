@@ -6,7 +6,6 @@ import { estimateArticleReadingMinutes } from '@/lib/reading-time'
 import type { Id } from '@/convex/_generated/dataModel'
 import { ArticleTipsPanel } from './ArticleTipsPanel'
 import { WritingBrand } from './WritingBrand'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 /* Full navigation runs the writing desk unsaved-changes guard. */
 /* eslint-disable @next/next/no-html-link-for-pages */
@@ -55,7 +54,7 @@ export function PublishedArticleLocked({
             </p>
             {articleHref && (
               <a className="locked-article-link" href={articleHref}>
-                View article <NorthEastArrow />
+                View article <span aria-hidden="true">↗︎</span>
               </a>
             )}
           </div>

@@ -40,7 +40,6 @@ import { Skeleton } from '@/components/ui/skeleton'
 import '@/components/library/library.css'
 import '@/components/articles/reading-room.css'
 import '@/components/profile/public-profile.css'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export type PublicProfile = FunctionReturnType<
   typeof api.users.getUserByUsername
@@ -253,7 +252,7 @@ export function ProfilePageClient({
           unavailableRetryHref={unavailableRetryHref}
         />
         <Link className="library-browse" href={`/${user.username}?tab=nfts`}>
-          NFT collection <NorthEastArrow />
+          NFT collection <span aria-hidden="true">↗︎</span>
         </Link>
         {/* Fixed to the viewport, so it does not push the page down. */}
         {isOwnProfile && isGeneratedHandle(user.username) && (

@@ -18,7 +18,6 @@ import {
   youtubeVideoId,
   youtubeWatchAddress,
 } from '@/lib/tiptap/youtubeExtension'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export function WritingMedia({
   workspace: w,
@@ -123,7 +122,7 @@ export function WritingMedia({
           >
             Choose an image{' '}
             <span>
-              From your device <NorthEastArrow />
+              From your device <span aria-hidden="true">↗︎</span>
             </span>
           </button>
           <input

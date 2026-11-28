@@ -13,7 +13,6 @@ import type { ArticleForDisplay } from '@/types/index'
 import { formatListingReadTime } from '@/lib/articles/articleListingMeta'
 import { shownCoverImage } from '@/lib/tiptap/articleImage'
 import { ArticleCoverDoodles } from './ArticleCoverDoodles'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 const artwork = ['words', 'window', 'room', 'recipe']
 
@@ -137,7 +136,7 @@ export function ReadingRoomCard({
           )}
         </p>
         <Link className="read-more" href={href} onClick={onNavigate}>
-          Read more <NorthEastArrow />
+          Read more <span aria-hidden="true">↗︎</span>
         </Link>
       </div>
       <BookmarkButton article={bookmark} resumeIntent={false} />

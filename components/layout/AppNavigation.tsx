@@ -17,7 +17,6 @@ import {
   getAccountNavigationLinks,
   PRIMARY_NAVIGATION_LINKS,
 } from '@/lib/navigation/siteNavigation'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 const noSubscription = () => () => {}
 
@@ -99,7 +98,7 @@ export default function AppNavigation() {
             <>
               <Link href="/login">Log in</Link>
               <Link className="app-nav-action" href="/register">
-                Sign up <NorthEastArrow />
+                Sign up <span aria-hidden="true">↗︎</span>
               </Link>
             </>
           )}

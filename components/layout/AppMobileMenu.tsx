@@ -13,7 +13,6 @@ import {
   SUPPORT_PATH,
 } from '@/lib/navigation/siteNavigation'
 import { UserAvatar } from '@/components/ui/user-avatar'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 /**
  * The small-screen navigation sheet, a native dialog in the server HTML.
@@ -168,7 +167,7 @@ export function AppMobileMenu({
               className="app-nav-action"
               onClick={closeMenu}
             >
-              Sign up <NorthEastArrow />
+              Sign up <span aria-hidden="true">↗︎</span>
             </Link>
             <Link
               href={SUPPORT_PATH}

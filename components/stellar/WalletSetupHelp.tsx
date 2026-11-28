@@ -3,7 +3,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { InstallWalletDialog } from './InstallWalletDialog'
 import './wallet-help.css'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export function WalletSetupHelp({
   receiving = false,
@@ -77,7 +76,8 @@ export function WalletSetupHelp({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Stellar Lab’s Friendbot funding tool <NorthEastArrow />
+                Stellar Lab’s Friendbot funding tool{' '}
+                <span aria-hidden="true">↗︎</span>
                 <span className="sr-only"> (opens in a new tab)</span>
               </a>
               , select Testnet, and paste your wallet’s public address. Wallet

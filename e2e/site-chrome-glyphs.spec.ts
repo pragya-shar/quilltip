@@ -3,23 +3,28 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 /**
  * Two details of the shared header and the phone menu, in Chromium and
  * WebKit (early-taps.config.ts, fixture backend):
- * - #666: no arrow character that iPhone can draw as a colour emoji; the
- *   arrow is an icon, hidden from assistive technology. The source scan in
+ * - #666: every arrow that iPhone can draw as a colour emoji asks for its
+ *   text form (U+FE0E) and is hidden from assistive technology. The source
+ *   scan in
  *   scripts/ui/emoji-glyphs.test.ts covers the other pages (Read next needs
  *   live data, which the fixture backend does not send);
  * - #667: in dark appearance the theme button still reads on the cream
  *   chrome (3:1 for its icon, and a visible focus ring).
  */
 
-/** Arrows that iOS can draw as an emoji tile (Emoji=Yes, text by default). */
-const EMOJI_ARROWS = /[↔-↙↩↪⤴⤵➡⬅-⬇]/
+/**
+ * Arrows that iOS can draw as an emoji tile (Emoji=Yes, text by default),
+ * without U+FE0E (text presentation) after them.
+ */
+const BARE_EMOJI_ARROWS =
+  /[\u2194-\u2199\u21A9\u21AA\u2934\u2935\u27A1\u2B05-\u2B07](?!\uFE0E)/
 
 async function visibleText(page: Page) {
   return page.evaluate(() => document.body.innerText)
 }
 
 for (const width of [375, 1440]) {
-  test(`#666 arrows are icons, not emoji-capable text, at ${width}px`, async ({
+  test(`#666 arrows ask for their text form at ${width}px`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 })
@@ -31,10 +36,10 @@ for (const width of [375, 1440]) {
       ).toBeVisible()
     }
     const signUp = page.getByRole('link', { name: 'Sign up', exact: true })
-    await expect(
-      signUp.locator('svg[data-arrow="north-east"]')
-    ).toHaveAttribute('aria-hidden', 'true')
-    expect(await visibleText(page)).not.toMatch(EMOJI_ARROWS)
+    await expect(signUp.locator('span[aria-hidden="true"]')).toHaveText(
+      '\u2197\uFE0E'
+    )
+    expect(await visibleText(page)).not.toMatch(BARE_EMOJI_ARROWS)
   })
 }
 

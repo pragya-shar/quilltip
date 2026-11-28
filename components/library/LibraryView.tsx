@@ -1,6 +1,5 @@
 import Link from 'next/link'
 import { articleHref, type Bookmark } from '@/lib/library/bookmarks'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export type LibraryHighlight = {
   _id: string
@@ -35,14 +34,14 @@ export function LibraryView({
               <strong>{b.title}</strong>
               <span>{b.author}</span>
             </span>
-            <NorthEastArrow />
+            <span aria-hidden="true">↗︎</span>
           </Link>
         ))
       ) : (
         <div className="library-empty">
           <p>No bookmarks yet. Pick a story and tap its bookmark.</p>
           <Link className="library-browse" href="/articles">
-            Browse articles <NorthEastArrow />
+            Browse articles <span aria-hidden="true">↗︎</span>
           </Link>
         </div>
       )}
@@ -62,14 +61,14 @@ export function LibraryView({
                 <blockquote>{h.text}</blockquote>
                 <small>{h.article!.title}</small>
               </span>
-              <NorthEastArrow />
+              <span aria-hidden="true">↗︎</span>
             </Link>
           ))
       ) : (
         <div className="library-empty">
           <p>Select a passage in an article to keep it here.</p>
           <Link className="library-browse" href="/articles">
-            Find something to read <NorthEastArrow />
+            Find something to read <span aria-hidden="true">↗︎</span>
           </Link>
         </div>
       )}

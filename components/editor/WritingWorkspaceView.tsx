@@ -41,7 +41,6 @@ import {
 } from '@/lib/reading-time'
 import { shownCoverImage } from '@/lib/tiptap/articleImage'
 import { publishFeedbackPlace } from '@/lib/editor/publish-feedback'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export function WritingWorkspaceView({
   workspace: w,
@@ -266,7 +265,7 @@ export function WritingWorkspaceView({
               </>
             )}
             <a className="editor-return" href="/write?desk=writing">
-              Your writing <NorthEastArrow />
+              Your writing <span aria-hidden="true">↗︎</span>
             </a>
           </div>
         </main>
@@ -324,7 +323,7 @@ export function WritingWorkspaceView({
             disabled={!w.editor}
             onClick={() => setPanel('preview')}
           >
-            Preview <NorthEastArrow />
+            Preview <span aria-hidden="true">↗︎</span>
           </button>
           <SignedInAccountMenu triggerClassName="editor-account-trigger" />
         </div>
@@ -619,7 +618,7 @@ export function WritingWorkspaceView({
                 'Article settings'
               ) : (
                 <>
-                  Continue to publish <NorthEastArrow />
+                  Continue to publish <span aria-hidden="true">↗︎</span>
                 </>
               )}
             </button>
@@ -673,7 +672,7 @@ export function WritingWorkspaceView({
         >
           Image{' '}
           <span>
-            From your device <NorthEastArrow />
+            From your device <span aria-hidden="true">↗︎</span>
           </span>
         </button>
         <button
@@ -951,7 +950,7 @@ export function WritingWorkspaceView({
         <p>Your article is published and ready for readers.</p>
         {publicationHref ? (
           <a className="wine wide published-link" href={publicationHref}>
-            View article <NorthEastArrow />
+            View article <span aria-hidden="true">↗︎</span>
           </a>
         ) : (
           <p role="status">Preparing your article link…</p>

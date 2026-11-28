@@ -31,7 +31,6 @@ import {
   type PendingAction,
 } from './articleTipsState'
 import './article-tips.css'
-import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 const PHASE_COPY: Record<ArticleActionPhase, string> = {
   preparing: 'Preparing…',
@@ -385,7 +384,7 @@ export function ArticleTipsPanel({
               View the transaction
               <span className="sr-only"> (opens in a new tab)</span>
               &nbsp;
-              <NorthEastArrow />
+              <span aria-hidden="true">↗︎</span>
             </a>
           )}
         </>
@@ -410,7 +409,7 @@ export function ArticleTipsPanel({
               View the transaction
               <span className="sr-only"> (opens in a new tab)</span>
               &nbsp;
-              <NorthEastArrow />
+              <span aria-hidden="true">↗︎</span>
             </a>
           )}
         </>
@@ -504,7 +503,7 @@ export function ArticleTipsPanel({
               View the registration
               <span className="sr-only"> (opens in a new tab)</span>
               &nbsp;
-              <NorthEastArrow />
+              <span aria-hidden="true">↗︎</span>
             </a>
           )}
         </>
