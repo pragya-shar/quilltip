@@ -24,7 +24,10 @@ export function preloadSheet(id: string): Promise<{ default: Body }> | null {
       () => {}
     )
     // A failed load stays failed, so the sheet says so; Try again
-    // (`forgetSheet`) loads afresh.
+    // (`forgetSheet`) loads afresh. That includes a load a warm-up started
+    // (`warmSheet` on hover or focus): if it failed, the sheet opens on
+    // "This did not load" even if the network is back, and one Try again
+    // loads it.
     started.set(id, promise)
   }
   return promise
