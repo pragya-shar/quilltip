@@ -32,14 +32,13 @@ later work.
    `f4704e6d`), the public copy refresh after an article leaves its address
    (#627, `116e356e`), the article image sources (#625 for #615,
    `077f08bd`) and the profile photo, embed and cover sources (#642 for
-   #633, `034e0b25`). Still open: the fix that lets `chain/tabReconcile:run`
-   compare while the indexer is healthy (PR to follow; section 9). The
-   checks in section 1.3 pass on that commit. The tab debit fix (#585) is
+   #633, `034e0b25`) and the reconciliation wait for the indexer (#650 for
+   #648, `85446463`). The checks in section 1.3 pass on that commit. The tab debit fix (#585) is
    merged and needs no operator step: its table and field ship with the
    stage 1 push, and its test variables `TAB_DEBIT_SCAN_LIMIT` and
    `TAB_DEBIT_READ_BUDGET` stay unset on the live deployment. #619, #620,
-   #624, #627, #625 and #642 need no operator step beyond the image sources
-   check (stage 1, step 4). #559 raises the page-load budgets of
+   #624, #627, #625, #642 and #650 need no operator step beyond the image
+   sources check (stage 1, step 4). #559 raises the page-load budgets of
    `/articles` and `/[username]/[slug]` by 1 KB, to 217 KB and 220 KB, for a
    bundler chunk split.
 2. The owner has decided the backend push method, and the push uses a deploy
@@ -1711,7 +1710,7 @@ the variables are gone.
 | Indexer status and flagged tips      | Daily                                                                                          | `/ops/chain`; `tabAccounts.settledUnindexed` above 0 for more than an hour (section 7.3); any tab under "Waiting for a reconciliation" (chain runbook) |
 | Settler balance and lag alerts       | Daily, and on every `TAB_SETTLER_*` log line                                                   | Convex logs; fund the settler from Friendbot below 50 XLM                                                                                              |
 | Settler runs                         | Daily; never 3 days without a run (go/no-go item 8)                                            | `SETTLEMENT_ENABLED=true`; the `settle due tab vouchers` cron has a recent run (dashboard cron jobs list)                                              |
-| Tab reconciliation                   | Daily, once the `chain/tabReconcile:run` fix ships (go/no-go item 1)                           | [Chain runbook](chain-runbook.md#stale-settlement-reserves). Until the fix, `run` can refuse `INDEXER_BEHIND` on a healthy indexer                     |
+| Tab reconciliation                   | Daily                                                                                          | [Chain runbook](chain-runbook.md#stale-settlement-reserves): a dry run for each tab listed. The command waits up to 2.5 minutes for the indexer        |
 | Roles report                         | Weekly, and after any role change                                                              | `bun run contracts:roles-v2 --set live --keys-dir <dir>`                                                                                               |
 | Live deployment snapshot             | Weekly, and before the v1 backend removal PR is deployed                                       | Convex dashboard snapshot export                                                                                                                       |
 | Testnet reset check                  | After every announced testnet reset                                                            | [Chain runbook, testnet reset](chain-runbook.md#testnet-reset)                                                                                         |
