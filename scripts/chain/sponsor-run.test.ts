@@ -1,7 +1,7 @@
 /**
  * The fee sponsor's network steps (convex/lib/sponsor/run.ts) against a fake
- * RPC server. Each test names the mutant it kills. Further tests show that a
- * transaction's record exists before it is sent, that only the node's refusal
+ * RPC server. Each test names the rule it proves: the checks at prepare,
+ * submit and deploy, that a transaction's record exists before it is sent, that only the node's refusal
  * means "not sent", that the fee cap holds on the signed envelope, and when a
  * missing transaction is known not to have landed.
  */
@@ -188,7 +188,11 @@ function fake(o: FakeOptions = {}) {
       const mode = o.getTransaction ?? 'success'
       if (mode === 'throws') throw new Error('rpc down')
       if (mode === 'not_found')
-        return { status: 'NOT_FOUND', latestLedgerCloseTime: '1700000000' }
+        return {
+          status: 'NOT_FOUND',
+          latestLedgerCloseTime: '1700000000',
+          oldestLedgerCloseTime: '1699000000',
+        }
       return {
         status: mode === 'success' ? 'SUCCESS' : 'FAILED',
         ledger: 1001,
@@ -234,7 +238,7 @@ describe('runPrepare', () => {
     expect(p.maxExpiration).toBe(1000 + 120)
   })
 
-  it('mutant "runPrepare skips checkRecordedAuth": refuses auth for another call', async () => {
+  it('prepare refuses recorded auth for another call', async () => {
     const b = balanceCallArgs(spec)
     const other = entry(invocation(contractFn(TAB, 'withdraw', b.args)))
     const { d } = fake({ auth: [other] })
@@ -243,7 +247,7 @@ describe('runPrepare', () => {
     )
   })
 
-  it('mutant "floor check removed" (prepare): refuses below the floor, allows at the floor', async () => {
+  it('prepare refuses below the balance floor and allows at it', async () => {
     expect(
       await code(
         runPrepare(fake({ balance: FLOOR - BigInt(1) }).d, spec, Date.now())
@@ -307,7 +311,7 @@ describe('runSubmit', () => {
     expect(onSigned).toHaveBeenCalledOnce()
   })
 
-  it('mutant "runSubmit compares the signed entries with themselves": refuses signatures for another call', async () => {
+  it('submit refuses signatures for another call than the prepared one', async () => {
     const { d, p } = await prepared()
     const b = balanceCallArgs(spec)
     const forged = entry(invocation(contractFn(TAB, 'withdraw', b.args)), {
@@ -321,7 +325,7 @@ describe('runSubmit', () => {
     ).toBe('SPONSOR_SIGNED_MISMATCH')
   })
 
-  it('mutant "fee cap removed at submit": refuses a re-simulation over the cap', async () => {
+  it('submit refuses a re-simulation over the fee cap', async () => {
     const { d, p, sent } = await prepared({
       minResourceFee: Number(RESOURCE_FEE_CAP.deposit) + 1,
     })
@@ -346,7 +350,7 @@ describe('runSubmit', () => {
     expect(sent).toEqual([])
   })
 
-  it('mutant "floor check removed" (submit): refuses below the floor', async () => {
+  it('submit refuses below the balance floor', async () => {
     const { d, p } = await prepared({ balance: FLOOR - BigInt(1) })
     expect(
       await code(
@@ -465,20 +469,35 @@ describe('runSubmit', () => {
 })
 
 describe('when a missing transaction is known not to have landed', () => {
-  it('lookupSent reports the node clock with "not found"', async () => {
+  it('lookupSent reports the node history window with "not found"', async () => {
     const { d } = fake({ getTransaction: 'not_found' })
     expect(await lookupSent(d.server, 'ab'.repeat(32))).toEqual({
       status: 'NOT_FOUND',
       latestLedgerCloseTime: 1_700_000_000,
+      oldestLedgerCloseTime: 1_699_000_000,
     })
   })
 
-  it('only once the node clock is past the time bound', () => {
-    expect(knownNotLanded(1000, 1000)).toBe(false)
-    expect(knownNotLanded(999, 1000)).toBe(false)
-    expect(knownNotLanded(1001, 1000)).toBe(true)
-    // No recorded bound: never by the clock.
-    expect(knownNotLanded(1_700_000_000, 0)).toBe(false)
+  it('only when the node history covers the signing time through past the time bound', () => {
+    const tx = { signedAt: 1000, maxTime: 1120 }
+    const node = (oldest: number, latest: number) => ({
+      oldestLedgerCloseTime: oldest,
+      latestLedgerCloseTime: latest,
+    })
+    expect(knownNotLanded(node(900, 1121), tx)).toBe(true)
+    expect(knownNotLanded(node(1000, 1121), tx)).toBe(true)
+    // The node has not reached past the time bound.
+    expect(knownNotLanded(node(900, 1120), tx)).toBe(false)
+    // Its history starts after the signing time: it may have missed it.
+    expect(knownNotLanded(node(1001, 5000), tx)).toBe(false)
+    expect(knownNotLanded(node(1420, 5000), tx)).toBe(false)
+    // No recorded bound or signing time: never.
+    expect(knownNotLanded(node(0, 5000), { signedAt: 0, maxTime: 1120 })).toBe(
+      false
+    )
+    expect(knownNotLanded(node(0, 5000), { signedAt: 1000, maxTime: 0 })).toBe(
+      false
+    )
   })
 })
 
@@ -498,7 +517,7 @@ describe('runDeploy', () => {
     expect(await code(runDeploy(withDeploy().d, payload))).toBe('ALLOWED')
   })
 
-  it('mutant "floor check removed" (deploy): refuses below the floor', async () => {
+  it('deploy refuses below the balance floor', async () => {
     expect(
       await code(
         runDeploy(withDeploy({ balance: FLOOR - BigInt(1) }).d, payload)

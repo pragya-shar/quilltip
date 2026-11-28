@@ -58,6 +58,8 @@ export const sponsorTables = {
     txHash: v.optional(v.string()),
     /** The signed transaction's upper time bound (Unix seconds). */
     maxTime: v.optional(v.number()),
+    /** When the envelope was signed (Unix seconds): the earliest it can land. */
+    signedAt: v.optional(v.number()),
     error: v.optional(v.string()),
     /** The UTC day (`YYYY-MM-DD`) whose budget the request counts against. */
     day: v.string(),
@@ -71,18 +73,27 @@ export const sponsorTables = {
     .index('by_status_updated', ['status', 'updatedAt']),
 
   /**
-   * The last readiness check of a signing service (`sponsor`; later the
-   * practice treasury): which checks failed, when, and for which settings.
-   * Entries refuse unless the latest check for the current settings passed.
+   * The last readiness check of a signing service (`sponsor`, `practice`):
+   * which checks failed, when, and for which settings. Entries refuse unless
+   * the latest check for the current settings passed recently. The causes
+   * are for operations users only (`sponsorStore.getSignerReadiness`).
    */
   signerReadiness: defineTable({
     service: v.string(),
+    /**
+     * Written only by mutations: set by a passing check, and cleared by a
+     * scheduled expiry at `readyUntil` unless a later check extended it. So a
+     * subscribed client sees it turn false when checks stop.
+     */
     ready: v.boolean(),
+    readyUntil: v.number(),
     failed: v.array(v.string()),
     warnings: v.array(v.string()),
-    /** A hash of the settings (and of the secret) the check ran with. */
+    /** A hash of the settings and the key (its public address), never of the secret. */
     fingerprint: v.string(),
     checkedAt: v.number(),
+    /** A check in progress holds this lease, so concurrent callers run one check. */
+    checkingUntil: v.optional(v.number()),
   }).index('by_service', ['service']),
 
   /** Fees the sponsor paid per UTC day, for the global budget. */

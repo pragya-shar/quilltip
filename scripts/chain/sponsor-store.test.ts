@@ -1,12 +1,12 @@
 /// <reference types="vite/client" />
 /**
  * The fee sponsor's records (convex/sponsorStore.ts) and the sign-in gate of
- * its public actions (convex/sponsor.ts): threats T1, T5, T6, T8, T9, T10 and
- * T21 of the sponsor's threat list, the budget commitments, and the public
- * readiness answer.
+ * its public actions (convex/sponsor.ts): who is served, the limits, one
+ * submit per request, the record of a sent transaction, the budget
+ * commitments, and the public readiness answer.
  */
 import { convexTest } from 'convex-test'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { Keypair, StrKey } from '@stellar/stellar-sdk'
 import { Buffer } from 'buffer'
 import schema from '../../convex/schema'
@@ -26,6 +26,15 @@ const NOW = Date.UTC(2026, 10, 28, 12)
 const BUDGET = '20000000000'
 
 type T = ReturnType<typeof convexTest>
+
+// The store uses its own clock for expiry and commitments; tests set it.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] })
+  vi.setSystemTime(NOW)
+})
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 async function user(
   t: T,
@@ -89,7 +98,7 @@ async function signed(
   fee = '1000',
   now = NOW
 ) {
-  await t.mutation(internal.sponsorStore.claim, { requestId, userId, now })
+  await t.mutation(internal.sponsorStore.claim, { requestId, userId })
   await t.mutation(internal.sponsorStore.markSigned, {
     requestId,
     txHash: `h${requestId.slice(0, 8)}`,
@@ -126,7 +135,7 @@ async function code(p: Promise<unknown>): Promise<string> {
 }
 
 describe('who the sponsor serves', () => {
-  it('T1: refuses a stranger at both public actions', async () => {
+  it('refuses a stranger at both public actions', async () => {
     const t = convexTest(schema, modules)
     expect(
       await code(
@@ -160,7 +169,7 @@ describe('who the sponsor serves', () => {
     expect(row?.status).toBe('reserved')
   })
 
-  it('T6: refuses a wallet (G) reader, an unverified address and no address', async () => {
+  it('refuses a wallet (G) reader, an unverified address and no address', async () => {
     const t = convexTest(schema, modules)
     for (const id of [
       await user(t, Keypair.random().publicKey()),
@@ -173,7 +182,7 @@ describe('who the sponsor serves', () => {
     }
   })
 
-  it("T5: refuses another user's request", async () => {
+  it("refuses another user's request", async () => {
     const t = convexTest(schema, modules)
     const owner = await user(t, PASSKEY)
     const other = await user(t, StrKey.encodeContract(Buffer.alloc(32, 8)))
@@ -183,7 +192,6 @@ describe('who the sponsor serves', () => {
         t.mutation(internal.sponsorStore.claim, {
           requestId,
           userId: other,
-          now: NOW,
         })
       )
     ).toBe('SPONSOR_UNKNOWN_REQUEST')
@@ -192,14 +200,13 @@ describe('who the sponsor serves', () => {
         t.mutation(internal.sponsorStore.claim, {
           requestId,
           userId: owner,
-          now: NOW,
         })
       )
     ).toBe('ALLOWED')
   })
 })
 
-describe('limits (T8)', () => {
+describe('limits per user and for the day', () => {
   it(`refuses call ${PER_USER_PER_HOUR + 1} within an hour`, async () => {
     const t = convexTest(schema, modules)
     const id = await user(t, PASSKEY)
@@ -254,7 +261,6 @@ describe('limits (T8)', () => {
     await t.mutation(internal.sponsorStore.claim, {
       requestId,
       userId: a,
-      now: NOW,
     })
     await t.mutation(internal.sponsorStore.finish, {
       requestId,
@@ -319,8 +325,8 @@ describe('limits (T8)', () => {
   })
 })
 
-describe('one submit per request (T9, T10)', () => {
-  it('T9: refuses a second claim of the same request', async () => {
+describe('one submit per request, before it expires', () => {
+  it('refuses a second claim of the same request', async () => {
     const t = convexTest(schema, modules)
     const id = await user(t, PASSKEY)
     const requestId = await prepared(t, id)
@@ -329,7 +335,6 @@ describe('one submit per request (T9, T10)', () => {
         t.mutation(internal.sponsorStore.claim, {
           requestId,
           userId: id,
-          now: NOW,
         })
       )
     ).toBe('ALLOWED')
@@ -338,7 +343,6 @@ describe('one submit per request (T9, T10)', () => {
         t.mutation(internal.sponsorStore.claim, {
           requestId,
           userId: id,
-          now: NOW,
         })
       )
     ).toBe('SPONSOR_BAD_STATE')
@@ -356,32 +360,39 @@ describe('one submit per request (T9, T10)', () => {
         t.mutation(internal.sponsorStore.claim, {
           requestId,
           userId: id,
-          now: NOW,
         })
       )
     ).toBe('SPONSOR_BAD_STATE')
   })
 
-  it('T10: refuses an expired request, every time', async () => {
+  it('refuses an expired request, every time', async () => {
     const t = convexTest(schema, modules)
     const id = await user(t, PASSKEY)
     const requestId = await prepared(t, id)
+    const claim = () =>
+      code(t.mutation(internal.sponsorStore.claim, { requestId, userId: id }))
+    // The store's own clock decides; the caller passes none.
+    vi.setSystemTime(NOW + REQUEST_TTL_MS)
+    expect(await claim()).toBe('SPONSOR_EXPIRED')
+    vi.setSystemTime(NOW + REQUEST_TTL_MS + 1)
+    expect(await claim()).toBe('SPONSOR_EXPIRED')
+    vi.setSystemTime(NOW + REQUEST_TTL_MS - 1)
+    expect(await claim()).toBe('ALLOWED')
+  })
+
+  it('a claim cannot reopen a request whose commitment the day no longer counts', async () => {
+    // Budget 2,500,000 and one cap (2,000,100): once the first request has
+    // expired, its commitment is released and a second one is prepared. The
+    // first can then no longer be claimed, so the day never holds both.
+    const t = convexTest(schema, modules)
+    const a = await user(t, PASSKEY)
+    const b = await user(t, StrKey.encodeContract(Buffer.alloc(32, 15)))
+    const first = await prepared(t, a, NOW, '2000100', '2500000')
+    vi.setSystemTime(NOW + REQUEST_TTL_MS + 10)
+    await prepared(t, b, NOW + REQUEST_TTL_MS + 10, '2000100', '2500000')
     expect(
       await code(
-        t.mutation(internal.sponsorStore.claim, {
-          requestId,
-          userId: id,
-          now: NOW + REQUEST_TTL_MS,
-        })
-      )
-    ).toBe('SPONSOR_EXPIRED')
-    expect(
-      await code(
-        t.mutation(internal.sponsorStore.claim, {
-          requestId,
-          userId: id,
-          now: NOW + REQUEST_TTL_MS + 1,
-        })
+        t.mutation(internal.sponsorStore.claim, { requestId: first, userId: a })
       )
     ).toBe('SPONSOR_EXPIRED')
   })
@@ -393,7 +404,6 @@ describe('one submit per request (T9, T10)', () => {
     await t.mutation(internal.sponsorStore.claim, {
       requestId,
       userId: id,
-      now: NOW,
     })
     await t.mutation(internal.sponsorStore.finish, {
       requestId,
@@ -451,6 +461,7 @@ describe('the daily budget is reserved, not only checked', () => {
     const t = convexTest(schema, modules)
     await prepared(t, await user(t, PASSKEY), NOW, '900', '1000')
     const later = NOW + REQUEST_TTL_MS
+    vi.setSystemTime(later)
     expect(
       await code(
         prepared(
@@ -511,7 +522,6 @@ describe('a sent transaction is never lost', () => {
     await t.mutation(internal.sponsorStore.claim, {
       requestId: r,
       userId: id,
-      now: NOW,
     })
     await t.mutation(internal.sponsorStore.markSigned, args)
     const row = await t.run((ctx) =>
@@ -538,7 +548,6 @@ describe('a sent transaction is never lost', () => {
     await t.mutation(internal.sponsorStore.claim, {
       requestId: r2,
       userId: id,
-      now: NOW,
     })
     const early = await t.query(internal.sponsorStore.openRows, {
       now: NOW + 60_000,
@@ -547,7 +556,7 @@ describe('a sent transaction is never lost', () => {
     expect(early.pending.map((p) => p.requestId)).toEqual([r1])
     expect(early.abandoned).toEqual([])
     const late = await t.query(internal.sponsorStore.openRows, {
-      now: NOW + REQUEST_TTL_MS + 1,
+      now: NOW + REQUEST_TTL_MS + 10,
       olderThanMs: 30_000,
     })
     expect(late.abandoned).toEqual([r2])
@@ -563,7 +572,6 @@ describe('the budget holds what open requests may cost', () => {
     await t.mutation(internal.sponsorStore.claim, {
       requestId: first,
       userId: a,
-      now: NOW,
     })
     expect(await code(prepared(t, b, NOW, '200', '1000'))).toBe(
       'SPONSOR_BUDGET_REACHED'
@@ -610,31 +618,59 @@ describe('the budget holds what open requests may cost', () => {
 })
 
 describe('the public answer for the newcomer sheet', () => {
-  async function ready(t: T, ok: boolean, at: number) {
-    await t.mutation(internal.sponsorStore.recordReadiness, {
+  const record = (t: T, ready: boolean) =>
+    t.mutation(internal.sponsorStore.recordReadiness, {
       service: 'sponsor',
-      ready: ok,
-      failed: ok ? [] : ['below_floor'],
+      ready,
+      failed: ready ? [] : ['below_floor'],
       warnings: [],
       fingerprint: 'f',
-      now: at,
     })
-  }
 
-  it('is true only when switched on and the latest check passed recently', async () => {
+  it('follows the recorded readiness, and turns false by itself when checks stop', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
     const t = convexTest(schema, modules)
     vi.stubEnv('SPONSOR_ENABLED', 'true')
     try {
       const ask = () => t.query(api.sponsorStore.passkeyTipAvailable, {})
       expect(await ask()).toBe(false)
-      await ready(t, false, Date.now())
+      await record(t, false)
       expect(await ask()).toBe(false)
-      await ready(t, true, Date.now() - READINESS_TTL_MS - 1)
-      expect(await ask()).toBe(false)
-      await ready(t, true, Date.now())
+      await record(t, true)
       expect(await ask()).toBe(true)
-      vi.stubEnv('SPONSOR_ENABLED', 'false')
+      // A later check extends it: the first expiry leaves it set.
+      vi.advanceTimersByTime(10 * 60_000)
+      await record(t, true)
+      vi.advanceTimersByTime(READINESS_TTL_MS - 10 * 60_000 + 50)
+      await t.finishInProgressScheduledFunctions()
+      expect(await ask()).toBe(true)
+      // No further check: its own expiry clears it, with no query clock.
+      vi.advanceTimersByTime(10 * 60_000)
+      await t.finishInProgressScheduledFunctions()
       expect(await ask()).toBe(false)
+      vi.stubEnv('SPONSOR_ENABLED', 'false')
+      await record(t, true)
+      expect(await ask()).toBe(false)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('shows the causes to operations users only', async () => {
+    const t = convexTest(schema, modules)
+    const ops = await user(t, PASSKEY)
+    const other = await user(t, StrKey.encodeContract(Buffer.alloc(32, 16)))
+    vi.stubEnv('OPS_USER_IDS', ops)
+    try {
+      await record(t, false)
+      const as = (id: Id<'users'>) => t.withIdentity({ subject: `${id}|s` })
+      expect(
+        await as(other).query(api.sponsorStore.getSignerReadiness, {})
+      ).toBeNull()
+      expect(await t.query(api.sponsorStore.getSignerReadiness, {})).toBeNull()
+      const rows = await as(ops).query(api.sponsorStore.getSignerReadiness, {})
+      expect(rows?.[0]?.failed).toEqual(['below_floor'])
     } finally {
       vi.unstubAllEnvs()
     }

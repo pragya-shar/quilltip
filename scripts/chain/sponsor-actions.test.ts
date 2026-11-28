@@ -18,6 +18,14 @@ const node = vi.hoisted(() => {
     get: 'not_found' as GetMode,
     /** The node's latest ledger close time (seconds) for "not found". */
     closeTime: 0,
+    /** The close time of the oldest ledger the node still holds. */
+    oldestCloseTime: 0,
+    /** The token the Tab's `config` reports. */
+    token: '',
+    /** Simulation error text for balance calls (never for `config`). */
+    simError: '',
+    /** Error text thrown by every RPC call when set. */
+    rpcThrows: '',
     simFee: 80_000,
     feeCharged: 123_456,
     balance: '100000000000',
@@ -31,6 +39,9 @@ const node = vi.hoisted(() => {
       this.send = 'pending'
       this.get = 'not_found'
       this.closeTime = 0
+      this.oldestCloseTime = 0
+      this.simError = ''
+      this.rpcThrows = ''
       this.simFee = 80_000
       this.feeCharged = 123_456
       this.balance = '100000000000'
@@ -53,6 +64,7 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
       return new m.Account(id, '1')
     }
     async getAccountEntry() {
+      if (node.rpcThrows) throw new Error(node.rpcThrows)
       return { balance: node.balance }
     }
     async getLedgerEntries(key: unknown) {
@@ -92,6 +104,23 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
             )
           : 'deploy'
       node.simulated.push(name)
+      if (node.simError && name !== 'config')
+        return {
+          _parsed: true,
+          id: '1',
+          latestLedger: 1000,
+          events: [],
+          error: node.simError,
+        }
+      const retval =
+        name === 'config'
+          ? m.xdr.ScVal.scvMap([
+              new m.xdr.ScMapEntry({
+                key: m.xdr.ScVal.scvSymbol('token'),
+                val: new m.Address(node.token).toScVal(),
+              }),
+            ])
+          : m.xdr.ScVal.scvVoid()
       return {
         _parsed: true,
         id: '1',
@@ -103,7 +132,7 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
         ),
         result: {
           auth: name === 'config' || name === 'deploy' ? [] : [node.auth()],
-          retval: m.xdr.ScVal.scvVoid(),
+          retval,
         },
       }
     }
@@ -126,6 +155,7 @@ vi.mock('@stellar/stellar-sdk', async (importOriginal) => {
           status: 'NOT_FOUND',
           latestLedger: 900,
           latestLedgerCloseTime: String(node.closeTime),
+          oldestLedgerCloseTime: String(node.oldestCloseTime),
         }
       return {
         status: node.get === 'success' ? 'SUCCESS' : 'FAILED',
@@ -253,6 +283,7 @@ function env(over: Record<string, string | undefined> = {}) {
 async function setup(over: Record<string, string | undefined> = {}) {
   node.reset()
   node.readerWasm = WASM
+  node.token = TOKEN
   sponsorKey = Keypair.random()
   env(over)
   const t = convexTest(schema, modules)
@@ -445,10 +476,11 @@ describe('the reconciler closes by the chain, not by our clock', () => {
       dailyBudgetStroops: '20000000000',
       now: Date.now() - 10 * 60_000,
     })
-    await t.mutation(internal.sponsorStore.claim, {
-      requestId,
-      userId: id,
-      now: Date.now() - 10 * 60_000,
+    await t.mutation(internal.sponsorStore.claim, { requestId, userId: id })
+    // Left in submitting for longer than a request's lifetime.
+    await t.run(async (ctx) => {
+      const row = await ctx.db.query('sponsoredCalls').first()
+      await ctx.db.patch(row!._id, { updatedAt: Date.now() - 10 * 60_000 })
     })
     vi.stubEnv('SPONSOR_ENABLED', 'false')
     await t.action(internal.sponsor.reconcile, {})
@@ -629,5 +661,175 @@ describe('readiness fails closed', () => {
     await t.action(internal.sponsor.checkReadiness, {})
     vi.stubEnv('SPONSOR_SECRET', Keypair.random().secret())
     expect((await outcome(prepare(as))).code).toBe('SPONSOR_NOT_READY')
+  })
+})
+
+describe('nothing but codes in the log lines a public caller can receive', () => {
+  /** Collects everything the actions write to the console. */
+  function captureLogs() {
+    const lines: string[] = []
+    const grab = (...a: unknown[]) => {
+      lines.push(
+        a.map((x) => (x instanceof Error ? x.message : String(x))).join(' ')
+      )
+    }
+    for (const level of ['error', 'warn', 'log', 'info'] as const) {
+      vi.spyOn(console, level).mockImplementation(grab)
+    }
+    return lines
+  }
+  afterEach(() => vi.restoreAllMocks())
+
+  it('an RPC failure with host and token in its text', async () => {
+    const { as } = await setup()
+    const lines = captureLogs()
+    node.rpcThrows = 'MARKER rpc-internal.example:8000 token=abc'
+    const r = await outcome(prepare(as))
+    expect(r.code).toBe('SPONSOR_NOT_READY')
+    expect(lines.join('\n')).not.toMatch(/MARKER|rpc-internal|token=/)
+    expect(r.message).not.toMatch(/MARKER|rpc-internal|token=/)
+  })
+
+  it('a setting whose value is not valid', async () => {
+    const { as } = await setup({ STELLAR_RPC_URL: 'MARKER-not-a-url' })
+    const lines = captureLogs()
+    const r = await outcome(prepare(as))
+    expect(r.message).toBe('Sponsored calls are paused for now.')
+    expect(lines.join('\n')).not.toContain('MARKER')
+  })
+
+  it('a balance under the floor at submit time', async () => {
+    const { t, as } = await setup()
+    await t.action(internal.sponsor.checkReadiness, {})
+    const p = await prepare(as)
+    if (p.payload.kind !== 'auth') throw new Error('expected auth entries')
+    node.balance = '5'
+    const lines = captureLogs()
+    const r = await outcome(
+      as.action(api.sponsor.submit, {
+        requestId: p.requestId,
+        signedEntries: p.payload.entries.map((e) => sign(e.b64)),
+      })
+    )
+    expect(r.code).toBe('SPONSOR_LOW_BALANCE')
+    expect(r.message).toBe('Sponsored calls are paused for now.')
+    const text = lines.join('\n')
+    expect(text).not.toMatch(/1000000000|\b5 stroops|floor/)
+    expect(text).toContain('SPONSOR_LOW_BALANCE')
+    // The detail goes to the operators through a scheduled internal function.
+    const scheduled = await t.run(async (ctx) =>
+      ctx.db.system.query('_scheduled_functions').collect()
+    )
+    const detail = scheduled.find(
+      (f) =>
+        f.name.includes('logDetail') &&
+        JSON.stringify(f.args).includes('SPONSOR_LOW_BALANCE')
+    )
+    expect(JSON.stringify(detail?.args)).toContain('below the floor')
+  })
+
+  it('a simulation error under a classified code keeps its text out of the answer', async () => {
+    const { t, as } = await setup()
+    await t.action(internal.sponsor.checkReadiness, {})
+    node.simError = 'MARKER HostError: Error(Contract, #7) at rpc-internal'
+    const lines = captureLogs()
+    const r = await outcome(prepare(as))
+    expect(r.code).toBe('SPONSOR_SIMULATION_FAILED')
+    expect(r.message).toBe('That did not go through. Nothing was sent.')
+    expect(lines.join('\n')).not.toContain('MARKER')
+  })
+})
+
+describe('"not found" proves nothing outside the node history window', () => {
+  it('a node whose history starts after the signing time leaves the row pending, and a later success books the fee', async () => {
+    const { t, as } = await setup()
+    node.send = 'throws'
+    await submitPrepared(as)
+    const [row] = await rows(t)
+    await t.run(async (ctx) =>
+      ctx.db.patch(row!._id, { updatedAt: Date.now() - 200_000 })
+    )
+    node.get = 'not_found'
+    node.closeTime = row!.maxTime! + 1000
+    node.oldestCloseTime = row!.signedAt! + 300
+    await t.action(internal.sponsor.reconcile, {})
+    expect((await rows(t))[0]!.status).toBe('pending')
+    node.get = 'success'
+    await t.action(internal.sponsor.reconcile, {})
+    expect((await rows(t))[0]!.status).toBe('sent')
+    expect(await spent(t)).toEqual(['123456'])
+  })
+})
+
+describe('the readiness gate comes before the secret and cannot be skipped', () => {
+  it('submit and deploy answer "not ready" for a secret that does not parse, before reading it to sign', async () => {
+    const { t, as } = await setup()
+    const p = await prepare(as)
+    vi.stubEnv('SPONSOR_SECRET', 'not-a-secret')
+    const r = await outcome(
+      as.action(api.sponsor.submit, {
+        requestId: p.requestId,
+        signedEntries: [],
+      })
+    )
+    expect(r.code).toBe('SPONSOR_NOT_READY')
+    const d = await outcome(
+      t.action(internal.sponsor.deployAccount, DEPLOY_PAYLOAD)
+    )
+    expect(d.code).toBe('SPONSOR_NOT_READY')
+    expect(node.sent).toEqual([])
+  })
+
+  it('submit and deploy sign nothing with a valid secret for another address', async () => {
+    const { t, as } = await setup()
+    const { p } = { p: await prepare(as) }
+    if (p.payload.kind !== 'auth') throw new Error('expected auth entries')
+    vi.stubEnv('SPONSOR_SECRET', Keypair.random().secret())
+    const r = await outcome(
+      as.action(api.sponsor.submit, {
+        requestId: p.requestId,
+        signedEntries: p.payload.entries.map((e) => sign(e.b64)),
+      })
+    )
+    expect(r.code).toBe('SPONSOR_NOT_READY')
+    const d = await outcome(
+      t.action(internal.sponsor.deployAccount, DEPLOY_PAYLOAD)
+    )
+    expect(d.code).toBe('SPONSOR_NOT_READY')
+    expect(node.sent).toEqual([])
+  })
+
+  it('a stale passing record is checked again', async () => {
+    const { t, as } = await setup()
+    await t.action(internal.sponsor.checkReadiness, {})
+    await t.run(async (ctx) => {
+      const row = await ctx.db.query('signerReadiness').first()
+      await ctx.db.patch(row!._id, { checkedAt: Date.now() - 16 * 60_000 })
+    })
+    node.balance = '1'
+    expect((await outcome(prepare(as))).code).toBe('SPONSOR_NOT_READY')
+  })
+
+  it('a wrong token or a wrong deployer is not ready', async () => {
+    const token = await setup()
+    node.token = c(99)
+    expect(
+      (await token.t.action(internal.sponsor.checkReadiness, {}))?.failed
+    ).toContain('token_mismatch')
+    const deployer = await setup({
+      SPONSOR_ACCOUNT_DEPLOYER: Keypair.random().publicKey(),
+    })
+    expect(
+      (await deployer.t.action(internal.sponsor.checkReadiness, {}))?.failed
+    ).toContain('deployer_mismatch')
+  })
+
+  it('concurrent callers with no fresh record run one check between them', async () => {
+    const { as } = await setup()
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () => outcome(prepare(as)))
+    )
+    expect(node.simulated.filter((f) => f === 'config')).toHaveLength(1)
+    expect(results.map((r) => r.code)).toEqual(Array(5).fill('ALLOWED'))
   })
 })

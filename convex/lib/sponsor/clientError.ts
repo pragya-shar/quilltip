@@ -1,8 +1,9 @@
 /**
  * What a client is told when a sponsored call does not go through: a code
- * and a fixed sentence chosen by the code. RPC, configuration and guard text
- * stays in the server log. "Nothing was sent" is said only when that is
- * known. No secret or derived value ever reaches a sentence.
+ * and a fixed sentence chosen by the code. "Nothing was sent" is said only
+ * when that is known. RPC, configuration and guard text, and anything
+ * derived from a secret, never reaches a sentence or a log line of a
+ * function a public caller can reach (`errorDetail` is for operators).
  */
 import { ConvexError } from 'convex/values'
 import { SponsorRefusal } from './policy'
@@ -38,7 +39,10 @@ const SENTENCE: Record<string, string> = {
   SPONSOR_PENDING: WAITING,
 }
 
-/** Store refusals: their messages are written for the client already. */
+/**
+ * Store refusals: their messages are written for the client already. All are
+ * fixed except `SPONSOR_RATE_LIMITED`, which carries the minutes to wait.
+ */
 const STORE_CODES = new Set([
   'NOT_SIGNED_IN',
   'SPONSOR_BUDGET_REACHED',
@@ -71,8 +75,6 @@ export function toClientError(
   if (code && STORE_CODES.has(code) && error instanceof ConvexError) {
     return error as ConvexError<SponsorErrorData>
   }
-  const text = error instanceof Error ? error.message : String(error)
-  console.error(`[sponsor] ${code ?? 'unclassified'}: ${text.slice(0, 500)}`)
   if (code && SENTENCE[code]) {
     return new ConvexError({ code, message: SENTENCE[code] })
   }
@@ -82,4 +84,16 @@ export function toClientError(
         code: 'SPONSOR_FAILED',
         message: `${UNKNOWN} Nothing was sent.`,
       })
+}
+
+/**
+ * The detail behind an error, for operators only: never returned to a
+ * client and never logged inside a function a public caller can reach (a
+ * development deployment sends those log lines to the caller). The public
+ * entries hand it to a scheduled internal function that logs it.
+ */
+export function errorDetail(error: unknown): { code: string; detail: string } {
+  const code = codeOf(error) ?? 'unclassified'
+  const text = error instanceof Error ? error.message : String(error)
+  return { code, detail: text.slice(0, 500) }
 }

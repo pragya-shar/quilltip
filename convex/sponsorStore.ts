@@ -25,12 +25,16 @@ import {
   query,
   type MutationCtx,
 } from './_generated/server'
+import { getAuthUserId } from '@convex-dev/auth/server'
+import { internal } from './_generated/api'
 import type { Doc, Id } from './_generated/dataModel'
+import { opsUserIds } from './chain/indexer'
 import { consumeFixedWindow } from './lib/fixedWindowLimit'
 import { verifiedStellarAddress } from './lib/walletVerification'
 import {
   PER_USER_PER_DAY,
   PER_USER_PER_HOUR,
+  READINESS_LEASE_MS,
   READINESS_TTL_MS,
   REQUEST_TTL_MS,
 } from './lib/sponsor/policy'
@@ -63,8 +67,12 @@ async function addDaySpent(ctx: MutationCtx, day: string, fee: bigint) {
   else await ctx.db.insert('sponsorDays', { day, spentStroops: next })
 }
 
-/** Fees committed today but not yet paid: what open requests may still cost. */
-async function dayCommitted(ctx: MutationCtx, day: string, now: number) {
+/**
+ * Fees committed today but not yet paid: what open requests may still cost.
+ * Uses the mutation's own clock, never a caller's.
+ */
+async function dayCommitted(ctx: MutationCtx, day: string) {
+  const now = Date.now()
   let sum = BigInt(0)
   for (const status of ['prepared', 'submitting', 'pending'] as const) {
     const rows = await ctx.db
@@ -83,11 +91,10 @@ async function checkCommit(
   ctx: MutationCtx,
   day: string,
   commit: bigint,
-  budget: bigint,
-  now: number
+  budget: bigint
 ) {
   const { spent } = await daySpent(ctx, day)
-  const committed = await dayCommitted(ctx, day, now)
+  const committed = await dayCommitted(ctx, day)
   if (spent + committed + commit > budget) {
     sponsorError(
       'SPONSOR_BUDGET_REACHED',
@@ -145,7 +152,7 @@ export const reserve = internalMutation({
     const day = utcDay(args.now)
     const { spent } = await daySpent(ctx, day)
     if (
-      spent + (await dayCommitted(ctx, day, args.now)) >=
+      spent + (await dayCommitted(ctx, day)) >=
       BigInt(args.dailyBudgetStroops)
     ) {
       sponsorError(
@@ -179,7 +186,8 @@ export const reserve = internalMutation({
       maxExpiration: 0,
       feeStroops: '0',
       day,
-      expiresAt: args.now + REQUEST_TTL_MS,
+      // Expiry is compared with the mutation's own clock, so it is set by it.
+      expiresAt: Date.now() + REQUEST_TTL_MS,
       createdAt: args.now,
       updatedAt: args.now,
     })
@@ -226,8 +234,7 @@ export const recordPrepared = internalMutation({
       ctx,
       row.day,
       BigInt(args.commitStroops),
-      BigInt(args.dailyBudgetStroops),
-      args.now
+      BigInt(args.dailyBudgetStroops)
     )
     await ctx.db.patch(row._id, {
       status: 'prepared',
@@ -256,8 +263,7 @@ export const reserveDeploy = internalMutation({
       ctx,
       day,
       BigInt(args.commitStroops),
-      BigInt(args.dailyBudgetStroops),
-      args.now
+      BigInt(args.dailyBudgetStroops)
     )
     const requestId = randomRequestId()
     await ctx.db.insert('sponsoredCalls', {
@@ -272,7 +278,8 @@ export const reserveDeploy = internalMutation({
       maxExpiration: 0,
       feeStroops: args.commitStroops,
       day,
-      expiresAt: args.now + REQUEST_TTL_MS,
+      // Expiry is compared with the mutation's own clock, so it is set by it.
+      expiresAt: Date.now() + REQUEST_TTL_MS,
       createdAt: args.now,
       updatedAt: args.now,
     })
@@ -285,8 +292,10 @@ export const reserveDeploy = internalMutation({
  * not claimed before.
  */
 export const claim = internalMutation({
-  args: { requestId: v.string(), userId: v.id('users'), now: v.number() },
+  args: { requestId: v.string(), userId: v.id('users') },
   handler: async (ctx, args) => {
+    // The mutation's own clock, never a caller's.
+    const now = Date.now()
     const row = await byRequest(ctx, args.requestId)
     if (!row.userId || row.userId !== (args.userId as Id<'users'>)) {
       sponsorError('SPONSOR_UNKNOWN_REQUEST', 'Unknown request.')
@@ -296,10 +305,10 @@ export const claim = internalMutation({
     }
     // A throw rolls the mutation back, so an expired row keeps its status;
     // it can never be claimed because the time check runs on every claim.
-    if (args.now >= row.expiresAt) {
+    if (now >= row.expiresAt) {
       sponsorError('SPONSOR_EXPIRED', 'The request expired. Nothing was sent.')
     }
-    await ctx.db.patch(row._id, { status: 'submitting', updatedAt: args.now })
+    await ctx.db.patch(row._id, { status: 'submitting', updatedAt: now })
     return row
   },
 })
@@ -327,6 +336,7 @@ export const markSigned = internalMutation({
       txHash: args.txHash,
       feeStroops: args.envelopeFee,
       maxTime: args.maxTime,
+      signedAt: Math.floor(Date.now() / 1000),
       updatedAt: args.now,
     })
   },
@@ -410,6 +420,7 @@ export const openRows = internalQuery({
         requestId: r.requestId,
         txHash: r.txHash ?? null,
         maxTime: r.maxTime ?? 0,
+        signedAt: r.signedAt ?? 0,
       })),
       abandoned: abandoned.map((r) => r.requestId),
     }
@@ -440,6 +451,10 @@ export const readiness = internalQuery({
       .unique(),
 })
 
+/**
+ * Records a check. A pass sets `ready` until `readyUntil` and schedules the
+ * expiry; a later pass extends it. The lease of the check is released.
+ */
 export const recordReadiness = internalMutation({
   args: {
     service: v.string(),
@@ -447,9 +462,10 @@ export const recordReadiness = internalMutation({
     failed: v.array(v.string()),
     warnings: v.array(v.string()),
     fingerprint: v.string(),
-    now: v.number(),
   },
   handler: async (ctx, args) => {
+    const now = Date.now()
+    const readyUntil = args.ready ? now + READINESS_TTL_MS : 0
     const row = await ctx.db
       .query('signerReadiness')
       .withIndex('by_service', (q) => q.eq('service', args.service))
@@ -457,20 +473,103 @@ export const recordReadiness = internalMutation({
     const doc = {
       service: args.service,
       ready: args.ready,
+      readyUntil,
       failed: args.failed,
       warnings: args.warnings,
       fingerprint: args.fingerprint,
-      checkedAt: args.now,
+      checkedAt: now,
+      checkingUntil: 0,
     }
     if (row) await ctx.db.patch(row._id, doc)
     else await ctx.db.insert('signerReadiness', doc)
+    if (args.ready) {
+      await ctx.scheduler.runAt(
+        readyUntil,
+        internal.sponsorStore.expireReadiness,
+        {
+          service: args.service,
+          readyUntil,
+        }
+      )
+    }
+  },
+})
+
+/** Clears `ready` at its end, unless a later check extended it. */
+export const expireReadiness = internalMutation({
+  args: { service: v.string(), readyUntil: v.number() },
+  handler: async (ctx, args) => {
+    const row = await ctx.db
+      .query('signerReadiness')
+      .withIndex('by_service', (q) => q.eq('service', args.service))
+      .unique()
+    if (row && row.ready && row.readyUntil <= args.readyUntil) {
+      await ctx.db.patch(row._id, { ready: false })
+    }
+  },
+})
+
+/**
+ * Takes the lease to run a check, so concurrent callers with a stale record
+ * run one check between them. False while another caller holds it.
+ */
+export const leaseReadinessCheck = internalMutation({
+  args: { service: v.string() },
+  handler: async (ctx, args) => {
+    const now = Date.now()
+    const row = await ctx.db
+      .query('signerReadiness')
+      .withIndex('by_service', (q) => q.eq('service', args.service))
+      .unique()
+    if (row && (row.checkingUntil ?? 0) > now) return false
+    const lease = now + READINESS_LEASE_MS
+    if (row) await ctx.db.patch(row._id, { checkingUntil: lease })
+    else
+      await ctx.db.insert('signerReadiness', {
+        service: args.service,
+        ready: false,
+        readyUntil: 0,
+        failed: ['not_checked'],
+        warnings: [],
+        fingerprint: '',
+        checkedAt: 0,
+        checkingUntil: lease,
+      })
+    return true
+  },
+})
+
+/**
+ * Logs an error's detail for operators. Scheduled by the public entries, so
+ * the detail never appears in their own log lines (which a development
+ * deployment returns to the caller).
+ */
+export const logDetail = internalMutation({
+  args: { source: v.string(), code: v.string(), detail: v.string() },
+  handler: async (_ctx, args) => {
+    console.error(`[${args.source}] ${args.code}: ${args.detail}`)
+  },
+})
+
+/**
+ * The causes behind readiness, for operations users only (`OPS_USER_IDS`);
+ * null for everyone else.
+ */
+export const getSignerReadiness = query({
+  args: {},
+  handler: async (ctx) => {
+    const userId = await getAuthUserId(ctx)
+    if (!userId || !opsUserIds().has(userId)) return null
+    return ctx.db.query('signerReadiness').collect()
   },
 })
 
 /**
  * The one public answer: can a first tip with a passkey go through now?
- * True only when the sponsor is switched on and its latest readiness check
- * passed within `READINESS_TTL_MS`. Nothing about why leaves the server.
+ * True only when the fee sponsor is switched on and its readiness is set.
+ * `ready` is written only by mutations (a passing check sets it, a scheduled
+ * expiry clears it), so a subscribed client sees the change. Nothing about
+ * why leaves the server.
  */
 export const passkeyTipAvailable = query({
   args: {},
@@ -480,6 +579,6 @@ export const passkeyTipAvailable = query({
       .query('signerReadiness')
       .withIndex('by_service', (q) => q.eq('service', 'sponsor'))
       .unique()
-    return !!row && row.ready && Date.now() - row.checkedAt < READINESS_TTL_MS
+    return !!row && row.ready
   },
 })

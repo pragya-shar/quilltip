@@ -14,6 +14,7 @@
 import {
   Address,
   BASE_FEE,
+  Keypair,
   StrKey,
   hash,
   nativeToScVal,
@@ -64,6 +65,18 @@ export function commitStroops(call: SponsoredCall | 'deploy'): bigint {
 
 /** A readiness result counts for this long; older reads as not checked. */
 export const READINESS_TTL_MS = 15 * 60_000
+/** How long one caller may hold the readiness check before another may run it. */
+export const READINESS_LEASE_MS = 30_000
+
+/**
+ * The deployer `smart-account-kit` derives from its public seed. Accounts are
+ * deployed through it; `SPONSOR_ACCOUNT_DEPLOYER` must equal it.
+ */
+export function kitDefaultDeployer(): string {
+  return Keypair.fromRawEd25519Seed(
+    hash(Buffer.from('openzeppelin-smart-account-kit'))
+  ).publicKey()
+}
 /** A prepared request is refused after this. */
 export const REQUEST_TTL_MS = 5 * 60_000
 /** Signatures must expire no later than the prepared ledger plus this. */

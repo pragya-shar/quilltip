@@ -77,7 +77,7 @@ export const SUBMIT_TIME_BOUND_S = 120
 const CONFIRM_POLL_MS = 500
 const CONFIRM_TIMEOUT_MS = 45_000
 
-/** Refuses below the floor, after logging an alert for the operators. */
+/** Refuses below the floor. This module never logs. */
 export async function checkFloor(d: SponsorDeps): Promise<bigint> {
   let balance: bigint
   try {
@@ -87,10 +87,11 @@ export async function checkFloor(d: SponsorDeps): Promise<bigint> {
     refuse('SPONSOR_UNAVAILABLE', 'The fee sponsor account cannot be read.')
   }
   if (balance < d.cfg.minBalanceStroops) {
-    console.error(
-      `[sponsor] ALERT balance ${balance} stroops is below the floor ${d.cfg.minBalanceStroops}; sponsored calls are refused until it is refilled.`
+    // The figures are detail for operators; the client sees a fixed sentence.
+    refuse(
+      'SPONSOR_LOW_BALANCE',
+      `Balance ${balance} stroops is below the floor ${d.cfg.minBalanceStroops}.`
     )
-    refuse('SPONSOR_LOW_BALANCE', 'Sponsored calls are paused for now.')
   }
   return balance
 }
@@ -241,35 +242,55 @@ async function signSendConfirm(
 
 /**
  * What the network says now about a sent transaction (for reconciliation).
- * `NOT_FOUND` carries the node's latest ledger close time (seconds): a
- * transaction is known not to have landed only once that time is past its
- * upper time bound.
+ * `NOT_FOUND` carries the node's history window (close times of its oldest
+ * and latest ledgers, in seconds), which decides whether "not found" means
+ * anything.
  */
 export async function lookupSent(
   server: SponsorServer,
   hash: string
 ): Promise<
   | { status: 'SUCCESS' | 'FAILED'; fee: string; ledger: number }
-  | { status: 'NOT_FOUND'; latestLedgerCloseTime: number }
+  | {
+      status: 'NOT_FOUND'
+      latestLedgerCloseTime: number
+      oldestLedgerCloseTime: number
+    }
 > {
   const got = await server.getTransaction(hash)
   if (got.status === 'SUCCESS' || got.status === 'FAILED') {
     return { status: got.status, fee: feeCharged(got), ledger: got.ledger }
   }
+  const n = got as {
+    latestLedgerCloseTime?: unknown
+    oldestLedgerCloseTime?: unknown
+  }
   return {
     status: 'NOT_FOUND',
-    latestLedgerCloseTime: Number(
-      (got as { latestLedgerCloseTime?: unknown }).latestLedgerCloseTime ?? 0
+    latestLedgerCloseTime: Number(n.latestLedgerCloseTime ?? 0),
+    // Unknown history start: treat as starting now, so nothing is concluded.
+    oldestLedgerCloseTime: Number(
+      n.oldestLedgerCloseTime ?? Number.MAX_SAFE_INTEGER
     ),
   }
 }
 
-/** True once the node's clock is past a transaction's upper time bound. */
+/**
+ * True only when the node's history covers the whole time the transaction
+ * could have landed: it starts at or before the signing time and ends after
+ * the upper time bound. A node that lags, or whose history starts later,
+ * proves nothing.
+ */
 export function knownNotLanded(
-  latestLedgerCloseTime: number,
-  maxTime: number
+  node: { latestLedgerCloseTime: number; oldestLedgerCloseTime: number },
+  tx: { maxTime: number; signedAt: number }
 ): boolean {
-  return maxTime > 0 && latestLedgerCloseTime > maxTime
+  return (
+    tx.maxTime > 0 &&
+    tx.signedAt > 0 &&
+    node.latestLedgerCloseTime > tx.maxTime &&
+    node.oldestLedgerCloseTime <= tx.signedAt
+  )
 }
 
 export type PreparedEntries = {

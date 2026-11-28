@@ -128,7 +128,7 @@ const code = (fn: () => unknown) => {
   return 'ALLOWED'
 }
 
-describe('balance calls the sponsor builds (T3, T6)', () => {
+describe('balance calls the sponsor builds', () => {
   it('accepts the four allowlisted calls and counts contexts', () => {
     expect(checkRecordedAuth([recorded(spec())], spec())).toEqual({
       contexts: 2,
@@ -236,7 +236,7 @@ describe('balance calls the sponsor builds (T3, T6)', () => {
   })
 })
 
-describe('recorded auth must be exactly the built call (T3, T13)', () => {
+describe('recorded auth must be exactly the built call', () => {
   const s = spec()
   const built = balanceCallArgs(s)
   const transfer = (to: string, amount: bigint, token = TOKEN) =>
@@ -327,7 +327,7 @@ describe('recorded auth must be exactly the built call (T3, T13)', () => {
   })
 })
 
-describe('signed entries must be the prepared ones (T4, T10)', () => {
+describe('signed entries must be the prepared ones', () => {
   const s = spec()
   const prepared = recorded(s)
   const p = [prepared.toXDR('base64')]
@@ -399,7 +399,7 @@ describe('signed entries must be the prepared ones (T4, T10)', () => {
   })
 })
 
-describe('fee caps (T7)', () => {
+describe('fee caps', () => {
   it('allows up to the cap and refuses above it', () => {
     expect(
       code(() =>
@@ -426,7 +426,7 @@ describe('fee caps (T7)', () => {
   })
 })
 
-describe('account birth (T2)', () => {
+describe('account birth', () => {
   const ok = {
     func: deploy.func,
     auth: deploy.auth,
@@ -498,7 +498,7 @@ describe('account birth (T2)', () => {
   })
 })
 
-describe('configuration (T14, T15)', () => {
+describe('configuration', () => {
   const env = {
     STELLAR_NETWORK: 'TESTNET',
     SPONSOR_ENABLED: 'true',

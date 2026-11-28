@@ -18,19 +18,22 @@
  *
  * Order of checks: sign-in; `sponsorConfig` (testnet guard, `SPONSOR_ENABLED`,
  * contracts, account code, deployer, public address); the arguments; the
- * per-user and global limits; readiness; only then is `SPONSOR_SECRET` read
- * for signing. The checks live in `lib/sponsor/policy.ts`, the network steps
- * in `lib/sponsor/run.ts`.
+ * per-user and global limits; readiness (the first point where the secret is
+ * read); then signing.
  *
- * Readiness fails closed: the secret parses and derives `SPONSOR_PUBLIC_KEY`,
- * the account holds more than the floor, the allowlisted account code exists
- * on the network, and a transaction signed by the sponsor simulates against
- * the Tab. Entries refuse (`SPONSOR_NOT_READY`) unless the latest check for
- * the current settings passed within `READINESS_TTL_MS`.
+ * Readiness fails closed: the secret parses and derives `SPONSOR_PUBLIC_KEY`;
+ * the deployer is the account kit's; the account holds more than the floor;
+ * the allowlisted account code exists on the network; and a transaction
+ * signed by the sponsor simulates the Tab's `config`, whose token must be
+ * `TOKEN_CONTRACT_ID`. Entries refuse (`SPONSOR_NOT_READY`) unless the latest
+ * check for the current settings and key passed within `READINESS_TTL_MS`.
+ * One caller at a time runs a stale check (a lease); others wait for it.
  *
- * Errors reach the client as a code and a fixed sentence chosen by the code;
- * RPC, configuration and guard text stays in the server log. "Nothing was
- * sent" is said only when that is known.
+ * What a public caller can see: a code and a fixed sentence per code
+ * (`lib/sponsor/clientError.ts`). The public entries log codes only; the
+ * detail of an error goes to a scheduled internal function
+ * (`sponsorStore.logDetail`), because a development deployment returns a
+ * function's log lines to its caller.
  */
 import { getAuthUserId } from '@convex-dev/auth/server'
 import {
@@ -40,6 +43,7 @@ import {
   TransactionBuilder,
   BASE_FEE,
   rpc,
+  scValToNative,
   xdr,
 } from '@stellar/stellar-sdk'
 import { Buffer } from 'buffer'
@@ -51,6 +55,7 @@ import type { Id } from './_generated/dataModel'
 import { readChainEnv } from './lib/chain/env'
 import {
   codeOf,
+  errorDetail,
   toClientError,
   type SponsorErrorData,
 } from './lib/sponsor/clientError'
@@ -59,6 +64,7 @@ import {
   READINESS_TTL_MS,
   SponsorRefusal,
   commitStroops,
+  kitDefaultDeployer,
   refuse,
   sponsorConfig,
   sponsorSecret,
@@ -77,6 +83,45 @@ import {
   type SponsorDeps,
 } from './lib/sponsor/run'
 
+/** Codes whose own sentences were written for the client (store refusals). */
+const STORE_CODES = new Set([
+  'NOT_SIGNED_IN',
+  'SPONSOR_BUDGET_REACHED',
+  'SPONSOR_RATE_LIMITED',
+  'SPONSOR_EXPIRED',
+  'SPONSOR_UNKNOWN_REQUEST',
+  'SPONSOR_BAD_STATE',
+  'SPONSOR_READER_NOT_PASSKEY',
+])
+
+/**
+ * The one way a public entry reports an error: the code alone in its own
+ * log line, the detail to the scheduled operator log, and a code with a
+ * fixed sentence to the caller.
+ */
+async function report(
+  ctx: ActionCtx,
+  error: unknown,
+  signed: boolean
+): Promise<ConvexError<SponsorErrorData>> {
+  const client = toClientError(error, signed)
+  const code = codeOf(error)
+  if (!code || !STORE_CODES.has(code)) {
+    const { detail } = errorDetail(error)
+    console.error(`[sponsor] ${client.data.code}`)
+    try {
+      await ctx.scheduler.runAfter(0, internal.sponsorStore.logDetail, {
+        source: 'sponsor',
+        code: code ?? 'unclassified',
+        detail,
+      })
+    } catch {
+      // The caller's answer does not depend on the operator log.
+    }
+  }
+  return client
+}
+
 async function requireUser(ctx: ActionCtx): Promise<Id<'users'>> {
   const userId = await getAuthUserId(ctx)
   if (!userId) {
@@ -87,21 +132,16 @@ async function requireUser(ctx: ActionCtx): Promise<Id<'users'>> {
 
 type Settings = { cfg: SponsorConfig; passphrase: string; rpcUrl: string }
 
-/** The guarded settings, without the secret. */
+/** The guarded settings, without the secret. Throws raw; callers report. */
 function settings(): Settings {
   try {
     const cfg = sponsorConfig()
     const chain = readChainEnv()
     return { cfg, passphrase: chain.passphrase, rpcUrl: chain.rpcUrl }
   } catch (error) {
-    // Configuration and guard text stays in the log; the client gets a code.
-    const known =
-      error instanceof SponsorRefusal || error instanceof ConvexError
-    throw toClientError(
-      known
-        ? error
-        : new SponsorRefusal('SPONSOR_CONFIG_INVALID', String(error))
-    )
+    if (error instanceof SponsorRefusal || error instanceof ConvexError)
+      throw error
+    throw new SponsorRefusal('SPONSOR_CONFIG_INVALID', String(error))
   }
 }
 
@@ -128,9 +168,19 @@ type Readiness = {
   fingerprint: string
 }
 
-/** A hash of the settings and of the secret: a change means "check again". */
-function fingerprint(s: Settings): string {
-  const secret = process.env.SPONSOR_SECRET?.trim() ?? ''
+/** The public address the configured secret derives, or null when it does not parse. */
+function derivedPublicKey(): string | null {
+  const raw = process.env.SPONSOR_SECRET?.trim() ?? ''
+  return StrKey.isValidEd25519SecretSeed(raw)
+    ? Keypair.fromSecret(raw).publicKey()
+    : null
+}
+
+/**
+ * A hash of the settings and of the key the secret derives (its public
+ * address). No digest of the secret itself is stored anywhere.
+ */
+function fingerprint(s: Settings, derived: string | null): string {
   return createHash('sha256')
     .update(
       JSON.stringify({
@@ -141,22 +191,25 @@ function fingerprint(s: Settings): string {
         publicKey: s.cfg.publicKey,
         floor: s.cfg.minBalanceStroops.toString(),
         rpc: s.rpcUrl,
-        secret: createHash('sha256').update(secret).digest('hex'),
+        key: derived ?? 'invalid',
       })
     )
     .digest('hex')
 }
 
 /**
- * The readiness check itself. Never logs or returns the secret or anything
- * derived from it except the comparison's result.
+ * The readiness check itself. Records causes by name only; never the
+ * secret, anything derived from it, a balance or an RPC answer.
  */
-async function checkSigner(ctx: ActionCtx, s: Settings): Promise<Readiness> {
+async function checkSigner(
+  ctx: ActionCtx,
+  s: Settings,
+  derived: string | null
+): Promise<Readiness> {
   const failed: string[] = []
   const warnings: string[] = []
-  const fp = fingerprint(s)
-  const raw = process.env.SPONSOR_SECRET?.trim() ?? ''
-  if (!StrKey.isValidEd25519SecretSeed(raw)) {
+  const fp = fingerprint(s, derived)
+  if (derived === null) {
     return {
       ready: false,
       failed: ['secret_invalid'],
@@ -164,8 +217,7 @@ async function checkSigner(ctx: ActionCtx, s: Settings): Promise<Readiness> {
       fingerprint: fp,
     }
   }
-  const key = Keypair.fromSecret(raw)
-  if (key.publicKey() !== s.cfg.publicKey) {
+  if (derived !== s.cfg.publicKey) {
     return {
       ready: false,
       failed: ['secret_mismatch'],
@@ -173,6 +225,9 @@ async function checkSigner(ctx: ActionCtx, s: Settings): Promise<Readiness> {
       fingerprint: fp,
     }
   }
+  if (s.cfg.accountDeployer !== kitDefaultDeployer())
+    failed.push('deployer_mismatch')
+  const key = Keypair.fromSecret(sponsorSecret())
   const net = server(s.rpcUrl)
   try {
     const entry = await net.getAccountEntry(s.cfg.publicKey)
@@ -197,7 +252,7 @@ async function checkSigner(ctx: ActionCtx, s: Settings): Promise<Readiness> {
   }
   try {
     // A real transaction signed by the sponsor, simulated and never sent:
-    // the account loads, the key signs, the Tab answers.
+    // the account loads, the key signs, the Tab answers with its token.
     const account = await net.getAccount(s.cfg.publicKey)
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
@@ -215,6 +270,17 @@ async function checkSigner(ctx: ActionCtx, s: Settings): Promise<Readiness> {
     tx.sign(key)
     const sim = await net.simulateTransaction(tx)
     if (rpc.Api.isSimulationError(sim)) failed.push('simulation_failed')
+    else {
+      const retval = (sim as rpc.Api.SimulateTransactionSuccessResponse).result
+        ?.retval
+      const config = retval
+        ? (scValToNative(retval) as { token?: unknown } | null)
+        : null
+      if (!config || typeof config.token !== 'string')
+        failed.push('config_unreadable')
+      else if (config.token !== s.cfg.tokenContractId)
+        failed.push('token_mismatch')
+    }
   } catch {
     failed.push('simulation_failed')
   }
@@ -225,35 +291,68 @@ async function checkSigner(ctx: ActionCtx, s: Settings): Promise<Readiness> {
   return { ready: failed.length === 0, failed, warnings, fingerprint: fp }
 }
 
-async function runCheck(ctx: ActionCtx, s: Settings): Promise<Readiness> {
-  const r = await checkSigner(ctx, s)
+async function runCheck(
+  ctx: ActionCtx,
+  s: Settings,
+  derived: string | null
+): Promise<Readiness> {
+  const r = await checkSigner(ctx, s, derived)
   await ctx.runMutation(internal.sponsorStore.recordReadiness, {
     service: 'sponsor',
     ...r,
-    now: Date.now(),
   })
-  if (!r.ready) {
-    console.error(`[sponsor] ALERT not ready: ${r.failed.join(', ')}`)
-  } else if (r.warnings.length > 0) {
-    console.warn(`[sponsor] ready with warnings: ${r.warnings.join(', ')}`)
+  if (!r.ready || r.warnings.length > 0) {
+    await ctx.scheduler.runAfter(0, internal.sponsorStore.logDetail, {
+      source: 'sponsor',
+      code: r.ready ? 'SPONSOR_READY_WITH_WARNINGS' : 'SPONSOR_NOT_READY',
+      detail: [...r.failed, ...r.warnings].join(', '),
+    })
   }
   return r
 }
 
+const WAIT_STEP_MS = 250
+const WAIT_LIMIT_MS = 10_000
+
 /**
- * Refuses unless the latest check for these settings passed recently; runs
- * the check first when it is missing, stale or for other settings.
+ * Refuses unless the latest check for these settings and key passed
+ * recently. When the record is missing, stale or for other settings, one
+ * caller takes the lease and runs the check; the others wait for its result.
  */
 async function requireReady(ctx: ActionCtx, s: Settings): Promise<void> {
-  const row = await ctx.runQuery(internal.sponsorStore.readiness, {
-    service: 'sponsor',
-  })
-  const fresh =
-    row &&
-    row.fingerprint === fingerprint(s) &&
-    Date.now() - row.checkedAt < READINESS_TTL_MS
-  const ready = fresh ? row.ready : (await runCheck(ctx, s)).ready
-  if (!ready) refuse('SPONSOR_NOT_READY', 'The fee sponsor is not ready.')
+  const derived = derivedPublicKey()
+  const fp = fingerprint(s, derived)
+  const current = async () => {
+    const row = await ctx.runQuery(internal.sponsorStore.readiness, {
+      service: 'sponsor',
+    })
+    return row &&
+      row.fingerprint === fp &&
+      Date.now() - row.checkedAt < READINESS_TTL_MS
+      ? row
+      : null
+  }
+  let row = await current()
+  if (!row) {
+    if (
+      await ctx.runMutation(internal.sponsorStore.leaseReadinessCheck, {
+        service: 'sponsor',
+      })
+    ) {
+      const r = await runCheck(ctx, s, derived)
+      if (!r.ready) refuse('SPONSOR_NOT_READY', 'The fee sponsor is not ready.')
+      return
+    }
+    for (
+      let waited = 0;
+      !row && waited < WAIT_LIMIT_MS;
+      waited += WAIT_STEP_MS
+    ) {
+      await new Promise((r) => setTimeout(r, WAIT_STEP_MS))
+      row = await current()
+    }
+  }
+  if (!row?.ready) refuse('SPONSOR_NOT_READY', 'The fee sponsor is not ready.')
 }
 
 /** Runs the readiness check (cron, and on demand from the dashboard). */
@@ -270,11 +369,10 @@ export const checkReadiness = internalAction({
         failed: ['config'],
         warnings: [],
         fingerprint: '',
-        now: Date.now(),
       })
       return null
     }
-    return runCheck(ctx, s)
+    return runCheck(ctx, s, derivedPublicKey())
   },
 })
 
@@ -326,12 +424,12 @@ function specFor(
 }
 
 /**
- * Closes a request after an error and gives the client its sentence:
+ * Closes a request after an error, when its outcome is known:
  * - the node refused the envelope: failed, nothing was sent;
  * - the network answered FAILED: failed with the fee charged;
- * - a signed envelope may have reached the node: left pending for the
- *   reconciler;
  * - nothing was signed yet: failed, nothing was sent.
+ * A signed envelope that may have reached the node stays pending for the
+ * reconciler.
  */
 async function closeAfterError(
   ctx: ActionCtx,
@@ -339,7 +437,7 @@ async function closeAfterError(
   error: unknown,
   signed: boolean,
   fee: string | undefined
-): Promise<ConvexError<SponsorErrorData>> {
+): Promise<void> {
   const code = codeOf(error)
   if (code === 'SPONSOR_SEND_REFUSED') {
     await ctx.runMutation(internal.sponsorStore.fail, {
@@ -363,16 +461,15 @@ async function closeAfterError(
       now: Date.now(),
     })
   }
-  return toClientError(error, signed)
 }
 
 /** Hooks that store the hash before the send and keep the fee charged. */
-function hooksFor(ctx: ActionCtx, requestId: string) {
+function hooksFor(ctx: ActionCtx, requestId: () => string | null) {
   const state: { signed: boolean; fee?: string } = { signed: false }
   const hooks: SendHooks = {
     onSigned: async (hash, envelopeFee, maxTime) => {
       await ctx.runMutation(internal.sponsorStore.markSigned, {
-        requestId,
+        requestId: requestId()!,
         txHash: hash,
         envelopeFee,
         maxTime,
@@ -397,17 +494,13 @@ export const prepare = action({
   },
   handler: async (ctx, args): Promise<PreparedBalanceCall> => {
     const userId = await requireUser(ctx)
-    const s = settings()
-    // The arguments before any limit slot or the secret.
+    let requestId: string | null = null
     try {
+      const s = settings()
+      // The arguments before any limit slot or the secret.
       specFor(s.cfg, s.cfg.tabContractId, args)
-    } catch (error) {
-      throw toClientError(error)
-    }
-    const now = Date.now()
-    const { requestId, reader } = await ctx.runMutation(
-      internal.sponsorStore.reserve,
-      {
+      const now = Date.now()
+      const reserved = await ctx.runMutation(internal.sponsorStore.reserve, {
         userId,
         call: args.call,
         amount: args.amount,
@@ -416,12 +509,11 @@ export const prepare = action({
         passphrase: s.passphrase,
         dailyBudgetStroops: s.cfg.dailyBudgetStroops.toString(),
         now,
-      }
-    )
-    try {
+      })
+      requestId = reserved.requestId
       await requireReady(ctx, s)
       const d = deps(s)
-      const spec = specFor(s.cfg, reader, args)
+      const spec = specFor(s.cfg, reserved.reader, args)
       const p = await runPrepare(d, spec, now)
       await ctx.runMutation(internal.sponsorStore.recordPrepared, {
         requestId,
@@ -450,7 +542,9 @@ export const prepare = action({
         },
       }
     } catch (error) {
-      throw await closeAfterError(ctx, requestId, error, false, undefined)
+      if (requestId)
+        await closeAfterError(ctx, requestId, error, false, undefined)
+      throw await report(ctx, error, false)
     }
   },
 })
@@ -460,14 +554,15 @@ export const submit = action({
   args: { requestId: v.string(), signedEntries: v.array(v.string()) },
   handler: async (ctx, args): Promise<{ txHash: string; ledger: number }> => {
     const userId = await requireUser(ctx)
-    const s = settings()
-    const row = await ctx.runMutation(internal.sponsorStore.claim, {
-      requestId: args.requestId,
-      userId,
-      now: Date.now(),
-    })
-    const { state, hooks } = hooksFor(ctx, args.requestId)
+    let claimed = false
+    const { state, hooks } = hooksFor(ctx, () => args.requestId)
     try {
+      const s = settings()
+      const row = await ctx.runMutation(internal.sponsorStore.claim, {
+        requestId: args.requestId,
+        userId,
+      })
+      claimed = true
       await requireReady(ctx, s)
       const d = deps(s)
       const spec = specFor(s.cfg, row.reader, row as CallArgs)
@@ -489,13 +584,15 @@ export const submit = action({
       await ctx.scheduler.runAfter(0, internal.chain.indexer.pollEvents, {})
       return { txHash: result.hash, ledger: result.ledger }
     } catch (error) {
-      throw await closeAfterError(
-        ctx,
-        args.requestId,
-        error,
-        state.signed,
-        state.fee
-      )
+      if (claimed)
+        await closeAfterError(
+          ctx,
+          args.requestId,
+          error,
+          state.signed,
+          state.fee
+        )
+      throw await report(ctx, error, state.signed)
     }
   },
 })
@@ -508,18 +605,18 @@ export const submit = action({
 export const deployAccount = internalAction({
   args: { func: v.string(), auth: v.array(v.string()), contractId: v.string() },
   handler: async (ctx, args): Promise<{ txHash: string; ledger: number }> => {
-    const s = settings()
-    const { requestId } = await ctx.runMutation(
-      internal.sponsorStore.reserveDeploy,
-      {
-        reader: args.contractId,
-        commitStroops: commitStroops('deploy').toString(),
-        dailyBudgetStroops: s.cfg.dailyBudgetStroops.toString(),
-        now: Date.now(),
-      }
-    )
-    const { state, hooks } = hooksFor(ctx, requestId)
+    let requestId: string | null = null
+    const { state, hooks } = hooksFor(ctx, () => requestId)
     try {
+      const s = settings()
+      requestId = (
+        await ctx.runMutation(internal.sponsorStore.reserveDeploy, {
+          reader: args.contractId,
+          commitStroops: commitStroops('deploy').toString(),
+          dailyBudgetStroops: s.cfg.dailyBudgetStroops.toString(),
+          now: Date.now(),
+        })
+      ).requestId
       await requireReady(ctx, s)
       const result = await runDeploy(deps(s), args, hooks)
       await ctx.runMutation(internal.sponsorStore.finish, {
@@ -530,23 +627,20 @@ export const deployAccount = internalAction({
       })
       return { txHash: result.hash, ledger: result.ledger }
     } catch (error) {
-      throw await closeAfterError(
-        ctx,
-        requestId,
-        error,
-        state.signed,
-        state.fee
-      )
+      if (requestId)
+        await closeAfterError(ctx, requestId, error, state.signed, state.fee)
+      throw await report(ctx, error, state.signed)
     }
   },
 })
 
 /**
  * Closes open requests from the network's answer: SUCCESS books the fee
- * charged; FAILED closes with it; not found closes as failed only once the
- * node's latest ledger closed after the transaction's upper time bound. Rows
- * left in `submitting` past their lifetime had nothing signed and close as
- * failed. It runs while the sponsor is off too, so no row stays open.
+ * charged; FAILED closes with it; not found closes as failed only when the
+ * node's history covers the whole window the transaction could have landed
+ * in (it starts at or before the signing time and ends after the upper time
+ * bound). Rows left in `submitting` past their lifetime had nothing signed
+ * and close as failed. It runs while the sponsor is off too.
  */
 export const reconcile = internalAction({
   args: {},
@@ -594,10 +688,7 @@ export const reconcile = internalAction({
           force: true,
           now: Date.now(),
         })
-      } else if (
-        r.status === 'NOT_FOUND' &&
-        knownNotLanded(r.latestLedgerCloseTime, p.maxTime)
-      ) {
+      } else if (r.status === 'NOT_FOUND' && knownNotLanded(r, p)) {
         await ctx.runMutation(internal.sponsorStore.fail, {
           requestId: p.requestId,
           error: 'SPONSOR_NOT_LANDED',
