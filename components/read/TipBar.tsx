@@ -31,10 +31,14 @@ import {
 } from '@/hooks/read/payments'
 import { READ_BODY_ID, type ReadArticle } from './readModel'
 import {
-  rememberIntent,
+  amountWithin,
+  keepIntent,
   returnPathFor,
+  saveIntent,
   signInHref,
-  type ReadSignInIntent,
+  takeIntent,
+  tipIntent,
+  type ReadIntent,
 } from './signInIntent'
 
 /** What a tip that the server accepted was for. */
@@ -61,6 +65,8 @@ type TipBarProps = {
   arrivalArmed?: boolean
   /** The arrival is over. */
   onArrivalDone?: () => void
+  /** A kept intent was taken after sign-in: choose its line, if any. */
+  onResume?: (intent: ReadIntent) => void
 }
 
 /** Presses this close together, or this soon after a sheet closes, are one. */
@@ -147,6 +153,7 @@ export function TipBar({
   onSent,
   arrivalArmed = false,
   onArrivalDone = () => {},
+  onResume = () => {},
 }: TipBarProps) {
   const balance = useBalance()
   const target = useMemo<TipTarget>(
@@ -242,21 +249,43 @@ export function TipBar({
       root && passage ? anchorAt(root, passage.startOffset) : null
     )
   }, [article.href, passage])
-  const intentFor = (kind: ReadSignInIntent['kind']): ReadSignInIntent => ({
-    kind,
-    articleId: article.id,
-    href: returnTo,
-    // A ceiling, not an order: see signInIntent.ts.
-    amount: offer?.amount.cents ?? null,
-    passage: passage
-      ? {
-          text: passage.text,
-          startOffset: passage.startOffset,
-          endOffset: passage.endOffset,
-        }
-      : null,
-    at: Date.now(),
-  })
+  const linePassage = passage
+    ? { text: passage.text, start: passage.startOffset, end: passage.endOffset }
+    : null
+  // The tip as the button states it; null when no amount is offered.
+  const tipIntentNow = (): ReadIntent | null =>
+    offer
+      ? tipIntent({
+          path: returnTo,
+          articleId: article.id,
+          passage: linePassage,
+          // A ceiling, never an order: see signInIntent.ts.
+          amount: {
+            cents: offer.amount.cents,
+            display: short(offer.amount).display,
+          },
+          writer: article.writer.name,
+        })
+      : null
+
+  // After sign-in, once: take the intent this page names, choose its line
+  // and set the amount within its ceiling. Nothing is sent.
+  const resumed = useRef(false)
+  useEffect(() => {
+    if (resumed.current || !tip.ready || signedOut) return
+    resumed.current = true
+    const intent = takeIntent(location.pathname + location.hash)
+    if (!intent || intent.articleId !== article.id) return
+    onResume(intent)
+    if (intent.kind !== 'tip') return
+    const cents = amountWithin(
+      intent.amount.cents,
+      tip.amounts.map((a) => a.cents)
+    )
+    if (cents !== null) tip.setAmount(cents)
+    // Once, when the controller is ready and signed in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tip.ready, signedOut])
 
   // What a tip at the default would need, when the balance is short.
   const need = tip.amount ?? balance.limits?.defaultTip ?? null
@@ -271,10 +300,10 @@ export function TipBar({
         href={signInHref(returnTo)}
         onClick={(event) => {
           if (event.metaKey || event.ctrlKey || event.shiftKey) return
-          const intent = intentFor('tip')
-          if (openSignIn(intent)) event.preventDefault()
+          const intent = tipIntentNow()
+          if (openSignIn(intent ?? undefined)) event.preventDefault()
           // No sheet: the link goes to the sign-in page; the intent waits.
-          else rememberIntent(intent)
+          else if (intent) saveIntent(intent)
         }}
       >
         <span className="qt-read__signin-nib" aria-hidden="true">
@@ -381,9 +410,15 @@ export function TipBar({
               if (!signedOut) return onKeepChange(next)
               // Signed out: sign in first, carrying the line; nothing is
               // kept by signing in alone.
-              const intent = intentFor('keep')
-              if (openSignIn(intent)) return
-              rememberIntent(intent)
+              const intent = linePassage
+                ? keepIntent({
+                    path: returnTo,
+                    articleId: article.id,
+                    passage: linePassage,
+                  })
+                : null
+              if (openSignIn(intent ?? undefined)) return
+              if (intent) saveIntent(intent)
               window.location.assign(signInHref(returnTo))
             }}
           />

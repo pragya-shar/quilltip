@@ -10,8 +10,9 @@ import {
 } from './passageOffsets'
 
 export type ChosenPassage = Passage & {
-  /** How it was chosen: a tap, a native selection, or the keyboard. */
-  via: 'tap' | 'selection' | 'keyboard'
+  /** How it was chosen: a tap, a native selection, the keyboard, or an
+   * intent resumed after sign-in. */
+  via: 'tap' | 'selection' | 'keyboard' | 'intent'
 }
 
 const SELECTION_SETTLE_MS = 180
@@ -247,5 +248,5 @@ export function usePassageSelection(
     [clear]
   )
 
-  return { passage, cursor, clear, keep }
+  return { passage, cursor, clear, keep, choose }
 }

@@ -146,11 +146,13 @@
     height: auto;
     border: 0;
   }
-  /* Anchored headings and paragraphs (#s-{p}-0) land clear of the top. */
+  /* Anchored headings and paragraphs (#s-{p}-0) land clear of the top,
+   * at one offset: this margin plus the page's scroll padding. The view
+   * lands a sentence (#s-{p}-{k}) at the same offset, from these values. */
   .qt-read__prose h2,
   .qt-read__prose h3,
   .qt-read__prose p[id] {
-    scroll-margin-block-start: var(--qt-space-10);
+    scroll-margin-top: var(--qt-space-10);
   }
   .qt-read__prose ::selection {
     background: var(--qt-marker-soft);

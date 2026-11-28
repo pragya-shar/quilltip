@@ -73,8 +73,29 @@ async function pointAt(page: Page, needle: string) {
   }, needle)
 }
 
+/**
+ * Waits until the page has stopped scrolling: WebKit can still be moving a
+ * moment after a landing or a chosen line, and a tap must hit where it aims.
+ */
+async function settled(page: Page) {
+  let last = -1
+  await expect
+    .poll(
+      async () => {
+        const now = await page.evaluate(() => window.scrollY)
+        const held = now === last
+        last = now
+        return held
+      },
+      { intervals: [100] }
+    )
+    .toBe(true)
+}
+
 /** A tap (touch) or a click (mouse) on a sentence in the text. */
 async function tapLine(page: Page, needle: string) {
+  await pointAt(page, needle)
+  await settled(page)
   const { x, y } = await pointAt(page, needle)
   if (touch(page)) await page.touchscreen.tap(x, y)
   else await page.mouse.click(x, y)
@@ -641,28 +662,37 @@ test('reaching the end marks the article finished for Today', async ({
   )
 })
 
-test('a link into the article lands on its paragraph or sentence, with nothing chosen', async ({
+/** Where an anchored block lands: its scroll margin plus the scroll padding. */
+const anchorTopOf = (page: Page, id: string) =>
+  page.evaluate((id) => {
+    const block = document.getElementById(id)!
+    return (
+      parseFloat(getComputedStyle(block).scrollMarginTop) +
+      parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop)
+    )
+  }, id)
+
+test('a link into the article lands on its paragraph or sentence at one offset, with nothing chosen', async ({
   page,
 }) => {
   // Paragraph 9 by its id in the HTML (works with no script).
   await open(page, '#s-9-0')
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        Math.round(
-          document.getElementById('s-9-0')!.getBoundingClientRect().top
-        )
-      )
-    )
-    .toBeLessThan(120)
+  await settled(page)
+  const expected = await anchorTopOf(page, 's-9-0')
+  expect(expected).toBeGreaterThan(0)
+  const top = await page.evaluate(
+    () => document.getElementById('s-9-0')!.getBoundingClientRect().top
+  )
+  expect(Math.abs(top - expected), `landed at ${top}`).toBeLessThanOrEqual(4)
   await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
 
-  // Sentence 1 of paragraph 1, brought into view by the view.
+  // Sentence 1 of paragraph 1, brought to the same offset by the view.
   await page.evaluate(() =>
     window.scrollTo({ top: document.body.scrollHeight, behavior: 'instant' })
   )
   await open(page, '#s-1-1')
-  const top = await page.evaluate((line) => {
+  await settled(page)
+  const line = await page.evaluate((line) => {
     const p = document.getElementById('s-1-0')!
     const node = [...p.childNodes].find((n) => n.textContent!.includes(line))!
     const at = node.textContent!.indexOf(line)
@@ -671,8 +701,11 @@ test('a link into the article lands on its paragraph or sentence, with nothing c
     range.setEnd(node, at + line.length)
     return range.getBoundingClientRect().top
   }, LINES.bus)
-  expect(top).toBeGreaterThanOrEqual(0)
-  expect(top).toBeLessThan(200)
+  const sentenceExpected = await anchorTopOf(page, 's-1-0')
+  expect(
+    Math.abs(line - sentenceExpected),
+    `landed at ${line}`
+  ).toBeLessThanOrEqual(4)
   await expect(chosenTick(page)).toHaveCount(0)
 })
 
@@ -1042,17 +1075,67 @@ test('signed out with no sign-in sheet, the link returns to the line and keeps t
   )
   await press(page, link)
   await expect(page).toHaveURL(/\/login\?next=/)
-  const intent = await page.evaluate(() =>
-    JSON.parse(sessionStorage.getItem('quilltip:sign-in-intent:v1') ?? 'null')
+  // The sign-in package's stored form and tip intent.
+  const stored = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('quilltip:sign-in-intent') ?? 'null')
   )
-  expect(intent).toMatchObject({
-    kind: 'tip',
-    articleId: ARTICLE._id,
-    href: next,
-    amount: 100,
-    passage: { text: LINES.gate },
+  expect(stored).toMatchObject({
+    v: 1,
+    intent: {
+      kind: 'tip',
+      path: next,
+      articleId: ARTICLE._id,
+      passage: { text: LINES.gate },
+      amount: { cents: 100, display: '$1' },
+      writer: 'Tomás Reyes',
+    },
   })
+  expect(stored.intent.passage.end).toBeGreaterThan(stored.intent.passage.start)
   expect((await server(page)).requests).toBe(0)
+})
+
+test('after sign-in the intent is taken once: the line is chosen, the amount kept within its ceiling, nothing sent', async ({
+  page,
+}) => {
+  // Find the line's anchor and offsets as a signed-out press saved them.
+  await open(page, '&pay=signed-out&offer=high')
+  await tapLine(page, 'person next to')
+  await page
+    .locator('.qt-read__dock')
+    .getByRole('link', { name: 'Tip this line $1', exact: true })
+    .evaluate((a: HTMLAnchorElement) =>
+      a.addEventListener('click', (event) => event.preventDefault())
+    )
+  await press(
+    page,
+    page
+      .locator('.qt-read__dock')
+      .getByRole('link', { name: 'Tip this line $1', exact: true })
+  )
+  const stored = await page.evaluate(() =>
+    JSON.parse(sessionStorage.getItem('quilltip:sign-in-intent')!)
+  )
+  // Back from sign-in, signed in, with a $2.50 ceiling: $2 is offered.
+  await page.evaluate((stored) => {
+    stored.intent.amount = { cents: 250, display: '$2.50' }
+    sessionStorage.setItem('quilltip:sign-in-intent', JSON.stringify(stored))
+  }, stored)
+  const path: string = stored.intent.path
+  await page.goto(`${path.replace('#', `?run=${run}#`)}`)
+  await expect(page.locator('mark.qt-mark[data-state="chosen"]')).toHaveText(
+    LINES.gate
+  )
+  await expect(tipButton(page)).toHaveAccessibleName('Tip this line $2')
+  expect(
+    await page.evaluate(() => sessionStorage.getItem('quilltip:sign-in-intent'))
+  ).toBeNull()
+  expect((await server(page)).requests).toBe(0)
+  // Taken once: a reload chooses nothing.
+  await page.reload()
+  await expect(
+    page.getByRole('heading', { level: 1, name: TITLE })
+  ).toBeVisible()
+  await expect(page.locator('mark.qt-mark[data-state="chosen"]')).toHaveCount(0)
 })
 
 test('the balance caption opens the balance, and says what it holds', async ({

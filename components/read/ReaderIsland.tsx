@@ -39,6 +39,7 @@ import { useReadingPosition } from '@/hooks/read/useReadingPosition'
 import { paintPassages, type PaintedSpan } from './paintPassages'
 import { READ_BODY_ID, READ_MARGIN_ID, type ReadArticle } from './readModel'
 import { takeLiveArrival } from './liveArrival'
+import type { ReadIntent } from './signInIntent'
 import { TipBar, type SentTip } from './TipBar'
 
 type Tick = { top: number; height: number; kind: 'chosen' | 'place' }
@@ -48,6 +49,18 @@ const BOTTOM_RESERVE_PX = 200
 const TOP_RESERVE_PX = 72
 
 const body = () => document.getElementById(READ_BODY_ID)
+
+/**
+ * Where an anchored block lands: its scroll margin plus the page's scroll
+ * padding, the offset the browser itself uses for `#s-{p}-0` with no
+ * script, so every landing is the same in every engine.
+ */
+function anchorTop(block: Element): number {
+  const margin = parseFloat(getComputedStyle(block).scrollMarginTop) || 0
+  const padding =
+    parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0
+  return margin + padding
+}
 
 /** Keeps a line in view above the dock and any confirmation: a tip never hides its line. */
 function keepInView(span: PaintedSpan) {
@@ -114,7 +127,7 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   // While a tip is held, queued or sending, no line can be chosen or let go.
   const [locked, setLocked] = useState(false)
   const [selecting, setSelecting] = useState(false)
-  const { passage, cursor, clear, keep } = usePassageSelection(body, {
+  const { passage, cursor, clear, keep, choose } = usePassageSelection(body, {
     onChoose,
     enabled: !locked,
   })
@@ -135,19 +148,19 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
       if (!anchor || !root) return
       const block = document.getElementById(readAnchor(anchor.paragraph))
       if (!block || !root.contains(block)) return
-      if (anchor.sentence === 0) {
-        block.scrollIntoView({ block: 'start', behavior: 'instant' })
-        return
+      // The paragraph's top, or its sentence's, lands at one offset.
+      let top = block.getBoundingClientRect().top
+      if (anchor.sentence > 0) {
+        const { start, text, gaps } = blockText(root, block)
+        const span = sentenceSpans(text, gaps)[anchor.sentence]
+        if (!span) return
+        top = rangeAt(
+          root,
+          start + span.start,
+          start + span.end
+        ).getBoundingClientRect().top
       }
-      const { start, text, gaps } = blockText(root, block)
-      const span = sentenceSpans(text, gaps)[anchor.sentence]
-      if (!span) return
-      const rect = rangeAt(
-        root,
-        start + span.start,
-        start + span.end
-      ).getBoundingClientRect()
-      window.scrollBy({ top: rect.top - TOP_RESERVE_PX, behavior: 'instant' })
+      window.scrollBy({ top: top - anchorTop(block), behavior: 'instant' })
     }
     goToSentence()
     window.addEventListener('hashchange', goToSentence)
@@ -361,6 +374,28 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   }, [article.id])
   const arrivalDone = useCallback(() => setArrivalArmed(false), [])
 
+  // After sign-in: the line the reader had chosen, chosen again, only where
+  // the text still reads the same. Nothing is sent or kept.
+  const resume = useCallback(
+    (intent: ReadIntent) => {
+      const root = body()
+      const line = intent.passage
+      if (!root || !line) return
+      if (textBetween(root, line.start, line.end) !== line.text) return
+      const chosen: ChosenPassage = {
+        text: line.text,
+        startOffset: line.start,
+        endOffset: line.end,
+        startContainerPath: `text.${line.start}`,
+        endContainerPath: `text.${line.end}`,
+        via: 'intent',
+      }
+      choose(chosen)
+      requestAnimationFrame(() => keepInView(chosen))
+    },
+    [choose]
+  )
+
   const gone = status === 'gone'
   useEffect(() => {
     if (!gone) return
@@ -470,6 +505,7 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
           onSent={onSent}
           arrivalArmed={arrivalArmed}
           onArrivalDone={arrivalDone}
+          onResume={resume}
         />
       ) : null}
     </>
