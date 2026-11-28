@@ -1,4 +1,4 @@
-const MIN_PUBLISHABLE_TITLE_LENGTH = 3
+export const MIN_PUBLISHABLE_TITLE_LENGTH = 3
 
 export function isPlaceholderArticleTitle(title: string): boolean {
   const trimmed = title.trim()
