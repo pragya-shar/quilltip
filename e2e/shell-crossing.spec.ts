@@ -60,7 +60,12 @@ test('before scripts run, a held session shows Balance, never Sign in, at the sa
 }) => {
   // The app's own scripts never load, so what shows is the server HTML
   // plus the pre-paint script, as on a slow phone.
-  await page.route('**/_next/static/chunks/**', (route) => route.abort())
+  // Scripts only: the stylesheets live in the same folder and still load.
+  await page.route('**/_next/static/chunks/**', (route) =>
+    route.request().resourceType() === 'script'
+      ? route.abort()
+      : route.continue()
+  )
   const slot = page
     .getByRole('navigation', { name: 'Main' })
     .locator('.qt-balance-slot:visible')

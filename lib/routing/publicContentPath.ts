@@ -1,35 +1,14 @@
+import { RESERVED_SEGMENTS } from './segments'
+
 /**
  * First path segments that belong to app routes, not to writers. Writer pages
- * live at /<username> and /<username>/<slug>. Kept in sync with app/ by
- * scripts/articles/public-content-path.test.ts.
+ * live at /<username> and /<username>/<slug>. One file per package in
+ * lib/routing/segments; scripts/system/reserved-segments.test.ts fails when a
+ * route under app/(app) or app/(legacy) is not reserved.
  */
-export const APP_ROUTE_SEGMENTS = new Set([
-  'articles',
-  'contact',
-  'dashboard',
-  'demo',
-  'drafts',
-  'forgot-password',
-  'guide',
-  'library',
-  'login',
-  'ops',
-  'pocket',
-  'privacy',
-  'profile',
-  'register',
-  'reset-password',
-  'settings',
-  'shelf',
-  'status',
-  'support',
-  'system',
-  'terms',
-  'waitlist',
-  'wallet',
-  'welcome',
-  'write',
-])
+export const APP_ROUTE_SEGMENTS: ReadonlySet<string> = new Set(
+  RESERVED_SEGMENTS
+)
 
 /** Framework paths; usernames may otherwise start with an underscore. */
 const NEXT_INTERNAL_SEGMENTS = new Set(['_next', '_vercel'])

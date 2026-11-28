@@ -19,6 +19,8 @@ const ANYWHERE = [
   /\brule R[0-9]+\b/,
   /\bdecision D[0-9]{1,2}\b/i,
   /\bdesign N[0-9]\b/i,
+  /\bthe plan's\b/i,
+  /\bplan (?:section )?[0-9]+\.[0-9]+/i,
 ]
 
 /** In a comment line, or anywhere in Markdown: "(D19)", "D21 requires". */
@@ -69,6 +71,10 @@ describe('no references to private planning records', () => {
       privateReferences('a.ts', 'const x = 1 // rebuild plan 5.3')
     ).toHaveLength(1)
     expect(privateReferences('a.md', 'Required by D21.')).toHaveLength(1)
+    expect(
+      privateReferences('a.ts', "// the plan's public-route limits")
+    ).toHaveLength(1)
+    expect(privateReferences('a.ts', '// see plan 4.1')).toHaveLength(1)
     expect(privateReferences('a.ts', 'const R1 = articleRef()')).toEqual([])
     expect(privateReferences('a.tsx', '<path d="M29 17h49v7H29Z" />')).toEqual(
       []

@@ -27,7 +27,11 @@ test('every top-level app route is excluded from the writer check', () => {
           !!segment && segment !== 'page.tsx' && !segment.startsWith('[')
       )
   )
-  expect([...topLevel].sort()).toEqual([...APP_ROUTE_SEGMENTS].sort())
+  // Reserved segments may run ahead of their pages; a route may not run
+  // ahead of its segment (scripts/system/reserved-segments.test.ts).
+  expect(
+    [...topLevel].filter((segment) => !APP_ROUTE_SEGMENTS.has(segment))
+  ).toEqual([])
 })
 
 test.each([
