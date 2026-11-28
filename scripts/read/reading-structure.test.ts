@@ -203,6 +203,22 @@ describe('malformed documents', () => {
     )
   })
 
+  it('ends in the not-available state when the body has nothing to read or see', () => {
+    const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
+    for (const content of [
+      [{ type: 'paragraph' }],
+      [p(text('   '))],
+      [p({ type: 'hardBreak' })],
+      [{ type: 'horizontalRule' }, { type: 'paragraph' }],
+      // A paragraph whose only content was dropped.
+      [p({ type: 'resizableImage', attrs: { src: '/images/a.png' } })],
+      [{ type: 'heading', attrs: { level: 2 } }],
+    ])
+      expect(render(content), JSON.stringify(content)).toEqual(UNAVAILABLE)
+    expect(render([p(text('A line.'))]).html).toBe('<p id="s-0-0">A line.</p>')
+    quiet.mockRestore()
+  })
+
   it('ends in the not-available state when nothing is left to show', () => {
     const quiet = vi.spyOn(console, 'error').mockImplementation(() => {})
     expect(render([])).toEqual(UNAVAILABLE)
@@ -334,6 +350,14 @@ describe('addresses', () => {
       'https://arweave.net/abc',
       '/search?q=1',
       '/images/../api/x',
+      // Encoded separators and dot segments: refused whatever the server
+      // would make of them.
+      '/images/..%2f..%2fapi',
+      '/images/..%2F..%2Fapi',
+      '/images/..%5c..%5capi',
+      '/images/a%2fb.png',
+      '/images/%2e%2e/%2e%2e/api',
+      'https://deploy-1.convex.cloud/api/storage/..%2f..%2fx',
       '//deploy-1.convex.cloud/api/storage/a1',
       '/\\deploy-1.convex.cloud/api/storage/a1',
       '/images/a b.png',

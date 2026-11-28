@@ -25,6 +25,13 @@ export type ReadingHtml =
       unavailable: 'too-large' | 'invalid'
     }
 
+/** Whether the document holds text, an image or an embed. */
+function hasReadableContent(node: JSONContent): boolean {
+  if (node.type === 'text') return /\S/.test(node.text ?? '')
+  if (node.type === 'resizableImage' || node.type === 'youtube') return true
+  return node.content?.some(hasReadableContent) ?? false
+}
+
 let schema: Schema | undefined
 const readingSchema = () => (schema ??= getSchema(getReadingExtensions()))
 
@@ -46,7 +53,9 @@ export function renderReadingHtml(
 ): ReadingHtml {
   try {
     const clean = sanitizeReadingDoc(content ?? { type: 'doc' }, sources)
-    if (!clean.content?.length)
+    // Nothing a reader can read or see (no text, image or embed): the
+    // not-available state, never an empty article.
+    if (!hasReadableContent(clean))
       return { html: undefined, headings: [], unavailable: 'invalid' }
     const { doc, headings } = withReadingAnchors(clean)
     Node.fromJSON(readingSchema(), doc).check()

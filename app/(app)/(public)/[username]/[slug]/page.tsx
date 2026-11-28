@@ -30,6 +30,15 @@ const reads = (
     movedPublicPath(username, slug, searchParams),
 })
 
+/**
+ * The page's own path for its Try again link, each segment encoded: route
+ * params arrive decoded, so `/%5Chost/x` gives `\host`, and written back
+ * raw a browser would read `/\host/x` as another host.
+ */
+function pagePath(username: string, slug: string): string {
+  return `/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`
+}
+
 type ArticlePageProps = {
   params: Promise<{ username: string; slug: string }>
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -57,6 +66,9 @@ export async function generateMetadata({
   const images = cover ? [{ url: cover }] : undefined
   return {
     title: article.title,
+    // Images on this page (the writer's avatar among them) send no
+    // referrer: a reader's address and visit are not told to any host.
+    referrer: 'no-referrer',
     description,
     authors: [{ name: authorName }],
     alternates: { canonical: url },
@@ -111,7 +123,7 @@ export default async function ArticlePage({
           <PushedHeader fallbackHref="/" backLabel="Back to Today" />
           <ReadingUnavailable
             what="This article"
-            retryHref={retryHrefFor(`/${username}/${slug}`, query)}
+            retryHref={retryHrefFor(pagePath(username, slug), query)}
           />
         </div>
       </PushedScreen>
@@ -128,7 +140,7 @@ export default async function ArticlePage({
           <PushedHeader fallbackHref="/" backLabel="Back to Today" />
           <ReadingUnavailable
             what="This article"
-            retryHref={retryHrefFor(`/${username}/${slug}`, query)}
+            retryHref={retryHrefFor(pagePath(username, slug), query)}
           />
         </div>
       </PushedScreen>

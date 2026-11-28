@@ -262,10 +262,12 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
   }, [cursor])
 
   // Escape lets the chosen line go, from anywhere on the page, unless a
-  // sheet or menu is open (it closes first).
+  // sheet or menu is open (it closes first), or a tip holds the line (the
+  // press captured it; the mark and the receipt use it).
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== 'Escape' || event.defaultPrevented || !passage) return
+      if (locked) return
       if (sheetStack.get().some((entry) => entry.open)) return
       if ((event.target as Element | null)?.closest('dialog, [role="menu"]'))
         return
@@ -273,7 +275,7 @@ export function ReaderIsland({ article }: { article: ReadArticle }) {
     }
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
-  }, [passage, clear])
+  }, [passage, clear, locked])
 
   // Back at the reader's place: a quiet tick beside that paragraph, and
   // nothing chosen.

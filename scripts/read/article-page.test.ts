@@ -162,3 +162,44 @@ describe('the article route and an article that cannot take a tip', () => {
     expect(html).toMatch(/qt-tip\b/)
   })
 })
+
+describe('the article route and hostile addresses', () => {
+  it('encodes the Try again link: /%5Chost/x never links off-site', async () => {
+    reads.article.mockResolvedValue(undefined)
+    // Route params arrive decoded: `%5C` is a backslash here.
+    const html = renderToStaticMarkup(
+      await ArticlePage({
+        params: Promise.resolve({ username: '\\host', slug: 'x' }),
+        searchParams: Promise.resolve({}),
+      })
+    )
+    expect(html).toContain('href="/%5Chost/x"')
+    expect(html).not.toMatch(/href="\/\\/)
+    expect(html).not.toMatch(/href="\/\//)
+  })
+
+  it("draws a writer's avatar only under the image rule, and sends no referrer", async () => {
+    tipState.articleTippable.mockResolvedValue(null)
+    reads.article.mockResolvedValue({
+      _id: 'k57rdfxtrartc1e0000000000000000001',
+      slug: 'ledger',
+      title: 'Ledger',
+      content: {
+        type: 'doc',
+        content: [
+          { type: 'paragraph', content: [{ type: 'text', text: 'One.' }] },
+        ],
+      },
+      author: {
+        name: 'Tomás Reyes',
+        username: 'tomas',
+        avatar: 'https://logger.example/pixel.png?reader=1',
+      },
+    })
+    const html = renderToStaticMarkup(await ArticlePage(args))
+    expect(html).not.toContain('logger.example')
+    // Initials instead.
+    expect(html).toContain('>TR<')
+    expect((await generateMetadata(args)).referrer).toBe('no-referrer')
+  })
+})

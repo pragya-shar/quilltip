@@ -171,8 +171,29 @@ export function safeImageSrc(
       url.pathname.startsWith(STORAGE_PATH)
         ? url.origin + url.pathname
         : null
-  // Accepted again unchanged: within the cap once percent-encoded.
-  return out !== null && out.length <= READING_LIMITS.urlLength ? out : null
+  // Accepted again unchanged: within the cap once percent-encoded. And a
+  // plain path: no encoded slash or backslash and no dot segment once
+  // decoded, so `/images/..%2f..%2fapi` never reaches another path.
+  return out !== null &&
+    out.length <= READING_LIMITS.urlLength &&
+    plainPath(new URL(out, ORIGIN).pathname)
+    ? out
+    : null
+}
+
+/** A path with no encoded separator and no dot segment, decoded or not. */
+function plainPath(pathname: string): boolean {
+  if (/%2f|%5c/i.test(pathname)) return false
+  let decoded: string
+  try {
+    decoded = decodeURIComponent(pathname)
+  } catch {
+    return false
+  }
+  if (decoded.includes('\\')) return false
+  return !decoded
+    .split('/')
+    .some((segment) => segment === '.' || segment === '..')
 }
 
 /** The only embed address the reading view renders. */

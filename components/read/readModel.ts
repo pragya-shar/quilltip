@@ -90,7 +90,9 @@ export function toReadArticle(
       firstName: firstName(name) || name,
       username,
       href: `/${username}`,
-      avatar: article.author.avatar ?? null,
+      // Under the image rule: this deployment's storage or the site's own
+      // image paths; anything else shows initials.
+      avatar: safeImageSrc(article.author.avatar, sources),
     },
     readTime:
       article.readTime && article.readTime > 0

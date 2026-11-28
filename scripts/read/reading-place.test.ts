@@ -72,6 +72,11 @@ describe('reading places for Today', () => {
       '//evil.example/x',
       '/\\evil.example/x',
       '/\\evil.test/x',
+      // Normalised to a protocol-relative path: another host to a browser.
+      '/.//evil.test/x',
+      '/..//evil.test/x',
+      '/a/..//evil.test/x',
+      '/%2e//evil.test/x',
       '/\t/evil.test/x',
       '/\n/evil.test/x',
       '/a\\b',

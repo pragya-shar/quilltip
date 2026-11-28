@@ -798,6 +798,12 @@ test('the line tipped is the line pressed, even if another is tapped while sendi
   // A tap on another line while the tip is out changes nothing.
   await tapLine(page, 'rarely remembers')
   await expect(status).toContainText('Sending')
+  // Nor does Escape: the press captured the line, and it stays chosen.
+  await page.keyboard.press('Escape')
+  await expect(page.locator('mark.qt-mark[data-state="chosen"]')).toHaveText(
+    LINES.gate
+  )
+  await expect(status).toContainText('Sending')
   await page.request.post(`/api/release?run=${run}`)
   await expect(status).toContainText('Sent')
   const { accepted } = await server(page)
