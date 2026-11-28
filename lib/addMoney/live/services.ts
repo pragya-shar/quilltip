@@ -338,6 +338,7 @@ async function prepareOnServer(
   const plan = keyPlan({
     latestLedger: clock.sequence,
     tabBalanceAfter: op.kind === 'add' ? op.balanceAfter : op.balance,
+    priceUsd: op.priceUsd,
   })
   const key = { publicKey: device.publicKey, ...plan }
   if (op.kind === 'add') {

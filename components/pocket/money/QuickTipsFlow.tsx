@@ -119,7 +119,11 @@ export function QuickTipsFlow({
     setStep({ at: 'checking' })
     services
       .prepare(
-        { kind: 'quick-tips', balance: reading.confirmed },
+        {
+          kind: 'quick-tips',
+          balance: reading.confirmed,
+          priceUsd: reading.priceUsd,
+        },
         reading.address
       )
       .then((prepared) => {

@@ -231,6 +231,7 @@ export function AddMoneyFlow({
         .prepare(
           {
             kind: 'add',
+            priceUsd: reading.priceUsd,
             amount,
             withQuickTips: request.withQuickTips,
             balanceAfter: (

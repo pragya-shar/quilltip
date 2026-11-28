@@ -242,7 +242,8 @@ export const emulatedServices: AddMoneyServices = {
               const after = BigInt(
                 op.kind === 'add' ? op.balanceAfter : op.balance
               )
-              const cap = BigInt(50) * XLM
+              // $50 at today's price, as the live key plan sets it.
+              const cap = BigInt(Math.floor((5000 * 1e7) / (0.1273 * 100)))
               return (after > BigInt(0) && after < cap ? after : cap).toString()
             })(),
           }

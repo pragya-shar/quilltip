@@ -124,8 +124,10 @@ export type Operation =
       amount: string
       withQuickTips: boolean
       balanceAfter: string
+      /** Today's price: the approval's cap is set in dollars ($50). */
+      priceUsd: number | null
     }
-  | { kind: 'quick-tips'; balance: string }
+  | { kind: 'quick-tips'; balance: string; priceUsd: number | null }
   | { kind: 'turn-off'; keyId: number }
 
 /**
