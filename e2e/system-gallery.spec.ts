@@ -578,6 +578,8 @@ for (const kind of [
     ).toBe(false)
 
     // By touch or pointer: the title again, and no focus ring anywhere.
+    // After the hold that every close starts (system/pressGuard.ts).
+    await page.waitForTimeout(450)
     await press(page, opener)
     await expect(modal).toBeVisible()
     await expect(modal.getByRole('heading', { name: kind.name })).toBeFocused()
