@@ -339,6 +339,43 @@ test.describe('mobile menu before the page scripts run', () => {
     )
   })
 
+  test('a menu closed in the same moment as React renders again stays closed', async ({
+    page,
+  }) => {
+    // The close is recorded as the popover closes, not a task later: a sheet
+    // closed and removed in one task must not open again (#658).
+    await recordConvexMessages(page)
+    const release = await holdPageScripts(page)
+    await page.goto(MENU_PAGE, { waitUntil: 'domcontentloaded' })
+    const trigger = page.locator('.app-menu-trigger')
+    await page.getByRole('button', { name: 'Open navigation menu' }).tap()
+    await expect(
+      page.getByRole('dialog', { name: 'Find your way' })
+    ).toBeVisible({ timeout: 1000 })
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (window as unknown as { __earlyMenu?: string }).__earlyMenu
+        )
+      )
+      .toBe('open')
+    await page.evaluate(() => {
+      const menu = document.querySelector<HTMLDialogElement>(
+        'dialog.app-mobile-menu'
+      )!
+      menu.hidePopover()
+      menu.remove()
+    })
+    release()
+    // The takeover has read the record once the record says `done`.
+    await page.waitForFunction(
+      () =>
+        (window as unknown as { __earlyMenu?: string }).__earlyMenu === 'done'
+    )
+    await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+    await expect(page.locator('dialog.app-mobile-menu')).toBeHidden()
+  })
+
   test('the close button and the backdrop close the menu before the scripts run', async ({
     page,
   }) => {
