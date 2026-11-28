@@ -160,6 +160,24 @@ test.describe('a kept intent comes back, and nothing is sent', () => {
   })
 })
 
+test('an intent built by hand still signs in, on the same page', async ({
+  page,
+}) => {
+  const errors: string[] = []
+  page.on('pageerror', (error) => errors.push(error.message))
+  await page.goto('/article?hand-made&ceiling=50')
+  await press(page.locator('[data-fixture="hand-made"]'))
+  const dialog = sheet(page, 'Sign in to Quilltip')
+  await expect(dialog).toBeVisible()
+  await fill(dialog, EMAIL, PASSWORD)
+  await press(dialog.getByRole('button', { name: 'Sign in', exact: true }))
+  await expect(dialog).toBeHidden()
+  await expect(page).toHaveURL(/\/article\?hand-made&ceiling=50$/)
+  await expect(tipButton(page)).toHaveAttribute('data-phase', 'signed-in')
+  await expect(tipButton(page)).toHaveAttribute('data-sends', '0')
+  expect(errors).toEqual([])
+})
+
 test.describe('errors are plain, specific and land on their field', () => {
   test('a wrong password says so, on the password field', async ({ page }) => {
     const dialog = await openFromTip(page)

@@ -61,6 +61,20 @@ export function TipStandIn() {
       >
         <span className="qt-button__label">{`Tip this line ${show(amount)}`}</span>
       </button>
+      {params.has('hand-made') ? (
+        // A caller that builds its intent by hand: this fixture is a
+        // production build, where openSignIn opens the sheet without it.
+        <button
+          type="button"
+          className="qt-button"
+          data-fixture="hand-made"
+          onClick={() =>
+            openSignIn({ kind: 'draft', draft: 'l-1' } as unknown as null)
+          }
+        >
+          <span className="qt-button__label">Sign in by hand</span>
+        </button>
+      ) : null}
       <SignOutButton />
     </div>
   )
