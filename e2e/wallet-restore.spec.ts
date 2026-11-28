@@ -9,6 +9,7 @@ import {
   installVarialEmulator,
   type VarialMode,
 } from './helpers/varialEmulator'
+import { SEND_TIP } from './helpers/sendButton'
 
 /**
  * Restoring the reader's last wallet after a page load (#562), through the
@@ -173,7 +174,7 @@ test('wrong network: restored with the network shown, and refused before any sig
   const dialog = page.getByRole('dialog', { name: 'Tip this article' })
   // The dialog blocks the send: no signing request can be made.
   await expect(dialog.getByText('Switch your wallet to Testnet')).toBeVisible()
-  await expect(dialog.getByRole('button', { name: 'Send tip' })).toHaveCount(0)
+  await expect(dialog.getByRole('button', { name: SEND_TIP })).toHaveCount(0)
   expect(
     (await requests(page)).filter((type) => PROMPTS.includes(type))
   ).toEqual([])
