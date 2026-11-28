@@ -1,5 +1,6 @@
 // Starts `next start` for the perf and browser checks, unless PERF_BASE_URL
-// points at a server that is already running.
+// points at a server that is already running, and for the sign-in suite
+// (scripts/auth-e2e/run.ts), which always starts its own.
 //
 // Several checks can run on one machine at once. The helper makes sure a
 // check measures the server it started and the fixture backend it started:
@@ -69,11 +70,11 @@ function localBuildId(buildDir: string) {
 }
 
 /**
- * Makes `app.kill()` stop the app's whole process group, and stops it when
- * this process exits or gets SIGINT or SIGTERM, so a stopped or interrupted
- * check leaves no server on its port.
+ * Makes `app.kill()` stop the whole process group of `app`, which must be
+ * spawned with `detached: true`, and stops it when this process exits or gets
+ * SIGINT or SIGTERM, so a stopped or interrupted check leaves no server.
  */
-function stopGroupWithCheck(app: ChildProcess) {
+export function stopWithThisProcess(app: ChildProcess) {
   const stopGroup = (signal: NodeJS.Signals = 'SIGTERM') => {
     if (app.pid === undefined) return
     try {
@@ -115,6 +116,15 @@ export async function startProductionApp(
   options: StartOptions = {}
 ): Promise<ChildProcess | undefined> {
   if (process.env.PERF_BASE_URL) return undefined
+  return launchProductionApp(port, baseUrl, options)
+}
+
+/** Starts the app, whatever PERF_BASE_URL says. */
+export async function launchProductionApp(
+  port: number,
+  baseUrl: string,
+  options: StartOptions = {}
+): Promise<ChildProcess> {
   if (await answers(`${baseUrl}/login`))
     throw new Error(
       `Another server already answers on ${baseUrl}. Leave the port variable unset for a free port, or stop that server.`
@@ -137,7 +147,7 @@ export async function startProductionApp(
       PORT: String(port),
     },
   })
-  stopGroupWithCheck(app)
+  stopWithThisProcess(app)
   let exit: string | undefined
   const stderr: string[] = []
   app.on('exit', (code, signal) => {

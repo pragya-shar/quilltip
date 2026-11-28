@@ -9,7 +9,12 @@
  * - It records whether the reader left the menu open (EARLY_MENU_PROPERTY).
  *   React sometimes renders the page again in the browser instead of
  *   attaching to the server HTML, which removes the open popover; the menu
- *   then opens again as the modal dialog.
+ *   then opens again as the modal dialog. It records the state from
+ *   `beforetoggle`, which fires as the popover opens or closes: `toggle`
+ *   comes a task later, and a popover removed before then never reports it
+ *   (#658). An open that another listener cancelled in `beforetoggle` would
+ *   still be recorded; before the scripts run nothing else listens, and
+ *   after the takeover the record is `done`.
  */
 
 /** `open` or `closed` before the scripts run, `done` after. */

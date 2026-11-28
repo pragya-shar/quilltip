@@ -150,7 +150,9 @@ export function TabCloseSection({
             <strong>
               {status.ready
                 ? TAB_CLOSE.ready
-                : TAB_CLOSE.unlocks(status.unlocksAround)}
+                : status.overdue
+                  ? TAB_CLOSE.unlocksSoon
+                  : TAB_CLOSE.unlocks(status.unlocksAround)}
             </strong>
             {status.ready ? null : (
               <p className="tab-subtle">{TAB_CLOSE.estimate}</p>
@@ -169,10 +171,9 @@ export function TabCloseSection({
           <p className="tab-subtle">{TAB_CLOSE.nothingLeft}</p>
         )
       ) : (
-        <PaymentNotice
-          kind="withdrawal-pending"
-          unlockDate={status.unlocksAround ?? undefined}
-        />
+        // The balance note and the timeline carry the date: the notice
+        // keeps what they do not say (#671).
+        <PaymentNotice kind="withdrawal-pending" />
       )}
     </section>
   )

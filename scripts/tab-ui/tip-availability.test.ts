@@ -67,6 +67,7 @@ describe('tabTipAvailability', () => {
           ready: false,
           unlocksAround: null,
           unlocksAt: null,
+          overdue: false,
         },
       }).kind
     ).toBe('tab-closing')
@@ -128,6 +129,7 @@ describe('tabTipAvailability', () => {
           ready: false,
           unlocksAround: null,
           unlocksAt: null,
+          overdue: false,
         },
       }).kind
     ).toBe('tab-closing')

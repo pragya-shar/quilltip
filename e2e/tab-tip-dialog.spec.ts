@@ -5,7 +5,19 @@ import path from 'node:path'
 
 import { installVarialEmulator } from './helpers/varialEmulator'
 import { expectNoticeTookFocus } from './helpers/noticeFocus'
+import {
+  POINTERS,
+  animationsSettled,
+  cancelledPress,
+  expectClicked,
+  expectNotClicked,
+  markClick,
+  penUnsupported,
+  pressWith,
+} from './helpers/press'
+import { expectFixtureReady } from './fixtures/tab-ui/ready'
 import { SEND_TIP, SEND_TIP_FROM_WALLET } from './helpers/sendButton'
+import { ESTIMATE } from '../lib/copy/payment-states'
 
 /**
  * The tab tip section of the article and passage tip dialogs (issue #546),
@@ -38,7 +50,7 @@ async function open(page: Page, state: string, query = '') {
     address: UNUSED,
   })
   await page.goto(`/dialog?state=${state}${query ? `&${query}` : ''}`)
-  await expect(page.getByTestId('fixture-state')).toBeVisible()
+  await expectFixtureReady(page)
   return errors
 }
 
@@ -202,6 +214,10 @@ const STATES: Record<string, StateCase> = {
           exact: false,
         })
       ).toBeVisible()
+      // A tab tip has no wallet prompt: the estimate does not promise one.
+      const caption = dialog.locator('.pay-amount-caption')
+      await expect(caption).toContainText(ESTIMATE.tabCaption)
+      await expect(caption).not.toContainText(ESTIMATE.caption)
     },
   },
   'above-max': {
@@ -218,6 +234,10 @@ const STATES: Record<string, StateCase> = {
           name: 'Send $0.75 from your tab',
         })
       ).toHaveAttribute('aria-disabled', 'true')
+      // Only the wallet can send this amount, so the wallet sentence holds.
+      await expect(dialog.locator('.pay-amount-caption')).toContainText(
+        ESTIMATE.caption
+      )
     },
   },
   short: {
@@ -452,6 +472,237 @@ test.describe('one amount for the dialog', () => {
       'aria-invalid',
       'true'
     )
+  })
+
+  test.describe('with the dialog at its full height', () => {
+    // The dialog fills the window and scrolls, so anything that grew above
+    // a button would move it by its full height. The amount's error takes
+    // the hint's place, so the buttons under the field stay where a press
+    // started for every pointer (#658).
+    test.use({ viewport: { width: 1280, height: 720 } })
+
+    const amountAsked = async (dialog: Locator) => {
+      await expect(dialog.getByLabel('Other amount')).toBeFocused()
+      await expect(dialog.getByLabel('Other amount')).toHaveAttribute(
+        'aria-invalid',
+        'true'
+      )
+    }
+
+    const connectWallet = async (page: Page, dialog: Locator) => {
+      await dialog.getByRole('button', { name: 'Connect wallet' }).click()
+      const chooser = page.getByRole('dialog', { name: 'Choose a wallet' })
+      await chooser.getByRole('button', { name: /^Varial/ }).click()
+      // Closed, so the press below reaches the tip dialog, not the chooser.
+      await expect(chooser).toBeHidden()
+      await expect(
+        dialog.getByRole('button', { name: SEND_TIP_FROM_WALLET })
+      ).toBeVisible()
+    }
+
+    const BUTTONS: {
+      name: string
+      /** Runs before the amount is chosen: connects the wallet. */
+      before?: (page: Page, dialog: Locator) => Promise<void>
+      /** Marked unavailable until the amount is valid, yet still pressable. */
+      ariaDisabled?: true
+      /** What the press does with an amount below the minimum. */
+      result: (page: Page, dialog: Locator) => Promise<void>
+    }[] = [
+      { name: 'From your tab', result: (_page, dialog) => amountAsked(dialog) },
+      {
+        name: 'Connect wallet',
+        result: (page) =>
+          expect(
+            page.getByRole('dialog', { name: 'Choose a wallet' })
+          ).toBeVisible(),
+      },
+      {
+        name: 'Send from your wallet',
+        before: connectWallet,
+        ariaDisabled: true,
+        result: (_page, dialog) => amountAsked(dialog),
+      },
+      {
+        name: 'Add to tip basket',
+        result: (_page, dialog) => amountAsked(dialog),
+      },
+    ]
+    const find = (dialog: Locator, name: string) =>
+      name === 'From your tab'
+        ? tabSection(dialog).getByRole('button', { name })
+        : dialog.getByRole('button', { name, exact: true })
+
+    async function openReady(page: Page) {
+      await open(page, 'tip-ready')
+      const dialog = await openDialog(page, 'article')
+      await expect(tabSection(dialog)).toBeVisible()
+      return dialog
+    }
+
+    for (const pointer of POINTERS) {
+      test.describe(`${pointer} press`, () => {
+        if (pointer === 'touch') test.use({ hasTouch: true })
+
+        for (const button of BUTTONS) {
+          test(`with an amount below the minimum, a ${pointer} press on ${button.name} reaches it`, async ({
+            page,
+            browserName,
+          }) => {
+            test.skip(
+              penUnsupported(pointer, browserName),
+              'Pen input needs the Chromium DevTools protocol.'
+            )
+            const dialog = await openReady(page)
+            await button.before?.(page, dialog)
+            await chooseAmount(dialog, '0.01')
+            const target = find(dialog, button.name)
+            await markClick(target, button.name)
+            await pressWith(page, target, pointer, {
+              force: button.ariaDisabled,
+            })
+            await expectClicked(page, button.name)
+            await button.result(page, dialog)
+          })
+        }
+      })
+    }
+
+    test('the error takes the hint’s place: the buttons under the field do not move', async ({
+      page,
+    }) => {
+      const dialog = await openReady(page)
+      const field = dialog.getByLabel('Other amount')
+      const buttons = [
+        find(dialog, 'From your tab'),
+        find(dialog, 'Connect wallet'),
+        find(dialog, 'Add to tip basket'),
+      ]
+      await animationsSettled(dialog)
+      const tops = () =>
+        Promise.all(buttons.map(async (b) => (await b.boundingBox())!.y))
+      for (const amount of ['abc', '0.01', '200']) {
+        await chooseAmount(dialog, amount)
+        const before = await tops()
+        await field.blur()
+        await expect(field).toHaveAttribute('aria-invalid', 'true')
+        expect(await tops()).toEqual(before)
+        await chooseAmount(dialog, '')
+      }
+      // The hint is still the field's description, after the error, and
+      // the range is read once: the error's own copy of it is seen only.
+      await chooseAmount(dialog, 'abc')
+      await field.blur()
+      await expect(field).toHaveAccessibleDescription(
+        /^Enter an amount in dollars, for example 1\.50\. From \$0\.03 to \$100\. The XLM amount is set when you send\./
+      )
+      await expect(
+        dialog
+          .getByText(/Tips go from \$0\.03 to \$100\./)
+          .filter({ visible: true })
+      ).toBeVisible()
+    })
+
+    test('a press that leaves the button before its release does nothing', async ({
+      page,
+    }) => {
+      const dialog = await openReady(page)
+      await chooseAmount(dialog, '0.01')
+      const target = find(dialog, 'From your tab')
+      await markClick(target, 'From your tab')
+      await cancelledPress(page, target)
+      await expect(dialog).toBeVisible()
+      await expectNotClicked(page)
+      await expect(dialog.getByLabel('Other amount')).not.toBeFocused()
+    })
+
+    test('Tab away from an amount below the minimum shows its error at once', async ({
+      page,
+    }) => {
+      const dialog = await openReady(page)
+      const field = dialog.getByLabel('Other amount')
+      await chooseAmount(dialog, '0.01')
+      await page.keyboard.press('Tab')
+      await expect(field).toHaveAttribute('aria-invalid', 'true', {
+        timeout: 500,
+      })
+      await expect(
+        dialog.getByText('The smallest tip right now is $0.03.', {
+          exact: true,
+        })
+      ).toBeVisible()
+    })
+
+    test('a preset pressed after an invalid amount is chosen, with no error left', async ({
+      page,
+    }) => {
+      const dialog = await openReady(page)
+      const field = dialog.getByLabel('Other amount')
+      await chooseAmount(dialog, 'abc')
+      // The preset sits above the field: the press moves focus off it.
+      const preset = dialog
+        .getByRole('group', { name: 'Preset amounts' })
+        .getByRole('button', { name: '$0.25' })
+      await preset.click()
+      await expect(preset).toHaveAttribute('aria-pressed', 'true')
+      await expect(field).toHaveValue('')
+      await expect(field).not.toHaveAttribute('aria-invalid', 'true')
+      await expect(
+        dialog
+          .getByText(/^Enter an amount in dollars/)
+          .filter({ visible: true })
+      ).toHaveCount(0)
+    })
+
+    test('an amount corrected after its error is shown: the press still reaches Connect wallet', async ({
+      page,
+    }) => {
+      const dialog = await openReady(page)
+      const field = dialog.getByLabel('Other amount')
+      await chooseAmount(dialog, '0.01')
+      await field.blur()
+      await expect(field).toHaveAttribute('aria-invalid', 'true')
+      // The error clears while the reader types, before the press.
+      await chooseAmount(dialog, '3')
+      await expect(field).not.toHaveAttribute('aria-invalid', 'true')
+      const connect = find(dialog, 'Connect wallet')
+      await markClick(connect, 'Connect wallet')
+      await connect.click()
+      await expectClicked(page, 'Connect wallet')
+      await expect(
+        page.getByRole('dialog', { name: 'Choose a wallet' })
+      ).toBeVisible()
+    })
+  })
+
+  test.describe('at 320 px without a tab', () => {
+    // The narrowest layout: the longest amount error wraps to more lines
+    // than the hint, so the box keeps room for it (#658).
+    test.use({ viewport: { width: 320, height: 568 } })
+
+    test('the amount error does not move Connect wallet or Add to tip basket', async ({
+      page,
+    }) => {
+      await open(page, 'tip-no-tab')
+      const dialog = await openDialog(page, 'article')
+      const field = dialog.getByLabel('Other amount')
+      await expect(field).toBeVisible()
+      const buttons = [
+        dialog.getByRole('button', { name: 'Connect wallet' }),
+        dialog.getByRole('button', { name: 'Add to tip basket' }),
+      ]
+      await animationsSettled(dialog)
+      const tops = () =>
+        Promise.all(buttons.map(async (b) => (await b.boundingBox())!.y))
+      for (const amount of ['abc', '0.01', '200']) {
+        await chooseAmount(dialog, amount)
+        const before = await tops()
+        await field.blur()
+        await expect(field).toHaveAttribute('aria-invalid', 'true')
+        expect(await tops()).toEqual(before)
+        await chooseAmount(dialog, '')
+      }
+    })
   })
 
   test('with a ready tab, the tab sends first and the wallet second', async ({

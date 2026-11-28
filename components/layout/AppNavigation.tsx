@@ -76,7 +76,7 @@ export default function AppNavigation() {
     pathname === href ? ('page' as const) : undefined
 
   return (
-    <header className="app-site-header site-chrome">
+    <header className="app-site-header site-chrome ui-light">
       <div className="app-site-header-inner">
         <LandingWordmark />
         <nav className="app-desktop-nav" aria-label="Main navigation">
@@ -98,7 +98,7 @@ export default function AppNavigation() {
             <>
               <Link href="/login">Log in</Link>
               <Link className="app-nav-action" href="/register">
-                Sign up <span aria-hidden>↗</span>
+                Sign up <span aria-hidden="true">↗︎</span>
               </Link>
             </>
           )}

@@ -150,7 +150,10 @@ async function api(url, request) {
         },
         earnings: state.earnings,
         claimable: state.claimable,
-        clock: { ...state.clock, closedAt: Date.now() },
+        clock: {
+          ...state.clock,
+          closedAt: Date.now() - (state.clockLagMs ?? 0),
+        },
         rpcDown: state.rpcDown,
         tabPending: state.tabPending,
         funds: state.funds,

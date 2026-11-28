@@ -136,7 +136,7 @@ export function ReadingRoomCard({
           )}
         </p>
         <Link className="read-more" href={href} onClick={onNavigate}>
-          Read more <span aria-hidden>↗</span>
+          Read more <span aria-hidden="true">↗︎</span>
         </Link>
       </div>
       <BookmarkButton article={bookmark} resumeIntent={false} />

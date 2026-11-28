@@ -120,7 +120,10 @@ export function WritingMedia({
             disabled={busy}
             onClick={() => fileInput.current?.click()}
           >
-            Choose an image <span>From your device ↗</span>
+            Choose an image{' '}
+            <span>
+              From your device <span aria-hidden="true">↗︎</span>
+            </span>
           </button>
           <input
             ref={fileInput}

@@ -93,6 +93,8 @@ export type FixtureState = {
   earnings: MyTabEarnings | null
   claimable: string
   clock: LedgerClock
+  /** How old the latest ledger read is, in ms (#671). */
+  clockLagMs?: number
   /** Stellar RPC cannot be reached: the ledger read fails. */
   rpcDown: boolean
   /** `getMyTab` has not answered yet; every other read has (#643). */

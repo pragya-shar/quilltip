@@ -64,7 +64,7 @@ export function AccountMenuDropdown({
       <DropdownMenuContent
         align="end"
         sideOffset={10}
-        className="app-account-menu site-chrome"
+        className="app-account-menu site-chrome ui-light"
       >
         <DropdownMenuLabel className="app-account-identity">
           <span className="app-account-name">{displayName}</span>

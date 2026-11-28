@@ -265,7 +265,7 @@ export function WritingWorkspaceView({
               </>
             )}
             <a className="editor-return" href="/write?desk=writing">
-              Your writing ↗
+              Your writing <span aria-hidden="true">↗︎</span>
             </a>
           </div>
         </main>
@@ -323,7 +323,7 @@ export function WritingWorkspaceView({
             disabled={!w.editor}
             onClick={() => setPanel('preview')}
           >
-            Preview <span aria-hidden="true">↗</span>
+            Preview <span aria-hidden="true">↗︎</span>
           </button>
           <SignedInAccountMenu triggerClassName="editor-account-trigger" />
         </div>
@@ -614,9 +614,13 @@ export function WritingWorkspaceView({
           <div>
             <button onClick={close}>Back to writing</button>
             <button className="wine" onClick={() => setPanel('publish')}>
-              {w.publishStatus.published
-                ? 'Article settings'
-                : 'Continue to publish ↗'}
+              {w.publishStatus.published ? (
+                'Article settings'
+              ) : (
+                <>
+                  Continue to publish <span aria-hidden="true">↗︎</span>
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -666,7 +670,10 @@ export function WritingWorkspaceView({
             w.setShowBodyImageDialog(true)
           }}
         >
-          Image <span>From your device ↗</span>
+          Image{' '}
+          <span>
+            From your device <span aria-hidden="true">↗︎</span>
+          </span>
         </button>
         <button
           className="insert-option"
@@ -943,7 +950,7 @@ export function WritingWorkspaceView({
         <p>Your article is published and ready for readers.</p>
         {publicationHref ? (
           <a className="wine wide published-link" href={publicationHref}>
-            View article ↗
+            View article <span aria-hidden="true">↗︎</span>
           </a>
         ) : (
           <p role="status">Preparing your article link…</p>

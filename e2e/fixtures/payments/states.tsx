@@ -583,6 +583,41 @@ export const STATES: FixtureState[] = [
     ),
   },
   {
+    // An estimate of $1 at a rate that gives 8.1052384 XLM: the figures
+    // round to what an estimate can claim (#670).
+    id: 'amount-estimate-rounded',
+    group: 'amount',
+    surface: 'dialog',
+    render: () => (
+      <AmountSummary
+        total="81052384"
+        quoteCents={100}
+        estimate
+        breakdown={[
+          { label: 'To the author', amount: '79026075' },
+          { label: 'Platform fee', amount: '2026309' },
+        ]}
+      />
+    ),
+  },
+  {
+    // The basket before a price is known: its total sums to 0 (#670).
+    id: 'amount-estimate-none',
+    group: 'amount',
+    surface: 'dialog',
+    render: () => (
+      <AmountSummary
+        label="Basket total"
+        total="0"
+        estimate
+        breakdown={[
+          { label: 'To the writers', amount: '0' },
+          { label: 'Platform fee', amount: '0' },
+        ]}
+      />
+    ),
+  },
+  {
     id: 'amount-long',
     group: 'amount',
     surface: 'dialog',
