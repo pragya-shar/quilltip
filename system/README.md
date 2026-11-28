@@ -134,8 +134,8 @@ yours at once (`['mine', 'kept']`):
 Fills and underlines render with no script; the margin ticks and the band
 need it. No state moves the text: marks have no padding or margin (the fill
 bleeds by a shadow) and the check takes no width, so a line going from
-chosen to holding to yours keeps every line break. `Prose leadIn` sets the first line in
-small caps; figures run edge to edge on a phone (`figure` with
+chosen to holding to yours keeps every line break. `Prose leadIn` sets the first line a
+little smaller and tracked, the same in every engine; figures run edge to edge on a phone (`figure` with
 `figcaption`); a footnote reference is `a.qt-fn-ref` linking to the full
 path with `#fn-N`, and the notes a `.qt-footnotes` list.
 
@@ -171,6 +171,11 @@ for a missing token, component or state.
   component is extracted into `hooks/<area>/` or `lib/<area>/` first (rebuild
   first), then imported.
 - No new UI library, no Tailwind utility classes, no inline colors.
+- Images: a person's image only through `Avatar` (this deployment's storage,
+  or a file under `/images/`; no referrer). Lint refuses the common ways to
+  draw an image from an address under the shell and the surfaces; it is a
+  prompt, not the enforcement, which is the page policy's `img-src`
+  (`lib/security/contentSecurityPolicy.ts`).
 
 ## Shared lists: add your own file, never edit another's
 
@@ -230,14 +235,28 @@ surface edits only its own file; it never edits `proxy.ts`,
 - Literata (roman, italic and their Latin Extended faces) loads with
   `font-display: optional`. A page view that starts painting before a face
   arrives (the block period is about 100 ms) stays in the metric-matched
-  fallback for the whole view, and through client navigations in the same
-  document: measured in Chromium and WebKit. The face shows from the next
-  full load that finds it in the cache, from the first frame.
+  fallback for the whole view: measured in Chromium and WebKit. A full load
+  that finds the face in the cache paints in it from the first frame.
+- The next page view upgrades (`system/readingFaceUpgrade.ts`). When the
+  page is idle, each reading face the document asked for loads again under
+  a second family name (`system/fonts.ts`, the same files, from the cache).
+  At the next change of page, before it paints, the reading variables on
+  `<html>` lead with those names, so that page reads in Literata, roman and
+  italic. Never inside a page view, and not at a change of page while a
+  sheet or the balance panel is up (the next change does it). The shell's
+  own reading-face text changes face at that change of page too: the
+  wordmark in the desktop rail and the balance figure in the navigation
+  (the figure sits in a fixed slot; measured in Chromium and WebKit, no
+  navigation item moves).
+- For surface authors: the switch happens at every change of path. A
+  `history.pushState` (or `router.replace`) to a new path inside one view,
+  such as a filter or a tab written into the path, would switch faces
+  where the reader is looking. Keep such state in the query or the hash.
 - Only the roman Latin file (60 KB) is preloaded. On a first view, Chromium
   uses a face that was not preloaded only from the cache, so italic text
-  shows in the fallback italic beside the real roman for that view; WebKit
-  uses the italic when it arrives within the block period. Nothing moves
-  either way.
+  shows in the fallback italic beside the real roman for that view, and in
+  Literata from the next page; WebKit uses the italic when it arrives within
+  the block period. Nothing moves either way.
 - Do not preload more font files from a surface: the italic and the two Latin
   Extended files would add about 160 KB to every page that loads them.
 - Follow-up, not built: preloads a page asks for when its server-rendered
@@ -248,8 +267,9 @@ surface edits only its own file; it never edits `proxy.ts`,
   document) or the files at a stable path.
 - `bun run perf:font-fallbacks` holds every package's `fontFallback` route
   to 0 px of movement when the fonts arrive late, also with the roman on time
-  and the italic late, and reports each reading face's width against its
-  fallback (within 2.5 percent).
+  and the italic late, checks that the next page view reads in Literata, and
+  reports each reading face's width against its fallback (within 2.5
+  percent).
 
 ## Known bounds
 
@@ -322,10 +342,36 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
    "Focus is on the body" is no test: in Safari a press on plain text leaves
    it there too. The change is read once, by focus: no live region repeats
    it. `TipControl` does all of this; a surface's own money sheets must too.
-6. **A press while a sheet closes reaches nothing.** For 400 ms after a
-   press closes a sheet or dialog, the shell swallows pointer presses
-   (`@/system/pressGuard`); key presses always pass. Drop a guard of your
-   own; `pressesHeld()` says whether one is in force.
+6. **No pointer press lands for 400 ms after a modal closes.** What the
+   shell guarantees, for every `Sheet`, `Dialog` and modal built on
+   `useModal` (`@/system/pressGuard`), with no conditions on why it closed:
+   - When any modal closes or unmounts, for any reason (its Close, a
+     button, the scrim, a drag, Escape, a result, `sheetStack`, a change of
+     page, an error boundary), a hold runs for 400 ms.
+   - During the hold, a pointer click anywhere on the page does nothing,
+     unless it is inside a modal that opened after that close. A sheet left
+     open under the one that closed is held too.
+   - Keyboard and assistive-technology clicks (`detail === 0`: Enter,
+     Space, a screen reader) always work.
+   - Holds extend: another close inside the hold moves its end to 400 ms
+     after that close, and only a modal opened after it is let through.
+   - The hold starts with the close itself, in the commit that removes the
+     modal, so no click falls between the modal leaving the page and the
+     hold.
+
+   A pointer press in the 400 ms after a keyboard close is lost too: a lost
+   press is safe, a doubled press can send money. Not covered: a control
+   that acts on `pointerdown` instead of `click`; a change of content inside
+   a modal that stays open (hold your own presses there); a second finger
+   held down across the close on a touch screen (not checked on a phone);
+   the balance item when its session state really changes under a press (a
+   stored token the backend rejects, a sign-in or sign-out in another tab):
+   its two links switch, and that one press is lost without acting.
+
+   Drop a guard of your own; `pressesHeld()` says whether a hold is in
+   force. The tests: `scripts/system/sheet-press-guard.test.ts` (the real
+   `Sheet` and `Dialog`) and `scripts/system/press-guard.test.ts`.
+
 7. **A new path closes the sheets.** When the path changes, every open
    sheet closes: a link followed from a sheet never leaves it over the new
    page. Open a sheet after navigating, not before.
