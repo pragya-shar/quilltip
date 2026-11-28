@@ -1,7 +1,7 @@
 export const DEFAULT_WORDS_PER_MINUTE = 200
 
 /** Match the writing desk's TipTap text: marks don't split words; blocks and hard breaks do. */
-function articleReadingText(node: unknown): string {
+export function articleReadingText(node: unknown): string {
   if (!node || typeof node !== 'object') return ''
   const n = node as Record<string, unknown>
   if (n.type === 'text' && typeof n.text === 'string') return n.text
