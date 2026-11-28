@@ -158,7 +158,9 @@ test('a press on the offer that clears the selection still opens the slip with t
       })
   )
   await expect(offer).toBeVisible()
-  await offer.tap()
+  // Finish the same press: the release and the click on the same button.
+  await offer.dispatchEvent('pointerup', { pointerType: 'touch' })
+  await offer.dispatchEvent('click')
   await expect(slip).toBeVisible()
   await expect(slip.locator('blockquote')).toContainText(passage.trim())
 })

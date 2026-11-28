@@ -647,12 +647,16 @@ export function HighlightableArticle({
     }, 500)
   }, [])
 
-  // A tap outside the article clears the native selection, but the editor
-  // keeps its own, so the offer would open a slip for words no longer
-  // selected. Withdraw it when the page's selection leaves the article.
+  // While an offer is up, follow the page's selection. A tap outside the
+  // article clears the native selection but the editor keeps its own, so the
+  // offer would open a slip for words no longer selected: withdraw it. A
+  // change inside the article refreshes the offer from the editor, because
+  // presentSelection skips updates while saved highlights are being applied.
+  const hasTouchOffer = touchOffer !== null
   useEffect(() => {
-    if (!touchOffer) return
-    const withdrawIfGone = () => {
+    if (!hasTouchOffer) return
+    let frame = 0
+    const follow = () => {
       if (offerPressRef.current) return
       const selection = window.getSelection()
       const container = editorRef.current
@@ -662,11 +666,22 @@ export function HighlightableArticle({
         !!container &&
         !!selection.anchorNode &&
         container.contains(selection.anchorNode)
-      if (!inside) setTouchOffer(null)
+      if (!inside) {
+        setTouchOffer(null)
+        return
+      }
+      // The editor reads the same event; read its state on the next frame.
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        if (editor && !offerPressRef.current) offerTouchSelection(editor.state)
+      })
     }
-    document.addEventListener('selectionchange', withdrawIfGone)
-    return () => document.removeEventListener('selectionchange', withdrawIfGone)
-  }, [touchOffer])
+    document.addEventListener('selectionchange', follow)
+    return () => {
+      cancelAnimationFrame(frame)
+      document.removeEventListener('selectionchange', follow)
+    }
+  }, [hasTouchOffer, editor, offerTouchSelection])
 
   const handleCreateHighlight = useCallback(
     async (
