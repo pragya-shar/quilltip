@@ -2,10 +2,23 @@ import { useSyncExternalStore } from 'react'
 
 // next/navigation for the system fixture: the pathname from the address,
 // read again on popstate (a test moves it with history.pushState and a
-// popstate event, as a client navigation would).
+// popstate event, as a client navigation would), and after
+// history.replaceState, which Next.js follows as a change of path too.
+const REPLACED = 'fixture:replacestate'
+if (typeof window !== 'undefined') {
+  const replace = history.replaceState.bind(history)
+  history.replaceState = (...args: Parameters<History['replaceState']>) => {
+    replace(...args)
+    window.dispatchEvent(new Event(REPLACED))
+  }
+}
 const subscribe = (listener: () => void) => {
   window.addEventListener('popstate', listener)
-  return () => window.removeEventListener('popstate', listener)
+  window.addEventListener(REPLACED, listener)
+  return () => {
+    window.removeEventListener('popstate', listener)
+    window.removeEventListener(REPLACED, listener)
+  }
 }
 export const usePathname = () =>
   useSyncExternalStore(

@@ -248,10 +248,18 @@ surface edits only its own file; it never edits `proxy.ts`,
   wordmark in the desktop rail and the balance figure in the navigation
   (the figure sits in a fixed slot; measured in Chromium and WebKit, no
   navigation item moves).
-- For surface authors: the switch happens at every change of path. A
-  `history.pushState` (or `router.replace`) to a new path inside one view,
-  such as a filter or a tab written into the path, would switch faces
-  where the reader is looking. Keep such state in the query or the hash.
+- For surface authors: the switch happens at every change of path. To
+  change the address without a change of page (Write, once the account
+  holds a draft: `/write/l-…` to `/write/<id>`), call
+  `replaceAddressInView(url)` from `@/shell/address`. It replaces the
+  address on this site, and the shell treats it as the same page view: no
+  face switch, no closing of the open sheets, the same history entry with a
+  new path (Back still leaves to where the reader came from), and focus and
+  scroll stay. It does not add a history entry, does not change the page
+  that is drawn, and does not take another site's address. A
+  `history.pushState`, `replaceState` or `router.replace` of your own is a
+  change of page to the shell: it switches faces and closes the sheets.
+  Filters and tabs belong in the query or the hash.
 - Only the roman Latin file (60 KB) is preloaded. On a first view, Chromium
   uses a face that was not preloaded only from the cache, so italic text
   shows in the fallback italic beside the real roman for that view, and in

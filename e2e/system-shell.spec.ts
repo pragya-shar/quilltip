@@ -234,6 +234,64 @@ test('the balance figure changing face at a change of page moves no nav item', a
   })
 })
 
+/** A surface renames its page inside the view (shell/address.ts). */
+const renameInView = (page: Page, path: string) =>
+  page.evaluate((to) => {
+    ;(
+      window as unknown as { __replaceAddressInView: (url: string) => void }
+    ).__replaceAddressInView(to)
+  }, path)
+
+const historyNow = (page: Page) =>
+  page.evaluate(() => {
+    const h = (
+      window as unknown as {
+        __appHistory: { canGoBack: () => boolean; pages: () => string[] }
+      }
+    ).__appHistory
+    return { canGoBack: h.canGoBack(), pages: h.pages() }
+  })
+
+test('an address change inside the view switches no face, and the next page does', async ({
+  page,
+}) => {
+  await page.route('**/fonts/*.woff2', async (route) => {
+    await new Promise((done) => setTimeout(done, 1500))
+    await route.continue().catch(() => {})
+  })
+  await page.goto('/reading', { waitUntil: 'domcontentloaded' })
+  await secondNameLoaded(page)
+  await renameInView(page, '/reading-renamed')
+  await expect(page).toHaveURL(/\/reading-renamed$/)
+  await page.waitForTimeout(200)
+  expect(await lead(page, '--qt-face-read')).toBe('Literata Fixture')
+  // A real change of page after it upgrades as usual.
+  await goTo(page, '/shelf')
+  await expect
+    .poll(() => lead(page, '--qt-face-read'))
+    .toBe('Literata Fixture Next')
+})
+
+test('an address change inside the view keeps the sheet open and the history entry', async ({
+  page,
+}) => {
+  await page.goto('/shelf')
+  await press(nav(page).getByRole('link', { name: /^Balance/ }))
+  const pocket = wide()
+    ? page.getByRole('complementary', { name: 'Balance' })
+    : page.getByRole('dialog', { name: 'Balance' })
+  await expect(pocket).toBeVisible()
+  const before = await historyNow(page)
+  await renameInView(page, '/shelf-renamed')
+  await expect(page).toHaveURL(/\/shelf-renamed$/)
+  await page.waitForTimeout(300)
+  await expect(pocket).toBeVisible()
+  // The same entry with a new path: back goes where it went before.
+  const after = await historyNow(page)
+  expect(after.canGoBack).toBe(before.canGoBack)
+  expect(after.pages).toEqual([...before.pages.slice(0, -1), '/shelf-renamed'])
+})
+
 test('a change of path closes the sheets over the old page', async ({
   page,
 }) => {
