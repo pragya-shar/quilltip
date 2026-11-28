@@ -13,7 +13,7 @@ import { useBalanceReading } from '@/shell/balance'
 import { POCKET } from '@/shell/navigation'
 import { openSignIn } from '@/shell/signIn'
 import { useSyncExternalStore } from 'react'
-import { paymentsStore } from '@/lib/payments/store'
+import { figuresShown, paymentsStore } from '@/lib/payments/store'
 import { usePocketSource } from '@/lib/pocket/source'
 import type { EarningsView } from '@/lib/pocket/types'
 import { activityLists } from './activityModel'
@@ -41,10 +41,15 @@ export function Pocket({ headingLevel = 3 }: { headingLevel?: 2 | 3 }) {
   const reading = useBalanceReading()
   const source = usePocketSource()
   // Whose figures these are (null in a fixture): the remembered writer
-  // state is kept for that account only.
+  // state is kept for that account only, and read only while the figures
+  // may be shown (the session binding), so another session never gets the
+  // last account's writer layout.
   const owner = useSyncExternalStore(
     paymentsStore.subscribe,
-    () => paymentsStore.get().owner,
+    () => {
+      const s = paymentsStore.get()
+      return figuresShown(s) ? s.owner : null
+    },
     () => null
   )
   const wired = source.useWired()

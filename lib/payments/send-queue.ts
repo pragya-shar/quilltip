@@ -58,6 +58,13 @@ export type SendQueueDeps = {
   convex: Pick<BalanceTipDeps, 'prepareTip' | 'submitTip'>
   newRequestId(): string
   report(requestId: string, job: JobStatus): void
+  /**
+   * Whether a job may start now, read when it starts, not when it was
+   * queued: a job queued behind one in flight starts later, and by then the
+   * session may name someone else (the engine passes its binding check).
+   * False leaves the entry in the outbox for its own reader's next resume.
+   */
+  mayStart?(): boolean
   /** Throwing attempts per tip before this page stops running it. */
   maxErrors?: number
 }
@@ -102,6 +109,7 @@ export function createSendQueue(
   async function job(entry: OutboxEntry): Promise<void> {
     const c = bound()
     if (!c || c.keyId === null) return
+    if (deps.mayStart && !deps.mayStart()) return
     const fresh = find(entry.requestId)
     if (!fresh) return
     let current = fresh.requestId
