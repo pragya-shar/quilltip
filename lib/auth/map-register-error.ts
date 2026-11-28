@@ -1,5 +1,13 @@
+import { ConvexError } from 'convex/values'
+
+// The server refuses sign-up for an email that has an account
+// (EMAIL_IN_USE). The copy sends the person to log in or reset, and says no
+// more than that the account could not be made.
 const DUPLICATE_ACCOUNT =
-  'An account with this email already exists. Try signing in, or use a different email.'
+  'We couldn’t create an account with this email. If it’s yours, log in or reset your password.'
+
+const TOO_MANY_TRIES =
+  'Too many tries with this email. Wait an hour, then try again.'
 
 const USERNAME_UNAVAILABLE = 'This username is not available. Try another one.'
 
@@ -19,6 +27,14 @@ export type RegisterSignInErrorResult = {
 export function parseRegisterSignInError(
   error: unknown
 ): RegisterSignInErrorResult {
+  if (error instanceof ConvexError) {
+    if (error.data === 'EMAIL_IN_USE') {
+      return { message: DUPLICATE_ACCOUNT, field: 'email' }
+    }
+    if (error.data === 'SIGN_UP_RATE_LIMITED') {
+      return { message: TOO_MANY_TRIES }
+    }
+  }
   const raw = extractMessage(error)
   const lower = raw.toLowerCase()
 
