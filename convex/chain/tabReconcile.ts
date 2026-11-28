@@ -12,6 +12,10 @@
  * 1. `snapshot` records the account and its pairs.
  * 2. `run` reads the contract's `account(reader)` balance and
  *    `paid(reader, key_id, writer)` for each pair, all at one ledger L.
+ *    The RPC reads only the newest ledger, and the indexer applies the
+ *    newest ledger once a minute, so L is usually a little ahead of the
+ *    indexer: `run` waits until the indexer has applied L
+ *    (`reconcileWhenIndexed`).
  * 3. `reconcile` checks that nothing changed since the snapshot, that the
  *    indexer has applied every event up to L, and that the balance gap is
  *    explained by the missing paid ranges. It then applies the contract's
@@ -534,12 +538,107 @@ export const reconcile = internalMutation({
 })
 
 /**
+ * How long `run` waits for the indexer to apply the ledger it read, over all
+ * its attempts: two and a half indexer runs (the cron runs every minute).
+ */
+export const INDEXER_WAIT_MS = 150_000
+/** How often `run` reads the indexer's covered ledger while it waits. */
+export const INDEXER_POLL_MS = 5_000
+/** Snapshots and chain reads `run` makes at most. */
+export const RECONCILE_ATTEMPTS = 3
+
+/**
+ * Refusals after which a new snapshot and a new chain read can succeed: the
+ * account moved between the snapshot, the read and the check.
+ */
+const RETRY_AFTER: ReadonlySet<string> = new Set(['CHANGED', 'STALE_READ'])
+
+type Snapshot = {
+  tabAccountId: Id<'tabAccounts'>
+  readerAddress: string
+  tabContractId: string
+  digest: string
+  pairs: Pair[]
+}
+
+export type ReconcileSteps = {
+  snapshot: () => Promise<Snapshot | null>
+  readChain: (snap: Snapshot) => Promise<ChainRead>
+  /**
+   * The ledger up to which the indexer has applied every event in this
+   * epoch, or null when waiting cannot help (no cursor, another epoch, or
+   * an indexer that stopped).
+   */
+  coveredLedger: () => Promise<number | null>
+  reconcile: (snap: Snapshot, read: ChainRead) => Promise<ReconcileResult>
+  now: () => number
+  sleep: (ms: number) => Promise<void>
+}
+
+/** The covered ledger of the indexer's cursor, for `ReconcileSteps`. */
+export function coveredLedgerOf(
+  cursor: Pick<
+    Doc<'chainCursor'>,
+    'chainEpoch' | 'status' | 'lastLedger'
+  > | null,
+  chainEpoch: string
+): number | null {
+  if (!cursor || cursor.chainEpoch !== chainEpoch) return null
+  if (
+    cursor.status === 'BEHIND_RETENTION' ||
+    cursor.status === 'RESET_DETECTED'
+  ) {
+    return null
+  }
+  return cursor.lastLedger
+}
+
+/**
+ * Steps 1 to 3 as `run` drives them. The chain can be read only at the
+ * newest ledger, so after each read this waits until the indexer has
+ * applied that ledger (up to `waitMs` in all), then calls `reconcile`,
+ * which checks everything as before and is the only judge: a real lag is
+ * still `INDEXER_BEHIND`. When the account moved meanwhile (`CHANGED`,
+ * `STALE_READ`) it starts again with a new snapshot and a new read. A read
+ * is never used twice.
+ */
+export async function reconcileWhenIndexed(
+  steps: ReconcileSteps,
+  limits: { waitMs: number; pollMs: number; attempts: number } = {
+    waitMs: INDEXER_WAIT_MS,
+    pollMs: INDEXER_POLL_MS,
+    attempts: RECONCILE_ATTEMPTS,
+  }
+): Promise<ReconcileResult> {
+  const deadline = steps.now() + limits.waitMs
+  let result: ReconcileResult = refuse('NOT_FOUND', 'No attempt was made.')
+  for (let attempt = 0; attempt < limits.attempts; attempt++) {
+    const snap = await steps.snapshot()
+    if (!snap) return refuse('NOT_FOUND', 'No tab account for this reader.')
+    const read = await steps.readChain(snap)
+    for (;;) {
+      const covered = await steps.coveredLedger()
+      if (covered === null || covered >= read.ledger) break
+      const left = deadline - steps.now()
+      if (left <= 0) break
+      await steps.sleep(Math.min(limits.pollMs, left))
+    }
+    result = await steps.reconcile(snap, read)
+    if (result.status !== 'refused' || !RETRY_AFTER.has(result.reason)) {
+      return result
+    }
+  }
+  return result
+}
+
+/**
  * Operator entry point (internal):
  *
  *   bunx convex run chain/tabReconcile:run '{"reader":"G…"}'
  *   bunx convex run chain/tabReconcile:run '{"reader":"G…","apply":true,"note":"…"}'
  *
  * `keyId` and `writer` limit it to one pair. Without `apply` it is a dry run.
+ * It can take up to `INDEXER_WAIT_MS` while it waits for the indexer.
  */
 export const run = internalAction({
   args: {
@@ -551,26 +650,38 @@ export const run = internalAction({
   },
   handler: async (ctx, args): Promise<ReconcileResult> => {
     const chain = readChainEnv()
-    const snap = await ctx.runQuery(internal.chain.tabReconcile.snapshot, {
-      reader: args.reader,
-      ...(args.keyId !== undefined ? { keyId: args.keyId } : {}),
-      ...(args.writer !== undefined ? { writer: args.writer } : {}),
-    })
-    if (!snap) return refuse('NOT_FOUND', 'No tab account for this reader.')
-    const read = await readTabChainState(
-      createBackendRpcClient(),
-      chain,
-      snap.tabContractId,
-      snap.readerAddress,
-      snap.pairs
-    )
-    return ctx.runMutation(internal.chain.tabReconcile.reconcile, {
-      tabAccountId: snap.tabAccountId,
-      digest: snap.digest,
-      pairs: snap.pairs,
-      chain: read,
-      apply: args.apply === true,
-      ...(args.note ? { note: args.note } : {}),
+    const rpc = createBackendRpcClient()
+    return reconcileWhenIndexed({
+      snapshot: () =>
+        ctx.runQuery(internal.chain.tabReconcile.snapshot, {
+          reader: args.reader,
+          ...(args.keyId !== undefined ? { keyId: args.keyId } : {}),
+          ...(args.writer !== undefined ? { writer: args.writer } : {}),
+        }),
+      readChain: (snap) =>
+        readTabChainState(
+          rpc,
+          chain,
+          snap.tabContractId,
+          snap.readerAddress,
+          snap.pairs
+        ),
+      coveredLedger: async () =>
+        coveredLedgerOf(
+          await ctx.runQuery(internal.chain.indexer.readCursor, {}),
+          chain.chainEpoch
+        ),
+      reconcile: (snap, read) =>
+        ctx.runMutation(internal.chain.tabReconcile.reconcile, {
+          tabAccountId: snap.tabAccountId,
+          digest: snap.digest,
+          pairs: snap.pairs,
+          chain: read,
+          apply: args.apply === true,
+          ...(args.note ? { note: args.note } : {}),
+        }),
+      now: () => Date.now(),
+      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
     })
   },
 })
