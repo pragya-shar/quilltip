@@ -338,6 +338,178 @@ sets the amount to that sum and writes a `tabClaimCorrections` row for
 each change. The Tab contract keeps no total of past claims, only what is
 still claimable, so the records are the reference.
 
+## Tab activity not accepted here
+
+`/ops/chain` shows a count above 0 under "Tab activity not accepted here",
+and the logs show `CHAIN_TAB_OUTSIDE_EVENT`. The indexer found a Tab event
+that this deployment did not originate. It records each event once, in
+`tabOutsideEvents`, and changes no figure: the handler applied the event as
+it always does.
+
+| Kind                     | Meaning                                                                                  |
+| ------------------------ | ---------------------------------------------------------------------------------------- |
+| `settled_no_voucher`     | A `TabSettled` for an account of this site, with no voucher for that key and writer      |
+| `settled_above_accepted` | A `TabSettled` of a voucher of this site, above the cumulative amount this site accepted |
+| `settled_no_account`     | A `TabSettled` for a reader with no account on this site in this epoch                   |
+| `key_undeclared`         | A new session key for an account of this site that the app did not declare               |
+
+For the settlement kinds, the indexer has already applied the debit, so the
+reader's balance and available amount are the chain's figures. A
+`key_undeclared` record moves no funds on its own: vouchers of that key
+settle only with an acceptance or the settler of a deployment.
+
+A settlement needs the reader's session-key signature and one of:
+
+- an acceptor signature (`byWriter` true, `settle_own`);
+- the `settler` role (`byWriter` false, `settle`).
+
+While this deployment holds its acceptor and settler keys, and no other
+deployment uses the same contract set, the settlement kinds do not occur.
+
+Each record has the reader's account id (`tabAccountId`, none for
+`settled_no_account`), `keyId`, `gross`, `ledger`, `eventId`, `chainEpoch`,
+`byWriter` and `txHash`. `settled_above_accepted` also has `cumulative` and
+`acceptedCumulative`. No record or log line contains an address.
+
+From the command line (owner credentials for the deployment):
+
+```bash
+bunx convex run chain/tabOutside:listOpen '{}'
+```
+
+### Confirm on chain
+
+1. Look up `txHash` on a Stellar testnet explorer, or with RPC
+   `getTransaction`. Check that it calls this deployment's Tab contract
+   (`/ops/chain` lists it). Note the function (`settle_own` or `settle`) and
+   the event's `key_id`, `cumulative`, `paid_after`, `gross` and `by_writer`.
+2. Read the contract state for the reader with the reconciliation dry run,
+   which writes nothing:
+
+   ```bash
+   bunx convex run chain/tabReconcile:run '{"reader":"G…"}'
+   ```
+
+   It shows the balance and each pair's paid amount at one ledger.
+
+3. Compare with this deployment, in the dashboard: `tabVouchers` for the
+   account, key and writer (none, or a lower `cumulative`), and
+   `tabAccounts.pendingKeys` for `key_undeclared`.
+4. Rule out a restore. After a database restore, events the chain already
+   reflects can find no voucher, a lower stored cumulative, or a consumed
+   declaration. If the event is from before the restore point, the record is
+   expected: acknowledge it with that note. More than 8 key declarations
+   before one registration also gives `key_undeclared` for the oldest.
+
+### First actions (settlement kinds)
+
+1. **Stop tab tips for the reader with the existing controls.** If the
+   reader's available amount is negative after the event, the app already
+   refuses their tab tips (`TAB_OVER_BALANCE`) until they deposit again.
+   Check it on the account. There is no per-reader switch. If the amount at
+   stake is material, the only stop is deployment-wide:
+   `SETTLEMENT_ENABLED=false`. It stops every quick tip and the settler;
+   wallet tips go on. Turn it back on within hours, because a closing
+   account must settle before its unlock, 3 days after `withdraw_start`
+   ([Settler not running](#settler-not-running)).
+2. **Check custody of the acceptor and settler keys.**
+   - `byWriter` true: list the deployments and machines that hold
+     `TAB_ACCEPTOR_SECRET` for this contract set, and check that the Tab's
+     acceptor keys (`chainConfig.tabAcceptorKeys`) list no key this
+     deployment does not hold.
+   - `byWriter` false: run the roles report
+     ([Roles, pause and unpause](#roles-pause-and-unpause)) and look for a
+     `settler` holder not recorded at deployment.
+   - For any kind: check that no other Convex deployment has this contract
+     set's `TAB_CONTRACT_ID`.
+3. **If in doubt, rotate the keys by the documented procedure**
+   ([05-flows-and-admin.md, section 5.11](../architecture/v2/05-flows-and-admin.md#511-roles-and-administration)):
+   - Acceptor, item 8. `set_acceptor(new)` keeps the previous key valid, so
+     call `set_acceptor` twice to retire a key. Between the chain change and
+     the `TAB_ACCEPTOR_SECRET` update, the app refuses quick tips
+     (`TAB_ACCEPTOR_MISMATCH`); that pause is safe. Once the old key is
+     gone, writers can no longer `settle_own` vouchers it countersigned; the
+     settler still settles them.
+   - Settler, item 7: grant the new key, update the Convex env, revoke the
+     old key, confirm one settlement with the new key.
+
+For `key_undeclared` alone: confirm it (steps 1 and 3), note it, and watch
+for a settlement kind on the same account. No action is needed if none
+follows.
+
+Close each record when done. The note is required, and the row stays:
+
+```bash
+bunx convex run chain/tabOutside:acknowledge '{"chainEpoch":"…","eventId":"…","note":"<ticket or reason>"}'
+```
+
+### Do not
+
+- Do not edit `tabAccounts`, `tabVouchers` or `tabReceipts` by hand. The
+  debit is applied, and the available amount is the chain's figure.
+- Do not run the reconciliation with `apply`. It is for lost events, and
+  here no event is lost.
+- Do not replay or re-dispatch events to clear the signal. The record is
+  keyed by event, so a dispatch changes nothing.
+- Do not pause the Tab contract to stop a settlement. A pause blocks only
+  `deposit`, `open_session` and `register_key`, never `settle`,
+  `settle_own`, claims or exits.
+- Do not call `set_acceptor` once and treat the previous key as retired.
+- Do not delete the record; acknowledge it.
+- Do not name the reader or post addresses in a public issue or channel. Do
+  not treat the reader as at fault on the record alone: a second deployment
+  or a restore gives the same record.
+
+## Settler not running
+
+`/ops/chain` shows "Last settler run" with a warning after 30 minutes and an
+alert after 24 hours. The age is the time since the last settler run that
+ended without an error and did not fail. The settler records it on its
+`settler` lease row (`chainLeases.lastOkAt`) after each such run, whether or
+not anything was due. The cron runs every 10 minutes, so 30 minutes is three
+missed runs. "None recorded" means no such run since this field was added.
+With `SETTLEMENT_ENABLED=true`, "None recorded" is a warning at once: a
+settler that fails from its first run (for example with
+`TAB_SETTLER_UNAVAILABLE`, a saved secret that is not a seed) never records
+a run. Right after settlement is switched on, the warning stays until the
+first run, within 10 minutes.
+
+The page is checked, not pushed: nobody is told unless someone opens it.
+The failing runs themselves show only as failed function runs in the
+deployment's logs.
+
+The settler's own alerts (`TAB_SETTLER_*`) come from a run, so a settler
+that does not run logs nothing. This age is read outside the settler.
+
+Why it matters: a closing account's pairs are settled first. The reader can
+withdraw 3 days after `withdraw_start` (`WITHDRAW_DELAY`). What is still
+unsettled then can end `UNPAID`. The alert leaves two days.
+
+From the command line:
+
+```bash
+bunx convex run chain/settlerStatus:readSettlerFreshness '{}'
+```
+
+Check, in order:
+
+1. `SETTLEMENT_ENABLED` is `true` on the deployment. While it is off, the
+   page says "Settlement is off" and the age grows on purpose.
+2. The `settle due tab vouchers` cron has recent runs (dashboard cron jobs
+   list), and its logs show no `TAB_SETTLER_UNAVAILABLE`,
+   `TAB_SETTLER_RUN_FAILED` or `TAB_SETTLER_SIMULATION_FAILED`.
+   `TAB_SETTLER_UNAVAILABLE` stops the run before the settlement cycle, so
+   it logs no `TAB_SETTLER_RUN_FAILED`.
+3. The settler's XLM balance (`TAB_SETTLER_BALANCE_LOW`).
+
+Before a closing account's unlock, settle its pairs: turn settlement back
+on. To settle at once rather than wait for the cron, run the settler once
+(it also needs `SETTLEMENT_ENABLED=true`):
+
+```bash
+bunx convex run tabSettler:settleDue '{}'
+```
+
 ## Testnet reset
 
 Detection: the ledger sequence dropped below the highest ledger recorded for
