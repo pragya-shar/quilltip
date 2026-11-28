@@ -7,7 +7,7 @@ import { getReadOnlyExtensions } from '@/lib/tiptap/readExtensions'
 import { PUBLISHED_PROSE_CLASS } from '@/lib/constants'
 import { cn } from '@/lib/utils'
 import { useEnsureHeadingIds } from '@/components/articles/useEnsureHeadingIds'
-import type { TocHeading } from '@/lib/tiptap/headings'
+import type { TocHeading } from '@/lib/articles/toc'
 
 interface ArticleReadOnlyBodyProps {
   content: JSONContent

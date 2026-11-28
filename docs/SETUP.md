@@ -379,22 +379,6 @@ Install Playwright's Chromium browser if the runner requests it. See
 [playwright.config.ts](../playwright.config.ts) for defaults and
 [behavioral QA](workflow/qa-checklist.md) for evidence requirements.
 
-The console test command runs both the live public-page console suite and all
-seven article selection regressions:
-
-```bash
-PLAYWRIGHT_BASE_URL=http://127.0.0.1:3000 bun run test:e2e:eng-224
-```
-
-Start a production build (`bun run build`, then `bun run start`) at the selected
-URL first; development-mode console messages intentionally fail the live suite.
-Neither suite requires sign-in credentials. The selection regressions use
-isolated DOM fixtures and can also run without an app server or backend:
-
-```bash
-bunx playwright test e2e/article-console-selection.spec.ts
-```
-
 Signed-in navigation coverage lives in `e2e/account-navigation.spec.ts`. Run it
 against a frontend configured for a **development** Convex deployment, using a
 dedicated disposable account created through `/register`. Supply that account's

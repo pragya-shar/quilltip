@@ -900,7 +900,12 @@ after the build. It runs `next experimental-analyze --output`, then for `/`,
    | `/`                  | 211 KB | 208.7 KB |
    | `/login`             | 202 KB | 199.2 KB |
    | `/articles`          | 216 KB | 213.8 KB |
-   | `/[username]/[slug]` | 219 KB | 216.7 KB |
+   | `/[username]/[slug]` | 195 KB |     (CI) |
+
+   The article page is the application shell's article view. Its budget is
+   the public ceiling (195 KB) until CI measures it, then that measurement
+   plus 2 KB; the target for public reading routes stays 150 KB, for when the
+   backend client leaves their first load.
 
    Each budget is the measured size plus about 2 KB (CI measures about
    0.2 KB more than a local build), so removing a lazy boundary (the mobile

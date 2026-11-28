@@ -1,13 +1,12 @@
 /**
- * Run the Playwright suites that need no secrets and no backend: the NFT,
- * recovery, avatar, payment states, wallet, article tips, v2 tips, v2 article
- * NFT and tab session-key fixture pages (`scripts/fixture-suites.ts`). Each
+ * Run the Playwright suites that need no secrets and no backend: the fixture
+ * pages listed in `scripts/fixture-suites.ts`. Each
  * fixture server bundles production components with stubbed wallet and Convex
  * collaborators.
  *
  *   bun run test:e2e:fixtures
  *   bun run test:e2e:fixtures --suite payments
- *   bun run test:e2e:fixtures --suite nft,recovery,avatar
+ *   bun run test:e2e:fixtures --suite recovery,avatar
  *
  * `--suite` runs only the named suites and starts only their servers. CI runs
  * the suites as parallel shards (`.github/workflows/ci.yml`).

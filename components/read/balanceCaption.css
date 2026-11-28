@@ -1,0 +1,50 @@
+/* The dock's balance caption (components/read/BalanceCaption). Tokens only. */
+@layer surfaces {
+  .qt-balance-caption {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: var(--qt-space-3);
+    min-width: 0;
+  }
+  .qt-balance-caption .qt-testnet {
+    margin: 0;
+  }
+  .qt-balance-caption__open {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--qt-space-1);
+    min-block-size: var(--qt-hit);
+    min-inline-size: var(--qt-hit);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+  .qt-balance-caption__open:active {
+    opacity: 0.7;
+  }
+  /* One line: the figure, then its words. */
+  .qt-balance-caption__open .qt-money {
+    flex-direction: row;
+    align-items: baseline;
+    gap: var(--qt-space-1);
+  }
+  .qt-balance-caption__more {
+    display: inline-flex;
+    color: var(--qt-ink-3);
+  }
+  .qt-balance-caption[data-compact] {
+    margin-inline-start: auto;
+  }
+  /* The rail shows the balance from 1024 px. */
+  @media (min-width: 64rem) {
+    .qt-balance-caption {
+      display: none;
+    }
+  }
+}

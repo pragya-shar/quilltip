@@ -69,8 +69,10 @@ describe('suites from e2e/suites/', () => {
     expect(selectFixtures(['--suite', '@surfaces'], [extra])).toEqual([extra])
     expect(selectFixtures(['--suite', '@surfaces'], [])).toEqual([])
     expect(
-      selectFixtures(['--suite', 'nft,@surfaces'], [extra]).map((f) => f.name)
-    ).toEqual(['nft', 'read-article'])
+      selectFixtures(['--suite', 'recovery,@surfaces'], [extra]).map(
+        (f) => f.name
+      )
+    ).toEqual(['recovery', 'read-article'])
   })
 })
 
@@ -81,8 +83,8 @@ describe('selectFixtures', () => {
 
   it('selects named suites in either form, in list order', () => {
     expect(
-      selectFixtures(['--suite', 'avatar,nft']).map((f) => f.name)
-    ).toEqual(['nft', 'avatar'])
+      selectFixtures(['--suite', 'avatar,recovery']).map((f) => f.name)
+    ).toEqual(['recovery', 'avatar'])
     expect(selectFixtures(['--suite=tab']).map((f) => f.name)).toEqual(['tab'])
   })
 

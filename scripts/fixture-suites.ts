@@ -13,13 +13,6 @@ export const SURFACES_GROUP = '@surfaces'
 
 const LEGACY_FIXTURES = [
   {
-    name: 'nft',
-    server: 'e2e/fixtures/nft/server.mjs',
-    port: 4174,
-    spec: 'e2e/nft-presentation.spec.ts',
-    env: { NFT_FIXTURES: '1' },
-  },
-  {
     name: 'recovery',
     server: 'e2e/fixtures/recovery/server.mjs',
     port: 4175,
@@ -54,40 +47,6 @@ const LEGACY_FIXTURES = [
     env: {
       WALLET_FIXTURES: '1',
       PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4177',
-    },
-  },
-  {
-    name: 'article-tips',
-    server: 'e2e/fixtures/article-tips/server.mjs',
-    port: 4178,
-    spec: 'e2e/article-tips.spec.ts',
-    env: {
-      ARTICLE_TIPS_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4178',
-    },
-  },
-  {
-    // v2 article, highlight and basket tips in every state in Chromium; the
-    // keyboard, focus and result tests in WebKit too (its own config).
-    name: 'tips-v2',
-    server: 'e2e/fixtures/tips-v2/server.mjs',
-    port: 4179,
-    spec: 'e2e/tips-v2.spec.ts',
-    config: 'e2e/fixtures/tips-v2/playwright.config.ts',
-    env: {
-      TIPS_V2_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4179',
-    },
-  },
-  {
-    // The v2 article NFT: mint at the threshold and transfer, every state.
-    name: 'nft-v2',
-    server: 'e2e/fixtures/nft-v2/server.mjs',
-    port: 4182,
-    spec: 'e2e/nft-v2.spec.ts',
-    env: {
-      NFT_V2_FIXTURES: '1',
-      PLAYWRIGHT_BASE_URL: 'http://127.0.0.1:4182',
     },
   },
   {

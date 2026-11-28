@@ -1,0 +1,474 @@
+/* The reading view (components/read). Tokens only; state in data-*. */
+@layer surfaces {
+  /* The shell's main pads the gutter and the safe areas; the reading
+   * column widens it to the reading gutter. */
+  .qt-read {
+    padding-inline: calc(var(--qt-gutter-read) - var(--qt-gutter));
+  }
+
+  /* Reading progress: a hairline at the very top that fills as you read. */
+  .qt-read__progress {
+    position: fixed;
+    inset-block-start: 0;
+    inset-inline: 0;
+    z-index: var(--qt-z-sticky);
+    height: 2px;
+    background: var(--qt-marker-ink);
+    transform-origin: left center;
+    transform: scaleX(var(--qt-read-progress, 0));
+    pointer-events: none;
+  }
+  [dir='rtl'] .qt-read__progress {
+    transform-origin: right center;
+  }
+
+  .qt-read__head {
+    margin-block: var(--qt-space-6) var(--qt-space-8);
+  }
+  .qt-read__head h1 {
+    text-wrap: balance;
+    overflow-wrap: break-word;
+  }
+  .qt-read__byline {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-3);
+    margin-block-start: var(--qt-space-5);
+    font-family: var(--qt-font-ui);
+  }
+  .qt-read__byline-text {
+    display: grid;
+    min-width: 0;
+  }
+  .qt-read__writer {
+    color: var(--qt-ink);
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: none;
+    overflow-wrap: anywhere;
+  }
+  .qt-read__writer:hover {
+    text-decoration: underline;
+    text-underline-offset: 0.18em;
+  }
+  .qt-read__meta {
+    color: var(--qt-ink-3);
+    font-size: var(--qt-text-ui-s);
+    line-height: var(--qt-lh-ui-s);
+  }
+
+  .qt-read__cover {
+    margin: 0 calc(-1 * var(--qt-gutter-read)) var(--qt-space-8);
+  }
+  .qt-read__cover img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 2;
+    object-fit: cover;
+    background: var(--qt-sunk);
+  }
+
+  /* The body: the margin layer beside the prose holds the ticks. */
+  .qt-read__body {
+    position: relative;
+  }
+  .qt-read__margin {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-start: calc(-1 * var(--qt-gutter-read) + var(--qt-space-2));
+    width: 3px;
+    pointer-events: none;
+  }
+  .qt-read__tick {
+    position: absolute;
+    inset-inline-start: 0;
+    width: 3px;
+    border-radius: 3px;
+    background: var(--qt-ink);
+  }
+  /* Your place: marker-ink, fading to a quarter after 2.4 s. */
+  .qt-read__tick[data-kind='place'] {
+    background: var(--qt-marker-ink);
+    animation: qt-read-fade 1.6s var(--qt-ease-out) 2.4s both;
+  }
+  @keyframes qt-read-fade {
+    to {
+      opacity: 0.25;
+    }
+  }
+
+  /* The column is the measure; the prose lines up with the title. */
+  .qt-read__prose {
+    max-width: none;
+    overflow-wrap: break-word;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .qt-read__prose p,
+  .qt-read__prose li {
+    text-wrap: pretty;
+  }
+  /* The lead-in and figures are the system's (Prose, data-lead-in). An
+   * image with no caption is a bare img: it bleeds as a figure does. */
+  .qt-read__prose img {
+    display: block;
+    max-width: 100%;
+    height: auto;
+  }
+  .qt-read__prose > img {
+    margin-inline: var(--qt-figure-bleed);
+    max-width: calc(100% + 2 * var(--qt-gutter-read));
+    width: calc(100% + 2 * var(--qt-gutter-read));
+    aspect-ratio: var(--qt-figure-ratio);
+    object-fit: cover;
+  }
+  .qt-read__prose pre {
+    overflow-x: auto;
+    padding: var(--qt-space-4);
+    border-radius: var(--qt-radius-tag);
+    background: var(--qt-sunk);
+    font-size: 0.8em;
+    line-height: 1.55;
+    -webkit-overflow-scrolling: touch;
+  }
+  .qt-read__prose pre code {
+    font-size: inherit;
+  }
+  .qt-read__prose :not(pre) > code {
+    padding: 0.1em 0.3em;
+    border-radius: 0.25em;
+    background: var(--qt-sunk);
+  }
+  .qt-read__prose iframe {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    aspect-ratio: 16 / 9;
+    height: auto;
+    border: 0;
+  }
+  /* Anchored headings and paragraphs (#s-{p}-0) land clear of the top,
+   * at one offset: this margin plus the page's scroll padding. The view
+   * lands a sentence (#s-{p}-{k}) at the same offset, from these values. */
+  .qt-read__prose h2,
+  .qt-read__prose h3,
+  .qt-read__prose p[id] {
+    scroll-margin-top: var(--qt-space-10);
+  }
+  .qt-read__prose ::selection {
+    background: var(--qt-marker-soft);
+    color: var(--qt-ink);
+  }
+
+  /* The body is one keyboard stop; its ring shows only for the keyboard. */
+  .qt-read__prose:focus-visible {
+    outline: var(--qt-focus-width) solid var(--qt-focus);
+    outline-offset: var(--qt-space-2);
+    border-radius: var(--qt-radius-tag);
+  }
+  /* The keyboard's sentence cursor: an outline, not a choice. */
+  .qt-read__cursor {
+    background: none;
+    color: inherit;
+    border-radius: 0.2em;
+    outline: var(--qt-focus-width) solid var(--qt-focus);
+    outline-offset: 0.1em;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+  /* A paragraph a link points at (#s-p-0): a marker-ink tick beside it. */
+  .qt-read__prose p:target {
+    box-shadow:
+      calc(-1 * var(--qt-space-3)) 0 0 0 var(--qt-paper),
+      calc(-1 * var(--qt-space-3) - 3px) 0 0 0 var(--qt-marker-ink);
+  }
+
+  /* Passage marks; none rests on colour alone.
+   * Chosen: a 2px ink underline, and the margin tick. */
+  ::highlight(qt-read-chosen) {
+    background: none;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--qt-ink);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.22em;
+  }
+  /* Kept by you: a 2px marker-ink underline. */
+  ::highlight(qt-read-kept) {
+    background: none;
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-color: var(--qt-marker-ink);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 0.22em;
+  }
+
+  /* The end of the article. */
+  .qt-read__end {
+    display: grid;
+    justify-items: center;
+    gap: var(--qt-space-2);
+    margin-block-start: var(--qt-space-10);
+    padding-block: var(--qt-space-8) var(--qt-space-6);
+    border-block-start: 1px solid var(--qt-line);
+    text-align: center;
+  }
+  .qt-read__end-name {
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-title);
+    line-height: var(--qt-lh-title);
+    font-weight: var(--qt-weight-title);
+    overflow-wrap: anywhere;
+  }
+
+  .qt-read__next {
+    margin-block: var(--qt-space-8) var(--qt-space-6);
+  }
+  .qt-read__next-list {
+    margin-block-start: var(--qt-space-4);
+  }
+  .qt-read__next-item {
+    display: grid;
+    gap: var(--qt-space-2);
+    padding-block: var(--qt-space-5);
+    border-block-start: 1px solid var(--qt-line);
+  }
+  .qt-read__next-title {
+    font-family: var(--qt-font-read);
+    font-size: var(--qt-text-line);
+    line-height: var(--qt-lh-line);
+    font-weight: var(--qt-weight-title);
+    overflow-wrap: anywhere;
+  }
+  .qt-read__next-opening {
+    color: var(--qt-ink-2);
+    font-family: var(--qt-font-read);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+  .qt-read__next-link {
+    justify-self: end;
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--qt-hit);
+    color: var(--qt-ink);
+    font-family: var(--qt-font-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: underline;
+    text-decoration-color: var(--qt-line-strong);
+    text-underline-offset: 0.2em;
+  }
+
+  /* The tip bar: sticky at the bottom of the reading column, on solid
+   * paper with a hairline, so no text ghosts behind its words. */
+  .qt-read__dock {
+    position: sticky;
+    inset-block-end: 0;
+    z-index: var(--qt-z-sticky);
+    display: grid;
+    gap: var(--qt-space-2);
+    margin-inline: calc(-1 * var(--qt-gutter-read));
+    padding: var(--qt-space-3) var(--qt-gutter-read)
+      calc(var(--qt-space-3) + var(--qt-safe-bottom));
+    background: var(--qt-paper);
+    box-shadow: 0 -1px 0 var(--qt-line);
+  }
+  /* The receipt peek after a tip: a quiet row above the bar. */
+  .qt-read__peek {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-2);
+    min-width: 0;
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+  }
+  .qt-read__peek-tick {
+    display: inline-flex;
+    color: var(--qt-marker-ink);
+  }
+  .qt-read__peek-words {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .qt-read__line-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--qt-space-2);
+  }
+  .qt-read__chip {
+    display: inline-flex;
+    align-items: center;
+    min-height: var(--qt-hit);
+    padding-inline: var(--qt-space-4);
+    border: 0;
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-sunk);
+    color: var(--qt-ink);
+    font: inherit;
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background-color var(--qt-dur-quick) var(--qt-ease-out);
+  }
+  .qt-read__chip:active {
+    background: var(--qt-press);
+  }
+  .qt-read__dock-row {
+    display: flex;
+    align-items: flex-end;
+    gap: var(--qt-space-3);
+    min-width: 0;
+  }
+  /* A plain line where no control can help (no price known). */
+  .qt-read__dock-line {
+    flex: 1;
+    margin: 0;
+    padding-block: var(--qt-space-3);
+    color: var(--qt-ink-2);
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui);
+  }
+  /* One box for every state of the bar, before and after the money layer
+   * loads: the tip control's height, whatever is in it. */
+  .qt-read__control {
+    flex: 1;
+    min-width: 0;
+    min-height: var(--qt-control-h-l);
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+  .qt-read__control .qt-tip {
+    flex: 1;
+    min-width: 0;
+  }
+  /* Before the session is known: the link or the control, by the shell's
+   * pre-paint marker (shell.css); they take the control's place. */
+  .qt-read__switch,
+  .qt-read__when {
+    display: contents;
+  }
+  /* A press taken before the money layer was ready: held pressed until it
+   * is sent or dropped. */
+  .qt-read__control[data-taken] .qt-tip__button {
+    transform: scale(0.96);
+    cursor: progress;
+  }
+  /* Inside the control's box a line takes no padding of its own, so it is
+   * never taller than the control it stands in for. */
+  .qt-read__control .qt-read__dock-line {
+    padding-block: 0;
+  }
+  .qt-read__dock-retry {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--qt-space-3);
+  }
+
+  /* Signed out: the same button, as a link to sign in. */
+  .qt-read__signin {
+    flex: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--qt-space-2);
+    min-height: var(--qt-control-h-l);
+    padding-inline: var(--qt-space-5);
+    border-radius: var(--qt-radius-pill);
+    background: var(--qt-action-bg);
+    color: var(--qt-action-ink);
+    font-family: var(--qt-font-ui);
+    font-size: var(--qt-text-ui-l);
+    font-weight: var(--qt-weight-ui-strong);
+    text-decoration: none;
+    transition: transform var(--qt-dur-press) var(--qt-ease-out);
+  }
+  .qt-read__signin:active {
+    transform: scale(0.98);
+  }
+  /* The words may be cut; the amount never is. */
+  .qt-read__signin-words {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .qt-read__signin-amount {
+    flex: none;
+    font-variant-numeric: tabular-nums;
+  }
+  .qt-read__signin-nib {
+    display: inline-flex;
+    color: var(--qt-action-icon);
+  }
+
+  /* The receipt sheet. */
+  .qt-receipt {
+    display: grid;
+    gap: var(--qt-space-3);
+  }
+  .qt-receipt__to {
+    color: var(--qt-ink-2);
+    overflow-wrap: anywhere;
+  }
+  .qt-receipt__line {
+    margin-block: var(--qt-space-2);
+  }
+  .qt-receipt__rows {
+    display: grid;
+  }
+  .qt-receipt__row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--qt-space-4);
+    padding-block: var(--qt-space-3);
+    border-block-start: 1px dashed var(--qt-line);
+  }
+  .qt-receipt__row dt {
+    color: var(--qt-ink-2);
+  }
+  .qt-receipt__row dd {
+    margin: 0;
+    font-weight: var(--qt-weight-ui-strong);
+  }
+
+  @media (min-width: 1024px) {
+    .qt-read__cover,
+    .qt-read__prose > img {
+      margin-inline: 0;
+      max-width: 100%;
+      border-radius: var(--qt-radius-tag);
+      overflow: hidden;
+    }
+    .qt-read__dock {
+      margin-inline: 0;
+      padding-inline: 0;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .qt-read__tick[data-kind='place'] {
+      animation-duration: 0s;
+      animation-delay: 6s;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .qt-read__progress,
+    .qt-read__tick {
+      background: CanvasText;
+    }
+    ::highlight(qt-read-chosen),
+    ::highlight(qt-read-kept) {
+      text-decoration-color: CanvasText;
+    }
+  }
+}

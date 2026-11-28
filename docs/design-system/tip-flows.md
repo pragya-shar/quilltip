@@ -1,5 +1,10 @@
 # Tip flows (payments v2)
 
+> The article tip dialog, its entry points and its fixture were removed with
+> the legacy article page. The article view tips through the money layer
+> (`lib/payments/README.md`, `hooks/payments`) with the system's tip control.
+> This page records the v2 flow as it was, for the parts still in use.
+
 How a reader tips an article, a passage, or several of them at once on
 payments v2. The states, their copy and the shared components come from the
 payment state kit ([payment-states.md](payment-states.md)); this page covers
@@ -9,12 +14,13 @@ basket, refusals that have no kit notice, and reloads.
 - Flow code: `lib/stellar/v2/tip-calls.ts` (encoder and checks),
   `lib/stellar/v2/tip-actions.ts` (runner), `lib/tip/v2/` (state machine,
   basket, amounts, refusals, reload record).
-- Components: `components/tipping/v2/` and the two entry points,
-  `components/tipping/TipButton.tsx` and
-  `components/highlights/HighlightTipButton.tsx`.
+- Components: `components/tipping/v2/`. Its two entry points (the article's
+  tip button and the highlight tip button) were removed with the legacy
+  article page.
 - Copy: `lib/copy/tip-flow.ts`.
-- Fixture with every state: `e2e/fixtures/tips-v2/` (port 4179), tested by
-  `e2e/tips-v2.spec.ts`.
+- The fixture with every state (`tips-v2`) and its spec were removed with the
+  legacy article page; `e2e/fixtures/tips-v2/runtime.ts` stays for the
+  screens that still import it.
 - Lifecycle rules: [06-app-integration.md, section 6.1](../architecture/v2/06-app-integration.md#61-transaction-lifecycle).
 
 ## Switch

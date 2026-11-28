@@ -1,0 +1,164 @@
+import type { Metadata } from 'next'
+import { notFound, redirect } from 'next/navigation'
+import { ArticleView } from '@/components/read/ArticleView'
+import { loadArticle } from '@/components/read/loadArticle'
+import { ReadingUnavailable } from '@/system/components/ReadingUnavailable'
+import { retryHrefFor } from '@/shell/public/boundedRead'
+import { PushedHeader } from '@/shell/PushedHeader'
+import { PushedScreen } from '@/shell/PushedScreen'
+import { readNextBudget, readNextFor } from '@/components/read/readNext'
+import { articleTippable } from '@/components/read/tipState'
+import { toReadArticle } from '@/components/read/readModel'
+import { getPublishedArticle, movedPublicPath } from '@/lib/seo/publicContent'
+import {
+  SITE_NAME,
+  toMetaDescription,
+  articlePath,
+} from '@/lib/seo/siteMetadata'
+import { readingPlainText } from '@/lib/tiptap/readingPlainText'
+import { renderReadingHtml } from '@/lib/tiptap/renderReadingHtml'
+import {
+  deploymentSources,
+  safeImageSrc,
+} from '@/lib/tiptap/sanitizeReadingDoc'
+
+const reads = (
+  searchParams: Record<string, string | string[] | undefined>
+) => ({
+  article: getPublishedArticle,
+  moved: (username: string, slug: string) =>
+    movedPublicPath(username, slug, searchParams),
+})
+
+/**
+ * The page's own path for its Try again link, each segment encoded: route
+ * params arrive decoded, so `/%5Chost/x` gives `\host`, and written back
+ * raw a browser would read `/\host/x` as another host.
+ */
+function pagePath(username: string, slug: string): string {
+  return `/${encodeURIComponent(username)}/${encodeURIComponent(slug)}`
+}
+
+type ArticlePageProps = {
+  params: Promise<{ username: string; slug: string }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
+}
+
+export async function generateMetadata({
+  params,
+  searchParams,
+}: ArticlePageProps): Promise<Metadata> {
+  const { username, slug } = await params
+  const load = await loadArticle(username, slug, reads(await searchParams))
+  if (load.kind === 'unreachable')
+    return { title: 'Article unavailable', robots: { index: false } }
+  if (load.kind !== 'found')
+    return { title: 'Page not found', robots: { index: false } }
+  const article = load.article
+
+  const authorName = article.author.name || article.author.username
+  // From the excerpt, or the opening words within the reading limits.
+  const description = toMetaDescription(
+    article.excerpt?.trim() || readingPlainText(article.content)
+  )
+  const url = articlePath(article.author.username, article.slug)
+  const cover = safeImageSrc(article.coverImage, deploymentSources())
+  const images = cover ? [{ url: cover }] : undefined
+  return {
+    title: article.title,
+    // Images on this page (the writer's avatar among them) send no
+    // referrer: a reader's address and visit are not told to any host.
+    referrer: 'no-referrer',
+    description,
+    authors: [{ name: authorName }],
+    alternates: { canonical: url },
+    openGraph: {
+      type: 'article',
+      siteName: SITE_NAME,
+      title: article.title,
+      description,
+      url,
+      images,
+      authors: [authorName],
+      publishedTime: article.publishedAt
+        ? new Date(article.publishedAt).toISOString()
+        : undefined,
+    },
+    twitter: {
+      card: images ? 'summary_large_image' : 'summary',
+      title: article.title,
+      description,
+      images: images?.map((image) => image.url),
+    },
+  }
+}
+
+/**
+ * An article, rendered on the server and complete without scripts, because public pages must read with no script:
+ * no loading boundary above it, the full text in the first response. An
+ * unknown, draft or private article is a real 404; a writer's earlier
+ * handle redirects to the current one. Every read that gates the first
+ * byte has a time limit, so a public page never waits without end: a backend that does not answer in time gives
+ * the unreachable state (200, noindex, no-store), never a 404 and never a
+ * blank tab. The page's reads share one limit (1.5 s): the article, then
+ * Read next or the moved-handle lookup in what is left. The proxy's route
+ * check runs before the page with a limit of its own, so the worst-case
+ * first byte is the two together, 3 s.
+ */
+export default async function ArticlePage({
+  params,
+  searchParams,
+}: ArticlePageProps) {
+  const { username, slug } = await params
+  const query = await searchParams
+  const startedAt = Date.now()
+  const load = await loadArticle(username, slug, reads(query))
+  // Temporary: writers can switch back to an earlier handle.
+  if (load.kind === 'moved') redirect(load.to)
+  if (load.kind === 'missing') notFound()
+  if (load.kind === 'unreachable')
+    return (
+      <PushedScreen>
+        <div className="qt-page" data-width="read">
+          <PushedHeader fallbackHref="/" backLabel="Back to Today" />
+          <ReadingUnavailable
+            what="This article"
+            retryHref={retryHrefFor(pagePath(username, slug), query)}
+          />
+        </div>
+      </PushedScreen>
+    )
+  const article = load.article
+
+  const { html } = renderReadingHtml(article.content)
+  // Past the reading limits, refused by the schema or empty: the document
+  // is not shown in part, and its text is not walked again.
+  if (html === undefined)
+    return (
+      <PushedScreen>
+        <div className="qt-page" data-width="read">
+          <PushedHeader fallbackHref="/" backLabel="Back to Today" />
+          <ReadingUnavailable
+            what="This article"
+            retryHref={retryHrefFor(pagePath(username, slug), query)}
+          />
+        </div>
+      </PushedScreen>
+    )
+  // Read next and the tip state share what is left of the page's limit.
+  const left = readNextBudget(Date.now() - startedAt)
+  const [readNext, tippable] = await Promise.all([
+    readNextFor(article._id, left),
+    articleTippable(article._id, left),
+  ])
+  return (
+    <ArticleView
+      article={{ ...toReadArticle(article), tippable }}
+      bodyHtml={html}
+      readNext={readNext}
+    />
+  )
+}
+
+export const dynamic = 'force-dynamic'
+export const dynamicParams = true

@@ -485,23 +485,13 @@ jobs:
       matrix:
         include:
           - shard: presentation
-            suites: nft,recovery,avatar
+            suites: recovery,avatar
             browsers: chromium
           - shard: payments
             suites: payments
             browsers: chromium
           - shard: wallet
             suites: wallet
-            browsers: chromium
-          - shard: article-tips
-            suites: article-tips
-            browsers: chromium
-          # Every state in Chromium; keyboard, focus and results in WebKit.
-          - shard: tips-v2
-            suites: tips-v2
-            browsers: chromium webkit
-          - shard: nft-v2
-            suites: nft-v2
             browsers: chromium
           # The tab session-key suite runs in all three engines.
           - shard: tab
