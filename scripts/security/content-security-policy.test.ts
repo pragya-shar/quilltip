@@ -51,7 +51,9 @@ afterEach(() => {
 })
 
 describe('content security policy on proxy responses', () => {
-  it.each(['/', '/login', '/articles'])(
+  // The shell's home, the sign-in page and an old page still rendered
+  // (`/articles` only redirects now, and a redirect carries no policy).
+  it.each(['/', '/login', '/wallet/practice'])(
     '%s allows scripts only from self and the response nonce',
     async (path) => {
       const response = await pageResponse(path)
