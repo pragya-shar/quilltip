@@ -3,11 +3,12 @@
  *
  * - Size: a document whose JSON is over `MAX_DOCUMENT_JSON_BYTES` (UTF-8) is
  *   refused on save and on publish.
- * - Readability (publish): the stored document must come out of the reading
- *   sanitiser unchanged, so what is published is exactly what readers get.
- *   The sanitiser is passed in (`READING_SANITIZER` by default). Until the
- *   reading sanitiser is in this tree, the default is null and only the size
- *   is checked; wiring it is one line here.
+ * - Readability (publish): once wired, the stored document must come out of
+ *   the reading sanitiser unchanged, so what is published is exactly what
+ *   readers get. The sanitiser is passed in (`READING_SANITIZER` by default).
+ *   `READING_SANITIZER` is null until the article view's sanitiser is in this
+ *   tree, so today only the size is checked and `document-not-readable`
+ *   never fires; wiring it is one line here.
  */
 import { articleReadingText, countWords } from '../../../lib/reading-time'
 
@@ -37,6 +38,34 @@ export function documentJsonBytes(content: unknown): number {
 
 export function isDocumentTooLarge(content: unknown): boolean {
   return documentJsonBytes(content) > MAX_DOCUMENT_JSON_BYTES
+}
+
+/**
+ * The deepest `content` value the backend stores. A Convex document nests at
+ * most 16 levels (measured on a local backend: "Document is too nested
+ * (nested 18 levels deep > maximum nesting 16)"), and the article row is one
+ * of them. An object or an array is one level, so each TipTap node level is
+ * two (the node and its `content` array). In node levels, counting the doc
+ * and the deepest node: 8 when the deepest node is plain text, 7 when it is
+ * a node with `attrs` (an image), 6 when it is text with a mark that has
+ * `attrs` (a link).
+ */
+export const MAX_CONTENT_VALUE_DEPTH = 15
+
+/**
+ * True when `content` nests deeper than `MAX_CONTENT_VALUE_DEPTH`. Walks
+ * without recursion and stops at the first value past the limit.
+ */
+export function isDocumentTooNested(content: unknown): boolean {
+  const stack: Array<[unknown, number]> = [[content, 1]]
+  while (stack.length > 0) {
+    const [value, depth] = stack.pop()!
+    if (value === null || typeof value !== 'object') continue
+    if (depth > MAX_CONTENT_VALUE_DEPTH) return true
+    const children = Array.isArray(value) ? value : Object.values(value)
+    for (const child of children) stack.push([child, depth + 1])
+  }
+  return false
 }
 
 function deepEqual(a: unknown, b: unknown): boolean {

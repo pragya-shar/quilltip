@@ -3,15 +3,17 @@
  *
  * - `desk` lists the caller's drafts and published articles, bounded, with
  *   no article content in the answer.
- * - `saveDraft` saves a draft's title and document only. With `baseUpdatedAt`
- *   it refuses to overwrite a newer save (`draft-changed`), so one device can
- *   never silently replace another's words; with `clientId` a repeated create
+ * - `saveDraft` saves a draft's title and document only. An update must carry
+ *   `baseUpdatedAt`, and a newer save is never overwritten (`draft-changed`),
+ *   so one device can never silently replace another's words; with `clientId` a repeated create
  *   returns the draft it already made. It never touches the excerpt, tags,
  *   cover image or writer notes.
  * - `publish` requires the `updatedAt` the writer last saw, so the text
  *   published is the text on their screen; it refuses a document that is too
- *   large or would not read back unchanged, and makes a permanent copy only
- *   when `permanentCopy` is true.
+ *   large, and makes a permanent copy only when `permanentCopy` is true. The
+ *   readability refusal (`document-not-readable`) cannot fire yet:
+ *   `READING_SANITIZER` (`convex/lib/write/document.ts`) is null until the
+ *   article view's sanitiser is in this tree.
  *
  * Errors are `ConvexError({ code })`, with the codes named on each function.
  * `articles.saveDraft` and `articles.publishArticle` stay as they are for the
@@ -41,6 +43,8 @@ import {
   checkReadingDocument,
   firstLineOf,
   isDocumentTooLarge,
+  isDocumentTooNested,
+  MAX_CONTENT_VALUE_DEPTH,
   sanitizerFindsTooLarge,
   wordsOf,
 } from './lib/write/document'
@@ -48,8 +52,15 @@ import { permanentStorageEnabled } from './permanentStorage'
 import { estimateArticleReadingMinutes } from '../lib/reading-time'
 import { isArticleLocked } from '../lib/articles/publishedLock'
 
-export const DESK_DEFAULT_LIMIT = 20
-export const DESK_MAX_LIMIT = 50
+/**
+ * Rows per desk list. A query may read at most 16 MiB (measured on a local
+ * backend: 20 drafts of 790 KB read, 24 failed with "Too many bytes read"),
+ * and every row read is a whole article document, up to the 1 MiB document
+ * limit. So the two lists together read at most 2 × 7 documents, 14 MiB, plus
+ * the user row, at the largest document size.
+ */
+export const DESK_DEFAULT_LIMIT = 7
+export const DESK_MAX_LIMIT = 7
 export const TITLE_MAX_LENGTH = 200
 const CLIENT_ID_PATTERN = /^l-[0-9a-f-]{36}$/
 
@@ -86,8 +97,9 @@ function nextUpdatedAt(previous: number): number {
 /**
  * The caller's desk. Drafts: `{ _id, title, firstLine, words, updatedAt }`,
  * newest first. Published: `{ _id, title, slug, authorUsername, publishedAt }`,
- * most recently updated first. `limit` (1 to 50, default 20) applies to each
- * list. Signed out: both lists empty.
+ * most recently updated first. `limit` (1 to `DESK_MAX_LIMIT`, 7, which is
+ * also the default) applies to each list; see `DESK_MAX_LIMIT` for the read
+ * bound. Signed out: both lists empty.
  */
 export const desk = query({
   args: { limit: v.optional(v.number()) },
@@ -154,7 +166,9 @@ export const desk = query({
  * `clientId` is already known, so the client learns that the server may hold
  * earlier words for that draft). Errors: `not-signed-in`, `draft-not-found` (missing or
  * another writer's), `draft-published`, `draft-changed` (with the server's
- * `updatedAt`), `draft-too-large`, `title-too-long`, `invalid-client-id`.
+ * `updatedAt`), `base-required` (an `id` without `baseUpdatedAt`),
+ * `document-too-nested` (with `maxValueDepth`; see `MAX_CONTENT_VALUE_DEPTH`),
+ * `draft-too-large`, `title-too-long`, `invalid-client-id`.
  * A refused save writes nothing.
  */
 export const saveDraft = mutation({
@@ -178,6 +192,12 @@ export const saveDraft = mutation({
     if (args.clientId !== undefined && !CLIENT_ID_PATTERN.test(args.clientId)) {
       throw new ConvexError({ code: 'invalid-client-id' })
     }
+    if (isDocumentTooNested(args.content)) {
+      throw new ConvexError({
+        code: 'document-too-nested',
+        maxValueDepth: MAX_CONTENT_VALUE_DEPTH,
+      })
+    }
     if (
       isDocumentTooLarge(args.content) ||
       sanitizerFindsTooLarge(args.content)
@@ -186,14 +206,16 @@ export const saveDraft = mutation({
     }
 
     if (args.id) {
+      // An update states the save it builds on; without one it is refused,
+      // so a stale tab can never overwrite newer words.
+      if (args.baseUpdatedAt === undefined) {
+        throw new ConvexError({ code: 'base-required' })
+      }
       const article = await ownArticle(ctx, userId, args.id)
       if (isArticleLocked(article)) {
         throw new ConvexError({ code: 'draft-published' })
       }
-      if (
-        args.baseUpdatedAt !== undefined &&
-        args.baseUpdatedAt !== article.updatedAt
-      ) {
+      if (args.baseUpdatedAt !== article.updatedAt) {
         throw new ConvexError({
           code: 'draft-changed',
           updatedAt: article.updatedAt,

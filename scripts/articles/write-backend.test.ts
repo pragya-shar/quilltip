@@ -10,7 +10,9 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import schema from '../../convex/schema'
 import { api } from '../../convex/_generated/api'
 import type { Id } from '../../convex/_generated/dataModel'
+import { DESK_DEFAULT_LIMIT, DESK_MAX_LIMIT } from '../../convex/write'
 import {
+  MAX_CONTENT_VALUE_DEPTH,
   MAX_DOCUMENT_JSON_BYTES,
   checkReadingDocument,
   firstLineOf,
@@ -75,6 +77,15 @@ async function setup() {
 }
 
 type World = Awaited<ReturnType<typeof setup>>
+
+async function errorData(promise: Promise<unknown>) {
+  const error = await promise.then(
+    () => null,
+    (e: unknown) => e
+  )
+  expect(error).toBeInstanceOf(ConvexError)
+  return (error as ConvexError<Record<string, string | number>>).data
+}
 
 async function errorCode(promise: Promise<unknown>) {
   const error = await promise.then(
@@ -151,6 +162,7 @@ describe('write.saveDraft refusals', () => {
       await errorCode(
         w.other.mutation(api.write.saveDraft, {
           id: mine.id,
+          baseUpdatedAt: mine.updatedAt,
           title: 'Taken',
           content: doc('Not yours.'),
         })
@@ -161,12 +173,32 @@ describe('write.saveDraft refusals', () => {
       await errorCode(
         w.writer.mutation(api.write.saveDraft, {
           id: mine.id,
+          baseUpdatedAt: mine.updatedAt,
           title: 'Gone',
           content: doc('Gone.'),
         })
       )
     ).toBe('draft-not-found')
     expect(before!.title).toBe('Mine')
+  })
+
+  test('an update without a base is refused and writes nothing', async () => {
+    const w = await setup()
+    const d = await w.writer.mutation(api.write.saveDraft, {
+      title: 'Based',
+      content: doc('First words.'),
+    })
+    const before = await row(w, d.id)
+    expect(
+      await errorCode(
+        w.writer.mutation(api.write.saveDraft, {
+          id: d.id,
+          title: 'Based',
+          content: doc('Words from a tab with no base.'),
+        })
+      )
+    ).toBe('base-required')
+    expect(await row(w, d.id)).toEqual(before)
   })
 
   test('signed out is refused', async () => {
@@ -218,6 +250,7 @@ describe('write.saveDraft refusals', () => {
       await errorCode(
         w.writer.mutation(api.write.saveDraft, {
           id: d.id,
+          baseUpdatedAt: d.updatedAt,
           title: 'Done',
           content: doc('Changed.'),
         })
@@ -390,6 +423,70 @@ describe('write.saveDraft saves', () => {
   })
 })
 
+describe('write.saveDraft nesting', () => {
+  /** Node level `levels`: doc, quotes, a paragraph, then `leaf`. */
+  const nested = (levels: number, leaf: object) => {
+    let node: object = { type: 'paragraph', content: [leaf] }
+    for (let i = 0; i < levels - 3; i++)
+      node = { type: 'blockquote', content: [node] }
+    return { type: 'doc', content: [node] }
+  }
+  const text = { type: 'text', text: 'Deep words.' }
+  const link = {
+    type: 'text',
+    text: 'Linked.',
+    marks: [{ type: 'link', attrs: { href: 'https://example.test' } }],
+  }
+  const image = { type: 'image', attrs: { src: 'https://example.test/a.png' } }
+
+  test('saves up to the backend limit and refuses past it, by name', async () => {
+    const w = await setup()
+    for (const [leaf, deepest] of [
+      [text, 8],
+      [image, 7],
+      [link, 6],
+    ] as const) {
+      const ok = await w.writer.mutation(api.write.saveDraft, {
+        title: 'Deep',
+        content: nested(deepest, leaf),
+      })
+      expect(ok.created).toBe(true)
+      const before = await w.t.run((ctx) => ctx.db.query('articles').collect())
+      const error = await errorData(
+        w.writer.mutation(api.write.saveDraft, {
+          title: 'Too deep',
+          content: nested(deepest + 1, leaf),
+        })
+      )
+      expect(error).toEqual({
+        code: 'document-too-nested',
+        maxValueDepth: MAX_CONTENT_VALUE_DEPTH,
+      })
+      expect(
+        await w.t.run((ctx) => ctx.db.query('articles').collect())
+      ).toEqual(before)
+    }
+  })
+
+  test('a list nested three deep is past the limit', async () => {
+    const w = await setup()
+    let item: object = { type: 'paragraph', content: [text] }
+    for (let i = 0; i < 3; i++)
+      item = {
+        type: 'bulletList',
+        content: [{ type: 'listItem', content: [item] }],
+      }
+    expect(
+      await errorCode(
+        w.writer.mutation(api.write.saveDraft, {
+          title: 'List',
+          content: { type: 'doc', content: [item] },
+        })
+      )
+    ).toBe('document-too-nested')
+  })
+})
+
 describe('write.desk', () => {
   test('bounded, newest first, caller only, and no content leaves it', async () => {
     const w = await setup()
@@ -405,7 +502,7 @@ describe('write.desk', () => {
       content: doc('Other words.'),
     })
     const desk = await w.writer.query(api.write.desk, {})
-    expect(desk.drafts).toHaveLength(20)
+    expect(desk.drafts).toHaveLength(DESK_DEFAULT_LIMIT)
     expect(desk.drafts[0]).toMatchObject({
       title: 'Draft 59',
       firstLine: 'Opening line of draft 59.',
@@ -427,22 +524,68 @@ describe('write.desk', () => {
       ])
   })
 
-  test('the limit is clamped to 1..50', async () => {
+  test('the limit is clamped to 1..7', async () => {
     const w = await setup()
-    for (let i = 0; i < 55; i++)
+    for (let i = 0; i < 12; i++)
       await w.writer.mutation(api.write.saveDraft, {
         title: `D${i}`,
         content: doc('x.'),
       })
     expect(
       (await w.writer.query(api.write.desk, { limit: 500 })).drafts
-    ).toHaveLength(50)
+    ).toHaveLength(DESK_MAX_LIMIT)
     expect(
       (await w.writer.query(api.write.desk, { limit: 0 })).drafts
     ).toHaveLength(1)
     expect(
       (await w.writer.query(api.write.desk, { limit: 3.7 })).drafts
     ).toHaveLength(3)
+  })
+
+  test('at the largest document size the desk reads under 16 MiB', async () => {
+    const w = await setup()
+    // Close to the 1 MiB document limit: one long paragraph per article.
+    const big = doc('x'.repeat(1_040_000))
+    await w.t.run(async (ctx) => {
+      for (let i = 0; i < 20; i++)
+        await ctx.db.insert('articles', {
+          title: `Big ${i}`,
+          slug: `big-${i}`,
+          content: big,
+          authorId: w.ids.writer,
+          authorUsername: 'ines',
+          published: i % 2 === 0,
+          publishedAt: i % 2 === 0 ? 1 : undefined,
+          createdAt: 1,
+          updatedAt: 10 + i,
+        })
+    })
+    const desk = await w.writer.query(api.write.desk, { limit: 50 })
+    expect(desk.drafts).toHaveLength(DESK_MAX_LIMIT)
+    expect(desk.published).toHaveLength(DESK_MAX_LIMIT)
+    // The documents those two lists read, measured as stored JSON.
+    const read = await w.t.run(async (ctx) => {
+      const rows = [
+        ...(await ctx.db.query('articles').collect()).filter(
+          (a) => a.authorId === w.ids.writer
+        ),
+      ]
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .reduce(
+          (acc, a) => {
+            const list = a.published ? acc.published : acc.drafts
+            if (list.length < DESK_MAX_LIMIT) list.push(a)
+            return acc
+          },
+          { drafts: [] as unknown[], published: [] as unknown[] }
+        )
+      return [...rows.drafts, ...rows.published]
+    })
+    const bytes = read.reduce<number>(
+      (sum, a) => sum + new TextEncoder().encode(JSON.stringify(a)).length,
+      0
+    )
+    expect(bytes).toBeLessThan(16 * 1024 * 1024)
   })
 
   test('published rows list title, slug, handle and published time only', async () => {
