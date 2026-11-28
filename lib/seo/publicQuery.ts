@@ -38,6 +38,9 @@ export function countsAsOutage(error: unknown): boolean {
   return error instanceof ReadTimeout || error instanceof BackendUnavailable
 }
 
+/** The perf checks' run id on a server read (#630); see PERF_RUN_TOKEN. */
+export const PERF_RUN_HEADER = 'x-quilltip-perf-run'
+
 /**
  * Runs one anonymous public query that gives up after `limitMs`. The request
  * itself is aborted at the limit, so a read that loses the time limit does
@@ -61,7 +64,12 @@ export async function publicQuery<Query extends FunctionReference<'query'>>(
     skipConvexDeploymentUrlCheck: true,
     logger: false,
     fetch: async (input, init) => {
-      const response = await fetch(input, { ...init, signal })
+      const headers = new Headers(init?.headers)
+      // Set only by the perf checks: lets their fixture backend count this
+      // run's reads and no one else's (#630).
+      const perfRun = process.env.PERF_RUN_TOKEN
+      if (perfRun) headers.set(PERF_RUN_HEADER, perfRun)
+      const response = await fetch(input, { ...init, headers, signal })
       status = response.status
       return response
     },

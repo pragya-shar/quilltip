@@ -23,8 +23,11 @@
 import { readdirSync, rmSync } from 'fs'
 import { join } from 'path'
 import { chromium, webkit, type Page } from '@playwright/test'
+import { randomUUID } from 'crypto'
 import {
   fixtureBackendReads,
+  fixtureRun,
+  foreignBackendReads,
   resetFixtureBackendReads,
   startFixtureBackend,
 } from './fixture-backend'
@@ -56,6 +59,7 @@ function emptyDataCache(): number {
 const ROUTE_CHECK = 'publicRoutes:resolvePublicRoute'
 const ARTICLE_READ = 'articles:getArticleBySlug'
 const WRITER_READ = 'users:getUserByUsername'
+const LIST_READ = 'articles:listArticles'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 const snapshot = () => Object.fromEntries(fixtureBackendReads)
@@ -136,6 +140,9 @@ async function main() {
         console.log(
           `${engine}: emptied the server data cache (${emptyDataCache()} entries) and started a fresh app`
         )
+      // This run's id: the app's server sends it on every read, and the
+      // fixture backend counts only reads that carry it.
+      fixtureRun.token = process.env.PERF_RUN_TOKEN = randomUUID()
       const app = await startProductionApp(APP_PORT, BASE_URL)
       const browser = await (engine === 'webkit' ? webkit : chromium).launch()
       try {
@@ -146,6 +153,7 @@ async function main() {
         await page.goto(BASE_URL + READING.list, { waitUntil: 'load' })
         await sleep(1500) // hydration and any viewport prefetches
         const load = snapshot()
+        const foreign = Object.fromEntries(foreignBackendReads)
 
         resetFixtureBackendReads()
         await scrollAndHover(page)
@@ -171,7 +179,16 @@ async function main() {
         )
         console.log(`${engine}, click on an article: ${describeReads(click)}`)
 
+        if (Object.keys(foreign).length > 0)
+          console.log(
+            `${engine}, reads from another process (not counted): ${describeReads(foreign)}`
+          )
         if (MEASURE_ONLY) continue
+        // The view's own list read proves this run's app served /articles.
+        if (count(load, LIST_READ) === 0)
+          failures.push(
+            `${engine}: no read of this run reached the backend for the view of /articles (another server on ${BASE_URL}?)`
+          )
         // The view's own reads are publicRouteExists and listArticles; a route
         // check, an article or a writer read while the page loads comes from
         // viewport prefetches of its links.

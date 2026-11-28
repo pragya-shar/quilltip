@@ -831,6 +831,13 @@ and rendered the page.
   does.
   Other pages with such links (a writer page and its NFT tab, the dashboard,
   the library) are covered by the source guard, not by this browser check.
+- On a shared machine another process can query the same fixture port, so
+  each run stamps a random id: the check starts the app with
+  `PERF_RUN_TOKEN`, `publicQuery` sends it on every server read
+  (`x-quilltip-perf-run`, set only when that variable is), and the fixture
+  backend counts only reads that carry it; others are printed as foreign. The
+  check also fails when the view of `/articles` shows no read of this run, so
+  a different server answering on the app's port cannot pass as zero reads.
 - A request that meets a copy older than 60 s makes two article reads: the
   direct read that keeps every copy under 60 s old, and the cache's own
   background refresh of the old entry. The next request uses the refreshed

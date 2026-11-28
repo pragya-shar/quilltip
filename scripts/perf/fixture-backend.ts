@@ -48,8 +48,18 @@ export const fixtureBackendBehaviour: {
  */
 export const fixtureBackendReads = new Map<string, number>()
 
+/**
+ * When set, only queries that carry this run id (the app's server sends it
+ * when started with PERF_RUN_TOKEN, lib/seo/publicQuery.ts) are counted in
+ * `fixtureBackendReads`; the others, from another process using the same
+ * port, are counted in `foreignBackendReads` (#630).
+ */
+export const fixtureRun: { token?: string } = {}
+export const foreignBackendReads = new Map<string, number>()
+
 export function resetFixtureBackendReads() {
   fixtureBackendReads.clear()
+  foreignBackendReads.clear()
 }
 
 export function startFixtureBackend(port: number): Server {
@@ -96,10 +106,12 @@ export function startFixtureBackend(port: number): Server {
         path: string
         args: Record<string, unknown> | Record<string, unknown>[]
       }
-      fixtureBackendReads.set(
-        body.path,
-        (fixtureBackendReads.get(body.path) ?? 0) + 1
-      )
+      const runOf = request.headers['x-quilltip-perf-run']
+      const counter =
+        fixtureRun.token && runOf !== fixtureRun.token
+          ? foreignBackendReads
+          : fixtureBackendReads
+      counter.set(body.path, (counter.get(body.path) ?? 0) + 1)
       if (mode === 'slow' && (!slowPaths || slowPaths.includes(body.path)))
         await new Promise((r) => setTimeout(r, delayMs))
       if (
