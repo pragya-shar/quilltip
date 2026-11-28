@@ -15,6 +15,7 @@ import {
   type WalletErrorKind,
 } from '../../lib/stellar/v2/wallet-errors'
 import { formatTipFailureMessage } from '../../lib/stellar/tip-error-messages'
+import { forgetAllRememberedWallets } from '../../lib/wallet/remembered-wallet'
 
 const TESTNET = 'Test SDF Network ; September 2015'
 const PUBLIC = 'Public Global Stellar Network ; September 2015'
@@ -744,7 +745,7 @@ describe('restore after a page load (#562)', () => {
     expect([...mem.store.keys()]).toEqual([])
   })
 
-  test('a kit that starts for a signed-in reader keeps its keys', async () => {
+  test('a kit that starts for a signed-in reader keeps the reader’s record and drops its own unkeyed copy (#607)', async () => {
     const fake = fakeKit()
     const mem = memory({ [KEY]: record('varial') })
     fake.kit.init.mockImplementation(() => {
@@ -753,8 +754,10 @@ describe('restore after a page load (#562)', () => {
     const wallet = adapterFor(fake, { storage: mem.storage })
     wallet.setRemembering('reader-1')
     await wallet.init()
-    expect(mem.store.get(KIT_KEY)).toBe('varial')
+    // The reader's choice lives in their own record; the kit's copy is not
+    // keyed by reader and nothing reads it.
     expect(mem.store.get(KEY)).toBe(record('varial'))
+    expect(mem.store.has(KIT_KEY)).toBe(false)
   })
 
   test('signed out: does not restore and asks nothing', async () => {
@@ -935,5 +938,188 @@ describe('restore after a page load (#562)', () => {
     answer({ address: OTHER })
     await restored
     expect(wallet.getConnection()?.address).toBe(ADDRESS)
+  })
+})
+
+describe('the kit’s storage keys after a clear (#607)', () => {
+  const KEY = 'quilltip:wallet:v1:reader-1'
+  const PATHS = [
+    '@StellarWalletsKit/hardwareWalletPaths',
+    '@StellarWalletsKit/wcSessionPaths',
+  ]
+
+  function memory(initial: Record<string, string> = {}) {
+    const store = new Map(Object.entries(initial))
+    return {
+      store,
+      storage: {
+        getItem: (key: string) => store.get(key) ?? null,
+        setItem: (key: string, value: string) => void store.set(key, value),
+        removeItem: (key: string) => void store.delete(key),
+        key: (index: number) => [...store.keys()][index] ?? null,
+        get length() {
+          return store.size
+        },
+      },
+    }
+  }
+
+  /** The kit's `updateActiveSession` effect: it writes both paths, even empty. */
+  const kitEffect = (mem: ReturnType<typeof memory>) => {
+    for (const key of PATHS) mem.store.set(key, '[]')
+  }
+
+  const walletKeys = (mem: ReturnType<typeof memory>) =>
+    [...mem.store.keys()].filter(
+      (key) =>
+        key.startsWith('@StellarWalletsKit/') ||
+        key.startsWith('quilltip:wallet')
+    )
+
+  /** A kit whose effect writes on import, on `setWallet` and on disconnect. */
+  function kitWritingTo(mem: ReturnType<typeof memory>) {
+    const fake = fakeKit()
+    const setWallet = fake.kit.setWallet.getMockImplementation()!
+    fake.kit.setWallet.mockImplementation((id: string) => {
+      setWallet(id)
+      kitEffect(mem)
+    })
+    fake.kit.disconnect.mockImplementation(async () => kitEffect(mem))
+    return fake
+  }
+
+  test('the kit’s import-time write landing after the sign-in clear leaves no wallet key', async () => {
+    const mem = memory({
+      [KEY]: JSON.stringify({ walletId: 'varial', address: ADDRESS }),
+    })
+    const fake = kitWritingTo(mem)
+    let finishImport: () => void = () => {}
+    const imported = new Promise<void>((resolve) => {
+      finishImport = resolve
+    })
+    const wallet = createWalletAdapter({
+      loadKit: async () => {
+        await imported
+        kitEffect(mem)
+        return fake.bundle
+      },
+      networkPassphrase: TESTNET,
+      storage: mem.storage,
+    })
+    const loading = wallet.hasWallet()
+    // The sign-in page clears every wallet key while the kit still loads.
+    forgetAllRememberedWallets(mem.storage)
+    expect(walletKeys(mem)).toEqual([])
+    finishImport()
+    await loading
+    expect(walletKeys(mem)).toEqual([])
+  })
+
+  test('a reader who connects while the kit is still loading keeps the connection and the record', async () => {
+    const mem = memory()
+    const fake = kitWritingTo(mem)
+    let finishImport: () => void = () => {}
+    const imported = new Promise<void>((resolve) => {
+      finishImport = resolve
+    })
+    const wallet = createWalletAdapter({
+      loadKit: async () => {
+        await imported
+        kitEffect(mem)
+        return fake.bundle
+      },
+      networkPassphrase: TESTNET,
+      storage: mem.storage,
+    })
+    wallet.setRemembering('reader-1')
+    const connecting = wallet.connect({ walletId: 'varial' })
+    finishImport()
+    await expect(connecting).resolves.toMatchObject({ address: ADDRESS })
+    expect(wallet.getConnection()?.address).toBe(ADDRESS)
+    // Connected: the reader's record is kept, and the kit's own keys may stay.
+    expect(mem.store.get(KEY)).toBe(
+      JSON.stringify({ walletId: 'varial', address: ADDRESS })
+    )
+  })
+
+  test('disconnect with nothing connected: the kit’s reset write is removed', async () => {
+    const mem = memory()
+    const fake = kitWritingTo(mem)
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    await wallet.init()
+    await wallet.disconnect()
+    expect(walletKeys(mem)).toEqual([])
+  })
+
+  test('sign-out disconnect of a connected wallet ends with no wallet key', async () => {
+    const mem = memory()
+    const fake = kitWritingTo(mem)
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    wallet.setRemembering('reader-1')
+    await wallet.connect({ walletId: 'varial' })
+    expect(mem.store.has(KEY)).toBe(true)
+    const done = wallet.disconnect()
+    wallet.setRemembering(null)
+    await done
+    expect(walletKeys(mem)).toEqual([])
+  })
+
+  test('a connect the reader declines leaves no kit key', async () => {
+    const mem = memory()
+    const fake = kitWritingTo(mem)
+    fake.kit.fetchAddress.mockRejectedValueOnce({
+      code: -4,
+      message: 'User declined access',
+    })
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    await wallet.init()
+    expect((await rejection(wallet.connect({ walletId: 'varial' }))).kind).toBe(
+      'rejected'
+    )
+    expect(walletKeys(mem)).toEqual([])
+  })
+
+  test('a restore that is not answered with a connection leaves no kit key', async () => {
+    const mem = memory({
+      [KEY]: JSON.stringify({ walletId: 'varial', address: ADDRESS }),
+    })
+    const fake = kitWritingTo(mem)
+    Object.assign(fake.bundle.modules[0]!, {
+      getAddress: vi.fn(async () => {
+        throw { code: -3, message: 'not allowed' }
+      }),
+    })
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    wallet.setRemembering('reader-1')
+    await expect(wallet.restore()).resolves.toBeNull()
+    expect(walletKeys(mem)).toEqual([KEY])
+  })
+
+  test('a restore answered after sign-out does not connect and leaves no wallet key', async () => {
+    const mem = memory({
+      [KEY]: JSON.stringify({ walletId: 'varial', address: ADDRESS }),
+    })
+    const fake = kitWritingTo(mem)
+    let answer: (value: { address: string }) => void = () => {}
+    Object.assign(fake.bundle.modules[0]!, {
+      getAddress: vi.fn(
+        () =>
+          new Promise<{ address: string }>((resolve) => {
+            answer = resolve
+          })
+      ),
+    })
+    const wallet = adapterFor(fake, { storage: mem.storage })
+    wallet.setRemembering('reader-1')
+    const restoring = wallet.restore()
+    await vi.waitFor(() => expect(fake.kit.setWallet).toHaveBeenCalled())
+    // Sign-out while the wallet answers: the runtime disconnects and forgets.
+    const done = wallet.disconnect()
+    wallet.setRemembering(null)
+    await done
+    answer({ address: ADDRESS })
+    await expect(restoring).resolves.toBeNull()
+    expect(wallet.getConnection()).toBeNull()
+    expect(walletKeys(mem)).toEqual([])
   })
 })
