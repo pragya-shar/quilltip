@@ -17,7 +17,7 @@
  */
 import { forgetAllRememberedWallets } from '@/lib/wallet/remembered-wallet'
 import { hasAuthToken } from '../prePaint'
-import { runSignOutCleanups } from './index'
+import { SIGN_OUT_BEFORE, runBeforeSignOut, runSignOutCleanups } from './index'
 
 import {
   SIGNED_IN_MARKER,
@@ -51,15 +51,20 @@ export async function settleSignedOut(
 
 /**
  * Signs out from a shell page: `signOut` is Convex Auth's
- * (`useAuthActions().signOut`). Wallet records go first and again at the
- * end, and on `pagehide` if the page changes in between; the cleanups run
- * once the token is gone. A page change before the end leaves the marker,
- * so the next shell page finishes the work.
+ * (`useAuthActions().signOut`). While a session token is still held, the
+ * packages' actions before sign-out run first (`before`, bounded: never
+ * longer than its limit). Wallet records go first and again at the end,
+ * and on `pagehide` if the page changes in between; the cleanups run once
+ * the token is gone. A page change before the end leaves the marker, so
+ * the next shell page finishes the work.
  */
 export async function signOutHere(
   signOut: () => Promise<void>,
   storage: MarkerStorage | null,
-  run: () => Promise<unknown> = runSignOutCleanups
+  run: () => Promise<unknown> = runSignOutCleanups,
+  before: (() => Promise<unknown>) | null = SIGN_OUT_BEFORE.length > 0
+    ? () => runBeforeSignOut()
+    : null
 ): Promise<void> {
   setSigningOut(true)
   const forget = () => forgetAllRememberedWallets(storage)
@@ -67,6 +72,11 @@ export async function signOutHere(
   target?.addEventListener('pagehide', forget)
   forget()
   try {
+    // With the session still held: the server can act on this browser's
+    // behalf. Bounded and best effort; never with an expired session.
+    // With none registered, sign-out starts in the same task, as before.
+    if (before && storage && hasAuthToken(storage))
+      await before().catch(() => {})
     await signOut()
     await settleSignedOut(storage, run)
   } finally {

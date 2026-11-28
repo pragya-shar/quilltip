@@ -92,6 +92,56 @@ describe('signing out here', () => {
     expect(storage.getItem(SIGNED_IN_MARKER)).toBeNull()
   })
 
+  it('runs the actions before sign-out while the session is held, then signs out', async () => {
+    const storage = memoryStorage({ [TOKEN]: 't', [SIGNED_IN_MARKER]: '1' })
+    const order: string[] = []
+    await signOutHere(
+      async () => {
+        order.push(
+          `sign out (token ${storage.getItem(TOKEN) ? 'held' : 'gone'})`
+        )
+        storage.removeItem(TOKEN)
+      },
+      storage,
+      async () => void order.push('cleanups'),
+      async () =>
+        void order.push(
+          `before (token ${storage.getItem(TOKEN) ? 'held' : 'gone'})`
+        )
+    )
+    expect(order).toEqual([
+      'before (token held)',
+      'sign out (token held)',
+      'cleanups',
+    ])
+  })
+
+  it('runs no action before sign-out when the session already ended', async () => {
+    const storage = memoryStorage({ [SIGNED_IN_MARKER]: '1' })
+    const before = vi.fn(async () => {})
+    await signOutHere(
+      async () => {},
+      storage,
+      async () => {},
+      before
+    )
+    expect(before).not.toHaveBeenCalled()
+  })
+
+  it('signs out even when an action before it fails', async () => {
+    const storage = memoryStorage({ [TOKEN]: 't', [SIGNED_IN_MARKER]: '1' })
+    const signOut = vi.fn(async () => void storage.removeItem(TOKEN))
+    await signOutHere(
+      signOut,
+      storage,
+      async () => {},
+      async () => {
+        throw new Error('offline')
+      }
+    )
+    expect(signOut).toHaveBeenCalledTimes(1)
+  })
+
   it('removes a record a teardown writes after sign-out on the next load', async () => {
     const storage = memoryStorage({ [TOKEN]: 't', [SIGNED_IN_MARKER]: '1' })
     await signOutHere(async () => void storage.removeItem(TOKEN), storage)
