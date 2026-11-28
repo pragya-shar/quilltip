@@ -13,6 +13,8 @@ interface PaymentPanelProps {
   titleRef?: Ref<HTMLHeadingElement & HTMLParagraphElement>
   children?: ReactNode
   actions?: ReactNode
+  /** Ids the title reads as its description; the whole detail by default. */
+  describedBy?: string
   /** `status` for notices that appear on their own; omit inside a live region. */
   role?: 'status' | 'alert'
   /** Plays the entrance once, for a state reached after mount. */
@@ -33,6 +35,7 @@ export function PaymentPanel({
   titleRef,
   children,
   actions,
+  describedBy,
   role,
   enter = false,
   className,
@@ -57,7 +60,9 @@ export function PaymentPanel({
           className="pay-panel-title"
           tabIndex={headingLevel ? -1 : undefined}
           // A focused result title reads its detail as the description.
-          aria-describedby={headingLevel && children ? detailId : undefined}
+          aria-describedby={
+            headingLevel && children ? (describedBy ?? detailId) : undefined
+          }
         >
           {title}
         </Title>

@@ -203,6 +203,9 @@ export function dialogFocusHandlers(
     onOpenAutoFocus(event: Event) {
       opener.current = recordOpener(content.current)
       options.onOpenAutoFocus?.(event)
+      // From here, content may move focus (components/payments/focus): the
+      // dialog's own first focus is placed in this handler.
+      content.current?.setAttribute('data-focus-ready', '')
       if (event.defaultPrevented || options.initialFocus !== 'title') return
       const root = content.current
       const id = root?.getAttribute('aria-labelledby')

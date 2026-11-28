@@ -487,6 +487,14 @@
   font-size: 14px;
   line-height: 1.5;
 }
+/* Announced, the note is a heading that can take focus (#610). */
+.pay-note-title:focus {
+  outline: none;
+}
+.pay-note-title:focus-visible {
+  outline: 2px solid var(--ui-ring);
+  outline-offset: 3px;
+}
 
 /* Quick-tip key row --------------------------------------------------------- */
 
