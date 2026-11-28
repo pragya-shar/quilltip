@@ -89,19 +89,21 @@ test('the reading room page sends no cover from another host (#633)', async () =
   expect(coverOf(rows, other)).toBeUndefined()
 })
 
-test('getArticleBySlug sends no cover from another host (#633)', async () => {
-  const { t } = await setup()
-  const own = await t.query(api.articles.getArticleBySlug, {
-    username: 'cover-writer',
-    slug: 'own',
-  })
-  const other = await t.query(api.articles.getArticleBySlug, {
-    username: 'cover-writer',
-    slug: 'other',
-  })
-  expect(own?.coverImage).toBe(ownCover)
-  expect(other?.coverImage).toBeUndefined()
-  expect(JSON.stringify(other)).not.toContain('someone-else-456')
+test("the article page's data, live query included, holds no outside cover (#633)", async () => {
+  // getArticleBySlug is the article page's server read and its live query;
+  // the page renders no cover, and this is the control for its address.
+  const { t, reader, author } = await setup()
+  const args = (slug: string) => ({ username: 'cover-writer', slug })
+  for (const caller of [t, reader, author]) {
+    const own = await caller.query(api.articles.getArticleBySlug, args('own'))
+    const other = await caller.query(
+      api.articles.getArticleBySlug,
+      args('other')
+    )
+    expect(own?.coverImage).toBe(ownCover)
+    expect(other?.coverImage).toBeUndefined()
+    expect(JSON.stringify(other)).not.toContain('someone-else-456')
+  }
 })
 
 test('getArticleById gives readers no outside cover, and its author the stored one (#633)', async () => {

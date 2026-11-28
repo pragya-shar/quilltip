@@ -128,15 +128,13 @@ describe('article covers (#615)', () => {
     )
   })
 
-  it('the article view and the writing workspace use the same check', async () => {
+  it('the writing workspace uses the same check', async () => {
     const { readFileSync } = await import('node:fs')
     const { join } = await import('node:path')
-    const read = (path: string) =>
-      readFileSync(join(__dirname, '../..', path), 'utf8')
-    expect(read('components/articles/ArticlePageClient.tsx')).toContain(
-      'coverImage: shownCoverImage(article.coverImage),'
+    const workspace = readFileSync(
+      join(__dirname, '../../components/editor/WritingWorkspaceView.tsx'),
+      'utf8'
     )
-    const workspace = read('components/editor/WritingWorkspaceView.tsx')
     expect(workspace).toContain('if (shownCoverImage(w.coverImage)) {')
     expect(workspace).toContain('{shownCoverImage(w.coverImage) ? (')
   })
