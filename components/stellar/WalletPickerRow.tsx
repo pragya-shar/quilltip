@@ -73,6 +73,8 @@ export function WalletPickerRow({
         type="button"
         className="wallet-install-option wallet-picker-option"
         aria-disabled={pending !== null && !isPending}
+        // A wallet the reader can use now; the picker focuses the first.
+        data-wallet-choice=""
         onClick={onChoose}
       >
         {body}

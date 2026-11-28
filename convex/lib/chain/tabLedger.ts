@@ -66,8 +66,48 @@ export const TAB_PREPARE_TTL_MS = 300_000
 export const TAB_PRICE_MAX_AGE_MS = 30 * 60 * 1000
 export const DEFAULT_TAB_DAILY_LIMIT = BigInt(200_000_000)
 export const DEFAULT_TAB_TIP_MAX = BigInt(50_000_000)
-/** Out-of-order bookkeeping kept per account (see `applyBalanceDebit`). */
-export const MAX_SETTLED_SINCE_BALANCE = 256
+/**
+ * Most debit rows one absolute balance may read (`debitsAfter`). Far below
+ * Convex's per-transaction read limit, which also has to cover the rest of
+ * an indexer page. `TAB_DEBIT_SCAN_LIMIT` lowers it for tests.
+ */
+export const DEFAULT_DEBIT_SCAN_LIMIT = 1000
+
+function debitScanLimit(): number {
+  const value = Number(process.env.TAB_DEBIT_SCAN_LIMIT)
+  return Number.isInteger(value) && value > 0
+    ? Math.min(value, DEFAULT_DEBIT_SCAN_LIMIT)
+    : DEFAULT_DEBIT_SCAN_LIMIT
+}
+
+/**
+ * Debit rows one mutation may read and delete across all the events it
+ * dispatches (an indexer page holds up to 250). Convex caps a transaction
+ * at 32,000 documents read and 16,000 written; these leave room for every
+ * other read and write of the page. `TAB_DEBIT_READ_BUDGET` lowers the
+ * read budget for tests.
+ */
+export const DEFAULT_DEBIT_READ_BUDGET = 8000
+export const DEFAULT_DEBIT_DELETE_BUDGET = 2000
+
+export type DebitBudget = { reads: number; deletes: number }
+
+/** A fresh budget for one mutation. */
+export function newDebitBudget(): DebitBudget {
+  const value = Number(process.env.TAB_DEBIT_READ_BUDGET)
+  return {
+    reads:
+      Number.isInteger(value) && value >= 0
+        ? Math.min(value, DEFAULT_DEBIT_READ_BUDGET)
+        : DEFAULT_DEBIT_READ_BUDGET,
+    deletes: DEFAULT_DEBIT_DELETE_BUDGET,
+  }
+}
+
+/** Covered debit rows deleted per absolute balance (`pruneBalanceDebits`). */
+export const DEBIT_PRUNE_BATCH = 500
+/** Covered debit rows deleted with each new debit, so a backlog drains. */
+export const DEBIT_PRUNE_STEP = 8
 
 const ZERO = BigInt(0)
 const STROOPS_PER_XLM = 10_000_000
@@ -335,6 +375,12 @@ export async function checkTabTip(
     tabError(
       account.status === 'CLOSING' ? 'TAB_CLOSING' : 'TAB_CLOSED',
       'This tab is closing and accepts no new tips.'
+    )
+  }
+  if (account.reconcileRequired) {
+    tabError(
+      'TAB_RECONCILE_PENDING',
+      'The tab balance is being checked against Stellar. Tip from your wallet for now.'
     )
   }
   // The voucher binds the Tab contract. The reader's balance lives in the
@@ -1122,6 +1168,49 @@ function addToRecord(
   return { ...record, [token]: (current + delta).toString() }
 }
 
+/**
+ * Records a `Claimed` event as applied, or returns false when its record
+ * exists (the event was applied before). The caller adds the amount to
+ * collected earnings only when this returns true.
+ */
+export async function recordClaim(
+  ctx: MutationCtx,
+  args: {
+    doc: Pick<
+      Doc<'chainEvents'>,
+      'network' | 'chainEpoch' | 'eventId' | 'txHash' | 'ledger'
+    >
+    recipient: string
+    userId: Id<'users'>
+    token: string
+    amount: bigint
+    source: Doc<'tabClaims'>['source']
+    now: number
+  }
+): Promise<boolean> {
+  const existing = await ctx.db
+    .query('tabClaims')
+    .withIndex('by_epoch_event', (q) =>
+      q.eq('chainEpoch', args.doc.chainEpoch).eq('eventId', args.doc.eventId)
+    )
+    .first()
+  if (existing) return false
+  await ctx.db.insert('tabClaims', {
+    network: args.doc.network,
+    chainEpoch: args.doc.chainEpoch,
+    eventId: args.doc.eventId,
+    txHash: args.doc.txHash,
+    ledger: args.doc.ledger,
+    recipient: args.recipient,
+    userId: args.userId,
+    token: args.token,
+    amount: args.amount.toString(),
+    source: args.source,
+    createdAt: args.now,
+  })
+  return true
+}
+
 /** Adds base-unit deltas to a user's `authorEarnings` row. */
 export async function adjustBaseUnitEarnings(
   ctx: MutationCtx,
@@ -1579,6 +1668,272 @@ export function readerSpendable(
 }
 
 /**
+ * Records a `TabSettled` debit of `confirmedBalance`, or returns false when
+ * it is already counted: the event is older than the applied absolute
+ * balance (which includes it), or its row exists (a replay or a
+ * re-dispatch). Rows written before `tabBalanceDebits` live in
+ * `settledSinceBalance` and are checked too.
+ */
+export async function recordBalanceDebit(
+  ctx: MutationCtx,
+  account: Pick<
+    Doc<'tabAccounts'>,
+    '_id' | 'balanceEventId' | 'settledSinceBalance'
+  >,
+  eventId: string,
+  gross: bigint,
+  now: number,
+  budget: DebitBudget = newDebitBudget()
+): Promise<boolean> {
+  if (account.balanceEventId && eventId < account.balanceEventId) return false
+  if (account.settledSinceBalance.some((s) => s.eventId === eventId)) {
+    return false
+  }
+  const existing = await ctx.db
+    .query('tabBalanceDebits')
+    .withIndex('by_account_event', (q) =>
+      q.eq('tabAccountId', account._id).eq('eventId', eventId)
+    )
+    .first()
+  if (existing) return false
+  await ctx.db.insert('tabBalanceDebits', {
+    tabAccountId: account._id,
+    eventId,
+    gross: gross.toString(),
+    createdAt: now,
+  })
+  if (account.balanceEventId) {
+    await pruneBalanceDebits(
+      ctx,
+      account._id,
+      account.balanceEventId,
+      DEBIT_PRUNE_STEP,
+      budget
+    )
+  }
+  return true
+}
+
+/**
+ * The debits applied after `eventId` that an absolute balance from that
+ * event does not include: rows after it, and legacy `settledSinceBalance`
+ * entries after it. Null when there are more rows than one transaction may
+ * read (`DEFAULT_DEBIT_SCAN_LIMIT`): the caller then applies no balance at
+ * all, never a partial one.
+ */
+export async function debitsAfter(
+  ctx: MutationCtx,
+  account: Pick<Doc<'tabAccounts'>, '_id' | 'settledSinceBalance'>,
+  eventId: string,
+  budget: DebitBudget = newDebitBudget()
+): Promise<bigint | null> {
+  // Per event, and what is left of the mutation's budget.
+  const limit = Math.max(0, Math.min(debitScanLimit(), budget.reads))
+  const rows = await ctx.db
+    .query('tabBalanceDebits')
+    .withIndex('by_account_event', (q) =>
+      q.eq('tabAccountId', account._id).gt('eventId', eventId)
+    )
+    .take(limit + 1)
+  budget.reads = Math.max(0, budget.reads - rows.length)
+  if (rows.length > limit) return null
+  return [
+    ...account.settledSinceBalance.filter((s) => s.eventId > eventId),
+    ...rows,
+  ].reduce((total, s) => total + big(s.gross), ZERO)
+}
+
+/**
+ * Deletes debit rows older than the applied absolute balance: it includes
+ * them, and a re-dispatch of their events is skipped by id. At most
+ * `DEBIT_PRUNE_BATCH` per call; rows left over are never read again and go
+ * with a later balance.
+ */
+export async function pruneBalanceDebits(
+  ctx: MutationCtx,
+  tabAccountId: Id<'tabAccounts'>,
+  beforeEventId: string,
+  limit = DEBIT_PRUNE_BATCH,
+  budget: DebitBudget = newDebitBudget()
+): Promise<number> {
+  const take = Math.max(0, Math.min(limit, budget.deletes))
+  if (take === 0) return 0
+  const rows = await ctx.db
+    .query('tabBalanceDebits')
+    .withIndex('by_account_event', (q) =>
+      q.eq('tabAccountId', tabAccountId).lt('eventId', beforeEventId)
+    )
+    .take(take)
+  for (const row of rows) await ctx.db.delete(row._id)
+  budget.deletes -= rows.length
+  return rows.length
+}
+
+/**
+ * The account's `settledUnindexed` set to `value`, with the time it last
+ * rose above 0 (`settledUnindexedSince`) kept for the operations check.
+ */
+export function unindexedPatch(
+  account: Pick<
+    Doc<'tabAccounts'>,
+    'settledUnindexed' | 'settledUnindexedSince'
+  >,
+  value: bigint,
+  now: number
+): Pick<Doc<'tabAccounts'>, 'settledUnindexed' | 'settledUnindexedSince'> {
+  const before = big(account.settledUnindexed ?? '0')
+  return {
+    settledUnindexed: value.toString(),
+    settledUnindexedSince:
+      value === ZERO
+        ? undefined
+        : before === ZERO || account.settledUnindexedSince === undefined
+          ? now
+          : account.settledUnindexedSince,
+  }
+}
+
+/** The pair's paid amount not yet covered by indexed ranges. */
+export function pairUnindexed(
+  v: Pick<Doc<'tabVouchers'>, '_id' | 'indexedPaid' | 'paidOnChain'>
+): bigint {
+  return unindexedOf(v._id, big(v.paidOnChain), indexedRangesOf(v))
+}
+
+/**
+ * Marks `[0, paidOnChain]` of a pair as indexed without a balance debit and
+ * lowers the account's `settledUnindexed` by what that releases. Only for a
+ * gap whose debit `confirmedBalance` already includes: an absolute balance
+ * from a later ledger, or a balance read from the chain. Returns the amount
+ * released (0 when the pair has no gap).
+ */
+export async function releasePairReserve(
+  ctx: MutationCtx,
+  voucherId: Id<'tabVouchers'>,
+  now: number
+): Promise<bigint> {
+  const voucher = await ctx.db.get(voucherId)
+  if (!voucher) return ZERO
+  const gap = pairUnindexed(voucher)
+  if (gap === ZERO) return ZERO
+  const paid = big(voucher.paidOnChain)
+  await ctx.db.patch(voucher._id, {
+    indexedPaid: addPaidRange(indexedRangesOf(voucher), ZERO, paid),
+    paidLedger: undefined,
+    updatedAt: now,
+  })
+  const account = await ctx.db.get(voucher.tabAccountId)
+  if (account) {
+    const unindexed = flagNegative(
+      big(account.settledUnindexed ?? '0') - gap,
+      'account.settledUnindexed',
+      { tabAccountId: account._id, voucherId: voucher._id }
+    )
+    await ctx.db.patch(account._id, {
+      ...unindexedPatch(account, unindexed, now),
+      updatedAt: now,
+    })
+  }
+  return gap
+}
+
+/**
+ * Releases the reserve of each pair whose unindexed payments all happened
+ * before the account's absolute balance (`paidLedger < balanceLedger`): that
+ * balance already includes their debits, so a lost `TabSettled` no longer
+ * keeps spendable low. When the event arrives later, it is older than the
+ * applied balance (no debit) and its range is already indexed (no release),
+ * so nothing is counted twice. Pairs with an unknown `paidLedger`, and
+ * accounts without a `balanceLedger`, are left to a reconciliation.
+ */
+export async function releaseIncludedReserves(
+  ctx: MutationCtx,
+  tabAccountId: Id<'tabAccounts'>,
+  args: { now: number; eventId?: string; voucherId?: Id<'tabVouchers'> }
+): Promise<void> {
+  const account = await ctx.db.get(tabAccountId)
+  if (!account || account.balanceLedger === undefined) return
+  if (big(account.settledUnindexed ?? '0') === ZERO) return
+  const balanceLedger = account.balanceLedger
+  const vouchers = args.voucherId
+    ? [await ctx.db.get(args.voucherId)].filter(
+        (v): v is Doc<'tabVouchers'> => v !== null
+      )
+    : await ctx.db
+        .query('tabVouchers')
+        .withIndex('by_pair', (q) => q.eq('tabAccountId', tabAccountId))
+        .collect()
+  const released: Doc<'tabReserveReleases'>['pairs'] = []
+  for (const voucher of vouchers) {
+    if (voucher.paidLedger === undefined) continue
+    if (voucher.paidLedger >= balanceLedger) continue
+    const amount = await releasePairReserve(ctx, voucher._id, args.now)
+    if (amount === ZERO) continue
+    released.push({
+      voucherId: voucher._id,
+      keyId: voucher.keyId,
+      writerAddress: voucher.writerAddress,
+      paidBefore: voucher.paidOnChain,
+      paidAfter: voucher.paidOnChain,
+      released: amount.toString(),
+    })
+  }
+  if (released.length === 0) return
+  const after = (await ctx.db.get(tabAccountId))!
+  await recordReserveRelease(ctx, {
+    account,
+    after,
+    source: 'balance_event',
+    ledger: balanceLedger,
+    ...(args.eventId ? { eventId: args.eventId } : {}),
+    pairs: released,
+    now: args.now,
+  })
+}
+
+/** Stores and logs one reserve release (`tabReserveReleases`). */
+export async function recordReserveRelease(
+  ctx: MutationCtx,
+  args: {
+    account: Doc<'tabAccounts'>
+    after: Doc<'tabAccounts'>
+    source: Doc<'tabReserveReleases'>['source']
+    ledger: number
+    eventId?: string
+    pairs: Doc<'tabReserveReleases'>['pairs']
+    note?: string
+    now: number
+  }
+): Promise<void> {
+  const row = {
+    network: args.account.network,
+    chainEpoch: args.account.chainEpoch,
+    tabAccountId: args.account._id,
+    source: args.source,
+    ledger: args.ledger,
+    ...(args.eventId ? { eventId: args.eventId } : {}),
+    pairs: args.pairs,
+    balanceBefore: args.account.confirmedBalance,
+    balanceAfter: args.after.confirmedBalance,
+    settledUnindexedBefore: args.account.settledUnindexed ?? '0',
+    settledUnindexedAfter: args.after.settledUnindexed ?? '0',
+    spendableBefore: readerSpendable(args.account).toString(),
+    spendableAfter: readerSpendable(args.after).toString(),
+    ...(args.note ? { note: args.note } : {}),
+    createdAt: args.now,
+  }
+  await ctx.db.insert('tabReserveReleases', row)
+  console.info(
+    JSON.stringify({
+      code: 'CHAIN_TAB_RESERVE_RELEASED',
+      ...row,
+      pairs: row.pairs.map((p) => ({ ...p, voucherId: String(p.voucherId) })),
+      tabAccountId: String(row.tabAccountId),
+    })
+  )
+}
+
+/**
  * Applies a settled payment to a pair, from the settler's own transaction
  * result or from an indexed `TabSettled` event (`indexedGross` set): the
  * first to arrive raises `paidOnChain` (it only grows) and moves the paid
@@ -1586,6 +1941,11 @@ export function readerSpendable(
  * debits `confirmedBalance` and clears the same amount from
  * `settledUnindexed`, by paid range, so the order and repetition of the two
  * never change spendable (`confirmedBalance − outstanding − settledUnindexed`).
+ *
+ * `sourceLedger` is the ledger of the transaction or event that reports the
+ * payment, a ledger at or after the payment. It bounds the pair's unindexed
+ * gap (`paidLedger`), so a later absolute balance can release it
+ * (`releaseIncludedReserves`).
  */
 export async function applyPairSettlement(
   ctx: MutationCtx,
@@ -1597,6 +1957,8 @@ export async function applyPairSettlement(
     eventId?: string
     /** `TabSettled.gross`: the event's debit, `[paidAfter − gross, paidAfter]`. */
     indexedGross?: bigint
+    /** Ledger of the transaction or event that reports this payment. */
+    sourceLedger?: number
     now: number
   }
 ): Promise<void> {
@@ -1613,16 +1975,33 @@ export async function applyPairSettlement(
           args.paidAfter
         )
       : oldRanges
-  const unindexedDelta =
-    unindexedOf(voucher._id, newPaid, newRanges) -
-    unindexedOf(voucher._id, oldPaid, oldRanges)
+  const gapBefore = unindexedOf(voucher._id, oldPaid, oldRanges)
+  const gapAfter = unindexedOf(voucher._id, newPaid, newRanges)
+  const unindexedDelta = gapAfter - gapBefore
   const rangesChanged =
     voucher.indexedPaid === undefined ||
     rangesTotal(newRanges) !== rangesTotal(oldRanges)
-  if (newPaid > oldPaid || rangesChanged) {
+  // A ledger at or after every payment in the gap. The contract's paid
+  // amount only grows, so the ledger at which it reached `newPaid` bounds
+  // every payment in [0, newPaid]. Without a source ledger the gap's age is
+  // unknown and only a reconciliation releases it.
+  // A ledger of 0 or below is not a real ledger (an RPC answer without
+  // one): treat it as unknown rather than as older than every balance.
+  const sourceLedger =
+    args.sourceLedger !== undefined && args.sourceLedger > 0
+      ? args.sourceLedger
+      : undefined
+  const paidLedger =
+    gapAfter === ZERO
+      ? undefined
+      : newPaid > oldPaid
+        ? sourceLedger
+        : voucher.paidLedger
+  if (newPaid > oldPaid || rangesChanged || paidLedger !== voucher.paidLedger) {
     await ctx.db.patch(voucher._id, {
       ...(newPaid > oldPaid ? { paidOnChain: newPaid.toString() } : {}),
       indexedPaid: newRanges,
+      paidLedger,
       ...(args.eventId &&
       newPaid > oldPaid &&
       (!voucher.lastSettledEventId || voucher.lastSettledEventId < args.eventId)
@@ -1655,7 +2034,7 @@ export async function applyPairSettlement(
       )
       await ctx.db.patch(account._id, {
         outstanding: outstanding.toString(),
-        settledUnindexed: unindexed.toString(),
+        ...unindexedPatch(account, unindexed, args.now),
         updatedAt: args.now,
       })
     }
@@ -1676,7 +2055,47 @@ export async function applyPairSettlement(
     ...(args.eventId ? { settledEventId: args.eventId } : {}),
     now: args.now,
   })
+  // A short payment used the reader's whole balance or the key's headroom:
+  // nothing more is payable until the reader deposits, so the pair waits as
+  // after a `SHORTFALL` skip. Not when this is an older payment than the
+  // pair's paid amount, or a newer absolute balance is already applied
+  // (a deposit after the payment may cover the rest).
+  if (
+    args.paidAfter < args.cumulative &&
+    args.paidAfter === newPaid &&
+    account &&
+    !balanceAppliedSince(account, args.eventId, sourceLedger)
+  ) {
+    await refreshSettleQueue(ctx, voucher._id, args.now, { block: true })
+  }
   await recomputePairEarnings(ctx, voucher._id, args.now)
+  // The settler's record of a payment can arrive after an absolute balance
+  // from a later ledger: that balance already includes the debit.
+  if (gapAfter > ZERO && paidLedger !== undefined) {
+    await releaseIncludedReserves(ctx, voucher.tabAccountId, {
+      now: args.now,
+      voucherId: voucher._id,
+    })
+  }
+}
+
+/**
+ * Whether the account's applied absolute balance is from after a payment:
+ * after its event (`eventId`), or from its ledger or a later one
+ * (`sourceLedger`, the settler's record). Unknown counts as after, so a
+ * pair is never parked on a guess.
+ */
+function balanceAppliedSince(
+  account: Pick<Doc<'tabAccounts'>, 'balanceEventId' | 'balanceLedger'>,
+  eventId: string | undefined,
+  sourceLedger: number | undefined
+): boolean {
+  if (!account.balanceEventId) return false
+  if (eventId !== undefined) return account.balanceEventId > eventId
+  if (sourceLedger === undefined || account.balanceLedger === undefined) {
+    return true
+  }
+  return account.balanceLedger >= sourceLedger
 }
 
 type ClosedState = 'UNPAID' | 'VOID_RESET' | 'REJECTED'

@@ -13,6 +13,18 @@ import { createHash } from 'crypto'
 import { createServer, type Server } from 'http'
 import { answerFixtureQuery } from './convex-fixture'
 
+/**
+ * How the backend answers queries, for checks of a slow or failing backend:
+ * - normal: at once;
+ * - slow: after `delayMs`;
+ * - silent: never (the request stays open until the server closes);
+ * - error: at once, with a server error.
+ */
+export const fixtureBackendBehaviour: {
+  mode: 'normal' | 'slow' | 'silent' | 'error'
+  delayMs: number
+} = { mode: 'normal', delayMs: 0 }
+
 export function startFixtureBackend(port: number): Server {
   let delayMs = 0
   let failing = false
@@ -29,6 +41,17 @@ export function startFixtureBackend(port: number): Server {
       return
     }
     if (request.method === 'POST' && request.url === '/api/query') {
+      // The in-process switch first, then the HTTP controls above (their
+      // `delayMs` is a different setting, so it is not shadowed here).
+      const behaviour = fixtureBackendBehaviour
+      if (behaviour.mode === 'silent') return
+      if (behaviour.mode === 'slow')
+        await new Promise((r) => setTimeout(r, behaviour.delayMs))
+      if (behaviour.mode === 'error') {
+        response.writeHead(500, { 'content-type': 'text/plain' })
+        response.end('Fixture backend error')
+        return
+      }
       const chunks: Buffer[] = []
       for await (const chunk of request) chunks.push(chunk as Buffer)
       const body = JSON.parse(Buffer.concat(chunks).toString()) as {

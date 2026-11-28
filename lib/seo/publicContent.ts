@@ -3,6 +3,7 @@ import { unstable_cache } from 'next/cache'
 import { fetchQuery } from 'convex/nextjs'
 import type { FunctionArgs } from 'convex/server'
 import { api } from '@/convex/_generated/api'
+import { PUBLIC_READ_TIMEOUT_MS } from '@/lib/seo/publicReadTimeout'
 import {
   PROFILE_ARTICLES_PER_PAGE,
   toProfileArticlesPage,
@@ -12,10 +13,41 @@ import {
  * Server-side reads for public pages. These run without the visitor's auth token,
  * so they only ever see what an anonymous reader can see: `getArticleBySlug`
  * returns published articles only. `undefined` means the backend could not be
- * reached; the page then falls back to loading on the client.
+ * reached in time; the page then shows a fallback that reads without scripts,
+ * and the client tries again with its live query.
  */
 /** Thrown inside the cached read so a missing article is never cached. */
 class ArticleMissing extends Error {}
+
+class ReadTimeout extends Error {
+  constructor() {
+    super(`Public read took longer than ${PUBLIC_READ_TIMEOUT_MS} ms`)
+  }
+}
+
+/**
+ * Settles with `read`, or rejects with ReadTimeout after the limit. Applied
+ * outside the cache, so a timeout is never stored; a read that finishes later
+ * still fills the cache for the next request.
+ */
+async function withinLimit<T>(read: Promise<T>): Promise<T> {
+  // A read that loses the race may still reject; nobody is waiting for it.
+  read.catch(() => {})
+  let timer: ReturnType<typeof setTimeout> | undefined
+  try {
+    return await Promise.race([
+      read,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new ReadTimeout()),
+          PUBLIC_READ_TIMEOUT_MS
+        )
+      }),
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 /**
  * Seconds a server copy of a published article may be reused. The reader page
@@ -69,7 +101,7 @@ const fetchPublishedArticleCached = cachedFor(
 export const getPublishedArticle = cache(
   async (username: string, slug: string) => {
     try {
-      return await fetchPublishedArticleCached(username, slug)
+      return await withinLimit(fetchPublishedArticleCached(username, slug))
     } catch (error) {
       if (error instanceof ArticleMissing) return null
       console.error('Server article fetch failed', error)
@@ -80,7 +112,9 @@ export const getPublishedArticle = cache(
 
 export const getPublicProfile = cache(async (username: string) => {
   try {
-    return await fetchQuery(api.users.getUserByUsername, { username })
+    return await withinLimit(
+      fetchQuery(api.users.getUserByUsername, { username })
+    )
   } catch (error) {
     console.error('Server profile fetch failed', error)
     return undefined
@@ -94,11 +128,13 @@ export const getPublicProfile = cache(async (username: string) => {
 export const getPublicProfileArticles = cache(
   async (username: string, page: number) => {
     try {
-      const data = await fetchQuery(api.articles.listArticles, {
-        author: username,
-        page,
-        limit: PROFILE_ARTICLES_PER_PAGE,
-      })
+      const data = await withinLimit(
+        fetchQuery(api.articles.listArticles, {
+          author: username,
+          page,
+          limit: PROFILE_ARTICLES_PER_PAGE,
+        })
+      )
       return toProfileArticlesPage(data)
     } catch (error) {
       console.error('Server profile articles fetch failed', error)
@@ -117,10 +153,10 @@ export async function movedPublicPath(
   searchParams: Record<string, string | string[] | undefined>
 ): Promise<string | null> {
   try {
-    const route = await fetchQuery(api.publicRoutes.resolvePublicRoute, {
-      username,
-      slug,
-    })
+    // Out of time: treated as not moved, so the missing page answers 404.
+    const route = await withinLimit(
+      fetchQuery(api.publicRoutes.resolvePublicRoute, { username, slug })
+    )
     if (route.kind !== 'moved') return null
     const base = `/${encodeURIComponent(route.username)}`
     const path =
@@ -155,7 +191,7 @@ export const getReadingRoomList = cache(
   async (args: FunctionArgs<typeof api.articles.listArticles>) => {
     if (args.search || args.bookmarkIds) return undefined
     try {
-      return await fetchReadingRoomCached(args)
+      return await withinLimit(fetchReadingRoomCached(args))
     } catch (error) {
       console.error('Server reading room fetch failed', error)
       return undefined

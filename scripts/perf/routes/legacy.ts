@@ -24,12 +24,14 @@ export const LEGACY_FIRST_LOAD: readonly ({
     page: 'app/(legacy)/(auth)/login/page.tsx',
     budgetKb: 202,
   }, // measured 199.4
-  { route: '/articles', page: 'app/(legacy)/articles/page.tsx', budgetKb: 216 }, // measured 214.0
+  // The two article routes carry the balance store in their first load and
+  // the early-press and focus code of the chrome they share.
+  { route: '/articles', page: 'app/(legacy)/articles/page.tsx', budgetKb: 219 }, // measured 217.3
   {
     route: '/[username]/[slug]',
     page: 'app/(legacy)/[username]/[slug]/page.tsx',
-    budgetKb: 219,
-  }, // measured 216.9
+    budgetKb: 222,
+  }, // measured 220.4
 ]
 
 export const LEGACY_PAGE_LOAD: readonly (PageLoadRoute & Served)[] = [
@@ -58,8 +60,9 @@ export const LEGACY_PAGE_LOAD: readonly (PageLoadRoute & Served)[] = [
     name: 'article',
     path: FIXTURE_ARTICLE_PATH,
     page: 'app/(legacy)/[username]/[slug]/page.tsx',
-    // Measured: HTML 40 KB, stylesheets 26 KB, fonts 98 KB.
-    budget: { htmlKb: 44, cssKb: 28, fontKb: 101 },
+    // Measured: HTML 45 KB (the reading text is in the first response now),
+    // stylesheets 26 KB, fonts 98 KB.
+    budget: { htmlKb: 48, cssKb: 28, fontKb: 101 },
   },
 ]
 

@@ -43,12 +43,12 @@ Use "moves you" consistently — not "resonates."
 
 ## Testnet explanation tiers
 
-| Tier      | Where                                                   | Example                               |
-| --------- | ------------------------------------------------------- | ------------------------------------- |
-| Badge     | Footer, features section                                | Testnet — practice funds only         |
-| Label     | Beside every payment amount and transaction link        | Stellar testnet · Practice funds only |
-| One-liner | Features badge only on landing (no duplicate paragraph) | Live on Stellar Testnet badge         |
-| Deep      | FAQ (dedicated question), guide tabs, wallet settings   | Freighter, XLM, Soroban detail        |
+| Tier      | Where                                                   | Example                                          |
+| --------- | ------------------------------------------------------- | ------------------------------------------------ |
+| Badge     | Footer, features section                                | Testnet — practice funds only                    |
+| Label     | Beside every payment amount and transaction link        | Stellar testnet · Practice funds only            |
+| One-liner | Features badge only on landing (no duplicate paragraph) | Live on Stellar Testnet badge                    |
+| Deep      | FAQ (dedicated question), guide tabs, wallet settings   | Varial (formerly Freighter), XLM, Soroban detail |
 
 Do not repeat the full `practiceFundsNote()` paragraph on landing trust section or features subhead when the badge is present.
 
