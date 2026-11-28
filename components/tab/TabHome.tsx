@@ -15,7 +15,7 @@ import {
   TAB_SETTLEMENT,
 } from '@/lib/copy/tab'
 import { localKeyIds } from '@/lib/tab-ui/key-plan'
-import { tabBalances } from '@/lib/tab-ui/tab-status'
+import { tabBalances, tabShortBy } from '@/lib/tab-ui/tab-status'
 import { TabBalance } from './TabBalance'
 import { TabCloseSection } from './TabCloseSection'
 import { TabDeviceKeys } from './TabDeviceKeys'
@@ -128,6 +128,9 @@ export function TabHome() {
     </WalletGate>
   )
 
+  // Tips already sent exceed an open tab's balance: the Top up below is the
+  // way out, so the notice carries no action of its own.
+  const short = tab?.status === 'OPEN' ? tabShortBy(tab) : null
   const conditions = (
     <>
       {paused ? <PaymentNotice kind="paused" audience="reader" /> : null}
@@ -146,6 +149,9 @@ export function TabHome() {
         />
       ) : settlement.kind === 'delayed' ? (
         <PaymentNotice kind="settlement-delayed" audience="reader" />
+      ) : null}
+      {short ? (
+        <PaymentNotice kind="insufficient-balance" source="tab" short={short} />
       ) : null}
     </>
   )
