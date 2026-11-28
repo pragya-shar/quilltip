@@ -48,8 +48,10 @@ export const cleanups: readonly SignOutCleanup[] = [
 export const beforeSignOut: readonly SignOutAction[] = [
   {
     name: 'stop quick tips keys',
-    run: () =>
-      import('@/lib/payments/signOutStop').then((m) => m.signOutStop.run()),
+    run: ({ userId }) =>
+      import('@/lib/payments/signOutStop').then((m) =>
+        m.signOutStop.run(userId)
+      ),
   },
 ]
 

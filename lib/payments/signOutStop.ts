@@ -12,7 +12,8 @@
  * so only while the key is still live then. No imports: safe in any first
  * load.
  */
-type Stop = () => Promise<void>
+/** The engine's stop, for the reader signing out. */
+type Stop = (userId: string) => Promise<void>
 
 let current: Stop | null = null
 
@@ -34,9 +35,14 @@ export const signOutStop = {
       if (current === stop) current = null
     }
   },
-  /** Stops this browser's keys in Quilltip, when an engine is running. */
-  async run(): Promise<void> {
-    await current?.()
+  /**
+   * Stops this browser's keys in Quilltip for the reader signing out, when
+   * an engine is running. With no reader named it does nothing: it never
+   * guesses whose keys to stop.
+   */
+  async run(userId: string | null): Promise<void> {
+    if (!userId) return
+    await current?.(userId)
   },
 }
 

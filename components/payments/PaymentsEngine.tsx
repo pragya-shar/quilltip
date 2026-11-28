@@ -274,7 +274,9 @@ export function PaymentsEngine() {
     const retry = unconfirmedStops(userId).filter((id) => live.has(id))
     if (retry.length > 0)
       void stopKeys(userId, retry, (keyId) => stopKey({ keyId }))
-    return signOutStop.set(async () => {
+    return signOutStop.set(async (signingOut) => {
+      // Only the reader this engine is bound to.
+      if (signingOut !== userId) return
       const held = await signer.heldKeyIds()
       await stopKeys(
         userId,

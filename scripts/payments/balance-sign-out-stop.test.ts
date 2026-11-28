@@ -31,7 +31,15 @@ describe('before sign-out, Quilltip stops this browser’s quick-tips keys', () 
     off()
     await beforeSignOut[0]!.run({ userId: 'reader' })
     expect(stopped).toEqual([7])
-    await expect(signOutStop.run()).resolves.toBeUndefined()
+    await expect(signOutStop.run('reader')).resolves.toBeUndefined()
+  })
+
+  it('does nothing when no reader is named: it never guesses whose keys', async () => {
+    let called = 0
+    const off = signOutStop.set(async () => void (called += 1))
+    await beforeSignOut[0]!.run({ userId: null })
+    expect(called).toBe(0)
+    off()
   })
 
   it('calls the stop within the shell’s bound, and signing out completes when it is slow or fails', async () => {
@@ -45,7 +53,9 @@ describe('before sign-out, Quilltip stops this browser’s quick-tips keys', () 
         await stop()
       })
       const started = Date.now()
-      const unfinished = await runBeforeSignOut(beforeSignOut)
+      const unfinished = await runBeforeSignOut(beforeSignOut, {
+        userId: 'reader',
+      })
       expect(called).toBe(1)
       expect(Date.now() - started).toBeLessThan(BEFORE_LIMIT_MS + 400)
       expect(unfinished).toEqual(['stop quick tips keys'])
@@ -72,7 +82,7 @@ describe('before sign-out, Quilltip stops this browser’s quick-tips keys', () 
       },
       storage,
       async () => {},
-      () => runBeforeSignOut(beforeSignOut)
+      () => runBeforeSignOut(beforeSignOut, { userId: 'reader' })
     ).catch(() => {})
     expect(stopRan).toBe(true)
     expect(signedOut).toBe(true)
