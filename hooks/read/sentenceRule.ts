@@ -1,13 +1,13 @@
 /**
  * COPY of the sentence rule of `lib/passages/sentences.ts` from pull request
- * 603 (passage identity, scheme `quilltip-passage-v1`) at c2eb6dc7: the
- * canonical text, the sentence splitter, `sentenceRange` and
- * `normalizePassageText`, unchanged. One rule for every engine, Node and
- * Convex, with no `Intl.Segmenter`, so offsets and `#s-{p}-{k}` anchors are
- * the same everywhere. Delete this file when 603 merges and import from
- * `@/lib/passages/sentences` instead; its vectors test
- * (`scripts/read/sentence-rule.test.ts`) pins this copy to 603's vectors
- * until then. See 603's file header for the rule itself.
+ * 603 (passage identity, scheme `quilltip-passage-v1`) at 3adc836a: the
+ * canonical text, the sentence splitter, `sentenceRange`,
+ * `hasLongCombiningRun` and `normalizePassageText`, unchanged. One rule for
+ * every engine, Node and Convex, with no `Intl.Segmenter`, so offsets and
+ * `#s-{p}-{k}` anchors are the same everywhere. Delete this file when 603
+ * merges and import from `@/lib/passages/sentences` instead; its vectors
+ * test (`scripts/read/sentence-rule.test.ts`) pins this copy to 603's
+ * vectors until then. See 603's file header for the rule itself.
  */
 export type CanonicalBlock = {
   /** Offset of the block's first character. */
@@ -112,23 +112,11 @@ export function canonicalText(content: unknown): CanonicalText {
  * Characters that end a sentence when whitespace, a hard break or the block
  * end follows: full stop, exclamation and question marks, ellipsis,
  * interrobang, the Devanagari danda (U+0964) and double danda (U+0965), the
- * Arabic question mark (U+061F), the Arabic full stop (U+06D4), the Armenian
- * full stop (U+0589) and the Greek question mark (U+037E, written as an escape
- * because it looks like a semicolon; a plain semicolon never ends a sentence).
+ * Arabic question mark (U+061F), the Arabic full stop (U+06D4) and the
+ * Armenian full stop (U+0589). Not the Greek question mark (U+037E): its NFC
+ * form is the semicolon, which never ends a sentence (rule 4).
  */
-const TERMINATORS = new Set([
-  '.',
-  '!',
-  '?',
-  '…',
-  '‽',
-  '।',
-  '॥',
-  '؟',
-  '۔',
-  '։',
-  '\u037e',
-])
+const TERMINATORS = new Set(['.', '!', '?', '…', '‽', '।', '॥', '؟', '۔', '։'])
 /**
  * Terminators that end a sentence with no space after them: the ideographic
  * full stop (U+3002), the full-width exclamation and question marks (U+FF01,
@@ -217,8 +205,28 @@ const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
 const DECIMAL_DIGIT = /^\p{Nd}$/u
 const DIGITS = /^\p{Nd}+$/u
 
-/** The longest word, in UTF-16 units, read back from a stop (rule 4c). */
+/**
+ * The longest word read back from a stop (rule 4c), in characters that are
+ * not combining marks, so a precomposed and a decomposed word count alike.
+ */
 export const MAX_WORD_LOOKBACK = 32
+
+/**
+ * The longest run of combining marks (`\p{M}`) a searchable text may hold.
+ * NFC is slow on longer runs, so the share paths refuse such an article and
+ * `legacyPassageOf` does not snap in one (see `hasLongCombiningRun`).
+ */
+export const MAX_COMBINING_MARK_RUN = 32
+const LONG_COMBINING_RUN = new RegExp(
+  `\\p{M}{${MAX_COMBINING_MARK_RUN + 1},}`,
+  'u'
+)
+const COMBINING_MARK = /^\p{M}$/u
+
+/** True when `text` has a run of more than `MAX_COMBINING_MARK_RUN` marks. */
+export function hasLongCombiningRun(text: string): boolean {
+  return LONG_COMBINING_RUN.test(text)
+}
 
 /** The full-width full stop, which is also a decimal point (rule 4d). */
 const FULL_WIDTH_STOP = '\uff0e'
@@ -231,9 +239,10 @@ function codePointString(text: string, i: number): string {
 
 /**
  * The word that ends at `stop` (exclusive): back to whitespace, a hard break
- * (`gaps`) or `from`, with opening marks removed. Null when it is longer than
- * `MAX_WORD_LOOKBACK`. `opensSentence`: it starts at `from` with no opening
- * mark.
+ * (`gaps`) or `from`, in NFC, with opening marks removed. Null when it has
+ * more than `MAX_WORD_LOOKBACK` characters that are not combining marks, or
+ * a run of marks longer than `MAX_COMBINING_MARK_RUN`. `opensSentence`: it
+ * starts at `from` with no opening mark.
  */
 function wordBefore(
   text: string,
@@ -242,11 +251,28 @@ function wordBefore(
   gaps: Set<number>
 ): { word: string; opensSentence: boolean } | null {
   let i = stop
+  let letters = 0
+  let marks = 0
   while (i > from && !isWhitespace(text[i - 1]) && !gaps.has(i)) {
-    if (stop - i === MAX_WORD_LOOKBACK) return null
-    i--
+    // One code point back (a surrogate pair is one).
+    const low = text.charCodeAt(i - 1)
+    const step =
+      low >= 0xdc00 &&
+      low <= 0xdfff &&
+      i - 2 >= from &&
+      text.charCodeAt(i - 2) >= 0xd800 &&
+      text.charCodeAt(i - 2) <= 0xdbff
+        ? 2
+        : 1
+    if (COMBINING_MARK.test(text.slice(i - step, i))) {
+      if (++marks > MAX_COMBINING_MARK_RUN) return null
+    } else {
+      if (++letters > MAX_WORD_LOOKBACK) return null
+      marks = 0
+    }
+    i -= step
   }
-  const raw = text.slice(i, stop)
+  const raw = text.slice(i, stop).normalize('NFC')
   const word = raw.replace(OPENERS, '')
   return { word, opensSentence: i === from && word === raw }
 }
@@ -272,8 +298,8 @@ function keepsSentenceOpen(
     return true
   // Dotted letters ("U.S.", "a.m.") never end a sentence by themselves.
   if (/^(?:\p{L}\.)+\p{L}$/u.test(word)) return true
-  // A list number that opens the sentence ("1. First").
-  if (/^\d+$/.test(word) && before.opensSentence) return true
+  // A list number that opens the sentence ("1. First", "१. पहला").
+  if (DIGITS.test(word) && before.opensSentence) return true
   return false
 }
 

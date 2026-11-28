@@ -38,3 +38,23 @@ test('the sentence rule cuts every vector the same in this engine', async ({
   // Most cases are one block; the view's path ran on them.
   expect(viewed).toBeGreaterThan(vectors.cases.length / 2)
 })
+
+test('a paragraph with a long run of combining marks still splits, quickly', async ({
+  page,
+}) => {
+  // Such text is refused for sharing by the shared rule; reading and
+  // choosing a line must still work, in this engine, without a stall.
+  await page.goto('/vectors')
+  await page.waitForFunction(() => typeof window.__timeSpans === 'function')
+  for (const marks of [40, 10_000, 45_000]) {
+    const result = await page.evaluate(
+      (marks) =>
+        window.__timeSpans(
+          `Before. A${'\u0301'.repeat(marks)} word here. After.`
+        ),
+      marks
+    )
+    expect(result.count, `${marks} marks`).toBe(3)
+    expect(result.ms, `${marks} marks`).toBeLessThan(250)
+  }
+})

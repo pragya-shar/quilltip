@@ -122,3 +122,30 @@ describe('the sentence at a line', () => {
     expect(sentenceAtLine(root, 0)?.text).toBe('She kept a ledger.')
   })
 })
+
+describe('canonically equivalent text', () => {
+  it('splits a decomposed paragraph where the stored-text rule does', async () => {
+    const { lineSentences } = await import('@/hooks/read/passageOffsets')
+    const { canonicalText, sentencesOf } =
+      await import('@/hooks/read/sentenceRule')
+    for (const text of [
+      'Café au lait. Next one.',
+      'Café au lait. Next one.',
+      'Mme. Léa came. She sat.',
+      'ṕ. 5 is here. Then more.',
+    ]) {
+      const root = document.createElement('div')
+      root.innerHTML = `<p>${text}</p>`
+      document.body.append(root)
+      const view = lineSentences(root).map((p) => [p.startOffset, p.endOffset])
+      const rule = sentencesOf(
+        canonicalText({
+          type: 'doc',
+          content: [{ type: 'paragraph', content: [{ type: 'text', text }] }],
+        })
+      ).map((s) => [s.start, s.end])
+      expect(view, text).toEqual(rule)
+      root.remove()
+    }
+  })
+})

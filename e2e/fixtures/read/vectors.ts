@@ -4,6 +4,7 @@
 // and in WebKit, so a difference between engines fails a test.
 import { lineSentences } from '../../../hooks/read/passageOffsets'
 import { canonicalText, sentencesOf } from '../../../hooks/read/sentenceRule'
+import { sentenceSpans } from '../../../hooks/read/sentences'
 
 type Case = { name: string; content: unknown; html: string | null }
 type Result = {
@@ -16,6 +17,7 @@ declare global {
   interface Window {
     __VECTORS__: Case[]
     __runVectors: () => Result[]
+    __timeSpans: (text: string) => { count: number; ms: number }
   }
 }
 
@@ -32,3 +34,10 @@ window.__runVectors = () =>
     root.remove()
     return { name, rule, view }
   })
+
+/** The view's split of one block's text, and how long it took here. */
+window.__timeSpans = (text) => {
+  const start = performance.now()
+  const count = sentenceSpans(text).length
+  return { count, ms: performance.now() - start }
+}
