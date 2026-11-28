@@ -42,11 +42,15 @@ async function listen(server: Server): Promise<number> {
   return port
 }
 
+/** The last port start() used, to check that a stopped server is gone. */
+let lastPort = 0
+
 async function start(
   mode: string,
   options: { backend?: Server; backendUrl?: string } = {}
 ) {
   const port = await perfPort('UNSET_PORT_FOR_TEST')
+  lastPort = port
   const app = await startProductionApp(port, `http://127.0.0.1:${port}`, {
     backend: options.backend,
     command: [process.execPath, STAND_IN],
@@ -55,6 +59,20 @@ async function start(
   })
   cleanups.push(() => app?.kill())
   return app
+}
+
+/** A stopped check leaves no server holding its port. */
+async function expectGone(port: number) {
+  const deadline = Date.now() + 3000
+  while (Date.now() < deadline) {
+    const answers = await fetch(`http://127.0.0.1:${port}/login`).then(
+      () => true,
+      () => false
+    )
+    if (!answers) return
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+  throw new Error(`Port ${port} still answers after the check stopped`)
 }
 
 test('a port from the environment, or a free one', async () => {
@@ -87,6 +105,7 @@ test('it stops when the server exits before it answers', async () => {
 
 test('it stops when the answering server serves another build', async () => {
   await expect(start('other')).rejects.toThrow('serves another build')
+  await expectGone(lastPort)
 })
 
 test('it stops when the app does not query the fixture backend', async () => {
@@ -96,6 +115,7 @@ test('it stops when the app does not query the fixture backend', async () => {
   await expect(start('ours', { backend })).rejects.toThrow(
     'did not query the fixture backend'
   )
+  await expectGone(lastPort)
 })
 
 test('it starts when the app queries the fixture backend it was given', async () => {
