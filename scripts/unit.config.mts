@@ -31,6 +31,8 @@ export default defineConfig({
       'scripts/tab/*.test.ts',
       // Tab screens: flows and state models (lib/tab-ui).
       'scripts/tab-ui/*.test.ts',
+      // Dialog focus: where focus returns on close (components/ui).
+      'scripts/ui/*.test.ts',
       // Convex default-runtime code bundled as Convex bundles it.
       'scripts/convex-runtime/*.test.ts',
     ],

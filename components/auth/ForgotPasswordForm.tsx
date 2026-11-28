@@ -12,6 +12,8 @@ import {
   resetRequestErrorCopy,
 } from '@/lib/auth/passwordReset'
 import { AccountField } from './AccountField'
+import { AccountSubmitLabel } from './AccountSubmitLabel'
+import { useEarlySubmit } from './useEarlySubmit'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const RESEND_AFTER_S = 60
@@ -29,9 +31,11 @@ export function ForgotPasswordForm() {
   const [cooldown, setCooldown] = useState(0)
   const sentHeading = useRef<HTMLHeadingElement>(null)
   const emailInput = useRef<HTMLInputElement>(null)
+  const earlySubmit = useEarlySubmit('forgot-password')
 
   useEffect(() => {
-    setEmail(recallResetEmail())
+    // Keep an address typed before the page scripts ran (useEarlySubmit).
+    setEmail((typed) => typed || recallResetEmail())
   }, [])
   // Move focus to the confirmation once it has rendered.
   useEffect(() => {
@@ -136,7 +140,9 @@ export function ForgotPasswordForm() {
     )
 
   return (
-    <form noValidate onSubmit={request} aria-busy={submitting}>
+    // A submit before the page scripts run is held, then sent through
+    // request (useEarlySubmit).
+    <form {...earlySubmit} noValidate onSubmit={request} aria-busy={submitting}>
       {formError && (
         <div
           ref={errorBanner}
@@ -171,13 +177,9 @@ export function ForgotPasswordForm() {
         />
       </AccountField>
       <button className="account-primary" type="submit" disabled={submitting}>
-        {submitting ? (
-          'Sending…'
-        ) : (
-          <>
-            Send reset code <ArrowRight size={20} />
-          </>
-        )}
+        <AccountSubmitLabel busy={submitting} busyLabel="Sending…">
+          Send reset code <ArrowRight size={20} />
+        </AccountSubmitLabel>
       </button>
     </form>
   )

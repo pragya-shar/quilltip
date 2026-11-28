@@ -50,6 +50,7 @@ import {
   applyPairSettlement,
   pairOutstanding,
   pairUnindexed,
+  pruneBalanceDebits,
   readerSpendable,
   recordReserveRelease,
   releasePairReserve,
@@ -347,12 +348,22 @@ export const reconcile = internalMutation({
     // The contract's balance at L replaces the stored one, so nothing the
     // stored balance holds may come from after L: neither its absolute
     // balance nor a `TabSettled` debit applied on top of it (a read from a
-    // node that lags the indexer).
+    // node that lags the indexer). Debits are rows (`tabBalanceDebits`), or
+    // list entries on rows written before them.
+    const laterDebit = await ctx.db
+      .query('tabBalanceDebits')
+      .withIndex('by_account_event', (q) =>
+        q.eq('tabAccountId', account._id).gt('eventId', synthetic)
+      )
+      .first()
     if (
       (account.balanceLedger !== undefined && account.balanceLedger > L) ||
       (account.balanceEventId !== undefined &&
         account.balanceEventId > synthetic) ||
-      account.settledSinceBalance.some((s) => s.eventId > synthetic)
+      account.settledSinceBalance.some((s) => s.eventId > synthetic) ||
+      laterDebit !== null ||
+      (account.reconcileRequired !== undefined &&
+        account.reconcileRequired.eventId > synthetic)
     ) {
       return refuse(
         'STALE_READ',
@@ -396,7 +407,10 @@ export const reconcile = internalMutation({
     const chainBalance = big(args.chain.balance)
     // Debits of missing events that the stored balance does not include.
     const excess = big(account.confirmedBalance) - chainBalance
-    if (excess < ZERO || excess > marked) {
+    // An absolute balance that could not be applied (`reconcileRequired`)
+    // explains any difference: the contract's balance replaces it.
+    const required = account.reconcileRequired !== undefined
+    if (!required && (excess < ZERO || excess > marked)) {
       return refuse(
         'BALANCE_MISMATCH',
         `Stored balance ${account.confirmedBalance}, contract ${chainBalance}: ` +
@@ -432,7 +446,7 @@ export const reconcile = internalMutation({
       marked: p.marked.toString(),
     }))
     const before = figuresOf(account)
-    if (marked === ZERO) {
+    if (marked === ZERO && !required) {
       return {
         status: 'nothing_to_do',
         ledger: L,
@@ -487,8 +501,10 @@ export const reconcile = internalMutation({
       settledSinceBalance: current.settledSinceBalance.filter(
         (s) => s.eventId > synthetic
       ),
+      reconcileRequired: undefined,
       updatedAt: now,
     })
+    await pruneBalanceDebits(ctx, account._id, synthetic)
     const done = (await ctx.db.get(account._id))!
     await recordReserveRelease(ctx, {
       account,
@@ -595,6 +611,34 @@ async function staleReserves(
   return rows
 }
 
+/** Accounts that wait for a reconciliation (`reconcileRequired`). */
+async function reconcileRequired(ctx: QueryCtx, limit: number) {
+  const accounts = await ctx.db
+    .query('tabAccounts')
+    .withIndex('by_reconcile_required', (q) =>
+      q.gt('reconcileRequired.since', 0)
+    )
+    .take(limit)
+  return accounts.map((account) => ({
+    tabAccountId: account._id as string,
+    readerAddress: account.readerAddress,
+    status: account.status,
+    eventId: account.reconcileRequired!.eventId,
+    ledger: account.reconcileRequired!.ledger,
+    since: account.reconcileRequired!.since,
+  }))
+}
+
+/**
+ * Accounts whose absolute balance event could not be applied because more
+ * debits followed it than one transaction may read. They take no tab tip
+ * until `run` reconciles them (or a newer absolute balance applies).
+ */
+export const listReconcileRequired = internalQuery({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, args) => reconcileRequired(ctx, args.limit ?? 50),
+})
+
 /**
  * Accounts whose settlement reserve has stayed above 0 for longer than
  * `olderThanMs` (default an hour): a `TabSettled` that the indexer has not
@@ -619,6 +663,7 @@ export const getStaleReserves = query({
     return {
       olderThanMs: STALE_RESERVE_MS,
       rows: await staleReserves(ctx, STALE_RESERVE_MS, 50),
+      required: await reconcileRequired(ctx, 50),
     }
   },
 })
