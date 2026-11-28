@@ -591,7 +591,7 @@ development deploy key for that deployment. Mainnet is refused as always.
    | `convex import --replace-all -y <file>`              | `import <file>.zip` (section 6.2 only; needs the restore binding below)                         |
    | `convex env set <NAME> <value>`                      | `env-set <NAME> <value>` (non-secret variables of section 3.1; values checked)                  |
    | `convex env remove <NAME>`                           | `env-remove <NAME>` (contract IDs, `INDEXER_START_LEDGER`)                                      |
-   | `convex run <function> '<json>'`                     | `convex-run <function> '<json>'` (functions named in this runbook)                              |
+   | `convex run <function> '<json>'`                     | `convex-run <function> '<json>'` (functions named in this runbook, with their argument names)   |
    | Dashboard pause or resume (section 6.2)              | `pause`, `resume` (recorded only; do it in the dashboard)                                       |
 
    `export` prints the SHA-256 of the file it wrote and logs it.

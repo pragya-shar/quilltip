@@ -1411,19 +1411,36 @@ describe('window approval: the allowed operations', () => {
   })
 
   it('allows every listed function and no other', () => {
+    const needsArgs = [
+      'legacyTipCleanup:run',
+      'authorEarningsBackfill:run',
+      'chain/backfill:setContractVersionV1',
+      'earningsTotalsBackfill:reset',
+      'chain/indexer:replayFrom',
+      'chain/indexer:ingestBackfill',
+    ]
     for (const fn of LIVE_WINDOW_FUNCTIONS) {
-      expect(windowCodes(['convex-run', fn])).toEqual([])
+      expect(windowCodes(['convex-run', fn])).toEqual(
+        needsArgs.includes(fn) ? ['LIVE_WINDOW_OPERATION'] : []
+      )
     }
     expect(LIVE_WINDOW_FUNCTIONS).toEqual([
       'legacyTipCleanup:run',
       'authorEarningsBackfill:run',
-      'chain/backfill:setContractVersionV1',
       'chain/config:getChainConfig',
       'chain/config:refreshChainConfig',
-      'chain/indexer:replayFrom',
-      'chain/indexer:ingestBackfill',
+      'chain/indexer:redispatch',
+      'chain/backfill:setContractVersionV1',
+      'chain/tabClaims:seedClaimRecords',
+      'chain/tabClaims:recomputeCollected',
       'reconcileTips:recoverStuckPendingArticleTips',
       'reconcileTips:recoverStuckPendingHighlightTips',
+      'earningsTotalsBackfill:dryRun',
+      'earningsTotalsBackfill:progress',
+      'earningsTotalsBackfill:retryFailed',
+      'earningsTotalsBackfill:reset',
+      'chain/indexer:replayFrom',
+      'chain/indexer:ingestBackfill',
     ])
     expect(LIVE_WINDOW_OPERATIONS).toEqual([
       'deploy-dry-run',
@@ -1436,6 +1453,232 @@ describe('window approval: the allowed operations', () => {
       'pause',
       'resume',
     ])
+  })
+})
+
+const CURSOR = 'eyJjdXJzb3IiOiJhYmMifQ=='
+const ROW_ID = 'k57a1b2c3d4e5f6g7h8j9k0m1n2p3q4r'
+
+/** The refusal message of a window evaluation, or '' when it is allowed. */
+function windowMessage(args: string[]): string {
+  try {
+    evaluateLiveWindow(args, WINDOW_ENV, WINDOW_FACTS, WINDOW_FILES)
+    return ''
+  } catch (error) {
+    if (error instanceof NetworkGuardError) return error.message
+    throw error
+  }
+}
+
+describe('window approval: every runbook command', () => {
+  it.each([
+    // Stage 1, step 5 (dry runs, then applies).
+    ['legacyTipCleanup:run', '{"table":"tips"}'],
+    ['legacyTipCleanup:run', '{"table":"highlightTips"}'],
+    [
+      'legacyTipCleanup:run',
+      `{"table":"tips","apply":true,"cursor":"${CURSOR}"}`,
+    ],
+    ['authorEarningsBackfill:run', '{"dryRun":true}'],
+    ['authorEarningsBackfill:run', '{"dryRun":false}'],
+    ['chain/config:getChainConfig', undefined],
+    // Stage 3.
+    ['chain/config:refreshChainConfig', undefined],
+    ['chain/indexer:redispatch', undefined],
+    ['chain/indexer:redispatch', '{"limit":500}'],
+    // Stage 4.
+    ['chain/backfill:setContractVersionV1', '{"table":"tips"}'],
+    ['chain/backfill:setContractVersionV1', '{"table":"tips","apply":true}'],
+    [
+      'chain/backfill:setContractVersionV1',
+      `{"table":"articleNFTs","cursor":"${CURSOR}"}`,
+    ],
+    ['chain/tabClaims:seedClaimRecords', '{}'],
+    ['chain/tabClaims:seedClaimRecords', '{"apply": true}'],
+    ['chain/tabClaims:seedClaimRecords', `{"apply":true,"cursor":"${CURSOR}"}`],
+    ['chain/tabClaims:recomputeCollected', '{}'],
+    ['chain/tabClaims:recomputeCollected', `{"cursor":null}`],
+    [
+      'chain/tabClaims:recomputeCollected',
+      `{"apply":true,"note":"Incident 12: claim counted twice","userId":"${ROW_ID}"}`,
+    ],
+    // Stage 5 drain.
+    ['reconcileTips:recoverStuckPendingArticleTips', undefined],
+    ['reconcileTips:recoverStuckPendingHighlightTips', undefined],
+    // Stage 5A.
+    ['earningsTotalsBackfill:dryRun', '{}'],
+    ['earningsTotalsBackfill:dryRun', `{"cursor":"${CURSOR}"}`],
+    ['earningsTotalsBackfill:dryRun', '{"limit":50}'],
+    ['earningsTotalsBackfill:progress', undefined],
+    ['earningsTotalsBackfill:retryFailed', '{}'],
+    ['earningsTotalsBackfill:retryFailed', `{"id":"${ROW_ID}"}`],
+    // Rollback and section 6.2.
+    ['earningsTotalsBackfill:reset', '{"mode":"restart"}'],
+    ['earningsTotalsBackfill:reset', '{"mode":"remove"}'],
+    ['chain/indexer:replayFrom', '{"fromLedger": 123456}'],
+    ['chain/indexer:replayFrom', '{"fromLedger":123456,"gapBackfilled":true}'],
+    ['chain/indexer:ingestBackfill', '{"events":[{"id":"0001"}]}'],
+  ])('allows convex-run %s %s', (fn, json) => {
+    const args =
+      json === undefined ? ['convex-run', fn] : ['convex-run', fn, json]
+    const decision = evaluateLiveWindow(
+      args,
+      WINDOW_ENV,
+      WINDOW_FACTS,
+      WINDOW_FILES
+    )
+    const expected = JSON.stringify(json === undefined ? {} : JSON.parse(json))
+    expect(decision.request?.convexArgs).toEqual(['run', fn, expected])
+    expect(decision.guard.liveWindowApproved).toBe(true)
+  })
+
+  it('allows the writer totals rebuild switch, as true or false only', () => {
+    expect(
+      windowCodes(['env-set', 'EARNINGS_TOTALS_REBUILD_ENABLED', 'true'])
+    ).toEqual([])
+    expect(
+      windowCodes(['env-set', 'EARNINGS_TOTALS_REBUILD_ENABLED', 'false'])
+    ).toEqual([])
+    expect(
+      evaluateLiveWindow(
+        ['env-set', 'EARNINGS_TOTALS_REBUILD_ENABLED', 'true'],
+        WINDOW_ENV,
+        WINDOW_FACTS,
+        WINDOW_FILES
+      ).request?.convexArgs
+    ).toEqual(['env', 'set', 'EARNINGS_TOTALS_REBUILD_ENABLED', 'true'])
+    for (const value of ['TRUE', 'yes', '1', ' true', '']) {
+      expect(
+        windowCodes(['env-set', 'EARNINGS_TOTALS_REBUILD_ENABLED', value])
+      ).toEqual(['LIVE_WINDOW_OPERATION'])
+    }
+    expect(
+      windowCodes(['env-remove', 'EARNINGS_TOTALS_REBUILD_ENABLED'])
+    ).toEqual(['LIVE_WINDOW_OPERATION'])
+  })
+
+  it.each([
+    'chain/tabClaims:seedClaimRecord',
+    'chain/tabClaims:seedclaimrecords',
+    'tabClaims:seedClaimRecords',
+    'chain/tabClaims:recomputeCollected ',
+    'chain/indexer:redispatchPending',
+    'chain/indexer:Redispatch',
+    'earningsTotalsBackfill:run',
+    'earningsTotalsBackfill:resetPage',
+    'earningsTotalsBackfill:dryrun',
+    'earningsTotalsBackfill:progress:',
+    'authorEarningsBackfill:run2',
+    'testAccounts:create',
+  ])('refuses the near-miss function %j', (fn) => {
+    expect(windowCodes(['convex-run', fn, '{}'])).toEqual([
+      'LIVE_WINDOW_OPERATION',
+    ])
+    expect(windowMessage(['convex-run', fn, '{}'])).toContain(
+      'not allowed for that function'
+    )
+  })
+
+  it.each([
+    ['EARNINGS_TOTALS_REBUILD_ENABLE', 'true'],
+    ['EARNINGS_TOTAL_REBUILD_ENABLED', 'true'],
+    ['earnings_totals_rebuild_enabled', 'true'],
+    ['TAB_SETTLER_SECRET', 'S'],
+    ['TAB_ACCEPTOR_SECRET', 'S'],
+    ['ARWEAVE_WALLET_KEY', '{}'],
+    ['ARWEAVE_ENABLED', 'true'],
+  ])('refuses env-set for the near-miss or secret name %s', (name, value) => {
+    expect(windowCodes(['env-set', name, value])).toEqual([
+      'LIVE_WINDOW_OPERATION',
+    ])
+  })
+
+  it.each([
+    // Unknown or misspelled argument names.
+    ['chain/tabClaims:seedClaimRecords', '{"Apply":true}', 'is not allowed'],
+    [
+      'chain/tabClaims:seedClaimRecords',
+      '{"apply":true,"limit":5000}',
+      'is not allowed',
+    ],
+    [
+      'chain/tabClaims:recomputeCollected',
+      '{"apply":true}',
+      'apply needs a note',
+    ],
+    [
+      'chain/tabClaims:recomputeCollected',
+      '{"apply":"true","note":"x"}',
+      'must be true or false',
+    ],
+    [
+      'chain/tabClaims:recomputeCollected',
+      '{"userId":"../../x"}',
+      'must be a document ID',
+    ],
+    [
+      'chain/tabClaims:recomputeCollected',
+      '{"note":"line\\nbreak"}',
+      'printable note',
+    ],
+    ['chain/indexer:redispatch', '{"limit":501}', 'from 1 to 500'],
+    ['chain/indexer:redispatch', '{"limit":0}', 'from 1 to 500'],
+    ['chain/indexer:redispatch', '{"limit":1.5}', 'from 1 to 500'],
+    ['earningsTotalsBackfill:dryRun', '{"limit":51}', 'from 1 to 50'],
+    ['earningsTotalsBackfill:dryRun', '{"cursor":42}', 'page cursor'],
+    ['earningsTotalsBackfill:progress', '{"all":true}', 'allowed: none'],
+    [
+      'earningsTotalsBackfill:retryFailed',
+      '{"id":42}',
+      'must be a document ID',
+    ],
+    ['earningsTotalsBackfill:reset', '{}', 'needs the argument "mode"'],
+    [
+      'earningsTotalsBackfill:reset',
+      '{"mode":"wipe"}',
+      'one of restart, remove',
+    ],
+    ['authorEarningsBackfill:run', '{}', 'needs the argument "dryRun"'],
+    [
+      'authorEarningsBackfill:run',
+      '{"dryRun":"false"}',
+      'must be true or false',
+    ],
+    [
+      'legacyTipCleanup:run',
+      '{"table":"articleNFTs"}',
+      'one of tips, highlightTips',
+    ],
+    [
+      'chain/backfill:setContractVersionV1',
+      '{"table":"users"}',
+      'one of tips, highlightTips, articleNFTs',
+    ],
+    [
+      'chain/backfill:setContractVersionV1',
+      '{"apply":true}',
+      'needs the argument "table"',
+    ],
+    ['chain/indexer:replayFrom', '{"fromLedger":"1"}', 'must be an integer'],
+    ['chain/indexer:replayFrom', '{"fromLedger":-1}', 'must be an integer'],
+    ['chain/indexer:ingestBackfill', '{"events":[]}', 'event objects'],
+    ['chain/indexer:ingestBackfill', '{"events":["x"]}', 'event objects'],
+    ['chain/config:getChainConfig', '{"__proto__":{"x":1}}', 'is not allowed'],
+  ])('refuses %s with %s', (fn, json, reason) => {
+    expect(windowCodes(['convex-run', fn, json])).toEqual([
+      'LIVE_WINDOW_OPERATION',
+    ])
+    expect(windowMessage(['convex-run', fn, json])).toContain(reason)
+  })
+
+  it('does not echo a refused argument value', () => {
+    const message = windowMessage([
+      'convex-run',
+      'chain/tabClaims:recomputeCollected',
+      '{"note":"SECRET-NOTE\\u0000","apply":true}',
+    ])
+    expect(message).toContain('printable note')
+    expect(message).not.toContain('SECRET-NOTE')
   })
 })
 

@@ -189,18 +189,166 @@ export const LIVE_WINDOW_OPERATIONS = [
 
 export type LiveWindowOperation = (typeof LIVE_WINDOW_OPERATIONS)[number]
 
+/** One argument check: null when the value is allowed, else the reason. */
+type ArgCheck = (value: unknown) => string | null
+
+type FunctionShape = {
+  /** Arguments the function may take, each with a value check. */
+  args: Readonly<Record<string, ArgCheck>>
+  /** Arguments that must be present. */
+  required?: readonly string[]
+  /** Extra rule across arguments, for example a note with every apply. */
+  rule?: (args: Readonly<Record<string, unknown>>) => string | null
+}
+
+const isBoolean: ArgCheck = (v) =>
+  typeof v === 'boolean' ? null : 'must be true or false'
+
+const isCursor: ArgCheck = (v) =>
+  v === null || (typeof v === 'string' && /^[\x21-\x7e]{1,2048}$/.test(v))
+    ? null
+    : 'must be a page cursor or null'
+
+function oneOf(...values: readonly string[]): ArgCheck {
+  return (v) =>
+    typeof v === 'string' && values.includes(v)
+      ? null
+      : `must be one of ${values.join(', ')}`
+}
+
+function integer(min: number, max: number): ArgCheck {
+  return (v) =>
+    typeof v === 'number' && Number.isSafeInteger(v) && v >= min && v <= max
+      ? null
+      : `must be an integer from ${min} to ${max}`
+}
+
+/** A Convex document ID (lower-case letters and digits). */
+const isDocumentId: ArgCheck = (v) =>
+  typeof v === 'string' && /^[a-z0-9]{16,64}$/.test(v)
+    ? null
+    : 'must be a document ID'
+
+const isNote: ArgCheck = (v) =>
+  typeof v === 'string' && /^[\x20-\x7e]{1,500}$/.test(v)
+    ? null
+    : 'must be a printable note of up to 500 characters'
+
+const isEventList: ArgCheck = (v) =>
+  Array.isArray(v) &&
+  v.length >= 1 &&
+  v.length <= 1000 &&
+  v.every((e) => e !== null && typeof e === 'object' && !Array.isArray(e))
+    ? null
+    : 'must be a list of 1 to 1000 event objects'
+
+const NO_ARGS: FunctionShape = { args: {} }
+
+/**
+ * The Convex functions the cutover runbook runs on the live deployment, each
+ * with the argument names and values it may take. The list is closed: any
+ * other function, argument name or value shape is refused. The backend
+ * validators check the arguments again.
+ */
+export const LIVE_WINDOW_FUNCTION_SHAPES: Readonly<
+  Record<string, FunctionShape>
+> = {
+  // Stage 1: v1 maintenance jobs.
+  'legacyTipCleanup:run': {
+    args: {
+      table: oneOf('tips', 'highlightTips'),
+      apply: isBoolean,
+      cursor: isCursor,
+    },
+    required: ['table'],
+  },
+  'authorEarningsBackfill:run': {
+    args: { dryRun: isBoolean },
+    required: ['dryRun'],
+  },
+  // Stage 1 check and stage 3.
+  'chain/config:getChainConfig': NO_ARGS,
+  'chain/config:refreshChainConfig': NO_ARGS,
+  // Stage 3 and section 7.2: events that waited for a variable.
+  'chain/indexer:redispatch': { args: { limit: integer(1, 500) } },
+  // Stage 4 and the restore.
+  'chain/backfill:setContractVersionV1': {
+    args: {
+      table: oneOf('tips', 'highlightTips', 'articleNFTs'),
+      apply: isBoolean,
+      cursor: isCursor,
+    },
+    required: ['table'],
+  },
+  'chain/tabClaims:seedClaimRecords': {
+    args: { apply: isBoolean, cursor: isCursor },
+  },
+  'chain/tabClaims:recomputeCollected': {
+    args: {
+      apply: isBoolean,
+      note: isNote,
+      userId: isDocumentId,
+      cursor: isCursor,
+    },
+    // An applied correction carries the incident note (section 6.2).
+    rule: (a) =>
+      a.apply === true && a.note === undefined ? 'apply needs a note' : null,
+  },
+  // Stage 5 drain (dashboard in the runbook; recorded here when run).
+  'reconcileTips:recoverStuckPendingArticleTips': NO_ARGS,
+  'reconcileTips:recoverStuckPendingHighlightTips': NO_ARGS,
+  // Stage 5A: writers' lifetime totals.
+  'earningsTotalsBackfill:dryRun': {
+    args: { cursor: isCursor, limit: integer(1, 50) },
+  },
+  'earningsTotalsBackfill:progress': NO_ARGS,
+  'earningsTotalsBackfill:retryFailed': { args: { id: isDocumentId } },
+  'earningsTotalsBackfill:reset': {
+    args: { mode: oneOf('restart', 'remove') },
+    required: ['mode'],
+  },
+  // Section 6.2 rebuild of chain events.
+  'chain/indexer:replayFrom': {
+    args: { fromLedger: integer(1, 2 ** 32 - 1), gapBackfilled: isBoolean },
+    required: ['fromLedger'],
+  },
+  'chain/indexer:ingestBackfill': {
+    args: { events: isEventList },
+    required: ['events'],
+  },
+}
+
 /** Internal backfills, maintenance and check functions the cutover runs. */
-export const LIVE_WINDOW_FUNCTIONS: readonly string[] = [
-  'legacyTipCleanup:run',
-  'authorEarningsBackfill:run',
-  'chain/backfill:setContractVersionV1',
-  'chain/config:getChainConfig',
-  'chain/config:refreshChainConfig',
-  'chain/indexer:replayFrom',
-  'chain/indexer:ingestBackfill',
-  'reconcileTips:recoverStuckPendingArticleTips',
-  'reconcileTips:recoverStuckPendingHighlightTips',
-]
+export const LIVE_WINDOW_FUNCTIONS: readonly string[] = Object.keys(
+  LIVE_WINDOW_FUNCTION_SHAPES
+)
+
+/**
+ * Check JSON arguments against a function's shape. Returns the reason for a
+ * refusal, without echoing any value.
+ */
+export function functionArgsRefusal(
+  fn: string,
+  args: Readonly<Record<string, unknown>>
+): string | null {
+  const shape = LIVE_WINDOW_FUNCTION_SHAPES[fn]
+  if (!shape) return 'that function is not allowed'
+  for (const name of Object.keys(args)) {
+    const check = Object.hasOwn(shape.args, name) ? shape.args[name] : undefined
+    if (!check) {
+      const allowed = Object.keys(shape.args)
+      return `argument ${/^[A-Za-z][A-Za-z0-9]{0,40}$/.test(name) ? `"${name}"` : '<name>'} is not allowed for ${fn} (allowed: ${allowed.length ? allowed.join(', ') : 'none'})`
+    }
+    const reason = check(args[name])
+    if (reason) return `argument "${name}" of ${fn} ${reason}`
+  }
+  for (const name of shape.required ?? []) {
+    if (!Object.hasOwn(args, name)) {
+      return `${fn} needs the argument "${name}"`
+    }
+  }
+  return shape.rule?.(args) ?? null
+}
 
 const CONTRACT_ID = /^C[A-Z2-7]{55}$/
 const POSITIVE_INTEGER = /^[1-9]\d{0,18}$/
@@ -267,6 +415,7 @@ export const LIVE_WINDOW_ENV_SET: Readonly<
     /^[a-z0-9]{1,64}(,[a-z0-9]{1,64}){0,49}$/,
     'must be comma-separated Convex user IDs'
   ),
+  EARNINGS_TOTALS_REBUILD_ENABLED: matches(BOOLEAN, 'must be true or false'),
   INTERNAL_ACCOUNT_EMAIL_DOMAINS: matches(
     /^[a-z0-9.-]{1,253}(,[a-z0-9.-]{1,253}){0,49}$/,
     'must be comma-separated lower-case domains'
@@ -444,6 +593,11 @@ export function parseLiveWindowRequest(
         }
         argsJson = JSON.stringify(parsed)
       }
+      const shapeRefusal = functionArgsRefusal(
+        fn,
+        JSON.parse(argsJson) as Record<string, unknown>
+      )
+      if (shapeRefusal) return refuse(`convex-run: ${shapeRefusal}.`)
       return {
         request: {
           operation,
