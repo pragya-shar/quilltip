@@ -39,7 +39,7 @@ function originOf(value: string | undefined): string | null {
 export const AVATAR_SOURCES: AvatarSources = {
   storageOrigin: originOf(process.env.NEXT_PUBLIC_CONVEX_URL),
   storagePath: '/api/storage/',
-  sitePaths: ['/images/', '/prototype/'],
+  sitePaths: ['/images/'],
 }
 
 /**
@@ -55,6 +55,24 @@ export function avatarSrc(
   const raw = value?.trim()
   if (!raw || /[\\\s]/.test(raw)) return null
   if (raw.startsWith('/') && !raw.startsWith('//')) {
+    // An encoded slash, backslash or nul can reach another path on a
+    // server that decodes it, also encoded twice (%252f): decoded until it
+    // stops changing, no form may hold one.
+    let form = raw
+    let stable = false
+    for (let pass = 0; pass < 4 && !stable; pass++) {
+      if (/%(2f|5c|00)/i.test(form)) return null
+      let decoded: string
+      try {
+        decoded = decodeURIComponent(form)
+      } catch {
+        return null
+      }
+      stable = decoded === form
+      form = decoded
+    }
+    // Still changing after four passes: no plain image path does that.
+    if (!stable) return null
     let path: URL
     try {
       path = new URL(raw, 'https://site.invalid')

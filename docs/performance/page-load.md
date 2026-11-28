@@ -821,7 +821,10 @@ page view. It fails when:
    transforms and animations do not count. One case is exempt, by name, with
    its reason: `/guide` at 375 px (below). On the shell's routes the same
    holds for a first view with the roman face on time and the italic faces
-   late (only the roman file is preloaded), reported on its own line.
+   late (only the roman file is preloaded), reported on its own line;
+5. on the shell's routes, after the late first view and a client navigation
+   away and back, the reading text is not at its width in the web fonts
+   (within 0.2%): the next page view must read in Literata.
 
 Rule 2 is what the faces control. On the fixture build, over 13 routes in
 three engines, matched faces measured 0.985 to 1.051. A face matched to the

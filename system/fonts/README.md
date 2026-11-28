@@ -21,7 +21,8 @@ fonttools varLib.instancer literata-latin-opsz-normal.woff2 wght=400:700 opsz=12
 
 All four load with `font-display: optional`: a page view that starts in the
 fallback stays in it, so reading text never changes face or line breaks
-inside a view (see `system/README.md`). The roman file is preloaded; the
+inside a view; the next page view upgrades to them under second family
+names on the same files (see `system/README.md`). The roman file is preloaded; the
 italic loads only when a page draws italic text. The Latin Extended files carry the subset's `unicode-range` and load
 only when a page draws one of its letters ("Łukasz"); they sit second in the
 family list, before the metric fallback. Neither subset has "≈" or "→":

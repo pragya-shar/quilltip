@@ -25,6 +25,9 @@
 //   MAX_P90_MOVE_PX on the legacy routes, whose faces swap. Positions are
 //   layout positions (offsetTop), so transforms and animations do not count.
 //   Only the cases in MOVEMENT_EXEMPT, each with its reason, are not gated.
+// - The next page view, on the shell's routes: after the late first view,
+//   a client navigation away and back reads in the web fonts, at the widths
+//   of the cached view (system/readingFaceUpgrade.ts).
 // - The mixed case, on the shell's routes: the roman face on time and the
 //   italic faces late (a first view, where only the roman file is preloaded).
 //   It must move 0 px too.
@@ -40,6 +43,13 @@ import {
 } from '@playwright/test'
 import { startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
+import {
+  READING_FALLBACK,
+  changedFaces as changedReadingFaces,
+  heldFailures,
+  readingRatios,
+  upgradeFailures,
+} from './font-gates'
 import { FONT_FALLBACK_ROUTES, SURFACE_FONT_FALLBACK } from './routes'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -105,8 +115,6 @@ const MAX_WIDTH_DIFFERENCE = 0.07
  * held by font-display: optional and not by these values.
  */
 const READING_WIDTH_DIFFERENCE = 0.025
-/** Families of the reading faces' fallbacks. */
-const READING_FALLBACK = /Quilltip (Read|Display)[A-Za-z ]* Fallback/
 /** How long font responses are held back in the movement runs: well past
  * the block period, and after the page's own client work has settled. */
 const LATE_MS = 5000
@@ -194,14 +202,27 @@ async function lateView(
   browser: Browser,
   routePath: string,
   viewport: (typeof VIEWPORTS)[number],
-  held: RegExp
-): Promise<{ before: Snapshot; after: Snapshot }> {
+  held: RegExp,
+  /** A shell page to visit by client navigation and come back from, after
+   * the fonts arrive: the page then reads in the upgraded faces. */
+  roundTrip?: string
+): Promise<{
+  before: Snapshot
+  after: Snapshot
+  next?: Snapshot
+  /** How many font requests were held back. */
+  held: number
+  /** Why the next page view could not be measured. */
+  upgradeError?: string
+}> {
   const context = await browser.newContext({ viewport })
   try {
     const page = await context.newPage()
+    let heldCount = 0
     await page.route(
       (url) => FONT_FILES.test(url.pathname) && held.test(url.pathname),
       async (route) => {
+        heldCount++
         await new Promise((done) => setTimeout(done, LATE_MS))
         await route.continue().catch(() => {})
       }
@@ -215,8 +236,40 @@ async function lateView(
     await page.waitForTimeout(LATE_MS)
     await page.evaluate(() => document.fonts.ready)
     await page.waitForTimeout(1000)
+    if (!roundTrip)
+      return { before, after: await capture(page), held: heldCount }
+    // The upgrade loads the faces under their second names when idle; the
+    // view's "after" is taken once every load has settled, so a change they
+    // caused inside the view would show. Not settled in 15 s: a failure.
+    const settled = await page
+      .locator('html[data-reading-faces-settled]')
+      .waitFor({ state: 'attached', timeout: 15_000 })
+      .then(
+        () => true,
+        () => false
+      )
     const after = await capture(page)
-    return { before, after }
+    if (!settled)
+      return {
+        before,
+        after,
+        held: heldCount,
+        upgradeError: 'the second names did not settle within 15 s',
+      }
+    for (const to of [roundTrip, routePath]) {
+      await page.evaluate(
+        (path) =>
+          (
+            window as unknown as {
+              next: { router: { push: (path: string) => void } }
+            }
+          ).next.router.push(path),
+        to
+      )
+      await page.waitForURL((url) => url.pathname === to.split('?')[0])
+      await page.waitForTimeout(1000)
+    }
+    return { before, after, next: await capture(page), held: heldCount }
   } finally {
     await context.close()
   }
@@ -395,6 +448,24 @@ function checkFaces(
   return { failures, summary }
 }
 
+/**
+ * After a late first view and a client navigation away and back, the page
+ * reads in the web fonts: its reading text takes the widths of the cached
+ * view (system/readingFaceUpgrade.ts).
+ */
+function checkUpgrade(
+  label: string,
+  cached: Snapshot,
+  next: Snapshot | undefined
+): string[] {
+  const upgradeLabel = `${label} next page view`
+  const ratios = next ? readingRatios(next.runs, cached.runs) : []
+  console.log(
+    `${upgradeLabel.padEnd(30)} reading text, per font, against the web fonts: ${ratios.map(({ font, ratio }) => `${font} ${ratio.toFixed(3)}`).join(', ') || '-'}`
+  )
+  return upgradeFailures(upgradeLabel, next?.runs, cached.runs)
+}
+
 /** Movement within one page view, from before the fonts arrive to after. */
 function checkMovement(
   label: string,
@@ -426,6 +497,14 @@ function checkMovement(
   })
   const p90 = percentile(moves, 0.9)
   const max = Math.max(0, ...moves)
+  // A face that changes inside the view with no re-wrap moves nothing:
+  // its text's width changes. Per reading font, summed over the page.
+  const changedFaces = changedReadingFaces(before.runs, after.runs)
+  if (gate === 'still')
+    for (const { font, ratio } of changedFaces)
+      failures.push(
+        `${label}: text in ${font} changes face inside the view when the fonts arrive late (${ratio.toFixed(3)} times its width)`
+      )
   if (firstMoved)
     console.log(`  ${label}: first block that moves: ${firstMoved.key}`)
   for (const heading of rewrapped)
@@ -442,7 +521,7 @@ function checkMovement(
     )
   return {
     failures,
-    summary: `in view: move p90 ${p90} px  max ${max} px  headings re-wrapped ${rewrapped.length}`,
+    summary: `in view: move p90 ${p90} px  max ${max} px  headings re-wrapped ${rewrapped.length}  faces changed ${changedFaces.length}`,
   }
 }
 
@@ -481,23 +560,55 @@ async function main() {
               'cached'
             )
             const faces = checkFaces(label, blocked, cached)
-            const late = await lateView(browser, route.path, viewport, /./)
+            const late = await lateView(
+              browser,
+              route.path,
+              viewport,
+              /./,
+              shell
+                ? route.path === '/shelf'
+                  ? '/system/reading'
+                  : '/shelf'
+                : undefined
+            )
             const moved = checkMovement(label, viewport.height, late, gate)
+            moved.failures.push(...heldFailures(label, late.held, true))
             console.log(
               `${label.padEnd(30)} ${faces.summary}  ${moved.summary}`
             )
             failures.push(...faces.failures, ...moved.failures)
             if (!shell) continue
+            failures.push(
+              ...(late.upgradeError
+                ? [`${label} next page view: ${late.upgradeError}`]
+                : checkUpgrade(label, cached, late.next))
+            )
             // A first view: the roman face preloaded and on time, the italic
             // faces (not preloaded) late.
             const mixedLabel = `${label} roman on time, italic late`
+            const mixedView = await lateView(
+              browser,
+              route.path,
+              viewport,
+              /italic/i
+            )
             const mixed = checkMovement(
               mixedLabel,
               viewport.height,
-              await lateView(browser, route.path, viewport, /italic/i),
+              mixedView,
               gate
             )
-            console.log(`${mixedLabel.padEnd(30)} ${mixed.summary}`)
+            // The page draws italic text in a web font: its file must have
+            // been held, or the case measured nothing.
+            const drawsItalic = cached.runs.some((run) =>
+              / italic$/.test(run.font)
+            )
+            mixed.failures.push(
+              ...heldFailures(mixedLabel, mixedView.held, drawsItalic)
+            )
+            console.log(
+              `${mixedLabel.padEnd(30)} ${drawsItalic ? mixed.summary : 'no italic text on the page'}`
+            )
             failures.push(...mixed.failures)
           }
         }

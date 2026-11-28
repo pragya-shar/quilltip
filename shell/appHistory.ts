@@ -9,11 +9,12 @@
  * length then, and popstate (Back or Forward) is reported before. A path
  * that arrives with a longer history was pushed; with the same length it
  * replaced the current entry (a replace, or a push after going back that
- * dropped the forward entries); after popstate it went back, to the
- * page's first place in the stack, when the page is in it; else what is
- * behind it is unknown and it starts the stack. When unsure, the stack is
- * shorter, never longer: the header shows the link form, never
- * `router.back()`, so back never leaves the site.
+ * dropped the forward entries). After Back or Forward the position in the
+ * browser's history is not known (a jump of several steps, a reload behind
+ * it, an entry with the same path), so the stack starts again at that page,
+ * and from the popstate on, until a page is pushed, back is the link form.
+ * When unsure, back is the link, never `router.back()`, so it never leaves
+ * the site.
  */
 export function createAppHistory() {
   let stack: string[] = []
@@ -30,25 +31,15 @@ export function createAppHistory() {
       popped = false
       const grew = historyLength > length
       length = historyLength
-      if (stack.length === 0) {
+      if (wasPopped || stack.length === 0) {
         stack = [path]
         return
       }
       if (stack.at(-1) === path) return
-      if (wasPopped) {
-        // Back (one step or several) to a page this visit passed through:
-        // the stack ends at its first visit. With the page there more than
-        // once, the first is the shorter answer. A page not in the stack
-        // (forward, Back after a reload, a hash-only step): what is behind
-        // it is unknown, so it starts the stack, and back is the link form.
-        const at = stack.indexOf(path)
-        stack = at >= 0 ? stack.slice(0, at + 1) : [path]
-        return
-      }
       stack = grew ? [...stack, path] : [...stack.slice(0, -1), path]
     },
     /** Whether the entry behind this one is a page of this application. */
-    canGoBack: () => stack.length > 1,
+    canGoBack: () => !popped && stack.length > 1,
     /** For tests. */
     pages: () => [...stack],
   }
