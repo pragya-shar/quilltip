@@ -8598,6 +8598,56 @@ describe('tab activity not accepted here (#647)', () => {
     expect(lines()).toEqual([])
   })
 
+  it('review #662: replays and forced re-dispatches after later honest activity, and after an acknowledgement, add no record', async () => {
+    const lines = outsideLog()
+    const { t, s, events, all } = await outsideCase()
+    await ingest(t, ...all)
+    expect(await outsideRows(t)).toHaveLength(4)
+    expect(lines()).toHaveLength(4)
+
+    // A later honest tip raises the stored cumulative above the outside
+    // settlement's (0.35 + 0.50 > 0.50 XLM), and the writer settles it.
+    await tip(t, s, { cents: 50 })
+    expect((await voucherRow(t)).cumulative).toBe('8500000')
+    const honest = ev.tabSettled(
+      {
+        cumulative: BigInt(8_500_000),
+        paidAfter: BigInt(8_500_000),
+        gross: BigInt(3_500_000),
+        byWriter: true,
+      },
+      { ledger: LEDGER + 5 }
+    )
+    await ingest(t, honest)
+    expect(await handled(t, [honest])).toEqual(['done'])
+    const settled = await outsideRows(t)
+    expect(settled).toHaveLength(4)
+
+    // Close one record, then replay everything and force every event
+    // through the handlers twice, out of order.
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    await t.mutation(internal.chain.tabOutside.acknowledge, {
+      chainEpoch: EPOCH,
+      eventId: events.above.id,
+      note: 'review test',
+    })
+    const closed = await outsideRows(t)
+    for (let i = 0; i < 2; i++) {
+      await ingest(t, ...[honest, ...all].reverse())
+      await forceRedispatch(t)
+    }
+    await expectRedispatchChangesNothing(t)
+    expect(await outsideRows(t)).toEqual(closed)
+    expect(lines()).toHaveLength(4)
+    expect((await voucherRow(t)).paidOnChain).toBe('8500000')
+    const open = await t.query(internal.chain.tabOutside.listOpen, {})
+    expect(open.rows.map((r) => r.kind)).toEqual([
+      'key_undeclared',
+      'settled_no_voucher',
+      'settled_no_account',
+    ])
+  })
+
   it('operators see the open records; acknowledge needs a note, keeps the row and changes nothing the second time', async () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const { t, s, events, all } = await outsideCase()

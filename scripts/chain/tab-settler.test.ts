@@ -1391,8 +1391,10 @@ describe('settler freshness (#647)', () => {
       null
     )
     expect(await read(otherId)).toBeNull()
+    // Settlement on and no run recorded: a warning, not "unknown".
     expect(await read(opsId)).toMatchObject({
-      level: 'unknown',
+      level: 'warning',
+      lastOkAt: null,
       settlementEnabled: true,
     })
     await runSettlementCycle(depsFor(t, fake))
@@ -1416,5 +1418,46 @@ describe('settler freshness (#647)', () => {
     expect(
       await t.query(internal.chain.settlerStatus.readSettlerFreshness, {})
     ).toMatchObject({ level: 'alert' })
+  })
+
+  it('review #662: a settler that fails every run from its first (TAB_SETTLER_UNAVAILABLE) shows a warning at once', async () => {
+    const t = convexTest(schema, modules)
+    const fresh = () =>
+      t.query(internal.chain.settlerStatus.readSettlerFreshness, {})
+    // Settlement off, nothing recorded: unknown, nothing to warn about.
+    vi.stubEnv('SETTLEMENT_ENABLED', '')
+    expect(await fresh()).toMatchObject({
+      level: 'unknown',
+      settlementEnabled: false,
+    })
+    // The cutover case: settlement on, the saved secret is not a seed.
+    vi.stubEnv('SETTLEMENT_ENABLED', 'true')
+    vi.stubEnv('TAB_SETTLER_SECRET', '"not a seed"')
+    for (let run = 0; run < 4; run++) {
+      await expect(t.action(internal.tabSettler.settleDue, {})).rejects.toThrow(
+        'TAB_SETTLER_UNAVAILABLE'
+      )
+      expect(await lastOkAt(t)).toBeNull()
+      expect(await fresh(), `run ${run}`).toMatchObject({
+        level: 'warning',
+        lastOkAt: null,
+        ageMs: null,
+      })
+      vi.advanceTimersByTime(10 * MIN)
+    }
+    // With a good run before the failures, the warning comes 30 minutes on.
+    await runSettlementCycle(depsFor(t, new FakeTab()))
+    const okAt = await lastOkAt(t)
+    expect(okAt).not.toBeNull()
+    for (let minutes = 10; minutes <= 40; minutes += 10) {
+      vi.advanceTimersByTime(10 * MIN)
+      await expect(t.action(internal.tabSettler.settleDue, {})).rejects.toThrow(
+        'TAB_SETTLER_UNAVAILABLE'
+      )
+      expect(await lastOkAt(t)).toBe(okAt)
+      expect((await fresh()).level, `${minutes} min`).toBe(
+        minutes >= 30 ? 'warning' : 'ok'
+      )
+    }
   })
 })

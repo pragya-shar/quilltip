@@ -468,6 +468,15 @@ ended without an error and did not fail. The settler records it on its
 `settler` lease row (`chainLeases.lastOkAt`) after each such run, whether or
 not anything was due. The cron runs every 10 minutes, so 30 minutes is three
 missed runs. "None recorded" means no such run since this field was added.
+With `SETTLEMENT_ENABLED=true`, "None recorded" is a warning at once: a
+settler that fails from its first run (for example with
+`TAB_SETTLER_UNAVAILABLE`, a saved secret that is not a seed) never records
+a run. Right after settlement is switched on, the warning stays until the
+first run, within 10 minutes.
+
+The page is checked, not pushed: nobody is told unless someone opens it.
+The failing runs themselves show only as failed function runs in the
+deployment's logs.
 
 The settler's own alerts (`TAB_SETTLER_*`) come from a run, so a settler
 that does not run logs nothing. This age is read outside the settler.
@@ -487,8 +496,10 @@ Check, in order:
 1. `SETTLEMENT_ENABLED` is `true` on the deployment. While it is off, the
    page says "Settlement is off" and the age grows on purpose.
 2. The `settle due tab vouchers` cron has recent runs (dashboard cron jobs
-   list), and its logs show no `TAB_SETTLER_RUN_FAILED` or
-   `TAB_SETTLER_SIMULATION_FAILED`.
+   list), and its logs show no `TAB_SETTLER_UNAVAILABLE`,
+   `TAB_SETTLER_RUN_FAILED` or `TAB_SETTLER_SIMULATION_FAILED`.
+   `TAB_SETTLER_UNAVAILABLE` stops the run before the settlement cycle, so
+   it logs no `TAB_SETTLER_RUN_FAILED`.
 3. The settler's XLM balance (`TAB_SETTLER_BALANCE_LOW`).
 
 Before a closing account's unlock, settle its pairs: turn settlement back

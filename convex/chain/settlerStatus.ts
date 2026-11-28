@@ -19,10 +19,19 @@ async function freshness(ctx: QueryCtx) {
     .query('chainLeases')
     .withIndex('by_name', (q) => q.eq('name', 'settler'))
     .unique()
+  const settlementEnabled = process.env.SETTLEMENT_ENABLED?.trim() === 'true'
+  const fresh = settlerFreshness(lease?.lastOkAt, Date.now())
   return {
-    ...settlerFreshness(lease?.lastOkAt, Date.now()),
+    ...fresh,
+    // With settlement on, no good run at all is not "unknown" but missing
+    // runs: a settler that fails from its first run (for example
+    // TAB_SETTLER_UNAVAILABLE) never records one.
+    level:
+      fresh.level === 'unknown' && settlementEnabled
+        ? ('warning' as const)
+        : fresh.level,
     // The cron does nothing while settlement is off; the age still grows.
-    settlementEnabled: process.env.SETTLEMENT_ENABLED?.trim() === 'true',
+    settlementEnabled,
     warnMs: SETTLER_STALE_WARN_MS,
     alertMs: SETTLER_STALE_ALERT_MS,
   }
