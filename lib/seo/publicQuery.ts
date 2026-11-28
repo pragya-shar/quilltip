@@ -1,4 +1,6 @@
 import { ConvexHttpClient } from 'convex/browser'
+import { ConvexError } from 'convex/values'
+import { isPausedDeploymentMessage } from '@/lib/convex/pausedDeployment'
 import type {
   FunctionReference,
   FunctionReturnType,
@@ -26,10 +28,11 @@ const FUNCTION_FAILED_STATUS = 560
 
 /**
  * Whether a failed read says the backend is down (#609): a timeout, a
- * network failure or a 5xx. Anything else (a function that threw, a 4xx such
- * as a function this backend does not have yet) means the backend is
- * reachable but answered wrongly: no outage, the page renders and reads for
- * itself.
+ * network failure, a 5xx, or a paused deployment (which answers 200 with an
+ * error body; lib/convex/pausedDeployment.ts). Anything else (a function that
+ * threw, a 4xx such as a function this backend does not have yet) means the
+ * backend is reachable but answered wrongly: no outage, the page renders and
+ * reads for itself.
  */
 export function countsAsOutage(error: unknown): boolean {
   return error instanceof ReadTimeout || error instanceof BackendUnavailable
@@ -70,6 +73,16 @@ export async function publicQuery<Query extends FunctionReference<'query'>>(
     if (status === undefined) throw new BackendUnavailable('no response')
     if (status >= 500 && status !== FUNCTION_FAILED_STATUS)
       throw new BackendUnavailable(`status ${status}`)
+    // A 200 with `status: "error"` reaches here as a plain Error carrying the
+    // body's `errorMessage` (convex/browser http_client). A paused deployment
+    // says so in that text; the status code alone cannot tell.
+    if (
+      status === 200 &&
+      error instanceof Error &&
+      !(error instanceof ConvexError) &&
+      isPausedDeploymentMessage(error.message)
+    )
+      throw new BackendUnavailable('deployment paused')
     throw error
   }
 }

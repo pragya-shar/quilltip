@@ -718,6 +718,14 @@ so a reader sees one message.
   existing query (`publicRoutes.publicRouteExists` with a handle no writer
   can have), so a frontend deployed ahead of its backend never reads a
   missing function as an outage.
+- A paused deployment counts as an outage too. It answers HTTP 200 with an
+  error body ("Server Error" followed by "Cannot run functions while this
+  deployment is paused."), so the text decides, not the status
+  (`lib/convex/pausedDeployment.ts`). Any other function error does not. On
+  a page that has already loaded, the public reading hooks
+  (`hooks/convex/useReadingQuery.ts`) keep what the reader has when a live
+  subscription reports the pause, instead of throwing into the error page.
+  The content updates again once the deployment resumes.
 - An outage is remembered for 5 s per server instance: every public reading
   request then answers 503 at once, with no backend read. Only a check that
   failed twice sets it, a 503 from the memory never renews it, and the first

@@ -1,4 +1,5 @@
 import { useQuery } from 'convex/react'
+import { useReadingQuery } from './useReadingQuery'
 import { api } from '@/convex/_generated/api'
 import type { Id } from '@/types/convex'
 
@@ -7,7 +8,10 @@ export function useCurrentUser() {
 }
 
 export function useUserByUsername(username: string | null | undefined) {
-  return useQuery(api.users.getUserByUsername, username ? { username } : 'skip')
+  return useReadingQuery(
+    api.users.getUserByUsername,
+    username ? { username } : 'skip'
+  )
 }
 
 export function useUserStats(userId: Id<'users'> | undefined) {

@@ -1,4 +1,5 @@
 import { usePaginatedQuery, useQueries, useQuery } from 'convex/react'
+import { useReadingQuery } from './useReadingQuery'
 import type { FunctionArgs, FunctionReference } from 'convex/server'
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -33,7 +34,11 @@ export type ListArticlesArgs = {
 }
 
 export function useListArticles(args: ListArticlesArgs | 'skip') {
-  return useQuery(api.articles.listArticles, args === 'skip' ? 'skip' : args)
+  // Public reading keeps its last list through a paused deployment (#609).
+  return useReadingQuery(
+    api.articles.listArticles,
+    args === 'skip' ? 'skip' : args
+  )
 }
 
 function useReadingRoomSearchSupport(enabled: boolean) {
@@ -106,7 +111,7 @@ export function useReadingRoomArticles(args: ListArticlesArgs | 'skip') {
         }
       : null
   const supportsScan = useReadingRoomSearchSupport(!!filters)
-  const result = useQuery(
+  const result = useReadingQuery(
     api.articles.listArticles,
     args === 'skip' || (filters && supportsScan === undefined)
       ? 'skip'
@@ -194,7 +199,7 @@ export function useArticleBySlug(
   username: string | null | undefined,
   slug: string | null | undefined
 ) {
-  return useQuery(
+  return useReadingQuery(
     api.articles.getArticleBySlug,
     username && slug ? { username, slug } : 'skip'
   )
@@ -224,7 +229,7 @@ export function useCreatorWorkspaceSummary() {
 }
 
 export function useReadNextArticles(articleId: Id<'articles'> | undefined) {
-  return useQuery(
+  return useReadingQuery(
     api.articles.getReadNextArticles,
     articleId ? { articleId } : 'skip'
   )

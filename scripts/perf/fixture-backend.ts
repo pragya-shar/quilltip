@@ -6,6 +6,7 @@
 import { createHash } from 'crypto'
 import { createServer, type Server } from 'http'
 import { answerFixtureQuery } from './convex-fixture'
+import { PAUSED_BODY } from './paused-deployment-fixture'
 
 /**
  * How the backend answers queries, for checks of a slow or failing backend:
@@ -15,13 +16,22 @@ import { answerFixtureQuery } from './convex-fixture'
  * - error: at once, with a server error (500);
  * - wrong: at once, as a function that threw (Convex's 560), which the app
  *   must not read as an outage (#609);
- * - slow-once: the next query after `delayMs`, then all at once.
+ * - slow-once: the next query after `delayMs`, then all at once;
+ * - paused: as a paused deployment answers (HTTP 200 with an error body,
+ *   scripts/perf/paused-deployment-fixture.ts).
  *
  * `reads` counts the queries received and `open` the requests not yet
  * answered or closed, so a check can prove that a late read was aborted.
  */
 export const fixtureBackendBehaviour: {
-  mode: 'normal' | 'slow' | 'silent' | 'error' | 'wrong' | 'slow-once'
+  mode:
+    | 'normal'
+    | 'slow'
+    | 'silent'
+    | 'error'
+    | 'wrong'
+    | 'slow-once'
+    | 'paused'
   delayMs: number
   /** When set, only these query paths are slow; the rest answer at once. */
   slowPaths?: string[]
@@ -45,6 +55,11 @@ export function startFixtureBackend(port: number): Server {
       response.on('finish', settle)
       response.on('close', settle)
       if (mode === 'silent') return
+      if (mode === 'paused') {
+        response.writeHead(200, { 'content-type': 'application/json' })
+        response.end(JSON.stringify(PAUSED_BODY))
+        return
+      }
       if (mode === 'wrong' && !fixtureBackendBehaviour.wrongPaths) {
         response.writeHead(560, { 'content-type': 'application/json' })
         response.end(

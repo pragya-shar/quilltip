@@ -6,6 +6,7 @@ import {
   REQUEST_READ_BUDGET_MS,
 } from '../../lib/seo/readDeadline'
 import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
+import { NEAR_MISS_BODY, PAUSED_BODY } from './paused-deployment-fixture'
 
 /**
  * proxy.ts against a stand-in backend (#609): the check and its one retry,
@@ -21,6 +22,8 @@ type Mode =
   | 'slow-once'
   | 'function-error'
   | 'client-error'
+  | 'paused'
+  | 'near-miss'
 const backend = { mode: 'answering' as Mode, reads: 0, slowOnceUsed: false }
 
 function answer(path: string, args: { username?: string; slug?: string }) {
@@ -55,6 +58,10 @@ function stubBackend(input: RequestInfo | URL, init?: RequestInit) {
         { status: 560 }
       )
     )
+  if (backend.mode === 'paused')
+    return Promise.resolve(Response.json(PAUSED_BODY, { status: 200 }))
+  if (backend.mode === 'near-miss')
+    return Promise.resolve(Response.json(NEAR_MISS_BODY, { status: 200 }))
   if (backend.mode === 'client-error')
     return Promise.resolve(new Response('bad request', { status: 400 }))
   const body = JSON.parse(String(init?.body)) as {
@@ -171,6 +178,30 @@ describe('a backend that answers wrongly', () => {
       expect((await request('/articles')).status).toBe(200)
     }
   )
+})
+
+describe('a paused deployment', () => {
+  it('answers 503 with Retry-After, as an unreachable backend does', async () => {
+    backend.mode = 'paused'
+    const { response, ms } = await timed('/articles')
+    expect(response.status).toBe(503)
+    expect(response.headers.get('retry-after')).toBe('30')
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    // The refusal is immediate: both tries fail at once.
+    expect(backend.reads).toBe(2)
+    expect(ms).toBeLessThan(500)
+    expect((await request('/fixture-writer/the-lamp')).status).toBe(503)
+    expect(backend.reads).toBe(2)
+  })
+
+  it('a near miss (the same body shape and status, another message) is not an outage', async () => {
+    backend.mode = 'near-miss'
+    expect((await request('/articles')).status).toBe(200)
+    const article = await request('/fixture-writer/the-lamp')
+    expect(article.status).toBe(200)
+    expect(forwarded(article, ARTICLE_ROUTE_HEADER)).toBe('unknown')
+    expect(backend.reads).toBe(2)
+  })
 })
 
 describe('an outage', () => {

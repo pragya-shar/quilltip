@@ -8,7 +8,8 @@
 // A reader sees one of three states: the page, the in-page readable fallback
 // (200, `noindex`), or the outage response (503, `Retry-After: 30`,
 // `no-store`). `/` stays 200 in all of them. With the backend:
-// - silent, slower than the limit, or failing (5xx): `/articles`, a writer
+// - silent, slower than the limit, failing (5xx), or paused (HTTP 200 with
+//   the paused error body): `/articles`, a writer
 //   page and an article answer 503 within two read limits plus a margin, and
 //   at once while the outage is remembered; with JavaScript off, in Chromium
 //   and WebKit, the 503 shows a heading, "Try again" and the way home; a HEAD
@@ -303,16 +304,17 @@ async function main() {
       await recover()
     }
 
-    // 4. Failing (5xx) and slower than the limit.
-    for (const mode of ['error', 'slow'] as const) {
+    // 4. Failing (5xx), slower than the limit, and paused (HTTP 200 with an
+    //    error body: the text decides).
+    for (const mode of ['error', 'slow', 'paused'] as const) {
       fixtureBackendBehaviour.mode = mode
       fixtureBackendBehaviour.delayMs = 2 * PUBLIC_READ_TIMEOUT_MS
       fixtureBackendBehaviour.slowPaths = undefined
-      const name = mode === 'error' ? 'failing' : 'slow'
+      const name = { error: 'failing', slow: 'slow', paused: 'paused' }[mode]
       expectOutage(
         `${name} backend, /articles`,
         await timedFetch(READING.list),
-        mode === 'error' ? MARGIN_MS : OUTAGE_BOUND_MS
+        mode === 'slow' ? OUTAGE_BOUND_MS : MARGIN_MS
       )
       await recover()
     }
