@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import Image from 'next/image'
 import { FileText } from 'lucide-react'
 import { shownCoverImage } from '@/lib/tiptap/articleImage'
@@ -81,6 +82,7 @@ export function NftCard({
       {articleHref ? (
         <Link
           href={articleHref}
+          prefetch={ARTICLE_LINK_PREFETCH}
           className="nft-card-article"
           scroll={false}
           aria-label={`Read more: ${displayTitle}`}
@@ -97,7 +99,9 @@ export function NftCard({
         <p className="nft-card-owner">
           <span>{footerLabel}</span>{' '}
           {footerUsername ? (
-            <Link href={`/${footerUsername}`}>@{footerUsername}</Link>
+            <Link href={`/${footerUsername}`} prefetch={ARTICLE_LINK_PREFETCH}>
+              @{footerUsername}
+            </Link>
           ) : (
             <span>Unknown</span>
           )}

@@ -16,6 +16,11 @@ connected deployment; inspect the resulting deployment and real app flow.
 network, and Convex reachability. It returns 200 when the backend answers and 503
 otherwise. Use it to confirm which commit a deployment serves.
 
+`PERF_RUN_TOKEN` is test-only: never set it on a deployment. The read check
+`perf:prefetch-reads` sets it for its own local app, and the server then sends
+it on its public Convex reads (`lib/seo/publicQuery.ts`; see
+[page load](performance/page-load.md#link-prefetches-and-backend-reads-630)).
+
 For an authorized manual deployment, use the Vercel integration or current CLI
 and confirm whether the target is preview or production. Keep the CLI current
 with `npm i -g vercel@latest` (or `pnpm add -g vercel@latest`). Never commit tokens

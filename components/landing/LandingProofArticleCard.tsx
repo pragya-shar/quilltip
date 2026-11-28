@@ -1,5 +1,6 @@
 import Image from 'next/image'
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { UserAvatar } from '@/components/ui/user-avatar'
 import type { ArticleForDisplay } from '@/types/index'
 import { shownCoverImage } from '@/lib/tiptap/articleImage'
@@ -21,6 +22,7 @@ export function LandingProofArticleCard({
   return (
     <Link
       href={href}
+      prefetch={ARTICLE_LINK_PREFETCH}
       className="focus-ring flex items-center gap-3 rounded-lg border border-border bg-card p-3 text-left shadow-[var(--card-shadow)] transition-shadow hover:shadow-md"
     >
       {coverImage ? (

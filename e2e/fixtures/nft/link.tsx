@@ -6,10 +6,15 @@ export default function FixtureLink({
   href,
   onClick,
   scroll,
+  prefetch,
   ...props
-}: AnchorHTMLAttributes<HTMLAnchorElement> & { scroll?: boolean }) {
+}: AnchorHTMLAttributes<HTMLAnchorElement> & {
+  scroll?: boolean
+  prefetch?: boolean | null
+}) {
   // Next-only navigation options must not become DOM attributes.
   void scroll
+  void prefetch
   return (
     <a
       {...props}

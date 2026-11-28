@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ARTICLE_LINK_PREFETCH } from '@/lib/articles/linkPrefetch'
 import { ArticleForDisplay } from '@/types/index'
 import { ArticleAuthorByline } from '@/components/articles/ArticleAuthorByline'
 import { ArticleListingThumbnail } from '@/components/articles/ArticleListingThumbnail'
@@ -44,6 +45,7 @@ export default function ArticleCard({
 
       <div className="p-[var(--card-padding)] flex flex-col flex-1">
         <Link
+          prefetch={ARTICLE_LINK_PREFETCH}
           href={articleHref}
           scroll={false}
           className="focus-ring rounded-md"
