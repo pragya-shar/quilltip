@@ -80,8 +80,10 @@ function rememberFound(key: string) {
 async function checkPublicContent(
   request: NextRequest
 ): Promise<RouteCheck | null> {
-  // Only full page loads carry a status that crawlers read. Client navigations
-  // and link prefetches (RSC requests) skip the extra backend call.
+  // Only full page loads carry a status that crawlers read; this skip is meant
+  // for client navigations and link prefetches (RSC requests). Under
+  // `next start`, Next.js removes the RSC header before the proxy runs
+  // (next/dist/server/web/adapter.js), so those are checked as well.
   if (request.headers.get('rsc') === '1') return null
   const target = publicContentPath(request.nextUrl.pathname)
   if (!target) return null
@@ -137,8 +139,8 @@ export async function proxy(request: NextRequest) {
       : null
   const requestHeaders = new Headers(request.headers)
   // Only the proxy's own answer may reach the article page: a copy the client
-  // sent is removed on every request. Client navigations are not checked
-  // here, so they carry no answer and the page asks for itself.
+  // sent is removed on every request. A request that arrives marked as RSC
+  // is not checked above, so it carries no answer and the page asks itself.
   requestHeaders.delete(ARTICLE_ROUTE_HEADER)
   if (
     publicContentPath(pathname)?.slug !== undefined &&

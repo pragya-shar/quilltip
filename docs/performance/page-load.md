@@ -98,15 +98,21 @@ with every byte that finishes before the paint (see below).
     only while that version matches, so an unpublished, edited or replaced
     article and a changed handle take effect on the next load (#613). Missing
     articles are never cached, and no copy is used once it is more than 60 s
-    old, which bounds tip totals and the writer's name. Client navigations skip
-    the proxy's check, so the page asks for the version itself. The page
-    subscribes to the live article on load, so edits also appear at once in an
-    open tab.
+    old, which bounds tip totals and the writer's name. A request the proxy
+    did not check carries no version, and the page asks for it itself. The
+    page subscribes to the live article on load, so edits also appear at once
+    in an open tab.
   - Cost of #613: before it, the proxy reused a "found" check for 60 s per
     instance, so a warm load made no backend call (about 500 ms to under 20 ms
     for the two calls together). A warm load now makes the route check every
     time. Writer pages still reuse a "found" check, because the page reads the
     writer itself.
+  - Client navigations and link prefetches also run the proxy's route check:
+    under `next start`, Next.js removes the RSC header before the proxy runs,
+    so the proxy's skip for RSC requests does not apply. Each prefetched
+    article link therefore makes one route check per view. On a fixture
+    build, a second view of `/articles` in Chromium made 4 route checks and
+    no other backend call; before #613 it would have made none.
 - **Every page:** the root 404 screen imported the writer-not-found page and the
   full site header, so every route downloaded dialog and menu code. That
   screen now loads on demand.
@@ -679,10 +685,8 @@ scripts: the site header, "… could not be loaded right now." and a plain "Try
 again" link to the same URL. With scripts, the live query keeps trying and
 replaces the fallback. The worst-case first byte is 1.5 s on `/articles`, 3 s
 on a writer or article page (route check, then the page's reads), and 4.5 s for
-a missing writer or article whose moved-handle lookup also runs out. A client
-navigation into an article also waits up to 3 s: it skips the proxy, so the
-page runs the route check itself before the article read (#613; it was 1.5 s).
-A timeout is never cached; a read that finishes after its page gave up still
+a missing writer or article whose moved-handle lookup also runs out. Client
+navigations wait the same. A timeout is never cached; a read that finishes after its page gave up still
 fills the cache for the next reader.
 
 An article page uses its cached copy only for the version the route check has

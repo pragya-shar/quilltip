@@ -9,7 +9,7 @@
 //
 // Each article is first loaded twice, so its copy is cached and the proxy has
 // seen it. Then, well inside the cache time, on a full page load and on a
-// client navigation (an RSC request, which skips the proxy's check):
+// client navigation (an RSC request):
 // - unpublished: 404 (the navigation does not answer 200) and no article text;
 // - republished: the article again, at once;
 // - deleted and its slug taken by another article: only the new text;
@@ -56,26 +56,21 @@ async function load(
   kind: Load,
   extraHeaders: Record<string, string> = {}
 ) {
-  const get = (url: string) =>
-    fetch(new URL(url, BASE_URL), {
-      redirect: 'manual',
-      // A client navigation asks for the page's RSC payload, not its HTML.
-      headers: {
-        ...(kind === 'navigation' ? { RSC: '1' } : {}),
-        ...extraHeaders,
-      },
-      signal: AbortSignal.timeout(15_000),
-    })
+  // A client navigation asks for the page's RSC payload, not its HTML, with
+  // the cache-key parameter a browser sends.
+  const url =
+    kind === 'navigation'
+      ? `${path}${path.includes('?') ? '&' : '?'}_rsc`
+      : path
   const startedAt = performance.now()
-  let response = await get(path)
-  // Next.js first sends an RSC request without its cache key to the same path
-  // with one; the browser follows that redirect.
-  const location = response.headers.get('location') ?? ''
-  if (kind === 'navigation' && response.status === 307) {
-    const next = new URL(location, BASE_URL)
-    if (next.pathname === path && next.searchParams.has('_rsc'))
-      response = await get(next.pathname + next.search)
-  }
+  const response = await fetch(new URL(url, BASE_URL), {
+    redirect: 'manual',
+    headers: {
+      ...(kind === 'navigation' ? { RSC: '1' } : {}),
+      ...extraHeaders,
+    },
+    signal: AbortSignal.timeout(15_000),
+  })
   const body = await response.text()
   return {
     status: response.status,
@@ -190,11 +185,37 @@ async function main() {
       for (const kind of ['page', 'navigation'] as const)
         await expectLoad(`silent backend, ${name}`, path, kind, {
           status: 200,
-          has: [FALLBACK_TEXT],
+          // The fallback's text is rendered on the server for a page load;
+          // a navigation's payload carries the state, and the browser draws it.
+          ...(kind === 'page' ? { has: [FALLBACK_TEXT] } : {}),
           lacks: [PROSE],
           maxMs: TROUBLE_BOUND_MS,
         })
     fixtureBackendBehaviour.mode = 'normal'
+
+    // Only the route check is slow (the proxy gives up on it), the rest of the
+    // backend answers: the page reads directly, so a published article still
+    // shows and the hidden one still answers as missing.
+    Object.assign(fixtureBackendBehaviour, {
+      mode: 'slow',
+      delayMs: PUBLIC_READ_TIMEOUT_MS * 2,
+      slowPaths: ['publicRoutes:resolvePublicRoute'],
+    })
+    await expectLoad('slow route check, published', other, 'page', {
+      status: 200,
+      has: [PROSE],
+      maxMs: TROUBLE_BOUND_MS,
+    })
+    await expectLoad('slow route check, unpublished', hidden, 'page', {
+      status: 404,
+      lacks: [PROSE],
+      maxMs: TROUBLE_BOUND_MS + PUBLIC_READ_TIMEOUT_MS,
+    })
+    Object.assign(fixtureBackendBehaviour, {
+      mode: 'normal',
+      delayMs: 0,
+      slowPaths: undefined,
+    })
     setFixtureArticlePublished('fixture-article-4', true)
     for (const kind of ['page', 'navigation'] as const)
       await expectLoad('republished', hidden, kind, {

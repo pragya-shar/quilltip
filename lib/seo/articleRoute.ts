@@ -10,8 +10,8 @@
  * - unknown: the check ran out of time or failed. The page then reads the
  *   article directly and never uses a cached copy, whose freshness is unknown.
  *
- * Requests the proxy does not check (client navigations) carry no header; the
- * page asks for itself.
+ * A request the proxy does not check carries no header; the page then asks
+ * for itself.
  */
 export const ARTICLE_ROUTE_HEADER = 'x-quilltip-article-route'
 

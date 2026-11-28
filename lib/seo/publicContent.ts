@@ -113,7 +113,7 @@ const fetchPublishedArticleCached = cachedFor(
 /**
  * Whether the article is published now, and its version. The proxy has asked
  * already on a full page load and passes its answer in a request header;
- * client navigations skip the proxy's check, so the page asks here. A check
+ * a request the proxy did not check carries none, so the page asks here. A check
  * that runs out of time here rejects, and the page shows its fallback.
  */
 async function currentArticleRoute(
