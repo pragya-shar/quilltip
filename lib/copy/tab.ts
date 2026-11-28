@@ -20,8 +20,14 @@ export const TAB_BALANCE = {
   freeNote: 'What quick tips can use now.',
   /** The same figure while the tab is closing: quick tips are off (#547). */
   closingFree: 'Comes back to you',
-  closingFreeNote:
-    'Your tab is closing, so quick tips are off. This returns to your wallet with the withdrawal, after the tips still settling.',
+  /**
+   * Under the closing figure: when it unlocks and what the reader does then
+   * (#671). The date is an estimate from ledger times.
+   */
+  closingFreeNote: (date: string | null, ready: boolean) =>
+    ready
+      ? 'Unlocked. Choose Withdraw to move it to your wallet.'
+      : `${TAB_CLOSE.unlocks(date)}. Come back then and choose Withdraw to move it to your wallet. Quick tips are off while your tab closes.`,
   settling: 'Settling',
   settlingNote: 'Tips sent, not settled on chain yet.',
   confirmed: 'Tab balance',

@@ -771,9 +771,24 @@ test('while the tab is closing, the free balance is not offered for quick tips (
   await expect(
     balance.getByText('Comes back to you', { exact: true })
   ).toBeVisible()
+  // Beside the figure: when it unlocks and what to do then (#671).
   await expect(
-    balance.getByText(/Your tab is closing, so quick tips are off\./)
+    balance.getByText(
+      /^Unlocks around .+\. Come back then and choose Withdraw to move it to your wallet\. Quick tips are off while your tab closes\.$/
+    )
   ).toBeVisible()
+  // The withdrawal timeline comes before the tip history on a closing tab,
+  // and after it on an open one.
+  const closeFirst = () =>
+    page.evaluate(() => {
+      const close = document.getElementById('tab-close-title')!
+      const history = document.getElementById('tab-history-title')!
+      return Boolean(
+        close.compareDocumentPosition(history) &
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    })
+  expect(await closeFirst()).toBe(true)
   // An open tab still offers it.
   await page.goto('/?state=home-open')
   await expect(
@@ -781,6 +796,20 @@ test('while the tab is closing, the free balance is not offered for quick tips (
       exact: true,
     })
   ).toBeVisible()
+  expect(await closeFirst()).toBe(false)
+})
+
+test('once a closing tab unlocks, the balance note says so and names Withdraw (#671)', async ({
+  page,
+}) => {
+  await open(page, 'home-withdraw-ready')
+  const balance = page.getByRole('region', { name: 'Balance' })
+  await expect(
+    balance.getByText('Unlocked. Choose Withdraw to move it to your wallet.', {
+      exact: true,
+    })
+  ).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Withdraw' })).toBeVisible()
 })
 
 test('the stats cover the same tips in XLM, dollars and count (#552)', async ({
