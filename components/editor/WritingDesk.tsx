@@ -8,6 +8,7 @@ import type { Id } from '@/types/convex'
 import { WritingDialog } from './WritingDialog'
 import type { ArticleStyle } from '@/lib/editor/articleAppearance'
 import { canDeleteDraft } from '@/lib/articles/articleDeletion'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export function WritingDesk({
   articleId,
@@ -137,7 +138,7 @@ export function WritingDesk({
                 href={`/${article.authorUsername ?? username}/${article.slug}`}
                 aria-label={`View article: ${article.title}`}
               >
-                View article ↗
+                View article <NorthEastArrow />
               </a>
             </div>
           </div>

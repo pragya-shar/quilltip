@@ -39,6 +39,7 @@ import {
 } from '@/lib/articles/readingRoomListArgs'
 import { getBrowseContextMessage } from './ArticlesBrowseDiscoveryHeader'
 import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 type ReadingRoomList = NonNullable<ReturnType<typeof useReadingRoomArticles>>
 
@@ -430,7 +431,9 @@ export function ReadingRoom({
       <footer className="reading-room-footer">
         <span>Read freely. Support the words that stay.</span>
         <details>
-          <summary>Public-domain artwork · Credits ↗</summary>
+          <summary>
+            Public-domain artwork · Credits <NorthEastArrow />
+          </summary>
           <p>Artwork appears when an article has no cover image.</p>
           <a
             href="https://www.metmuseum.org/art/collection/search/436535"

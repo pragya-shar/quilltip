@@ -3,6 +3,7 @@ import Image from 'next/image'
 import { FileText } from 'lucide-react'
 import { shownCoverImage } from '@/lib/tiptap/articleImage'
 import './nft-card.css'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export interface NftCardProps {
   title: string
@@ -69,7 +70,7 @@ export function NftCard({
         {excerpt && <p className="nft-card-excerpt">{excerpt}</p>}
         {articleHref && (
           <span className="nft-card-read">
-            Read more <span aria-hidden="true">↗</span>
+            Read more <NorthEastArrow />
           </span>
         )}
       </div>

@@ -18,6 +18,7 @@ import {
   youtubeVideoId,
   youtubeWatchAddress,
 } from '@/lib/tiptap/youtubeExtension'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export function WritingMedia({
   workspace: w,
@@ -120,7 +121,10 @@ export function WritingMedia({
             disabled={busy}
             onClick={() => fileInput.current?.click()}
           >
-            Choose an image <span>From your device ↗</span>
+            Choose an image{' '}
+            <span>
+              From your device <NorthEastArrow />
+            </span>
           </button>
           <input
             ref={fileInput}

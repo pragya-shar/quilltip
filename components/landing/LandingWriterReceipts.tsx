@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { Check, Heart } from './LandingIcons'
 import { sampleSentences, type DemoReceipt } from './LandingTippingDemo'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export function LandingWriterReceipts({
   receipt,
@@ -56,7 +57,7 @@ export function LandingWriterReceipts({
           you.
         </p>
         <Link className="text-action" href="/write">
-          Write something of your own ↗
+          Write something of your own <NorthEastArrow />
         </Link>
       </div>
       <div className="tip-flow" data-playing={visible && pageVisible}>

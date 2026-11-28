@@ -2,6 +2,7 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react'
 import { Check, Wallet, ShieldCheck } from './WalletIcons'
 import { selectedWords, sentences } from './reading-model'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 const WalletPractice = lazy(() => import('./WalletPractice'))
 type Scenario =
@@ -198,8 +199,9 @@ export function WalletPreview({
           }}
         >
           {practice
-            ? 'Explore sample tipping instead ↗'
-            : 'Try a real wallet transfer ↗'}
+            ? 'Explore sample tipping instead'
+            : 'Try a real wallet transfer'}{' '}
+          <NorthEastArrow />
         </button>
       </div>
       {practiceOpened && (
@@ -515,7 +517,8 @@ export function WalletPreview({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    Get Varial from the official site ↗
+                    Get Varial from the official site <NorthEastArrow />
+                    <span className="sr-only"> (opens in a new tab)</span>
                   </a>{' '}
                   and follow its create-wallet flow.
                 </li>
@@ -537,7 +540,8 @@ export function WalletPreview({
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Can’t connect? Varial help ↗
+                Can’t connect? Varial help <NorthEastArrow />
+                <span className="sr-only"> (opens in a new tab)</span>
               </a>
             </details>
             <p className="wallet-demo-disclaimer">

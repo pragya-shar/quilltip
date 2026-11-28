@@ -15,6 +15,7 @@ import {
   compressImage,
   uploadFile,
 } from '@/lib/upload'
+import { MoveHorizontal } from 'lucide-react'
 
 export function WritingImageView({
   node,
@@ -160,7 +161,7 @@ export function WritingImageView({
                 }
               }}
             >
-              ↔
+              <MoveHorizontal aria-hidden="true" className="size-4" />
             </button>
             <select
               aria-label="Image size"

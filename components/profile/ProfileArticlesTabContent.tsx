@@ -13,6 +13,7 @@ import {
   toProfileArticlesPage,
   type ProfileArticlesPage,
 } from '@/lib/profile/profileArticles'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export function ProfileArticlesTabContent({
   username,
@@ -65,7 +66,7 @@ export function ProfileArticlesTabContent({
         </p>
         {isOwnProfile && (
           <Link href="/write" className="library-browse">
-            Write your first article ↗
+            Write your first article <NorthEastArrow />
           </Link>
         )}
       </div>
@@ -106,7 +107,7 @@ export function ProfileArticlesTabContent({
               <span>{displayName}</span>
             </span>
             <span className="writer-row-action" aria-hidden>
-              Read more ↗
+              Read more <NorthEastArrow />
             </span>
           </Link>
         )

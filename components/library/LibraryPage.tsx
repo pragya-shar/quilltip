@@ -6,6 +6,7 @@ import { useAuth } from '@/components/providers/AuthContext'
 import { buildRegisterHref } from '@/lib/auth/safeReturnPath'
 import { AccountLibrary } from './AccountLibrary'
 import { CollectionShell } from './CollectionShell'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export function LibraryPage() {
   const { user, isAuthenticated, isLoading } = useAuth()
@@ -30,7 +31,7 @@ export function LibraryPage() {
               className="library-browse"
               href={buildRegisterHref('/library')}
             >
-              Create an account ↗
+              Create an account <NorthEastArrow />
             </Link>
           )}
         </main>

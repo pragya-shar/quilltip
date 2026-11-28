@@ -41,6 +41,7 @@ import {
 } from '@/lib/reading-time'
 import { shownCoverImage } from '@/lib/tiptap/articleImage'
 import { publishFeedbackPlace } from '@/lib/editor/publish-feedback'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 
 export function WritingWorkspaceView({
   workspace: w,
@@ -265,7 +266,7 @@ export function WritingWorkspaceView({
               </>
             )}
             <a className="editor-return" href="/write?desk=writing">
-              Your writing ↗
+              Your writing <NorthEastArrow />
             </a>
           </div>
         </main>
@@ -323,7 +324,7 @@ export function WritingWorkspaceView({
             disabled={!w.editor}
             onClick={() => setPanel('preview')}
           >
-            Preview <span aria-hidden="true">↗</span>
+            Preview <NorthEastArrow />
           </button>
           <SignedInAccountMenu triggerClassName="editor-account-trigger" />
         </div>
@@ -614,9 +615,13 @@ export function WritingWorkspaceView({
           <div>
             <button onClick={close}>Back to writing</button>
             <button className="wine" onClick={() => setPanel('publish')}>
-              {w.publishStatus.published
-                ? 'Article settings'
-                : 'Continue to publish ↗'}
+              {w.publishStatus.published ? (
+                'Article settings'
+              ) : (
+                <>
+                  Continue to publish <NorthEastArrow />
+                </>
+              )}
             </button>
           </div>
         </div>
@@ -666,7 +671,10 @@ export function WritingWorkspaceView({
             w.setShowBodyImageDialog(true)
           }}
         >
-          Image <span>From your device ↗</span>
+          Image{' '}
+          <span>
+            From your device <NorthEastArrow />
+          </span>
         </button>
         <button
           className="insert-option"
@@ -943,7 +951,7 @@ export function WritingWorkspaceView({
         <p>Your article is published and ready for readers.</p>
         {publicationHref ? (
           <a className="wine wide published-link" href={publicationHref}>
-            View article ↗
+            View article <NorthEastArrow />
           </a>
         ) : (
           <p role="status">Preparing your article link…</p>

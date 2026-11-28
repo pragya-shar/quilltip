@@ -1,5 +1,6 @@
 import Link from 'next/link'
 import { articleHref } from '@/lib/library/bookmarks'
+import { NorthEastArrow } from '@/components/ui/NorthEastArrow'
 type NextArticle = {
   id: string
   title: string
@@ -38,7 +39,7 @@ export function ArticleReadNext({
               )}
               <span className="reader-next-label">Read more</span>
             </span>
-            <span aria-hidden="true">↗</span>
+            <NorthEastArrow />
           </Link>
         )
       })}
