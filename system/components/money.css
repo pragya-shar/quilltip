@@ -470,8 +470,10 @@
     font-variant-numeric: tabular-nums;
     white-space: nowrap;
   }
-  /* The check after your line takes no width: it sits raised over the
-   * space after the line, like a superscript, so tipping never rewraps. */
+  /* The check after your line takes no width, so tipping never rewraps. It
+   * sits after the line's last word, a little raised, sized with the text
+   * and inside its own line's height: on a line that wraps it never reaches
+   * into the line above. */
   .qt-mark__check {
     position: relative;
     display: inline-block;
@@ -482,7 +484,9 @@
   .qt-mark__check > * {
     position: absolute;
     inset-inline-start: 0.12em;
-    inset-block-end: 0.55em;
+    inset-block-end: 0.12em;
+    width: 0.75em;
+    height: 0.75em;
   }
 
   /* Drawn outside the text: margin ticks and the hold's band. */
