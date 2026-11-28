@@ -44,7 +44,7 @@ import {
   stopWithThisProcess,
   type StartOptions,
 } from '../perf/production-app'
-import { scrubFailureNotes } from './scrub-failure-notes'
+import type { SuiteSecrets } from './scrub-failure-notes'
 
 const repoRoot = resolve(__dirname, '../..')
 const DEPLOYMENT = 'anonymous:anonymous-agent'
@@ -278,6 +278,42 @@ async function createAccount(
   }
 }
 
+/**
+ * Runs the suite. Before it starts, the run's secrets go to
+ * AUTH_E2E_SECRETS_FILE (when set), for CI's copy of the failure notes
+ * without them (scrub-failure-notes.ts). With AUTH_E2E_OUTPUT_DIR set,
+ * Playwright writes its results there instead of test-results.
+ */
+export function runSuite(
+  playwrightArgs: string[],
+  env: NodeJS.ProcessEnv,
+  secrets: SuiteSecrets,
+  options: {
+    secretsFile?: string
+    outputDir?: string
+    run?: typeof spawnSync
+  } = {}
+): number {
+  const secretsFile = options.secretsFile ?? process.env.AUTH_E2E_SECRETS_FILE
+  const outputDir = options.outputDir ?? process.env.AUTH_E2E_OUTPUT_DIR
+  if (secretsFile)
+    writeFileSync(secretsFile, JSON.stringify(secrets), { mode: 0o600 })
+  const result = (options.run ?? spawnSync)(
+    process.execPath,
+    [
+      'x',
+      'playwright',
+      'test',
+      '--config',
+      'e2e/auth/playwright.config.ts',
+      ...(outputDir ? ['--output', outputDir] : []),
+      ...playwrightArgs,
+    ],
+    { cwd: repoRoot, stdio: 'inherit', env }
+  )
+  return result.status ?? 1
+}
+
 async function main(): Promise<number> {
   const argv = process.argv.slice(2)
   // `bun run` drops the first `--`, so every argument except the runner's
@@ -343,12 +379,6 @@ async function main(): Promise<number> {
 
     // After the key: signing up issues a token signed with it.
     const account = await createAccount(convexUrl!)
-    const secrets = { password: account.password, privateKey }
-    // For CI's own scrub of the failure notes, which runs even when this
-    // process is stopped before its scrub below (scrub-failure-notes.ts).
-    const secretsFile = process.env.AUTH_E2E_SECRETS_FILE
-    if (secretsFile)
-      writeFileSync(secretsFile, JSON.stringify(secrets), { mode: 0o600 })
 
     const appVars = {
       NEXT_PUBLIC_CONVEX_URL: convexUrl!,
@@ -374,37 +404,24 @@ async function main(): Promise<number> {
     }
     children.push(await startApp(appPort, appVars))
 
-    const result = spawnSync(
-      process.execPath,
-      [
-        'x',
-        'playwright',
-        'test',
-        '--config',
-        'e2e/auth/playwright.config.ts',
-        ...playwrightArgs,
-      ],
+    return runSuite(
+      playwrightArgs,
       {
-        cwd: repoRoot,
-        stdio: 'inherit',
-        env: {
-          ...process.env,
-          PLAYWRIGHT_BASE_URL: baseURL,
-          AUTH_E2E_CONVEX_URL: convexUrl,
-          AUTH_E2E_EMAIL: account.email,
-          AUTH_E2E_PASSWORD: account.password,
-          // This run's throwaway key on the local backend: the suite signs an
-          // expired copy of a real token with it.
-          AUTH_E2E_JWT_PRIVATE_KEY: privateKey,
-          NEXT_PUBLIC_CONVEX_URL: convexUrl,
-          CONVEX_DEPLOYMENT: DEPLOYMENT,
-          QUILLTIP_NETWORK_GUARD_OPT_IN: 'testnet',
-          NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
-        },
-      }
+        ...process.env,
+        PLAYWRIGHT_BASE_URL: baseURL,
+        AUTH_E2E_CONVEX_URL: convexUrl,
+        AUTH_E2E_EMAIL: account.email,
+        AUTH_E2E_PASSWORD: account.password,
+        // This run's throwaway key on the local backend: the suite signs an
+        // expired copy of a real token with it.
+        AUTH_E2E_JWT_PRIVATE_KEY: privateKey,
+        NEXT_PUBLIC_CONVEX_URL: convexUrl,
+        CONVEX_DEPLOYMENT: DEPLOYMENT,
+        QUILLTIP_NETWORK_GUARD_OPT_IN: 'testnet',
+        NEXT_PUBLIC_STELLAR_NETWORK: 'TESTNET',
+      },
+      { password: account.password, privateKey }
     )
-    scrubFailureNotes(resolve(repoRoot, 'test-results'), secrets)
-    return result.status ?? 1
   } finally {
     for (const child of children.reverse()) child.kill()
   }

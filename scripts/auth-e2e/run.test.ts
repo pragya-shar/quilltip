@@ -1,12 +1,12 @@
 import { afterEach, expect, test } from 'vitest'
 import { spawn } from 'child_process'
-import { mkdtempSync, writeFileSync } from 'fs'
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'fs'
 import { createServer, type Server } from 'http'
 import { createServer as createTcpServer } from 'net'
 import { tmpdir } from 'os'
 import { join } from 'path'
 import { perfPort } from '../perf/production-app'
-import { startApp } from './run'
+import { runSuite, startApp } from './run'
 
 /**
  * The sign-in suite's runner (run.ts) serves its build through the perf
@@ -149,3 +149,28 @@ setInterval(() => {}, 1000)
   await expectGone(backendPort)
   await expectGone(appPort)
 }, 30_000)
+
+test('the run writes its secrets for CI before the suite starts', () => {
+  const secretsFile = join(dir, 'secrets.json')
+  const secrets = { password: 'Aa1abcdef0123456789', privateKey: 'key' }
+  const seen: { args?: readonly string[]; secrets?: unknown } = {}
+  const status = runSuite(['--grep', 'sign'], { ...process.env }, secrets, {
+    secretsFile,
+    outputDir: '/runner/temp/auth-e2e-output',
+    // The suite, as spawnSync would start it.
+    run: ((_file: string, args: readonly string[]) => {
+      seen.args = args
+      seen.secrets = existsSync(secretsFile)
+        ? JSON.parse(readFileSync(secretsFile, 'utf8'))
+        : undefined
+      return { status: 0 }
+    }) as never,
+  })
+  expect(status).toBe(0)
+  expect(seen.secrets).toEqual(secrets)
+  // Playwright writes outside the workspace; CI uploads only clean copies.
+  expect(seen.args).toEqual(
+    expect.arrayContaining(['--output', '/runner/temp/auth-e2e-output'])
+  )
+  expect(seen.args?.slice(-2)).toEqual(['--grep', 'sign'])
+})
