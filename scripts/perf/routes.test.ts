@@ -96,6 +96,25 @@ describe('measured routes from scripts/perf/routes', () => {
   })
 })
 
+describe('payments code in a first load', () => {
+  it('is the store alone on a shell route', () => {
+    const store = '[project]/lib/payments/store.ts'
+    const engine = '[project]/lib/payments/tip-machine.ts'
+    const shell = '[project]/components/payments/PaymentsShell.tsx'
+    expect(forbiddenModules([store], '/system/reading')).toEqual([])
+    expect(
+      forbiddenModules(
+        [`${store} [app-client] (ecmascript)`],
+        '/system/reading'
+      )
+    ).toEqual([])
+    expect(forbiddenModules([engine], '/system/reading')).toHaveLength(1)
+    expect(forbiddenModules([shell], '/system/reading')).toHaveLength(1)
+    // The legacy layout mounts the payments shell itself.
+    expect(forbiddenModules([shell], '/login')).toEqual([])
+  })
+})
+
 describe('the balance code in a first load', () => {
   const pocket = '[project]/components/pocket/PocketContent.tsx'
   it('is refused on every route but the balance page', () => {
