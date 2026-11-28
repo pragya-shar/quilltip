@@ -27,10 +27,12 @@ import {
 
 const root = path.resolve(__dirname, '../..')
 
-/** Next.js route names of the pages under a directory: groups dropped. */
+/** Next.js route names of the pages under a directory: groups dropped,
+ * and the signed-in group left out (its pages need an account). */
 function pageRoutes(dir: string, prefix = ''): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = path.join(dir, name)
+    if (name === '(signed-in)') return []
     if (statSync(full).isDirectory()) {
       const segment = /^\(.*\)$/.test(name) ? '' : `/${name}`
       return pageRoutes(full, `${prefix}${segment}`)
@@ -150,7 +152,9 @@ describe('the legacy lists, replaced without editing them', () => {
 })
 
 describe('every public route of the shell', () => {
-  const publicRoutes = pageRoutes(path.join(root, 'app/(app)/(public)'))
+  // Every page open signed out: app/(app)/(public), and pages directly
+  // under app/(app) (Write), but not app/(app)/(signed-in).
+  const publicRoutes = pageRoutes(path.join(root, 'app/(app)'))
   const unmeasured = new Map(UNMEASURED.map((e) => [e.route, e.reason]))
 
   it('has a first-load budget and a no-script check, or says why not', () => {
