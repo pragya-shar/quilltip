@@ -733,6 +733,33 @@ function convexExport(fn: string): {
   return { type, body, args }
 }
 
+/** Source with the whitespace around `.` removed, so a split chain reads as one. */
+function flat(source: string): string {
+  return source.replace(/\s*\.\s*(?=[A-Za-z_$])/g, '.')
+}
+
+/** What `ctx` serves in `source`: `db.get`, `runQuery`, or a helper it is passed to. */
+function ctxUses(source: string): string[] {
+  const uses = [
+    ...[...source.matchAll(/\bctx\.db\.(\w+)/g)].map((m) => `db.${m[1]}`),
+    ...[...source.matchAll(/\bctx\.(?!db\.)(\w+)/g)].map((m) => m[1]),
+    ...[...source.matchAll(/(\w+)\(\s*ctx\b/g)].map((m) => m[1]),
+  ]
+  return [...new Set(uses)].sort() as string[]
+}
+
+/** `internal.chain.tabReconcile.reconcile` as `chain/tabReconcile:reconcile`. */
+function functionPath(call: string): string {
+  const parts = call.replace(/^internal\./, '').split('.')
+  const name = parts.pop() as string
+  return `${parts.join('/')}:${name}`
+}
+
+/** The one mutation a listed action may run; its dry-run return is checked. */
+const DRY_RUN_MUTATIONS: Readonly<Record<string, string>> = {
+  'chain/tabReconcile:run': 'internal.chain.tabReconcile.reconcile',
+}
+
 describe('read-only path: the listed functions in the Convex source', () => {
   it.each(LIVE_READ_FUNCTION_NAMES.map((fn) => [fn]))(
     '%s has the recorded type and accepts the listed arguments',
@@ -757,6 +784,37 @@ describe('read-only path: the listed functions in the Convex source', () => {
       expect(source.body).not.toMatch(
         /runAction|scheduler|fetch\(|ctx\.storage/
       )
+      // The handler hands `ctx` to no helper, and uses it only to run
+      // queries, plus its one dry-run mutation where it has one.
+      const body = flat(source.body)
+      expect(body).not.toMatch(/\w\(\s*ctx\b/)
+      const dryRun = DRY_RUN_MUTATIONS[fn]
+      expect(
+        [
+          ...new Set([...body.matchAll(/\bctx\.(\w+)/g)].map((m) => m[1])),
+        ].sort()
+      ).toEqual(dryRun ? ['runMutation', 'runQuery'] : ['runQuery'])
+      // Each call runs the recorded function by the right method, and the
+      // function it runs is a query, except that dry-run mutation.
+      for (const call of entry.calls ?? []) {
+        const sites = [
+          ...body.matchAll(
+            new RegExp(
+              `ctx\\.(\\w+)\\(\\s*${call.replace(/\./g, '\\.')}\\b`,
+              'g'
+            )
+          ),
+        ].map((m) => m[1])
+        expect(sites.length).toBeGreaterThan(0)
+        const callee = convexExport(functionPath(call))
+        if (call === dryRun) {
+          expect(callee.type).toBe('internalMutation')
+          expect(new Set(sites)).toEqual(new Set(['runMutation']))
+        } else {
+          expect(['query', 'internalQuery']).toContain(callee.type)
+          expect(new Set(sites)).toEqual(new Set(['runQuery']))
+        }
+      }
     }
   )
 
@@ -776,6 +834,26 @@ describe('read-only path: the listed functions in the Convex source', () => {
       /ctx\.db\.(insert|patch|replace|delete)|applyPairSettlement|releasePairReserve|pruneBalanceDebits|recordReserveRelease|ctx\.scheduler/
     )
     expect(firstWrite).toBeGreaterThan(dryReturn)
+    // Before the dry-run return `ctx` serves reads only: `ctx.db.get`,
+    // `ctx.db.query`, and `accountVouchers`, which only queries. A new
+    // helper that takes `ctx` there fails this check until it is reviewed.
+    const before = flat(reconcile.body.slice(0, dryReturn))
+    expect(ctxUses(before)).toEqual(['accountVouchers', 'db.get', 'db.query'])
+    const source = flat(
+      fs.readFileSync(path.join(REPO, 'convex/chain/tabReconcile.ts'), 'utf8')
+    )
+    // The helper's body, from the brace after its signature to its end.
+    const helper = /async function accountVouchers\([^{]*\{([\s\S]*?)\n\}/.exec(
+      source
+    )?.[1]
+    expect(helper).toBeDefined()
+    expect(ctxUses(helper ?? '')).toEqual(['db.query'])
+    // The chain read is a simulation: the module calls no other RPC method
+    // and holds no signing key.
+    expect([
+      ...new Set([...source.matchAll(/\brpc\.(\w+)\(/g)].map((m) => m[1])),
+    ]).toEqual(['simulateTransaction'])
+    expect(source).not.toMatch(/sendTransaction|Keypair|_SECRET/)
   })
 
   it('the window apply shape matches the function arguments', () => {
