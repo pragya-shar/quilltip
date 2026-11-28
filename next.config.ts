@@ -20,6 +20,12 @@ const nextConfig: NextConfig = {
   // replaces, app/(legacy). A URL that matches neither renders
   // app/global-not-found.tsx.
   experimental: { globalNotFound: true },
+  // Vercel builds with immutable asset paths (`/_next/static/immutable/`).
+  // QUILLTIP_IMMUTABLE_ASSETS=1 makes a local build match, for measurements
+  // such as scripts/perf/tap-to-visible.ts. Off for every other build.
+  ...(process.env.QUILLTIP_IMMUTABLE_ASSETS === '1' && {
+    supportsImmutableAssets: true,
+  }),
   // The paths the legacy pages still serve, so the shell's links to them
   // never prefetch (lib/routing/legacyRoutes.ts); where the shell's "Sign in"
   // goes, the shell's sign-in page once it is in the route tree

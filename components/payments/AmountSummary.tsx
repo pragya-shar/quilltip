@@ -28,6 +28,8 @@ interface AmountSummaryProps {
    * before the wallet prompt.
    */
   estimate?: boolean
+  /** An id for the total line, so an action can read it as its description. */
+  totalId?: string
   className?: string
 }
 
@@ -42,6 +44,7 @@ export function AmountSummary({
   items = [],
   quoteCents,
   estimate = false,
+  totalId,
   className,
 }: AmountSummaryProps) {
   const labelId = useId()
@@ -76,7 +79,7 @@ export function AmountSummary({
           ))}
         </ul>
       ) : null}
-      <p className="pay-amount-total">
+      <p className="pay-amount-total" id={totalId}>
         <span id={labelId}>{label}</span>
         <strong>
           <XlmAmount

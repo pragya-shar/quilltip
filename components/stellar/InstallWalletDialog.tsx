@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef, type RefObject } from 'react'
+import type { RefObject } from 'react'
 import './wallet-help.css'
 import {
   Dialog,
@@ -90,21 +90,15 @@ export function InstallWalletDialog({
   onOpenChange: (open: boolean) => void
   returnFocusRef?: RefObject<HTMLButtonElement | null>
 }) {
-  const origin = useRef<HTMLElement | null>(null)
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         className="wallet-install-dialog"
         overlayClassName="wallet-install-overlay"
-        onOpenAutoFocus={() => {
-          origin.current =
-            document.activeElement instanceof HTMLElement
-              ? document.activeElement
-              : null
-        }}
+        // Without a named control, the dialog returns focus to its opener.
         onCloseAutoFocus={(event) => {
-          const target = returnFocusRef?.current ?? origin.current
-          if (target?.isConnected && target !== document.body) {
+          const target = returnFocusRef?.current
+          if (target?.isConnected) {
             event.preventDefault()
             target.focus({ preventScroll: true })
           }

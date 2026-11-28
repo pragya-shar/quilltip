@@ -52,6 +52,7 @@ export type GateKind =
   | 'locked'
   | 'wrong-network'
   | 'unverified'
+  | 'other-account'
 
 /** How the stand-in wallet and RPC answer the next `send`. */
 export type SendBehaviour =
@@ -60,6 +61,8 @@ export type SendBehaviour =
   | 'cancelled'
   | 'locked'
   | 'wrong-network'
+  /** The wallet signed with another account; the reader's linked address was named. */
+  | 'wrong-account'
   | 'timeout'
   | 'balance'
   | 'paused'
@@ -385,7 +388,10 @@ export function sendOperation(
   hash: string
 ):
   | { status: 'sent'; hash: string }
-  | { status: 'wallet_failed'; error: { kind: string } }
+  | {
+      status: 'wallet_failed'
+      error: { kind: string; expectedAddress?: string }
+    }
   | {
       status: 'simulation_failed' | 'send_error'
       error: {
@@ -414,6 +420,12 @@ export function sendOperation(
       return { status: 'wallet_failed', error: { kind: 'locked' } }
     case 'wrong-network':
       return { status: 'wallet_failed', error: { kind: 'wrong-network' } }
+    case 'wrong-account':
+      // As the adapter reports it after the wallet answered (#582).
+      return {
+        status: 'wallet_failed',
+        error: { kind: 'wrong-account', expectedAddress: FIXTURE_READER },
+      }
     case 'timeout':
       return { status: 'wallet_failed', error: { kind: 'timeout' } }
     case 'balance':

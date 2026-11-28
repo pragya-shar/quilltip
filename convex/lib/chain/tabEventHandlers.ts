@@ -10,13 +10,20 @@
  *   absolute balance applies only when its event is newer than the last one
  *   applied, minus the debits of newer `TabSettled` events already seen. A
  *   debit older than the applied absolute balance is already included in it.
+ *   Each applied debit keeps a `tabBalanceDebits` row until a balance covers
+ *   it, so a replayed or re-dispatched `TabSettled` debits once, however
+ *   many settlements came after it.
  * - **Status** (`OPEN`, `CLOSING`, `CLOSED`) follows the newest status event.
  * - **Keys.** Revocation only lowers `valid_until` and never un-revokes, so
  *   `KeyRegistered` and `KeyRevoked` give the same result in either order.
  * - **Payments.** `paidOnChain` only grows (`max`), so a replayed or late
  *   `TabSettled` cannot lower it. The settler's own record of a settlement
  *   can arrive before or after the event; until the event's debit is
- *   applied, the paid amount stays reserved as `settledUnindexed`.
+ *   applied, the paid amount stays reserved as `settledUnindexed`. An
+ *   absolute balance from a later ledger than every unindexed payment of a
+ *   pair already includes those debits, so it releases that reserve
+ *   (`releaseIncludedReserves`); the late event then neither debits nor
+ *   releases again.
  */
 import { StrKey } from '@stellar/stellar-sdk'
 import type { Doc } from '../../_generated/dataModel'
@@ -26,12 +33,16 @@ import { readChainEnv } from './env'
 import { isHexOfLength } from './ids'
 import type { ChainEventHandler, IndexedEvent } from './indexerStore'
 import {
-  MAX_SETTLED_SINCE_BALANCE,
   adjustBaseUnitEarnings,
   applyPairPayment,
   applyPairSettlement,
+  debitsAfter,
+  pruneBalanceDebits,
+  recordBalanceDebit,
   insertTabAccount,
+  recordClaim,
   refreshSettleQueue,
+  releaseIncludedReserves,
   resolveUnpaidPairs,
   tabAccountForReader,
   tabKey,
@@ -115,39 +126,128 @@ async function accountFor(
   })
 }
 
-/** Patch for an absolute balance, or null when a newer one is applied. */
-function absoluteBalance(
+/**
+ * Patch for an absolute balance, or null when a newer one is applied. The
+ * balance is the event's, less every debit applied after the event
+ * (`debitsAfter`): those happened on chain later.
+ */
+async function absoluteBalance(
+  ctx: MutationCtx,
   account: Doc<'tabAccounts'>,
-  eventId: string,
+  event: IndexedEvent,
   balance: bigint
-): Partial<Doc<'tabAccounts'>> | null {
-  if (account.balanceEventId && account.balanceEventId >= eventId) return null
-  const later = account.settledSinceBalance.filter((s) => s.eventId > eventId)
-  const debits = later.reduce((sum, s) => sum + BigInt(s.gross), ZERO)
+): Promise<
+  | { applied: true; patch: Partial<Doc<'tabAccounts'>> }
+  | { applied: false; patch: Partial<Doc<'tabAccounts'>> | null }
+> {
+  const eventId = event.doc.eventId
+  if (account.balanceEventId && account.balanceEventId >= eventId) {
+    return { applied: false, patch: null }
+  }
+  // Older than a balance already waiting for a reconciliation: that one
+  // or the reconciliation sets the balance, so read nothing.
+  if (
+    account.reconcileRequired &&
+    eventId <= account.reconcileRequired.eventId
+  ) {
+    return { applied: false, patch: null }
+  }
+  const debits = await debitsAfter(ctx, account, eventId, event.budget)
+  if (debits === null) {
+    // Too many later debits to read in one transaction. Apply nothing:
+    // the account waits for a newer absolute balance or a reconciliation
+    // against the contract, and takes no tab tip meanwhile.
+    console.error(
+      JSON.stringify({
+        code: 'CHAIN_TAB_RECONCILE_REQUIRED',
+        tabAccountId: String(account._id),
+        eventId,
+        ledger: event.doc.ledger,
+      })
+    )
+    // The mark names the newest balance not applied (this one: an older
+    // mark returned above), so a balance between the two cannot clear it.
+    return {
+      applied: false,
+      patch: {
+        reconcileRequired: {
+          eventId,
+          ledger: event.doc.ledger,
+          since: account.reconcileRequired?.since ?? event.now,
+        },
+      },
+    }
+  }
   return {
-    balanceEventId: eventId,
-    settledSinceBalance: later,
-    confirmedBalance: (balance - debits).toString(),
+    applied: true,
+    patch: {
+      balanceEventId: eventId,
+      balanceLedger: event.doc.ledger,
+      settledSinceBalance: account.settledSinceBalance.filter(
+        (s) => s.eventId > eventId
+      ),
+      confirmedBalance: (balance - debits).toString(),
+      // A newer balance than the one that could not be applied replaces it.
+      ...(account.reconcileRequired &&
+      account.reconcileRequired.eventId < eventId
+        ? { reconcileRequired: undefined }
+        : {}),
+    },
   }
 }
 
-/** Patch for a `TabSettled` debit, or null when it is already counted. */
-function balanceDebit(
+/**
+ * Applies an absolute balance event's patches, deletes the debit rows it
+ * covers, then releases the reserve of settlements that balance already
+ * includes (`releaseIncludedReserves`).
+ */
+async function applyAbsolute(
+  ctx: MutationCtx,
   account: Doc<'tabAccounts'>,
-  eventId: string,
+  event: IndexedEvent,
+  balance: bigint,
+  status: Partial<Doc<'tabAccounts'>>
+): Promise<void> {
+  const absolute = await absoluteBalance(ctx, account, event, balance)
+  await patchAccount(ctx, account, event.now, absolute.patch, status)
+  if (absolute.applied) {
+    await pruneBalanceDebits(
+      ctx,
+      account._id,
+      event.doc.eventId,
+      undefined,
+      event.budget
+    )
+    await releaseIncludedReserves(ctx, account._id, {
+      now: event.now,
+      eventId: event.doc.eventId,
+    })
+  }
+}
+
+/**
+ * Patch for a `TabSettled` debit, or null when it is already counted
+ * (`recordBalanceDebit`: older than the applied balance, or applied once).
+ */
+async function balanceDebit(
+  ctx: MutationCtx,
+  account: Doc<'tabAccounts'>,
+  event: IndexedEvent,
   gross: bigint
-): Partial<Doc<'tabAccounts'>> | null {
-  if (account.balanceEventId && eventId < account.balanceEventId) return null
-  if (account.settledSinceBalance.some((s) => s.eventId === eventId))
+): Promise<Partial<Doc<'tabAccounts'>> | null> {
+  if (
+    !(await recordBalanceDebit(
+      ctx,
+      account,
+      event.doc.eventId,
+      gross,
+      event.now,
+      event.budget
+    ))
+  ) {
     return null
-  const list = [
-    ...account.settledSinceBalance,
-    { eventId, gross: gross.toString() },
-  ]
-    .sort((a, b) => (a.eventId < b.eventId ? -1 : 1))
-    .slice(-MAX_SETTLED_SINCE_BALANCE)
+  }
   return {
-    settledSinceBalance: list,
     confirmedBalance: (BigInt(account.confirmedBalance) - gross).toString(),
   }
 }
@@ -181,11 +281,11 @@ const deposited: ChainEventHandler = async (ctx, event) => {
   int(d.amount, 'amount')
   const account = await accountFor(ctx, event, reader, true)
   if (!account) return 'orphan'
-  await patchAccount(
+  await applyAbsolute(
     ctx,
     account,
-    event.now,
-    absoluteBalance(account, event.doc.eventId, balance),
+    event,
+    balance,
     statusChange(account, event.doc.eventId, 'OPEN', undefined)
   )
   await unblockAccountPairs(ctx, account._id, event.now)
@@ -199,11 +299,11 @@ const withdrawStarted: ChainEventHandler = async (ctx, event) => {
   const unlock = u32(d.unlock_ledger, 'unlock_ledger')
   const account = await accountFor(ctx, event, reader, false)
   if (!account) return 'orphan'
-  await patchAccount(
+  await applyAbsolute(
     ctx,
     account,
-    event.now,
-    absoluteBalance(account, event.doc.eventId, balance),
+    event,
+    balance,
     statusChange(account, event.doc.eventId, 'CLOSING', unlock)
   )
   return 'done'
@@ -214,11 +314,11 @@ const withdrawCancelled: ChainEventHandler = async (ctx, event) => {
   const balance = int(data(event).balance, 'balance')
   const account = await accountFor(ctx, event, reader, false)
   if (!account) return 'orphan'
-  await patchAccount(
+  await applyAbsolute(
     ctx,
     account,
-    event.now,
-    absoluteBalance(account, event.doc.eventId, balance),
+    event,
+    balance,
     statusChange(account, event.doc.eventId, 'OPEN', undefined)
   )
   return 'done'
@@ -229,11 +329,11 @@ const withdrawn: ChainEventHandler = async (ctx, event) => {
   int(data(event).amount, 'amount')
   const account = await accountFor(ctx, event, reader, false)
   if (!account) return 'orphan'
-  await patchAccount(
+  await applyAbsolute(
     ctx,
     account,
-    event.now,
-    absoluteBalance(account, event.doc.eventId, ZERO),
+    event,
+    ZERO,
     statusChange(account, event.doc.eventId, 'CLOSED', undefined)
   )
   await resolveUnpaidPairs(ctx, account._id, event.doc.ledger, event.now)
@@ -345,7 +445,7 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
     ctx,
     account,
     event.now,
-    balanceDebit(account, event.doc.eventId, gross)
+    await balanceDebit(ctx, account, event, gross)
   )
 
   const voucher = await tabVoucher(ctx, account._id, keyId, writer)
@@ -357,6 +457,7 @@ const tabSettled: ChainEventHandler = async (ctx, event) => {
     cumulative,
     eventId: event.doc.eventId,
     indexedGross: gross,
+    sourceLedger: event.doc.ledger,
     now: event.now,
   })
   return 'done'
@@ -416,6 +517,18 @@ const claimed: ChainEventHandler = async (ctx, event) => {
   const user = await uniqueVerifiedUser(ctx, recipient, passphrase())
   // The treasury, or an address no single user verified.
   if (!user) return 'orphan'
+  // Once per event: a re-dispatch, replay or rebuilt event row finds the
+  // record and adds nothing.
+  const recorded = await recordClaim(ctx, {
+    doc: event.doc,
+    recipient,
+    userId: user._id,
+    token,
+    amount,
+    source: 'applied',
+    now: event.now,
+  })
+  if (!recorded) return 'done'
   await adjustBaseUnitEarnings(ctx, {
     userId: user._id,
     token,

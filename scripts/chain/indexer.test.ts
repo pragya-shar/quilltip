@@ -29,6 +29,7 @@ import {
   setTopic,
 } from './coreEvents'
 
+import { expectRedispatchChangesNothing } from './redispatch'
 const modules = import.meta.glob('../../convex/**/*.ts')
 
 const START = 6_000_000
@@ -618,6 +619,7 @@ describe('reconciliation from events', () => {
     })
     const article = await t.run((ctx) => ctx.db.get(s.chainArticleId))
     expect(article!.totals[SNAPSHOT_TOKEN]).toBe('30000000')
+    await expectRedispatchChangesNothing(t)
   })
 
   it('a Tipped event for an unknown client_ref is an orphan that still counts in article totals', async () => {
@@ -834,6 +836,7 @@ describe('article and config handlers', () => {
     const config = await t.run((ctx) => ctx.db.query('chainConfig').first())
     expect(config!.minTip).toBe('5000000')
     expect((await events(t)).every((e) => e.handled === 'done')).toBe(true)
+    await expectRedispatchChangesNothing(t)
   })
 
   it('rejects a registration whose article_id is not derived from author and article_ref', async () => {
