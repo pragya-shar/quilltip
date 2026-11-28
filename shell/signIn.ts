@@ -1,7 +1,7 @@
 import { getSafeReturnPath } from '@/lib/auth/safeReturnPath'
 import { SIGN_IN_PATH } from './navigation'
 import { knownSheet, sheetStack } from './sheetStack'
-import { isSigningOut } from './signOut/session'
+import { isSigningOut } from './signOut/state'
 
 /** The id the sign-in sheet registers under (the Account surface builds it). */
 export const SIGN_IN_SHEET = 'sign-in'

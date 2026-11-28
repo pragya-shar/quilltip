@@ -19,42 +19,15 @@ import { forgetAllRememberedWallets } from '@/lib/wallet/remembered-wallet'
 import { hasAuthToken } from '../prePaint'
 import { runSignOutCleanups } from './index'
 
-/** The marker's key. Its value is "1": nothing about the person. */
-export const SIGNED_IN_MARKER = 'quilltip:shell:signed-in'
+import {
+  SIGNED_IN_MARKER,
+  marked,
+  safely,
+  setSigningOut,
+  type MarkerStorage,
+} from './state'
 
-type MarkerStorage = Pick<
-  Storage,
-  'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'
->
-
-let signingOut = false
-
-function safely(run: () => void) {
-  try {
-    run()
-  } catch {
-    // Blocked or read-only storage: nothing more can be done from here.
-  }
-}
-
-/** Signed in (the server said so): remember that this browser was. */
-export function markSignedIn(storage: MarkerStorage | null) {
-  if (storage) safely(() => storage.setItem(SIGNED_IN_MARKER, '1'))
-}
-
-function marked(storage: MarkerStorage): boolean {
-  try {
-    return storage.getItem(SIGNED_IN_MARKER) !== null
-  } catch {
-    return false
-  }
-}
-
-/** Whether a sign-out is under way here, or was left unfinished. */
-export function isSigningOut(storage: MarkerStorage | null = null): boolean {
-  if (signingOut) return true
-  return storage ? marked(storage) && !hasAuthToken(storage) : false
-}
+export { SIGNED_IN_MARKER, isSigningOut, markSignedIn } from './state'
 
 /**
  * What a shell load or a change to signed out does: with no token held,
@@ -88,7 +61,7 @@ export async function signOutHere(
   storage: MarkerStorage | null,
   run: () => Promise<unknown> = runSignOutCleanups
 ): Promise<void> {
-  signingOut = true
+  setSigningOut(true)
   const forget = () => forgetAllRememberedWallets(storage)
   const target = typeof window === 'undefined' ? null : window
   target?.addEventListener('pagehide', forget)
@@ -99,6 +72,6 @@ export async function signOutHere(
   } finally {
     forget()
     target?.removeEventListener('pagehide', forget)
-    signingOut = false
+    setSigningOut(false)
   }
 }
