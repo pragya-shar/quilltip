@@ -2946,6 +2946,203 @@ describe('writer earnings summary with tab tips (#552)', () => {
     expect(await rows()).toEqual(once)
     expect(await others()).toEqual(before)
   }, 60_000)
+
+  /**
+   * The writer's received list and the earnings count cover the same tips:
+   * a tab tip whose receipt settled on chain is paid (#707). Only a receipt
+   * partly paid is in the count before the list.
+   */
+  describe('received tab tips (#707)', () => {
+    /** A verified v2 wallet row, credited by the earnings sync. */
+    async function walletRow(
+      t: T,
+      s: Seeded,
+      fields: Record<string, unknown>,
+      table: 'tips' | 'highlightTips' = 'tips'
+    ) {
+      return t.run(async (ctx) => {
+        const now = Date.now()
+        const row = {
+          articleId: s.articleId,
+          tipperId: s.readerId,
+          authorId: s.authorId,
+          articleTitle: 'Words',
+          articleSlug: 'words',
+          amountUsd: 0.1,
+          amountCents: 10,
+          status: 'CONFIRMED',
+          contractVersion: 'v2' as const,
+          channel: 'direct' as const,
+          tokenContractId: TOKEN,
+          onChainTokenContractId: TOKEN,
+          grossBaseUnits: '1000000',
+          netBaseUnits: '975000',
+          onChainAuthorAddress: WRITER,
+          expectedAuthorAddress: WRITER,
+          chainEpoch: EPOCH,
+          verifiedAt: now,
+          createdAt: now,
+          updatedAt: now,
+          ...fields,
+        }
+        const id =
+          table === 'tips'
+            ? await ctx.db.insert('tips', row as never)
+            : await ctx.db.insert('highlightTips', {
+                ...row,
+                highlightId: 'wallet-passage',
+                highlightText: 'words',
+                startOffset: 0,
+                endOffset: 5,
+              } as never)
+        expect(await applyV2TipEarnings(ctx, table, id, now)).toBe('credited')
+        return id
+      })
+    }
+
+    /**
+     * One writer, one tip of each kind: direct, wallet-paid passage, batch
+     * member, MISMATCH paid to the writer's address, tab article, tab
+     * passage, and a tab receipt only partly paid on chain.
+     */
+    async function everyKind(t: T, s: Seeded) {
+      await walletRow(t, s, {})
+      await walletRow(t, s, {}, 'highlightTips')
+      await walletRow(t, s, { channel: 'batch' })
+      await walletRow(t, s, { status: 'MISMATCH', mismatchReason: 'author' })
+      await tip(t, s, { cents: 10 })
+      await tip(t, s, { cents: 10, highlight: HIGHLIGHT })
+      await tip(t, s, { cents: 10 })
+      // 2.5 of 3 XLM paid: two receipts settle, the third is partly paid.
+      await ingest(
+        t,
+        ev.tabSettled({
+          cumulative: BigInt(3_000_000),
+          paidAfter: BigInt(2_500_000),
+          gross: BigInt(2_500_000),
+        })
+      )
+      expect(await receiptStatuses(t)).toEqual([
+        'SETTLED',
+        'SETTLED',
+        'SHORTFALL',
+      ])
+    }
+
+    async function received(t: T, s: Seeded) {
+      const reader = as(t, s.authorId)
+      const [articles, passages, articlePage, passagePage] = await Promise.all([
+        reader.query(api.tips.getUserReceivedTips, {}),
+        reader.query(api.highlightTips.getByAuthor, {}),
+        reader.query(api.tips.listMyReceivedTips, {
+          paginationOpts: { numItems: 100, cursor: null },
+        }),
+        reader.query(api.highlightTips.listMyReceived, {
+          paginationOpts: { numItems: 100, cursor: null },
+        }),
+      ])
+      const kinds = (rows: { channel?: string; status: string }[]) =>
+        rows.map((r) => `${r.channel}:${r.status}`).sort()
+      // The pages return the same rows (they carry fewer fields).
+      const ids = (rows: { _id: string }[]) => rows.map((r) => r._id).sort()
+      expect(ids(articlePage.page)).toEqual(ids(articles))
+      expect(ids(passagePage.page)).toEqual(ids(passages))
+      return { articles: kinds(articles), passages: kinds(passages) }
+    }
+
+    it('lists every paid kind; the count is one above the list by the partly paid tab receipt', async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      await everyKind(t, s)
+      expect(await received(t, s)).toEqual({
+        articles: [
+          'batch:CONFIRMED',
+          'direct:CONFIRMED',
+          'direct:MISMATCH',
+          'tab:SETTLED',
+        ],
+        passages: ['direct:CONFIRMED', 'tab:SETTLED'],
+      })
+      // Four wallet tips and three tab tips with a paid part: 7. The list has
+      // 6; the partly paid receipt joins it once it is SETTLED.
+      expect((await summary(t, s))?.tipCount).toBe(7)
+      // The tab rows are not given verifiedAt: the settlement is the evidence.
+      const tabRows = await t.run(async (ctx) => [
+        ...(await ctx.db.query('tips').collect()),
+        ...(await ctx.db.query('highlightTips').collect()),
+      ])
+      for (const row of tabRows.filter((r) => r.channel === 'tab')) {
+        expect(row.verifiedAt).toBeUndefined()
+      }
+      // The rest of the pair is paid: the partly paid tip joins the list.
+      await settleAll(t, BigInt(3_000_000))
+      expect((await received(t, s)).articles).toEqual([
+        'batch:CONFIRMED',
+        'direct:CONFIRMED',
+        'direct:MISMATCH',
+        'tab:SETTLED',
+        'tab:SETTLED',
+      ])
+      expect((await summary(t, s))?.tipCount).toBe(7)
+    })
+
+    it('counts settled tab passage tips in the heatmap and the passage counts', async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      await everyKind(t, s)
+      const stats = await t.query(api.highlightTips.getArticleStats, {
+        articleId: s.articleId,
+      })
+      expect(stats.totalTips).toBe(2)
+      expect(stats.totalAmountCents).toBe(20)
+      expect(stats.topHighlights.map((h) => h.tipCount)).toEqual([1, 1])
+      const groups = await t.query(api.highlightTips.getByArticle, {
+        articleId: s.articleId,
+      })
+      expect(groups.map((g) => g.tipCount)).toEqual([1, 1])
+      const tabPassage = await t.run(
+        async (ctx) =>
+          (await ctx.db.query('highlightTips').collect()).find(
+            (r) => r.channel === 'tab'
+          )!
+      )
+      const one = await t.query(api.highlightTips.getByHighlight, {
+        highlightId: tabPassage.highlightId,
+      })
+      expect(one).toMatchObject({ tipCount: 1, totalAmountCents: 10 })
+      // The gross the receipt settled, from the chain.
+      expect(one.grossBaseUnits).toEqual({ [TOKEN]: '1000000' })
+    })
+
+    it('a SETTLED row without its settlement credit, or not from a tab, is not paid', async () => {
+      const t = convexTest(schema, modules)
+      const s = await seed(t)
+      await tip(t, s, { cents: 10 })
+      await settleAll(t, BigInt(1_000_000))
+      await t.run(async (ctx) => {
+        const settled = (await ctx.db.query('tips').collect())[0]!
+        const { _id, _creationTime, earningsAppliedAt, ...rest } = settled
+        void _id
+        void _creationTime
+        expect(earningsAppliedAt).toBeTypeOf('number')
+        // Settled status without the credit the settlement records with it.
+        await ctx.db.insert('tips', {
+          ...rest,
+          clientRef: 'e1'.repeat(16),
+          requestId: 'no-credit',
+        })
+        // A wallet row is never SETTLED; if one were, it is not a tab tip.
+        await ctx.db.insert('tips', {
+          ...rest,
+          earningsAppliedAt,
+          channel: 'direct',
+          clientRef: 'e2'.repeat(16),
+          requestId: 'not-tab',
+        })
+      })
+      expect((await received(t, s)).articles).toEqual(['tab:SETTLED'])
+    })
+  })
 })
 
 describe('event handlers', () => {

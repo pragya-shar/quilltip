@@ -4,11 +4,11 @@ import { ArrowRight } from 'lucide-react'
 import type { TipActivityItem } from '@/lib/account/tipActivity'
 import { TIP_HISTORY_USD_NOTE } from '@/lib/copy/network-status'
 import {
+  historyStatusLabel,
   recordedUsd,
-  shownTipStatus,
   TipReceiptDialog,
   tipGenerationLabel,
-  tipStatusLabel,
+  tipKindLabel,
 } from './TipReceiptDialog'
 
 type Filter = 'all' | 'received' | 'sent'
@@ -70,6 +70,7 @@ export function WalletTipHistory({
                   {item.direction === 'sent' ? 'To' : 'From'} {item.counterpart}
                 </h3>
                 <p>{item.articleTitle}</p>
+                <p className="account-tip-kind">{tipKindLabel(item)}</p>
                 {item.amountUsdSuspicious && (
                   <p className="account-amount-notice">
                     USD amount needs review
@@ -85,17 +86,7 @@ export function WalletTipHistory({
               </time>
               <div className="account-tip-amount">
                 <strong>{recordedUsd(item.amountCents)}</strong>
-                <span>
-                  {item.status === 'CONFIRMED'
-                    ? item.direction === 'sent'
-                      ? 'Sent'
-                      : 'Received'
-                    : tipStatusLabel(
-                        shownTipStatus(item, readerTabShort),
-                        item.mismatchReason,
-                        item.channel
-                      )}
-                </span>
+                <span>{historyStatusLabel(item, readerTabShort)}</span>
                 {tipGenerationLabel(item) ? (
                   <span>{tipGenerationLabel(item)}</span>
                 ) : item.stellarNetwork === 'TESTNET' ? (

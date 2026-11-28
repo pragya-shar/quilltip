@@ -23,6 +23,8 @@ type ActivityBase = {
   stellarTxId?: string
   stellarNetwork?: string
   stellarAmountXlm?: string
+  /** v2: the gross in base units, for a tab tip the settled receipt's. */
+  grossBaseUnits?: string
   amountUsdSuspicious?: boolean
   /** The contract generation the row was recorded with. */
   contractVersion: 'v1' | 'v2'
@@ -90,6 +92,7 @@ export function normalizeTipActivity(
         stellarTxId: tip.stellarTxId,
         stellarNetwork: tip.stellarNetwork,
         stellarAmountXlm: tip.stellarAmountXlm,
+        grossBaseUnits: tip.grossBaseUnits,
         amountUsdSuspicious:
           'amountUsdSuspicious' in tip ? tip.amountUsdSuspicious : undefined,
         contractVersion: tip.contractVersion === 'v2' ? 'v2' : 'v1',
