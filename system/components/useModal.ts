@@ -24,7 +24,10 @@ const FOCUSABLE = [
 
 /**
  * Brings the focused field into view inside the modal's scrolling body,
- * with a little room, and nothing else: the page behind never moves.
+ * with a little room, and nothing else: the page behind never moves. When
+ * the field is inside a `[data-sheet-keep]` block (a field with the buttons
+ * that act on it, in a sheet whose buttons live in its body), the whole
+ * block is brought into view if it fits, else the field.
  */
 function revealFocused(dialog: HTMLDialogElement) {
   const field = document.activeElement
@@ -33,7 +36,12 @@ function revealFocused(dialog: HTMLDialogElement) {
   if (!body) return
   const room = 16
   const box = body.getBoundingClientRect()
-  const at = field.getBoundingClientRect()
+  const keep = field.closest<HTMLElement>('[data-sheet-keep]')
+  const block = keep?.getBoundingClientRect()
+  const at =
+    block && block.height + 2 * room <= box.height
+      ? block
+      : field.getBoundingClientRect()
   if (at.bottom > box.bottom - room)
     body.scrollTop += at.bottom - box.bottom + room
   else if (at.top < box.top + room) body.scrollTop -= box.top + room - at.top

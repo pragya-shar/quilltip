@@ -511,6 +511,10 @@ for (const [width, height, keyboard] of [
       'the primary action',
       sheet.getByRole('button', { name: 'Sign in' })
     )
+    await inView(
+      'the other way in',
+      sheet.getByRole('button', { name: 'Create an account' })
+    )
     await expect(field).toBeFocused()
     expect(await page.evaluate(() => window.scrollY), 'the page behind').toBe(
       scrolled
