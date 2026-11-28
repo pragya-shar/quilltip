@@ -7,13 +7,14 @@ import {
   createNonce,
   NONCE_HEADER,
 } from '@/lib/security/contentSecurityPolicy'
+import { PUBLIC_READ_TIMEOUT_MS } from '@/lib/seo/publicReadTimeout'
 
-const ROUTE_CHECK_TIMEOUT_MS = 1500
+const ROUTE_CHECK_TIMEOUT_MS = PUBLIC_READ_TIMEOUT_MS
 
 // A writer page's name and article titles repaint when these typefaces arrive,
 // which sets the largest paint on slow phones. The stylesheet only reveals them
-// after the content renders, and app/(legacy)/loading.tsx keeps a page's own preload
-// hints out of the HTML head, so send them with the response instead.
+// after the content renders, so send them with the response, before the HTML
+// is parsed.
 const WRITER_PAGE_FONT_PRELOADS = [
   '</prototype/fonts/library-syne.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin',
   '</prototype/fonts/library-alegreya.woff2>; rel=preload; as=font; type="font/woff2"; crossorigin',
@@ -32,10 +33,10 @@ type RouteCheck =
   | { kind: 'moved'; username: string }
 
 /**
- * Pages stream behind app/(legacy)/loading.tsx, which fixes the status at 200 before
- * they can call notFound(). Check writer and article URLs here instead, so a
- * missing one answers 404 and an earlier handle redirects. Any failure lets
- * the request through unchanged.
+ * Check writer and article URLs before the page renders, so a missing one
+ * answers 404 and an earlier handle redirects. (These pages once streamed
+ * behind a root loading boundary that fixed the status at 200; they no longer
+ * do, #428.) Any failure lets the request through unchanged.
  */
 /**
  * Recent "found" answers, per server instance. A found writer or article page

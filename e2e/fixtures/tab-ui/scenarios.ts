@@ -193,6 +193,17 @@ const S: Scenario[] = [
     },
   },
   {
+    id: 'home-other-account',
+    title: 'Wallet on another account than the linked one',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      history(s)
+      s.gate = 'other-account'
+    },
+  },
+  {
     id: 'home-wrong-network',
     title: 'Wallet on another network',
     view: 'home',
@@ -486,6 +497,16 @@ const S: Scenario[] = [
     seed: (s) => {
       open(s)
       s.send = 'declined'
+    },
+  },
+  {
+    id: 'op-wrong-account',
+    title: 'The wallet signed with another account',
+    view: 'home',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.send = 'wrong-account'
     },
   },
   {

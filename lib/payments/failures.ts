@@ -12,6 +12,7 @@ import {
   FAILURE_COPY,
   TAB_REFUSAL_COPY,
   WALLET_FAILURE_COPY,
+  WRONG_ACCOUNT_AFTER_SIGNING,
   WRONG_ACCOUNT_BEFORE_SIGNING,
   type CopyBlock,
 } from '@/lib/copy/payment-states'
@@ -93,6 +94,11 @@ export function failureFromWalletError(
       shortAddress(error.expectedAddress),
       shortAddress(error.walletAddress)
     )
+  }
+  // Found after the wallet answered: name the linked address when the
+  // caller gave it.
+  if (error.kind === 'wrong-account' && error.expectedAddress) {
+    return WRONG_ACCOUNT_AFTER_SIGNING(shortAddress(error.expectedAddress))
   }
   // The map covers every kind at compile time; a value outside the type at
   // run time still gets the generic copy.
@@ -297,6 +303,7 @@ const TAB_REFUSALS: Record<string, TabRefusal> = {
   TAB_INVALID_AMOUNT: { kind: 'refused', copy: TAB_REFUSAL_COPY.belowMinimum },
   TAB_SELF_TIP: { kind: 'refused', copy: TAB_REFUSAL_COPY.selfTip },
   TAB_PRICE_UNAVAILABLE: { kind: 'refused', copy: TAB_REFUSAL_COPY.noPrice },
+  TAB_RECONCILE_PENDING: { kind: 'refused', copy: TAB_REFUSAL_COPY.checking },
   TAB_PREPARE_EXPIRED: { kind: 'refused', copy: TAB_REFUSAL_COPY.timedOut },
   TAB_PREPARE_NOT_FOUND: { kind: 'refused', copy: TAB_REFUSAL_COPY.timedOut },
   TAB_STALE_PREPARE: { kind: 'refused', copy: TAB_REFUSAL_COPY.timedOut },

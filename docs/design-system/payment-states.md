@@ -283,16 +283,17 @@ wallet prompt is open (`busy`), the button reads "Waiting for your wallet…",
 is `aria-disabled`, keeps focus, and its spinner takes the button's text
 colour.
 
-| State               | Title                         | Detail                                                                                                                                           | Action         | Tone    |
-| ------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | -------------- | ------- |
-| Checking            | Checking your wallet          | This takes a moment.                                                                                                                             | none (spinner) | inline  |
-| Signed out          | Sign in to continue           | Tips and tabs belong to your Quilltip account.                                                                                                   | Sign in        | neutral |
-| No wallet           | No Stellar wallet found       | Install a Stellar wallet such as Varial (formerly Freighter) or xBull in this browser, then try again.                                           | Set up wallet  | neutral |
-| Not connected       | Connect your wallet           | Connecting shares your address. It does not send a payment.                                                                                      | Connect wallet | neutral |
-| Wallet disconnected | Your wallet disconnected      | Your wallet ended the connection. Connect again to continue. Nothing was sent.                                                                   | Connect again  | neutral |
-| Locked wallet       | Your wallet is locked         | Unlock your wallet, then connect again.                                                                                                          | Connect again  | warning |
-| Wrong network       | Switch your wallet to Testnet | Your wallet is on {network}, for example: Your wallet is on Mainnet. Switch it to Testnet, then check again. Nothing was sent.                   | Check again    | warning |
-| Unverified address  | Confirm this wallet is yours  | Sign a short message in your wallet to link it to your account. It sends nothing and costs nothing. ("it" becomes the short address when known.) | Confirm wallet | neutral |
+| State               | Title                          | Detail                                                                                                                                                                                                                                                                                                                                                                                                                  | Action         | Tone    |
+| ------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ------- |
+| Checking            | Checking your wallet           | This takes a moment.                                                                                                                                                                                                                                                                                                                                                                                                    | none (spinner) | inline  |
+| Signed out          | Sign in to continue            | Tips and tabs belong to your Quilltip account.                                                                                                                                                                                                                                                                                                                                                                          | Sign in        | neutral |
+| No wallet           | No Stellar wallet found        | Install a Stellar wallet such as Varial (formerly Freighter) or xBull in this browser, then try again.                                                                                                                                                                                                                                                                                                                  | Set up wallet  | neutral |
+| Not connected       | Connect your wallet            | Connecting shares your address. It does not send a payment.                                                                                                                                                                                                                                                                                                                                                             | Connect wallet | neutral |
+| Wallet disconnected | Your wallet disconnected       | Your wallet ended the connection. Connect again to continue. Nothing was sent.                                                                                                                                                                                                                                                                                                                                          | Connect again  | neutral |
+| Locked wallet       | Your wallet is locked          | Unlock your wallet, then connect again.                                                                                                                                                                                                                                                                                                                                                                                 | Connect again  | warning |
+| Wrong network       | Switch your wallet to Testnet  | Your wallet is on {network}, for example: Your wallet is on Mainnet. Switch it to Testnet, then check again. Nothing was sent.                                                                                                                                                                                                                                                                                          | Check again    | warning |
+| Unverified address  | Confirm this wallet is yours   | Sign a short message in your wallet to link it to your account. It sends nothing and costs nothing. ("it" becomes the short address when known.)                                                                                                                                                                                                                                                                        | Confirm wallet | neutral |
+| Another account     | Switch your wallet to {linked} | This is signed by {linked}, the address linked to your Quilltip account. Your wallet is on {wallet}. Switch accounts in your wallet, then connect again. Nothing was signed. Shown when the account has a verified linked address and the wallet is on another account; with `verifyHref` it also links to wallet settings ("Change the linked address in wallet settings"). It never offers to link the other account. | Connect again  | warning |
 
 Announced: "{title}. {detail}" through a polite live region that stays
 mounted, once per change. Addresses show as "GBZX…MADI", with the full address
@@ -397,18 +398,19 @@ Wallet failures while signing, with fixed titles. Every wallet error kind
 except `cancelled` has a row; a unit test fails to compile when a new kind
 has none.
 
-| Kind            | Title                                   | Detail                                                                                                              |
-| --------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `rejected`      | Request declined in your wallet         | Nothing was signed or sent.                                                                                         |
-| `timeout`       | Your wallet did not respond             | Your wallet may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent. |
-| `unsupported`   | This wallet cannot be used here         | Choose another wallet in the wallet list. Nothing was sent.                                                         |
-| `wrong-account` | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent.                                |
-| `popup-blocked` | Your browser blocked the wallet window  | Allow pop-ups for this site in your browser, then try again. Nothing was sent.                                      |
-| `disconnected`  | Your wallet disconnected                | Your wallet ended the connection. Connect again, then try again. Nothing was sent.                                  |
-| `no-wallet`     | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                                                         |
-| `locked`        | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                                                           |
-| `wrong-network` | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                                                             |
-| `failed`        | Your wallet reported a problem          | Try again, or reconnect your wallet. Nothing was sent.                                                              |
+| Kind                                                | Title                                   | Detail                                                                                                              |
+| --------------------------------------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `rejected`                                          | Request declined in your wallet         | Nothing was signed or sent.                                                                                         |
+| `timeout`                                           | Your wallet did not respond             | Your wallet may be locked: unlock it, then try again. If a wallet window is open, close it first. Nothing was sent. |
+| `unsupported`                                       | This wallet cannot be used here         | Choose another wallet in the wallet list. Nothing was sent.                                                         |
+| `wrong-account`                                     | Your wallet signed with another account | Switch back to the connected account in your wallet, or reconnect. Nothing was sent.                                |
+| `wrong-account`, the caller named the linked signer | Your wallet signed with another account | Switch your wallet to {linked}, the address linked to your Quilltip account, or reconnect. Nothing was sent.        |
+| `popup-blocked`                                     | Your browser blocked the wallet window  | Allow pop-ups for this site in your browser, then try again. Nothing was sent.                                      |
+| `disconnected`                                      | Your wallet disconnected                | Your wallet ended the connection. Connect again, then try again. Nothing was sent.                                  |
+| `no-wallet`                                         | No Stellar wallet found                 | Install a Stellar wallet, then try again. Nothing was sent.                                                         |
+| `locked`                                            | Your wallet is locked                   | Unlock your wallet, then connect again. Nothing was sent.                                                           |
+| `wrong-network`                                     | Switch your wallet to Testnet           | Switch it to Testnet, then try again. Nothing was sent.                                                             |
+| `failed`                                            | Your wallet reported a problem          | Try again, or reconnect your wallet. Nothing was sent.                                                              |
 
 Send and contract failures: "Not sent" with "Nothing was sent.", or for
 `not_sent`, "Stellar testnet is busy" with "Stellar testnet did not accept it.
@@ -424,19 +426,20 @@ RPC polling, so its copy names no money:
 
 Convex tab refusals with no notice of their own (`kind="refused"`):
 
-| Refusal                | Title                                        | Detail                                                         |
-| ---------------------- | -------------------------------------------- | -------------------------------------------------------------- |
-| Above the maximum      | This tip is above the quick-tip maximum      | Choose a smaller amount, or tip from your wallet.              |
-| Below the minimum      | This tip is below the minimum                | Choose a larger amount.                                        |
-| Own article            | You can’t tip your own article               | This tip was not accepted.                                     |
-| No price               | No XLM price right now                       | Quilltip can’t convert this amount yet. Try again in a minute. |
-| Took too long          | This tip took too long                       | This tip was not accepted. Send it again.                      |
-| Already sent           | This tip was already sent                    | Your tab already counts it.                                    |
-| No withdrawal          | No withdrawal is waiting                     | Close your tab first to start one.                             |
-| Quick tips unavailable | Quick tips are unavailable right now         | Tip from your wallet, or try again later.                      |
-| Another account        | This wallet’s tab belongs to another account | Sign in to the account that opened it, or use another wallet.  |
-| Voucher not accepted   | Quilltip could not accept this tip           | Set up quick tips again on this device.                        |
-| Any other code         | Quilltip could not accept this               | Try again in a minute.                                         |
+| Refusal                | Title                                        | Detail                                                                              |
+| ---------------------- | -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Above the maximum      | This tip is above the quick-tip maximum      | Choose a smaller amount, or tip from your wallet.                                   |
+| Below the minimum      | This tip is below the minimum                | Choose a larger amount.                                                             |
+| Own article            | You can’t tip your own article               | This tip was not accepted.                                                          |
+| No price               | No XLM price right now                       | Quilltip can’t convert this amount yet. Try again in a minute.                      |
+| Balance being checked  | Your tab balance is being checked            | Quick tips are paused until it matches Stellar again. Tip from your wallet for now. |
+| Took too long          | This tip took too long                       | This tip was not accepted. Send it again.                                           |
+| Already sent           | This tip was already sent                    | Your tab already counts it.                                                         |
+| No withdrawal          | No withdrawal is waiting                     | Close your tab first to start one.                                                  |
+| Quick tips unavailable | Quick tips are unavailable right now         | Tip from your wallet, or try again later.                                           |
+| Another account        | This wallet’s tab belongs to another account | Sign in to the account that opened it, or use another wallet.                       |
+| Voucher not accepted   | Quilltip could not accept this tip           | Set up quick tips again on this device.                                             |
+| Any other code         | Quilltip could not accept this               | Try again in a minute.                                                              |
 
 ### Notices
 

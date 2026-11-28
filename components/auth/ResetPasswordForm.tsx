@@ -13,6 +13,8 @@ import {
 import { getPasswordRuleStatuses } from '@/lib/validations/password-rules'
 import { AccountField } from './AccountField'
 import { AccountPasswordToggle } from './AccountPasswordToggle'
+import { AccountSubmitLabel } from './AccountSubmitLabel'
+import { useEarlySubmit } from './useEarlySubmit'
 import {
   PASSWORD_REQUIREMENTS_ID,
   PasswordRequirements,
@@ -25,6 +27,7 @@ type Errors = Partial<Record<Field, string>>
 export function ResetPasswordForm() {
   const { signIn, signOut } = useAuthActions()
   const formRef = useRef<HTMLFormElement>(null)
+  const earlySubmit = useEarlySubmit('reset-password', formRef)
   const doneHeading = useRef<HTMLHeadingElement>(null)
   const [values, setValues] = useState({
     email: '',
@@ -48,7 +51,13 @@ export function ResetPasswordForm() {
     prefilled.current = true
     const fragment = new URLSearchParams(window.location.hash.slice(1))
     const code = (fragment.get('code') ?? '').replace(/\D/g, '').slice(0, 8)
-    setValues((v) => ({ ...v, email: recallResetEmail(), code }))
+    // Keep values typed before the page scripts ran (useEarlySubmit may
+    // report them before or after this effect).
+    setValues((v) => ({
+      ...v,
+      email: v.email || recallResetEmail(),
+      code: v.code || code,
+    }))
     if (window.location.hash) {
       window.history.replaceState(null, '', window.location.pathname)
     }
@@ -147,7 +156,16 @@ export function ResetPasswordForm() {
       .join(' ') || undefined
 
   return (
-    <form ref={formRef} noValidate onSubmit={onSubmit} aria-busy={submitting}>
+    // A submit before the page scripts run is held, then sent through
+    // onSubmit (useEarlySubmit). method="post": every form with a password
+    // field posts if it is ever submitted natively (e2e/server-forms.spec.ts).
+    <form
+      {...earlySubmit}
+      method="post"
+      noValidate
+      onSubmit={onSubmit}
+      aria-busy={submitting}
+    >
       {formError && (
         <div
           ref={errorBanner}
@@ -235,13 +253,9 @@ export function ResetPasswordForm() {
         />
       </AccountField>
       <button className="account-primary" type="submit" disabled={submitting}>
-        {submitting ? (
-          'Updating…'
-        ) : (
-          <>
-            Set new password <ArrowRight size={20} />
-          </>
-        )}
+        <AccountSubmitLabel busy={submitting} busyLabel="Updating…">
+          Set new password <ArrowRight size={20} />
+        </AccountSubmitLabel>
       </button>
     </form>
   )

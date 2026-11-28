@@ -13,7 +13,7 @@ import { Address, xdr } from '@stellar/stellar-sdk'
 import schema from '../../convex/schema'
 import type { RawRpcEvent } from '../../convex/lib/chain/rpc'
 import { api, internal } from '../../convex/_generated/api'
-import type { Doc, Id } from '../../convex/_generated/dataModel'
+import type { Doc, Id, TableNames } from '../../convex/_generated/dataModel'
 import {
   DAY_LEDGERS,
   SETTLE_GRACE_LEDGERS,
@@ -47,6 +47,7 @@ import { signEd25519 } from '../../lib/stellar/v2/tab/encoding'
 import { commitAcceptedTip, signTabTip } from '../../lib/stellar/v2/tab'
 import { depsFor, freshDb, plantKey } from '../tab/helpers'
 import shared from '../../contracts/shared/test-vectors.json'
+import { rpcEventId } from './coreEvents'
 import { seedAddress } from './fixtures'
 import {
   ACCEPTOR_PUBLIC,
@@ -93,6 +94,8 @@ import {
   type Seeded,
   type T,
 } from './tab-kit'
+
+import { expectRedispatchChangesNothing } from './redispatch'
 
 withTabEnv()
 
@@ -4797,42 +4800,436 @@ describe('spendable balance across settler records and indexed events', () => {
     expect(await list()).toEqual([])
   })
 
-  it.fails(
-    'known issue (#576): more than 256 debits after an absolute balance, then a re-dispatch of the oldest, debits it twice',
-    async () => {
+  it('more than 256 debits after an absolute balance, then a re-dispatch of the oldest, debits it once (#576)', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t)
+    const gross = BigInt(1000)
+    const events = Array.from({ length: 257 }, (_, i) =>
+      ev.tabSettled(
+        {
+          writer: OTHER_WRITER,
+          cumulative: gross * BigInt(i + 1),
+          paidAfter: gross * BigInt(i + 1),
+          gross,
+        },
+        { ledger: LEDGER + 1 + i }
+      )
+    )
+    for (let i = 0; i < events.length; i += 50) {
+      await ingest(t, ...events.slice(i, i + 50))
+    }
+    const expected = (BigInt(10) * XLM - gross * BigInt(257)).toString()
+    expect((await account(t)).confirmedBalance).toBe(expected)
+    // Before #576 the oldest debit was cut from a 256-entry list.
+    await t.run(async (ctx) => {
+      const first = (
+        await ctx.db
+          .query('chainEvents')
+          .withIndex('by_event_id', (q) => q.eq('eventId', events[0]!.id))
+          .collect()
+      )[0]!
+      await ctx.db.patch(first._id, { handled: 'pending' })
+    })
+    await t.mutation(internal.chain.indexer.redispatch, {})
+    expect((await account(t)).confirmedBalance).toBe(expected)
+  })
+
+  // -------------------------------------------------------------------------
+  // #576: each `TabSettled` debit counted once, however many there are.
+
+  const GROSS = BigInt(1000)
+  /** A settlement of the other writer's pair, which has no voucher here. */
+  const otherSettled = (i: number, ledger: number) =>
+    ev.tabSettled(
+      {
+        writer: OTHER_WRITER,
+        cumulative: GROSS * BigInt(i + 1),
+        paidAfter: GROSS * BigInt(i + 1),
+        gross: GROSS,
+      },
+      { ledger }
+    )
+  async function ingestAll(t: T, events: RawRpcEvent[]) {
+    for (let i = 0; i < events.length; i += 100) {
+      await ingest(t, ...events.slice(i, i + 100))
+    }
+  }
+  /** Marks stored events `pending` (all, or those ids) and dispatches them. */
+  async function redispatchEvents(t: T, ids?: string[]) {
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        if (!ids || ids.includes(row.eventId)) {
+          await ctx.db.patch(row._id, { handled: 'pending' })
+        }
+      }
+    })
+    for (;;) {
+      const r = await t.mutation(internal.chain.indexer.redispatch, {
+        limit: 500,
+      })
+      if (r.checked === 0) break
+    }
+  }
+  const balanceOf = async (t: T) => BigInt((await account(t)).confirmedBalance)
+  const debitRows = (t: T) =>
+    t.run(
+      async (ctx) => (await ctx.db.query('tabBalanceDebits').collect()).length
+    )
+
+  // 2,000 settlements, each dispatched twice: a few seconds on CI, more
+  // than a minute on a heavily loaded machine.
+  it.each([300, 2000])(
+    '%i settlements after a balance: the oldest and a middle one re-dispatched, then a full replay, each debited once (#576)',
+    async (n) => {
       const t = convexTest(schema, modules)
       await seed(t)
-      const gross = BigInt(1000)
-      const events = Array.from({ length: 257 }, (_, i) =>
-        ev.tabSettled(
-          {
-            writer: OTHER_WRITER,
-            cumulative: gross * BigInt(i + 1),
-            paidAfter: gross * BigInt(i + 1),
-            gross,
-          },
-          { ledger: LEDGER + 1 + i }
-        )
+      const events = Array.from({ length: n }, (_, i) =>
+        otherSettled(i, LEDGER + 1 + i)
       )
-      for (let i = 0; i < events.length; i += 50) {
-        await ingest(t, ...events.slice(i, i + 50))
-      }
-      const expected = (BigInt(10) * XLM - gross * BigInt(257)).toString()
-      expect((await account(t)).confirmedBalance).toBe(expected)
-      // The oldest debit is no longer in `settledSinceBalance` (256 kept).
-      await t.run(async (ctx) => {
-        const first = (
-          await ctx.db
-            .query('chainEvents')
-            .withIndex('by_event_id', (q) => q.eq('eventId', events[0]!.id))
-            .collect()
-        )[0]!
-        await ctx.db.patch(first._id, { handled: 'pending' })
-      })
-      await t.mutation(internal.chain.indexer.redispatch, {})
-      expect((await account(t)).confirmedBalance).toBe(expected)
-    }
+      await ingestAll(t, events)
+      const expected = BigInt(10) * XLM - GROSS * BigInt(n)
+      expect(await balanceOf(t)).toBe(expected)
+      await redispatchEvents(t, [events[0]!.id, events[n >> 1]!.id])
+      expect(await balanceOf(t)).toBe(expected)
+      await ingestAll(t, events)
+      await redispatchEvents(t)
+      expect(await balanceOf(t)).toBe(expected)
+      expect(await debitRows(t)).toBe(n)
+      // The account row does not grow with the number of settlements.
+      const row = await account(t)
+      expect(row.settledSinceBalance).toEqual([])
+      expect(JSON.stringify(row).length).toBeLessThan(2_000)
+    },
+    300_000
   )
+
+  it('a late older absolute balance after more than 256 debits subtracts every one of them (#576)', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t)
+    const events = Array.from({ length: 300 }, (_, i) =>
+      otherSettled(i, LEDGER + 10 + i)
+    )
+    await ingestAll(t, events)
+    // A deposit from before all of them is indexed late.
+    await ingest(
+      t,
+      ev.deposited(READER, XLM, BigInt(11) * XLM, { ledger: LEDGER + 5 })
+    )
+    const expected = BigInt(11) * XLM - GROSS * BigInt(300)
+    expect(await balanceOf(t)).toBe(expected)
+    expect(await debitRows(t)).toBe(300)
+    // A newer balance covers them all: the rows go, nothing is counted again.
+    await ingest(
+      t,
+      ev.deposited(READER, XLM, expected + XLM, { ledger: LEDGER + 1000 })
+    )
+    expect(await balanceOf(t)).toBe(expected + XLM)
+    expect(await debitRows(t)).toBe(0)
+    await redispatchEvents(t)
+    expect(await balanceOf(t)).toBe(expected + XLM)
+  })
+
+  it('the reconciliation leaves no debit to count twice (#576)', async () => {
+    const flagged = negatives()
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    // The settler's settlement event is lost; 300 settlements of another
+    // pair follow (0.03 in all).
+    await settlerRecord(t, settlementId, [paidOf(WRITER, 10)], LEDGER + 1)
+    await ingestAll(
+      t,
+      Array.from({ length: 300 }, (_, i) => otherSettled(i, LEDGER + 2 + i))
+    )
+    expect(await debitRows(t)).toBe(300)
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 400,
+        balance: BigInt(2) * CENT,
+        paid: new Map([[WRITER, BigInt(10) * CENT]]),
+      })
+    ).toMatchObject({ status: 'applied' })
+    expect(await debitRows(t)).toBe(0)
+    await redispatchEvents(t)
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(2) * CENT).toString(),
+      available: (BigInt(2) * CENT).toString(),
+    })
+    expect(flagged()).toEqual([])
+  })
+
+  it('rows written before the change: list entries still count, and the next balance drains them (#576)', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t)
+    const events = [1, 2, 3].map((i) => otherSettled(i, LEDGER + i))
+    await ingest(t, ...events)
+    // As written before this change: the debits in the list, no rows.
+    await t.run(async (ctx) => {
+      const rows = await ctx.db.query('tabBalanceDebits').collect()
+      const row = (await ctx.db.query('tabAccounts').first())!
+      await ctx.db.patch(row._id, {
+        settledSinceBalance: rows.map((r) => ({
+          eventId: r.eventId,
+          gross: r.gross,
+        })),
+      })
+      for (const r of rows) await ctx.db.delete(r._id)
+    })
+    const expected = BigInt(10) * XLM - GROSS * BigInt(3)
+    await redispatchEvents(t, [events[1]!.id])
+    expect(await balanceOf(t)).toBe(expected)
+    expect(await debitRows(t)).toBe(0)
+    // A late deposit from before them still subtracts the listed debits.
+    await ingest(
+      t,
+      ev.deposited(READER, XLM, BigInt(11) * XLM, { ledger: LEDGER })
+    )
+    expect(await balanceOf(t)).toBe(BigInt(11) * XLM - GROSS * BigInt(3))
+    // A newer balance drains the list.
+    await ingest(
+      t,
+      ev.deposited(READER, XLM, BigInt(12) * XLM, { ledger: LEDGER + 9 })
+    )
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: (BigInt(12) * XLM).toString(),
+      settledSinceBalance: [],
+    })
+  })
+
+  it('a pair written before #565 with its event still in flight is debited once (#576)', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = paidOf(WRITER, 10)
+    await settlerRecord(t, settlementId, [paid], LEDGER + 1)
+    // As the code before #565 left it: paid raised by the settler's record,
+    // no reserve, no indexed ranges, the balance not yet debited.
+    await t.run(async (ctx) => {
+      const pair = (await ctx.db.query('tabVouchers').first())!
+      await ctx.db.patch(pair._id, {
+        indexedPaid: undefined,
+        paidLedger: undefined,
+      })
+      const row = (await ctx.db.query('tabAccounts').first())!
+      await ctx.db.patch(row._id, {
+        settledUnindexed: undefined,
+        settledUnindexedSince: undefined,
+      })
+    })
+    const event = settledEvent(paid, { ledger: LEDGER + 1 })
+    await ingest(t, event)
+    await ingest(t, event)
+    expect(await myTab(t, s)).toMatchObject({
+      confirmedBalance: (BigInt(5) * CENT).toString(),
+      available: (BigInt(5) * CENT).toString(),
+    })
+  })
+
+  it('a late balance with more later debits than one update may read applies nothing, until a reconciliation (#576)', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '50')
+    const { t, s } = await opened(BigInt(30) * CENT, [])
+    const events = Array.from({ length: 60 }, (_, i) =>
+      otherSettled(i, LEDGER + 10 + i)
+    )
+    await ingestAll(t, events)
+    const debited = BigInt(30) * CENT - GROSS * BigInt(60)
+    expect(await balanceOf(t)).toBe(debited)
+    // A top-up from before all of them arrives late: 61 rows would need
+    // reading, above the limit of 50. Nothing is applied.
+    const late = ev.deposited(READER, CENT, BigInt(31) * CENT, {
+      ledger: LEDGER + 5,
+    })
+    const errors = vi.spyOn(console, 'error').mockImplementation(() => {})
+    await ingest(t, late)
+    expect(await balanceOf(t)).toBe(debited)
+    expect((await account(t)).reconcileRequired).toMatchObject({
+      eventId: late.id,
+      ledger: LEDGER + 5,
+    })
+    expect(
+      errors.mock.calls.some(([line]) =>
+        String(line).includes('CHAIN_TAB_RECONCILE_REQUIRED')
+      )
+    ).toBe(true)
+    // The indexer is not stuck on it, and a re-dispatch applies no part.
+    const stored = await t.run(async (ctx) =>
+      (await ctx.db.query('chainEvents').collect()).find(
+        (e) => e.eventId === late.id
+      )
+    )
+    expect(stored?.handled).toBe('done')
+    await redispatchEvents(t, [late.id])
+    expect(await balanceOf(t)).toBe(debited)
+    // No tab tip until the balance is known again.
+    expect(await errorCode(tip(t, s, { cents: 1 }))).toBe(
+      'TAB_RECONCILE_PENDING'
+    )
+    expect(
+      await t.query(internal.chain.tabReconcile.listReconcileRequired, {})
+    ).toMatchObject([{ readerAddress: READER, eventId: late.id }])
+    // The reconciliation sets the contract's balance and clears the mark.
+    const truth = BigInt(31) * CENT - GROSS * BigInt(60)
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 100,
+        balance: truth,
+        paid: new Map(),
+      })
+    ).toMatchObject({ status: 'applied' })
+    expect(await account(t)).toMatchObject({
+      confirmedBalance: truth.toString(),
+    })
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+    expect(await debitRows(t)).toBe(0)
+    await redispatchEvents(t)
+    expect(await balanceOf(t)).toBe(truth)
+    expect(await errorCode(tip(t, s, { cents: 1 }))).toBe('no error')
+  })
+
+  it('a newer absolute balance replaces one that could not be applied (#576)', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '50')
+    const { t } = await opened(BigInt(30) * CENT, [])
+    await ingestAll(
+      t,
+      Array.from({ length: 60 }, (_, i) => otherSettled(i, LEDGER + 10 + i))
+    )
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await ingest(
+      t,
+      ev.deposited(READER, CENT, BigInt(31) * CENT, { ledger: LEDGER + 5 })
+    )
+    expect((await account(t)).reconcileRequired).toBeDefined()
+    const truth = BigInt(32) * CENT - GROSS * BigInt(60)
+    await ingest(t, ev.deposited(READER, CENT, truth, { ledger: LEDGER + 200 }))
+    expect(await balanceOf(t)).toBe(truth)
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+  })
+
+  it('at the read limit, a late balance still applies in full (#576)', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '50')
+    const { t } = await opened(BigInt(30) * CENT, [])
+    await ingestAll(
+      t,
+      Array.from({ length: 50 }, (_, i) => otherSettled(i, LEDGER + 10 + i))
+    )
+    await ingest(
+      t,
+      ev.deposited(READER, CENT, BigInt(31) * CENT, { ledger: LEDGER + 5 })
+    )
+    expect(await balanceOf(t)).toBe(BigInt(31) * CENT - GROSS * BigInt(50))
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+  })
+
+  it('one mutation shares its read budget across events, and a tab already marked reads no more (#576)', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '50')
+    vi.stubEnv('TAB_DEBIT_READ_BUDGET', '80')
+    const { t } = await opened(BigInt(30) * CENT, [])
+    await ingestAll(
+      t,
+      Array.from({ length: 40 }, (_, i) => otherSettled(i, LEDGER + 10 + i))
+    )
+    const later = GROSS * BigInt(40)
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Three late top-ups in one mutation, each with 40 later debits to read:
+    // the first two use the budget of 80, the third finds none left and
+    // applies nothing.
+    const d1 = ev.deposited(READER, CENT, BigInt(31) * CENT, {
+      ledger: LEDGER + 5,
+    })
+    const d2 = ev.deposited(READER, CENT, BigInt(32) * CENT, {
+      ledger: LEDGER + 6,
+    })
+    const d3 = ev.deposited(READER, CENT, BigInt(33) * CENT, {
+      ledger: LEDGER + 7,
+    })
+    await ingest(t, d1, d2, d3)
+    expect(await balanceOf(t)).toBe(BigInt(32) * CENT - later)
+    expect((await account(t)).reconcileRequired).toMatchObject({
+      eventId: d3.id,
+    })
+    // A top-up older than the marked one: no read, no change.
+    await ingest(
+      t,
+      ev.deposited(READER, CENT, BigInt(40) * CENT, { ledger: LEDGER + 6 })
+    )
+    expect(await balanceOf(t)).toBe(BigInt(32) * CENT - later)
+    expect((await account(t)).reconcileRequired?.eventId).toBe(d3.id)
+    // A newer balance clears the mark; a re-dispatch of everything in one
+    // mutation then reads within its budget and changes nothing.
+    const truth = BigInt(34) * CENT - later
+    await ingest(t, ev.deposited(READER, CENT, truth, { ledger: LEDGER + 100 }))
+    expect(await balanceOf(t)).toBe(truth)
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+    await redispatchEvents(t)
+    expect(await balanceOf(t)).toBe(truth)
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+  })
+
+  it('long runs: thousands of settlements between rare balances, delivered out of order, re-dispatched and replayed (#576)', async () => {
+    for (const seedNo of [11, 12, 13, 14]) {
+      const rand = prng(seedNo)
+      const pick = (n: number) => Math.floor(rand() * n)
+      const t = convexTest(schema, modules)
+      await seed(t)
+      let balance = BigInt(10) * XLM
+      let ledger = LEDGER
+      let paid = BigInt(0)
+      const queue: RawRpcEvent[] = []
+      const indexed: RawRpcEvent[] = []
+      let sinceBalance = 0
+      let longest = 0
+      for (let step = 0; step < 700; step++) {
+        const op = pick(200)
+        // About one balance event per 600 steps: runs well past 256 debits.
+        if (op === 0 && pick(3) === 0) {
+          const amount = BigInt(1 + pick(5)) * XLM
+          balance += amount
+          sinceBalance = 0
+          queue.push(
+            ev.deposited(READER, amount, balance, { ledger: ++ledger })
+          )
+        } else if (op < 170) {
+          const gross = BigInt(1 + pick(5000))
+          if (gross > balance) continue
+          balance -= gross
+          paid += gross
+          sinceBalance++
+          longest = Math.max(longest, sinceBalance)
+          queue.push(
+            ev.tabSettled(
+              {
+                writer: OTHER_WRITER,
+                cumulative: paid,
+                paidAfter: paid,
+                gross,
+              },
+              { ledger: ++ledger }
+            )
+          )
+        } else if (op < 190 && queue.length) {
+          // Out of order within a window of the oldest 20.
+          const [e] = queue.splice(pick(Math.min(20, queue.length)), 1)
+          await ingest(t, e!)
+          indexed.push(e!)
+        } else if (op < 196 && indexed.length) {
+          await redispatchEvents(t, [indexed[pick(indexed.length)]!.id])
+        } else if (indexed.length) {
+          await ingest(t, indexed[pick(indexed.length)]!)
+        }
+      }
+      while (queue.length) {
+        const [e] = queue.splice(pick(Math.min(20, queue.length)), 1)
+        await ingest(t, e!)
+      }
+      expect(await balanceOf(t), `seed ${seedNo}`).toBe(balance)
+      await redispatchEvents(t)
+      expect(await balanceOf(t), `seed ${seedNo} after a replay`).toBe(balance)
+      // Rows are kept only for debits after the newest balance.
+      expect(await debitRows(t), `seed ${seedNo}`).toBeLessThanOrEqual(
+        sinceBalance + 20
+      )
+      expect((await account(t)).settledSinceBalance).toEqual([])
+      expect(longest, `seed ${seedNo}`).toBeGreaterThan(256)
+    }
+  }, 300_000)
 
   it('review: property over settler, settle_own, shuffled and lost events, and reconciliations', async () => {
     const SEEDS = 40
@@ -4859,6 +5256,14 @@ describe('spendable balance across settler records and indexed events', () => {
       // Ledger of the latest chain action; each action takes the next one.
       let chainLedger = LEDGER
       let lostDeposit = false
+      // Claims (#584): each writer's claimed total on chain.
+      const claimed = new Map<string, bigint>()
+      const userOf = (w: string) =>
+        w === WRITER ? s.authorId : s.otherAuthorId
+      const collected = async (w: string) =>
+        BigInt(
+          (await earnings(t, userOf(w)))?.collectedBaseUnits?.[TOKEN] ?? '0'
+        )
       const queue: RawRpcEvent[] = []
       const indexed: RawRpcEvent[] = []
       let record = null as {
@@ -4877,6 +5282,15 @@ describe('spendable balance across settler records and indexed events', () => {
           )
         }
         await screenSums(t, s)
+        // A claim is never counted more than the chain made.
+        for (const w of [WRITER, OTHER_WRITER]) {
+          const got = await collected(w)
+          if (got > (claimed.get(w) ?? BigInt(0))) {
+            throw new Error(
+              `seed ${seed}: collected ${got} > claimed ${claimed.get(w)}\n${trace.join('\n')}`
+            )
+          }
+        }
       }
       const pay = (writer: string, cumulative: bigint) => {
         const paid = m.paid.get(writer) ?? BigInt(0)
@@ -4931,7 +5345,7 @@ describe('spendable balance across settler records and indexed events', () => {
         return r
       }
       for (let i = 0; i < STEPS; i++) {
-        const op = pick(11)
+        const op = pick(13)
         if (op <= 1) {
           const w = writers[pick(2)]!
           const cents = 1 + pick(8)
@@ -5012,6 +5426,26 @@ describe('spendable balance across settler records and indexed events', () => {
         } else if (op === 10) {
           const r = await reconcile(pick(4) !== 0)
           await check(`reconcile ${r.status}`)
+        } else if (op === 11) {
+          const w = [WRITER, OTHER_WRITER][pick(2)]!
+          const amount = BigInt(1 + pick(100_000))
+          claimed.set(w, (claimed.get(w) ?? BigInt(0)) + amount)
+          queue.push(ev.claimed(w, amount, { ledger: ++chainLedger }))
+          await check(`claim ${amount} ${w.slice(0, 4)}`)
+        } else if (op === 12 && indexed.length) {
+          // Every stored event back to pending, then dispatched again.
+          await t.run(async (ctx) => {
+            for (const row of await ctx.db.query('chainEvents').collect()) {
+              await ctx.db.patch(row._id, { handled: 'pending' })
+            }
+          })
+          for (;;) {
+            const r = await t.mutation(internal.chain.indexer.redispatch, {
+              limit: 500,
+            })
+            if (r.checked === 0) break
+          }
+          await check('redispatch all')
         }
       }
       if (record) {
@@ -5024,6 +5458,11 @@ describe('spendable balance across settler records and indexed events', () => {
       await check('drain')
       const tab = await myTab(t, s)
       if (!lossy) {
+        for (const w of [WRITER, OTHER_WRITER]) {
+          expect(await collected(w), `seed ${seed} claims`).toBe(
+            claimed.get(w) ?? BigInt(0)
+          )
+        }
         expect(BigInt(tab.available), `seed ${seed}`).toBe(chainSpendable(m))
         expect(BigInt(tab.confirmedBalance), `seed ${seed}`).toBe(m.balance)
         expect((await account(t)).settledUnindexed ?? '0', `seed ${seed}`).toBe(
@@ -5049,12 +5488,171 @@ describe('spendable balance across settler records and indexed events', () => {
         }
       }
       expect(flagged(), `seed ${seed}`).toEqual([])
+      // Every handler leaves the tables as they are on a full re-dispatch.
+      await expectRedispatchChangesNothing(t)
       vi.restoreAllMocks()
     }
     console.info(
       `review property: worst lossy gap ${worstGap}; reconciliations ${JSON.stringify(results)}`
     )
   }, 600_000)
+
+  // -------------------------------------------------------------------------
+  // #584: each `Claimed` event changes collected earnings once.
+
+  /** Every stored event back to `pending`, then dispatched again. */
+  async function redispatchAll(t: T) {
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        await ctx.db.patch(row._id, { handled: 'pending' })
+      }
+    })
+    for (;;) {
+      const r = await t.mutation(internal.chain.indexer.redispatch, {
+        limit: 500,
+      })
+      if (r.checked === 0) break
+    }
+  }
+  const collectedOf = async (t: T, userId: Id<'users'>) =>
+    (await earnings(t, userId))?.collectedBaseUnits?.[TOKEN] ?? '0'
+
+  // Two writers' claims, before and after a snapshot point; totals as in a
+  // restore rehearsal: 61,278,360 and 61,263,921 base units.
+  const claimsOf = () => ({
+    before: [
+      ev.claimed(WRITER, BigInt(40_000_000), { ledger: LEDGER + 1 }),
+      ev.claimed(OTHER_WRITER, BigInt(30_000_000), { ledger: LEDGER + 2 }),
+    ],
+    after: [
+      ev.claimed(WRITER, BigInt(21_278_360), { ledger: LEDGER + 3 }),
+      ev.claimed(OTHER_WRITER, BigInt(31_263_921), { ledger: LEDGER + 4 }),
+    ],
+  })
+
+  it('every event back to pending and re-dispatched, a replay, a backfill and rebuilt rows: each claim counts once (#584)', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { before, after } = claimsOf()
+    await ingest(t, ...before)
+    // Snapshot point.
+    expect(await collectedOf(t, s.authorId)).toBe('40000000')
+    await ingest(t, ...after)
+    const expectTotals = async (step: string) => {
+      expect(await collectedOf(t, s.authorId), step).toBe('61278360')
+      expect(await collectedOf(t, s.otherAuthorId), step).toBe('61263921')
+    }
+    await expectTotals('indexed')
+    await redispatchAll(t)
+    await expectTotals('every event re-dispatched')
+    await redispatchAll(t)
+    await expectTotals('re-dispatched twice')
+    await ingest(t, ...before, ...after)
+    await expectTotals('replay and backfill')
+    // Event rows rebuilt from RPC (a restore without them): same ids.
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        if (row.type === 'claimed') await ctx.db.delete(row._id)
+      }
+    })
+    await ingest(t, ...after, ...before)
+    await expectTotals('rows rebuilt')
+    expect(
+      await t.run(
+        async (ctx) => (await ctx.db.query('tabClaims').collect()).length
+      )
+    ).toBe(4)
+    await expectRedispatchChangesNothing(t)
+  })
+
+  it('a claim indexed before the settlement it follows (#584)', async () => {
+    const { t, s } = await opened(BigInt(15) * CENT, [10])
+    const { settlementId } = await beginSettlement(t)
+    const paid = paidOf(WRITER, 10)
+    // Chain: settle at L+1, then the writer claims at L+2. The claim is
+    // indexed first.
+    await ingest(
+      t,
+      ev.claimed(WRITER, BigInt(9) * CENT, { ledger: LEDGER + 2 })
+    )
+    await settlerRecord(t, settlementId, [paid], LEDGER + 1)
+    await ingest(t, settledEvent(paid, { ledger: LEDGER + 1 }))
+    await redispatchAll(t)
+    expect(await collectedOf(t, s.authorId)).toBe((BigInt(9) * CENT).toString())
+    expect(await spendable(t, s)).toBe(BigInt(5) * CENT)
+    await expectRedispatchChangesNothing(t)
+  })
+
+  it('rows written before the change: seeding ties existing totals to their events, and a recompute corrects a doubled total (#584)', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { before, after } = claimsOf()
+    await ingest(t, ...before, ...after)
+    // As before this change: the totals applied, no records; and the totals
+    // doubled by a re-dispatch, as a restore rehearsal found.
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('tabClaims').collect()) {
+        await ctx.db.delete(row._id)
+      }
+      for (const [userId, value] of [
+        [s.authorId, '122556720'],
+        [s.otherAuthorId, '122527842'],
+      ] as const) {
+        const row = (await ctx.db
+          .query('authorEarnings')
+          .withIndex('by_user', (q) => q.eq('userId', userId))
+          .first())!
+        await ctx.db.patch(row._id, {
+          collectedBaseUnits: { [TOKEN]: value },
+        })
+      }
+    })
+    const seedRecords = (apply: boolean) =>
+      t.mutation(internal.chain.tabClaims.seedClaimRecords, { apply })
+    expect(await seedRecords(false)).toMatchObject({ seeded: 4, isDone: true })
+    expect(
+      await t.run(
+        async (ctx) => (await ctx.db.query('tabClaims').collect()).length
+      )
+    ).toBe(0)
+    expect(await seedRecords(true)).toMatchObject({ seeded: 4 })
+    expect(await seedRecords(true)).toMatchObject({ seeded: 0 })
+    // Seeding changes no total; a re-dispatch now adds nothing.
+    expect(await collectedOf(t, s.authorId)).toBe('122556720')
+    await redispatchAll(t)
+    expect(await collectedOf(t, s.authorId)).toBe('122556720')
+    // The recompute: dry run, then apply, with a record of each correction.
+    const recompute = (apply: boolean) =>
+      t.mutation(internal.chain.tabClaims.recomputeCollected, {
+        apply,
+        note: 'restore rehearsal',
+      })
+    const dry = await recompute(false)
+    expect(dry).toMatchObject({ status: 'dry_run' })
+    expect(
+      dry.differences.map((d) => [d.before, d.after, d.claims]).sort()
+    ).toEqual([
+      ['122527842', '61263921', 2],
+      ['122556720', '61278360', 2],
+    ])
+    expect(await collectedOf(t, s.authorId)).toBe('122556720')
+    await recompute(true)
+    expect(await collectedOf(t, s.authorId)).toBe('61278360')
+    expect(await collectedOf(t, s.otherAuthorId)).toBe('61263921')
+    expect(
+      await t.run(
+        async (ctx) =>
+          (await ctx.db.query('tabClaimCorrections').collect()).length
+      )
+    ).toBe(2)
+    expect((await recompute(true)).differences).toEqual([])
+    // One writer alone.
+    expect(
+      await t.mutation(internal.chain.tabClaims.recomputeCollected, {
+        userId: s.authorId,
+      })
+    ).toMatchObject({ checked: 1, differences: [] })
+  })
 
   // -------------------------------------------------------------------------
   // Review attacks (#577): ledger order, lagging reads and reconciliation.
@@ -5826,5 +6424,722 @@ describe('spendable balance across settler records and indexed events', () => {
       units: netOf(BigInt(35) * CENT).toString(),
       cents: 34.125,
     })
+  })
+
+  // -------------------------------------------------------------------------
+  // Review of #585: debit rows under a low read limit and a small budget.
+
+  it('review #585: a balance between the marked one and a newer one not applied keeps the tab marked', async () => {
+    vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', '4')
+    vi.stubEnv('TAB_DEBIT_READ_BUDGET', '5')
+    const { t } = await opened(BigInt(30) * CENT, [])
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    // Settlements at +2, +3 and +6 to +8; top-ups at +1, +4 and +5,
+    // indexed late.
+    await ingestAll(
+      t,
+      [2, 3, 6, 7, 8].map((l, i) => otherSettled(i, LEDGER + l))
+    )
+    const debits = GROSS * BigInt(5)
+    const top = (ledger: number, after: bigint) =>
+      ev.deposited(READER, CENT, after, { ledger: LEDGER + ledger })
+    const a = top(1, BigInt(31) * CENT)
+    const b = top(4, BigInt(32) * CENT - GROSS * BigInt(2))
+    const c = top(5, BigInt(33) * CENT - GROSS * BigInt(2))
+    // One mutation: `a` has 5 later debits (over the limit of 4) and spends
+    // the budget; `c` then finds no budget left. Neither applies.
+    await ingest(t, a, c)
+    const stored = BigInt(30) * CENT - debits
+    expect(await balanceOf(t)).toBe(stored)
+    expect((await account(t)).reconcileRequired?.eventId).toBe(c.id)
+    // `b` is readable on its own (3 later debits), but `c` is newer: the
+    // tab stays marked and the balance stays as it was.
+    await ingest(t, b)
+    expect(await balanceOf(t)).toBe(stored)
+    expect((await account(t)).reconcileRequired?.eventId).toBe(c.id)
+    const truth = BigInt(33) * CENT - debits
+    expect(
+      await reconcileAt(t, {
+        ledger: LEDGER + 8,
+        balance: truth,
+        paid: new Map(),
+      })
+    ).toMatchObject({ status: 'applied' })
+    expect(await balanceOf(t)).toBe(truth)
+    expect((await account(t)).reconcileRequired).toBeUndefined()
+  })
+
+  it.each([
+    [2, 3],
+    [5, 1000],
+    [1000, 1],
+  ])(
+    'review #585: property with a debit read limit of %i and a budget of %i: each balance applies in full or marks the tab, and the end is exact',
+    async (scan, budget) => {
+      const SEEDS = Number(process.env.REVIEW_585_SEEDS ?? 60)
+      const STEPS = Number(process.env.REVIEW_585_STEPS ?? 100)
+      let marksSeen = 0
+      let reconciled = 0
+      for (let seed585 = 1; seed585 <= SEEDS; seed585++) {
+        vi.stubEnv('TAB_DEBIT_SCAN_LIMIT', String(scan))
+        vi.stubEnv('TAB_DEBIT_READ_BUDGET', String(budget))
+        const logs = vi.spyOn(console, 'error').mockImplementation(() => {})
+        const codes = (code: string) =>
+          logs.mock.calls.filter(([line]) => {
+            try {
+              return JSON.parse(String(line)).code === code
+            } catch {
+              return false
+            }
+          }).length
+        let r = seed585 * 7919 + scan * 31 + budget
+        const pick = (n: number) => {
+          r = (r * 1103515245 + 12345) % 2147483648
+          return r % n
+        }
+        const t = convexTest(schema, modules)
+        await seed(t, { open: false })
+        let ledger = LEDGER
+        let chain = BigInt(100) * XLM
+        let paid = BigInt(0)
+        const balanceAt = new Map<number, bigint>()
+        // Balance points: an applied balance's event id and its value.
+        const points = new Map<string, bigint>()
+        const depositValue = new Map<string, bigint>()
+        type Action = { raw: RawRpcEvent; gross?: bigint }
+        const queue: Action[] = []
+        const delivered: Action[] = []
+        const first = ev.deposited(READER, chain, chain, { ledger })
+        balanceAt.set(ledger, chain)
+        points.set(first.id, chain)
+        await ingest(t, first)
+        delivered.push({ raw: first })
+        let marked = false
+        let markTransitions = 0
+        const trace: string[] = []
+        const check = async (label: string) => {
+          trace.push(label)
+          const acc = await account(t)
+          const A = acc.balanceEventId!
+          const base = points.get(A)
+          const where = `seed ${seed585} (${scan}/${budget}) after ${label}\n${trace.slice(-12).join('\n')}`
+          expect(base, where).toBeDefined()
+          const debits = delivered
+            .filter((a) => a.gross !== undefined && a.raw.id > A)
+            .reduce((s, a) => s + a.gross!, BigInt(0))
+          expect(BigInt(acc.confirmedBalance), where).toBe(base! - debits)
+          const maxPoint = delivered
+            .filter((a) => a.gross === undefined)
+            .map((a) => a.raw.id)
+            .reduce((m, id) => (id > m ? id : m), A)
+          if (acc.reconcileRequired) {
+            expect(acc.reconcileRequired.eventId > A, where).toBe(true)
+            expect(
+              delivered.some(
+                (a) =>
+                  a.gross !== undefined &&
+                  a.raw.id > acc.reconcileRequired!.eventId
+              ),
+              where
+            ).toBe(true)
+            if (!marked) markTransitions++
+            marked = true
+            marksSeen++
+          } else {
+            // Every delivered balance is applied or older than the applied one.
+            expect(A >= maxPoint, where).toBe(true)
+            marked = false
+          }
+          expect(
+            codes('CHAIN_TAB_RECONCILE_REQUIRED'),
+            where
+          ).toBeGreaterThanOrEqual(markTransitions)
+          expect(codes('CHAIN_TAB_LEDGER_NEGATIVE'), where).toBe(0)
+        }
+        const deliver = async (actions: Action[]) => {
+          await ingest(t, ...actions.map((a) => a.raw))
+          for (const a of actions) {
+            delivered.push(a)
+            if (a.gross === undefined)
+              points.set(a.raw.id, depositValue.get(a.raw.id)!)
+          }
+        }
+        for (let step = 0; step < STEPS; step++) {
+          // A marked tab is reconciled more often, so the run reaches it.
+          const op = marked && pick(3) === 0 ? 99 : pick(100)
+          if (op < 15) {
+            const amount = BigInt(1 + pick(5)) * XLM
+            chain += amount
+            ledger++
+            const raw = ev.deposited(READER, amount, chain, { ledger })
+            depositValue.set(raw.id, chain)
+            balanceAt.set(ledger, chain)
+            queue.push({ raw })
+            await check(`deposit ${amount} at ${ledger}`)
+          } else if (op < 55) {
+            const n = 1 + pick(4)
+            for (let i = 0; i < n; i++) {
+              const gross = BigInt(1000 + pick(4000))
+              chain -= gross
+              paid += gross
+              ledger++
+              balanceAt.set(ledger, chain)
+              queue.push({
+                raw: ev.tabSettled(
+                  {
+                    writer: OTHER_WRITER,
+                    cumulative: paid,
+                    paidAfter: paid,
+                    gross,
+                  },
+                  { ledger }
+                ),
+                gross,
+              })
+            }
+            await check(`${n} settlements to ${ledger}`)
+          } else if (op < 80 && queue.length) {
+            // Out of order inside a window of 20, in one mutation.
+            const k = 1 + pick(Math.min(6, queue.length))
+            const chosen: Action[] = []
+            for (let i = 0; i < k && queue.length; i++) {
+              chosen.push(queue.splice(pick(Math.min(20, queue.length)), 1)[0]!)
+            }
+            await deliver(chosen)
+            await check(`deliver ${chosen.map((a) => a.raw.ledger).join(',')}`)
+          } else if (op < 88 && delivered.length > 1) {
+            const some = Array.from(
+              { length: 1 + pick(3) },
+              () => delivered[pick(delivered.length)]!.raw.id
+            )
+            const all = pick(3) === 0
+            await t.run(async (ctx) => {
+              for (const row of await ctx.db.query('chainEvents').collect()) {
+                if (all || some.includes(row.eventId)) {
+                  await ctx.db.patch(row._id, { handled: 'pending' })
+                }
+              }
+            })
+            for (;;) {
+              const res = await t.mutation(internal.chain.indexer.redispatch, {
+                limit: 500,
+              })
+              if (res.checked === 0 || res.resolved === 0) break
+            }
+            await check(all ? 'redispatch all' : 'redispatch some')
+          } else if (op < 93 && delivered.length) {
+            await ingest(
+              t,
+              ...Array.from(
+                { length: 1 + pick(5) },
+                () => delivered[pick(delivered.length)]!.raw
+              )
+            )
+            await check('replay')
+          } else if (op >= 93) {
+            const result = await reconcileAt(t, {
+              ledger,
+              balance: chain,
+              paid: new Map(),
+            })
+            if (result.status === 'applied') {
+              points.set(
+                (await account(t)).balanceEventId!,
+                balanceAt.get(ledger)!
+              )
+              reconciled++
+            } else if (marked) {
+              throw new Error(
+                `seed ${seed585}: marked tab not reconciled: ${JSON.stringify(result)}`
+              )
+            }
+            await check(`reconcile at ${ledger}: ${result.status}`)
+          }
+        }
+        // Drain, then a newer deposit: exact, and no mark left.
+        while (queue.length) {
+          const chosen = queue.splice(0, Math.min(queue.length, 1 + pick(10)))
+          await deliver(chosen)
+          await check('drain')
+        }
+        ledger++
+        chain += XLM
+        const last = ev.deposited(READER, XLM, chain, { ledger })
+        depositValue.set(last.id, chain)
+        await deliver([{ raw: last }])
+        await check('final deposit')
+        const acc = await account(t)
+        expect(acc.reconcileRequired, `seed ${seed585}`).toBeUndefined()
+        expect(acc.confirmedBalance, `seed ${seed585}`).toBe(chain.toString())
+        await t.run(async (ctx) => {
+          for (const row of await ctx.db.query('chainEvents').collect()) {
+            await ctx.db.patch(row._id, { handled: 'pending' })
+          }
+        })
+        for (;;) {
+          const res = await t.mutation(internal.chain.indexer.redispatch, {
+            limit: 500,
+          })
+          if (res.checked === 0 || res.resolved === 0) break
+        }
+        await ingest(t, ...delivered.map((a) => a.raw))
+        expect((await account(t)).confirmedBalance, `seed ${seed585}`).toBe(
+          chain.toString()
+        )
+        logs.mockRestore()
+      }
+      // The run reached the bounded path.
+      expect(marksSeen).toBeGreaterThan(0)
+      expect(reconciled).toBeGreaterThan(0)
+    },
+    900_000
+  )
+})
+
+// ---------------------------------------------------------------------------
+// Review of #596: each `Claimed` event changes collected earnings once.
+// These tests use their own table comparison, not `./redispatch`.
+
+describe('review #596: claims through re-dispatch, restore and seeding', () => {
+  const collectedOf = async (t: T, userId: Id<'users'>) =>
+    (await earnings(t, userId))?.collectedBaseUnits?.[TOKEN] ?? '0'
+  const claimRows = (t: T) =>
+    t.run(async (ctx) => ctx.db.query('tabClaims').collect())
+
+  type Rows = Record<string, Record<string, Record<string, unknown>>>
+  /** Every row of every table by id, with every field. */
+  async function everyRow(t: T): Promise<Rows> {
+    return t.run(async (ctx) => {
+      const out: Rows = {}
+      for (const name of Object.keys(schema.tables) as TableNames[]) {
+        out[name] = {}
+        for (const row of await ctx.db.query(name).collect()) {
+          out[name]![String(row._id)] = { ...row }
+        }
+      }
+      return out
+    })
+  }
+  /** `everyRow` without `_creationTime` and `updatedAt`, for comparison. */
+  const comparable = (rows: Rows) =>
+    Object.fromEntries(
+      Object.entries(rows).map(([name, byId]) => [
+        name,
+        Object.fromEntries(
+          Object.entries(byId).map(([id, row]) => [
+            id,
+            Object.fromEntries(
+              Object.entries(row).filter(
+                ([k]) => k !== '_creationTime' && k !== 'updatedAt'
+              )
+            ),
+          ])
+        ),
+      ])
+    )
+
+  /** Sets every stored event back to `pending` and dispatches all again. */
+  async function forceRedispatch(t: T) {
+    await t.run(async (ctx) => {
+      for (const row of await ctx.db.query('chainEvents').collect()) {
+        await ctx.db.patch(row._id, { handled: 'pending' })
+      }
+    })
+    for (;;) {
+      const r = await t.mutation(internal.chain.indexer.redispatch, {
+        limit: 500,
+      })
+      if (r.checked === 0 || r.resolved === 0) break
+    }
+  }
+
+  /**
+   * Puts `tables` back as they were in `snapshot`, keeping ids (an import of
+   * those tables from an export): rows added since are removed, changed rows
+   * get their old fields back.
+   */
+  async function restore(t: T, snapshot: Rows, tables: TableNames[]) {
+    await t.run(async (ctx) => {
+      for (const name of tables) {
+        const old = snapshot[name] ?? {}
+        for (const row of await ctx.db.query(name).collect()) {
+          const before = old[String(row._id)]
+          if (!before) {
+            await ctx.db.delete(row._id)
+            continue
+          }
+          const fields = Object.fromEntries(
+            Object.entries(before).filter(
+              ([k]) => k !== '_id' && k !== '_creationTime'
+            )
+          )
+          await ctx.db.replace(row._id, fields as never)
+        }
+        const kept = new Set(
+          (await ctx.db.query(name).collect()).map((r) => String(r._id))
+        )
+        for (const id of Object.keys(old)) {
+          if (!kept.has(id)) throw new Error(`${name} ${id} deleted since`)
+        }
+      }
+    })
+  }
+
+  // The restore rehearsal's two writers, with two equal claims by one writer
+  // and an amount shared by both writers.
+  const rehearsalClaims = () => ({
+    before: [
+      ev.claimed(WRITER, BigInt(20_000_000), { ledger: LEDGER + 1 }),
+      ev.claimed(OTHER_WRITER, BigInt(20_000_000), { ledger: LEDGER + 1 }),
+      ev.claimed(WRITER, BigInt(20_000_000), { ledger: LEDGER + 2 }),
+    ],
+    after: [
+      ev.claimed(OTHER_WRITER, BigInt(41_263_921), { ledger: LEDGER + 3 }),
+      ev.claimed(WRITER, BigInt(21_278_360), { ledger: LEDGER + 4 }),
+    ],
+  })
+  const expectRehearsalTotals = async (
+    t: T,
+    s: Seeded,
+    step: string,
+    totals: [string, string] = ['61278360', '61263921']
+  ) => {
+    expect(await collectedOf(t, s.authorId), step).toBe(totals[0])
+    expect(await collectedOf(t, s.otherAuthorId), step).toBe(totals[1])
+  }
+
+  it('rehearsal case: every event forced back to pending and re-dispatched twice changes no table', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { before, after } = rehearsalClaims()
+    await ingest(t, ...before, ...after)
+    await expectRehearsalTotals(t, s, 'indexed')
+    const indexed = comparable(await everyRow(t))
+    await forceRedispatch(t)
+    // On the base commit: 122,556,720 and 122,527,842.
+    await expectRehearsalTotals(t, s, 'first re-dispatch')
+    await forceRedispatch(t)
+    await expectRehearsalTotals(t, s, 'second re-dispatch')
+    expect(comparable(await everyRow(t))).toEqual(indexed)
+    expect((await claimRows(t)).length).toBe(5)
+  })
+
+  it('more than 256 claims by one writer: the oldest and a middle one rebuilt from RPC, then everything re-dispatched', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const claims = Array.from({ length: 300 }, (_, i) =>
+      ev.claimed(WRITER, BigInt(1_000 + (i % 7)), {
+        ledger: LEDGER + 1 + i,
+      })
+    )
+    for (let i = 0; i < claims.length; i += 100) {
+      await ingest(t, ...claims.slice(i, i + 100))
+    }
+    const total = claims
+      .map((_, i) => BigInt(1_000 + (i % 7)))
+      .reduce((a, b) => a + b)
+      .toString()
+    expect(await collectedOf(t, s.authorId)).toBe(total)
+    const indexed = comparable(await everyRow(t))
+    // The rows of the oldest and a middle claim are lost and read again.
+    const lost = [claims[0]!, claims[150]!]
+    await t.run(async (ctx) => {
+      for (const raw of lost) {
+        const row = await ctx.db
+          .query('chainEvents')
+          .withIndex('by_event_id', (q) => q.eq('eventId', raw.id))
+          .first()
+        await ctx.db.delete(row!._id)
+      }
+    })
+    const reread = await ingest(t, ...lost)
+    expect(reread.stored).toBe(2)
+    expect(await collectedOf(t, s.authorId)).toBe(total)
+    await forceRedispatch(t)
+    await ingest(t, ...claims.slice(0, 100))
+    expect(await collectedOf(t, s.authorId)).toBe(total)
+    expect((await claimRows(t)).length).toBe(300)
+    const recompute = await t.mutation(
+      internal.chain.tabClaims.recomputeCollected,
+      { userId: s.authorId }
+    )
+    expect(recompute.differences).toEqual([])
+    // Only the two rebuilt event rows differ (new ids).
+    const now = comparable(await everyRow(t))
+    expect({ ...now, chainEvents: {} }).toEqual({
+      ...indexed,
+      chainEvents: {},
+    })
+  })
+
+  it('a restore of the whole database to a snapshot, then the events replayed: each claim counts once', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { before, after } = rehearsalClaims()
+    await ingest(t, ...before)
+    const snapshot = await everyRow(t)
+    await ingest(t, ...after)
+    await expectRehearsalTotals(t, s, 'before the restore')
+    await restore(t, snapshot, Object.keys(schema.tables) as TableNames[])
+    await expectRehearsalTotals(t, s, 'restored', ['40000000', '20000000'])
+    // The indexer reads from the snapshot's cursor again, and an operator
+    // backfills the whole range.
+    await ingest(t, ...after)
+    await ingest(t, ...before, ...after)
+    await expectRehearsalTotals(t, s, 'replayed')
+    await forceRedispatch(t)
+    await expectRehearsalTotals(t, s, 'replayed and re-dispatched')
+    expect((await claimRows(t)).length).toBe(5)
+  })
+
+  it('a restore that mixes exports: the recompute from the records gives the chain totals', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { before, after } = rehearsalClaims()
+    await ingest(t, ...before)
+    const first = await everyRow(t)
+    await ingest(t, ...after)
+    const second = await everyRow(t)
+    const recompute = (apply: boolean) =>
+      t.mutation(internal.chain.tabClaims.recomputeCollected, {
+        apply,
+        note: 'review',
+      })
+    const rebuildEvents = async () => {
+      await t.run(async (ctx) => {
+        for (const row of await ctx.db.query('chainEvents').collect()) {
+          await ctx.db.delete(row._id)
+        }
+      })
+      await ingest(t, ...after, ...before)
+    }
+
+    // (a) Earnings from the first export, claim records and events from the
+    // second: the later claims are recorded and never applied again.
+    await restore(t, first, ['authorEarnings'])
+    await expectRehearsalTotals(t, s, 'earnings older', [
+      '40000000',
+      '20000000',
+    ])
+    await forceRedispatch(t)
+    await expectRehearsalTotals(t, s, 'earnings older, re-dispatched', [
+      '40000000',
+      '20000000',
+    ])
+    expect((await recompute(false)).differences.length).toBe(2)
+    await recompute(true)
+    await expectRehearsalTotals(t, s, '(a) recomputed')
+
+    // (b) Event rows lost and rebuilt from RPC, earnings and records from
+    // the second export: nothing is added.
+    await restore(t, second, ['authorEarnings', 'tabClaims'])
+    await rebuildEvents()
+    await expectRehearsalTotals(t, s, '(b) events rebuilt')
+
+    // (c) Claim records from the first export, earnings from the second,
+    // event rows rebuilt: the later claims are applied a second time.
+    await restore(t, second, ['authorEarnings'])
+    await restore(t, first, ['tabClaims'])
+    await rebuildEvents()
+    await expectRehearsalTotals(t, s, '(c) records older', [
+      (BigInt(61_278_360) + BigInt(21_278_360)).toString(),
+      (BigInt(61_263_921) + BigInt(41_263_921)).toString(),
+    ])
+    // Seeding finds every claim recorded again; the recompute corrects.
+    expect(
+      await t.mutation(internal.chain.tabClaims.seedClaimRecords, {
+        apply: true,
+      })
+    ).toMatchObject({ seeded: 0 })
+    await recompute(true)
+    await expectRehearsalTotals(t, s, '(c) recomputed')
+    expect((await recompute(true)).differences).toEqual([])
+  })
+
+  it('migration: before seeding only a forced re-dispatch counts old claims again; seeding in pages around new claims ties them all', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { before, after } = rehearsalClaims()
+    await ingest(t, ...before, ...after)
+    // As written before this change: totals applied, no records.
+    const dropRecords = () =>
+      t.run(async (ctx) => {
+        for (const row of await ctx.db.query('tabClaims').collect()) {
+          await ctx.db.delete(row._id)
+        }
+      })
+    await dropRecords()
+    const old = comparable(await everyRow(t))
+    // The plain re-dispatch takes only pending rows: nothing changes.
+    await t.mutation(internal.chain.indexer.redispatch, {})
+    expect(comparable(await everyRow(t))).toEqual(old)
+    // A dry run of either operation changes nothing.
+    await t.mutation(internal.chain.tabClaims.seedClaimRecords, {})
+    await t.mutation(internal.chain.tabClaims.recomputeCollected, {})
+    expect(comparable(await everyRow(t))).toEqual(old)
+
+    // Seeding one event per page, with a new claim indexed between pages.
+    const later = [
+      ev.claimed(WRITER, BigInt(1_000_000), { ledger: LEDGER + 10 }),
+      ev.claimed(OTHER_WRITER, BigInt(2_000_000), { ledger: LEDGER + 11 }),
+    ]
+    let cursor: string | null = null
+    let seeded = 0
+    for (let page = 0; ; page++) {
+      const r: {
+        seeded: number
+        isDone: boolean
+        continueCursor: string | null
+      } = await t.mutation(internal.chain.tabClaims.seedClaimRecords, {
+        apply: true,
+        cursor,
+        limit: 1,
+      })
+      seeded += r.seeded
+      if (page < later.length) await ingest(t, later[page]!)
+      if (r.isDone) break
+      cursor = r.continueCursor
+    }
+    expect(seeded).toBe(5)
+    const sources = (await claimRows(t)).map((r) => r.source).sort()
+    expect(sources).toEqual([
+      'applied',
+      'applied',
+      'seeded',
+      'seeded',
+      'seeded',
+      'seeded',
+      'seeded',
+    ])
+    const totals: [string, string] = ['62278360', '63263921']
+    await expectRehearsalTotals(t, s, 'seeded', totals)
+    await forceRedispatch(t)
+    await expectRehearsalTotals(t, s, 'seeded, re-dispatched', totals)
+    expect(
+      (await t.mutation(internal.chain.tabClaims.recomputeCollected, {}))
+        .differences
+    ).toEqual([])
+
+    // Without seeding, the forced re-dispatch is the one way to count an
+    // old claim again; the recompute then corrects it.
+    await dropRecords()
+    await forceRedispatch(t)
+    await expectRehearsalTotals(t, s, 'not seeded, forced', [
+      '124556720',
+      '126527842',
+    ])
+    await t.mutation(internal.chain.tabClaims.recomputeCollected, {
+      apply: true,
+    })
+    await expectRehearsalTotals(t, s, 'recomputed', totals)
+  })
+
+  it('a claim to an address verified only after its event is applied once, after the verification', async () => {
+    const t = convexTest(schema, modules)
+    await seed(t)
+    const LATE = seedAddress(43)
+    const lateId = await t.run((ctx) =>
+      ctx.db.insert('users', {
+        username: 'late',
+        email: 'late@example.test',
+        stellarAddress: LATE,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      })
+    )
+    await ingest(t, ev.claimed(LATE, BigInt(7_000_000), { ledger: LEDGER + 1 }))
+    expect(await collectedOf(t, lateId)).toBe('0')
+    await t.run(async (ctx) => {
+      await ctx.db.patch(lateId, {
+        stellarAddressVerifiedAt: Date.now(),
+        stellarAddressVerifiedNetwork: PASSPHRASE,
+      })
+    })
+    // Seeding takes only applied (`done`) events, so the orphan stays open.
+    expect(
+      await t.mutation(internal.chain.tabClaims.seedClaimRecords, {
+        apply: true,
+      })
+    ).toMatchObject({ seeded: 0 })
+    await forceRedispatch(t)
+    expect(await collectedOf(t, lateId)).toBe('7000000')
+    await forceRedispatch(t)
+    expect(await collectedOf(t, lateId)).toBe('7000000')
+  })
+
+  it('after a testnet reset, a claim with an id seen in the earlier epoch is a new claim', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const id = rpcEventId(LEDGER + 1, 900, 0, 0)
+    await ingest(
+      t,
+      ev.claimed(WRITER, BigInt(3_000_000), { ledger: LEDGER + 1, id })
+    )
+    vi.stubEnv('CHAIN_EPOCH', 'testnet-tab-after-reset')
+    await ingest(
+      t,
+      ev.claimed(WRITER, BigInt(5_000_000), { ledger: LEDGER + 1, id })
+    )
+    expect(await collectedOf(t, s.authorId)).toBe('8000000')
+    expect((await claimRows(t)).map((r) => r.chainEpoch).sort()).toEqual([
+      'testnet-tab',
+      'testnet-tab-after-reset',
+    ])
+  })
+
+  it('the operations are internal, and the earnings totals rebuild leaves collected and the lifetime totals as they were', async () => {
+    const claimsModule = await import('../../convex/chain/tabClaims')
+    for (const [name, fn] of Object.entries(claimsModule)) {
+      expect(
+        (fn as { isInternal?: boolean }).isInternal,
+        `chain/tabClaims:${name}`
+      ).toBe(true)
+    }
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const { before, after } = rehearsalClaims()
+    // Claims indexed before the settlement they follow, then two tab tips
+    // settled on chain, then the later claims.
+    await ingest(t, ...before)
+    await tip(t, s, { cents: 10 })
+    await tip(t, s, { cents: 25 })
+    await ingest(
+      t,
+      ev.tabSettled({
+        cumulative: BigInt(3_500_000),
+        paidAfter: BigInt(3_500_000),
+        gross: BigInt(3_500_000),
+      })
+    )
+    await ingest(t, ...after)
+    const row = (await earnings(t, s.authorId))!
+    expect(row.tabSettledBaseUnits?.[TOKEN]).toBe(
+      netOf(BigInt(3_500_000)).toString()
+    )
+    const live = comparable(await everyRow(t)).authorEarnings![
+      String(row._id)
+    ] as Record<string, unknown>
+    // The rebuild runs on a row without lifetime totals.
+    await t.run((ctx) => ctx.db.patch(row._id, { lifetimeTotalsAt: undefined }))
+    for (let i = 0; i < 20; i++) {
+      const r = await t.mutation(internal.earningsTotalsBackfill.rebuildStep, {
+        id: row._id,
+      })
+      if (r === 'done') break
+    }
+    const rebuilt = comparable(await everyRow(t)).authorEarnings![
+      String(row._id)
+    ] as Record<string, unknown>
+    expect(rebuilt.lifetimeTotalsAt).toBeTypeOf('number')
+    expect({ ...rebuilt, lifetimeTotalsAt: 0 }).toEqual({
+      ...live,
+      lifetimeTotalsAt: 0,
+    })
+    await forceRedispatch(t)
+    const redispatched = comparable(await everyRow(t)).authorEarnings![
+      String(row._id)
+    ] as Record<string, unknown>
+    expect(redispatched).toEqual(rebuilt)
+    expect(await collectedOf(t, s.authorId)).toBe('61278360')
   })
 })

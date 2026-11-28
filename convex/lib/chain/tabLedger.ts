@@ -66,8 +66,48 @@ export const TAB_PREPARE_TTL_MS = 300_000
 export const TAB_PRICE_MAX_AGE_MS = 30 * 60 * 1000
 export const DEFAULT_TAB_DAILY_LIMIT = BigInt(200_000_000)
 export const DEFAULT_TAB_TIP_MAX = BigInt(50_000_000)
-/** Out-of-order bookkeeping kept per account (see `applyBalanceDebit`). */
-export const MAX_SETTLED_SINCE_BALANCE = 256
+/**
+ * Most debit rows one absolute balance may read (`debitsAfter`). Far below
+ * Convex's per-transaction read limit, which also has to cover the rest of
+ * an indexer page. `TAB_DEBIT_SCAN_LIMIT` lowers it for tests.
+ */
+export const DEFAULT_DEBIT_SCAN_LIMIT = 1000
+
+function debitScanLimit(): number {
+  const value = Number(process.env.TAB_DEBIT_SCAN_LIMIT)
+  return Number.isInteger(value) && value > 0
+    ? Math.min(value, DEFAULT_DEBIT_SCAN_LIMIT)
+    : DEFAULT_DEBIT_SCAN_LIMIT
+}
+
+/**
+ * Debit rows one mutation may read and delete across all the events it
+ * dispatches (an indexer page holds up to 250). Convex caps a transaction
+ * at 32,000 documents read and 16,000 written; these leave room for every
+ * other read and write of the page. `TAB_DEBIT_READ_BUDGET` lowers the
+ * read budget for tests.
+ */
+export const DEFAULT_DEBIT_READ_BUDGET = 8000
+export const DEFAULT_DEBIT_DELETE_BUDGET = 2000
+
+export type DebitBudget = { reads: number; deletes: number }
+
+/** A fresh budget for one mutation. */
+export function newDebitBudget(): DebitBudget {
+  const value = Number(process.env.TAB_DEBIT_READ_BUDGET)
+  return {
+    reads:
+      Number.isInteger(value) && value >= 0
+        ? Math.min(value, DEFAULT_DEBIT_READ_BUDGET)
+        : DEFAULT_DEBIT_READ_BUDGET,
+    deletes: DEFAULT_DEBIT_DELETE_BUDGET,
+  }
+}
+
+/** Covered debit rows deleted per absolute balance (`pruneBalanceDebits`). */
+export const DEBIT_PRUNE_BATCH = 500
+/** Covered debit rows deleted with each new debit, so a backlog drains. */
+export const DEBIT_PRUNE_STEP = 8
 
 const ZERO = BigInt(0)
 const STROOPS_PER_XLM = 10_000_000
@@ -335,6 +375,12 @@ export async function checkTabTip(
     tabError(
       account.status === 'CLOSING' ? 'TAB_CLOSING' : 'TAB_CLOSED',
       'This tab is closing and accepts no new tips.'
+    )
+  }
+  if (account.reconcileRequired) {
+    tabError(
+      'TAB_RECONCILE_PENDING',
+      'The tab balance is being checked against Stellar. Tip from your wallet for now.'
     )
   }
   // The voucher binds the Tab contract. The reader's balance lives in the
@@ -1122,6 +1168,49 @@ function addToRecord(
   return { ...record, [token]: (current + delta).toString() }
 }
 
+/**
+ * Records a `Claimed` event as applied, or returns false when its record
+ * exists (the event was applied before). The caller adds the amount to
+ * collected earnings only when this returns true.
+ */
+export async function recordClaim(
+  ctx: MutationCtx,
+  args: {
+    doc: Pick<
+      Doc<'chainEvents'>,
+      'network' | 'chainEpoch' | 'eventId' | 'txHash' | 'ledger'
+    >
+    recipient: string
+    userId: Id<'users'>
+    token: string
+    amount: bigint
+    source: Doc<'tabClaims'>['source']
+    now: number
+  }
+): Promise<boolean> {
+  const existing = await ctx.db
+    .query('tabClaims')
+    .withIndex('by_epoch_event', (q) =>
+      q.eq('chainEpoch', args.doc.chainEpoch).eq('eventId', args.doc.eventId)
+    )
+    .first()
+  if (existing) return false
+  await ctx.db.insert('tabClaims', {
+    network: args.doc.network,
+    chainEpoch: args.doc.chainEpoch,
+    eventId: args.doc.eventId,
+    txHash: args.doc.txHash,
+    ledger: args.doc.ledger,
+    recipient: args.recipient,
+    userId: args.userId,
+    token: args.token,
+    amount: args.amount.toString(),
+    source: args.source,
+    createdAt: args.now,
+  })
+  return true
+}
+
 /** Adds base-unit deltas to a user's `authorEarnings` row. */
 export async function adjustBaseUnitEarnings(
   ctx: MutationCtx,
@@ -1576,6 +1665,108 @@ export function readerSpendable(
   >
 ): bigint {
   return big(account.confirmedBalance) - reservedOf(account)
+}
+
+/**
+ * Records a `TabSettled` debit of `confirmedBalance`, or returns false when
+ * it is already counted: the event is older than the applied absolute
+ * balance (which includes it), or its row exists (a replay or a
+ * re-dispatch). Rows written before `tabBalanceDebits` live in
+ * `settledSinceBalance` and are checked too.
+ */
+export async function recordBalanceDebit(
+  ctx: MutationCtx,
+  account: Pick<
+    Doc<'tabAccounts'>,
+    '_id' | 'balanceEventId' | 'settledSinceBalance'
+  >,
+  eventId: string,
+  gross: bigint,
+  now: number,
+  budget: DebitBudget = newDebitBudget()
+): Promise<boolean> {
+  if (account.balanceEventId && eventId < account.balanceEventId) return false
+  if (account.settledSinceBalance.some((s) => s.eventId === eventId)) {
+    return false
+  }
+  const existing = await ctx.db
+    .query('tabBalanceDebits')
+    .withIndex('by_account_event', (q) =>
+      q.eq('tabAccountId', account._id).eq('eventId', eventId)
+    )
+    .first()
+  if (existing) return false
+  await ctx.db.insert('tabBalanceDebits', {
+    tabAccountId: account._id,
+    eventId,
+    gross: gross.toString(),
+    createdAt: now,
+  })
+  if (account.balanceEventId) {
+    await pruneBalanceDebits(
+      ctx,
+      account._id,
+      account.balanceEventId,
+      DEBIT_PRUNE_STEP,
+      budget
+    )
+  }
+  return true
+}
+
+/**
+ * The debits applied after `eventId` that an absolute balance from that
+ * event does not include: rows after it, and legacy `settledSinceBalance`
+ * entries after it. Null when there are more rows than one transaction may
+ * read (`DEFAULT_DEBIT_SCAN_LIMIT`): the caller then applies no balance at
+ * all, never a partial one.
+ */
+export async function debitsAfter(
+  ctx: MutationCtx,
+  account: Pick<Doc<'tabAccounts'>, '_id' | 'settledSinceBalance'>,
+  eventId: string,
+  budget: DebitBudget = newDebitBudget()
+): Promise<bigint | null> {
+  // Per event, and what is left of the mutation's budget.
+  const limit = Math.max(0, Math.min(debitScanLimit(), budget.reads))
+  const rows = await ctx.db
+    .query('tabBalanceDebits')
+    .withIndex('by_account_event', (q) =>
+      q.eq('tabAccountId', account._id).gt('eventId', eventId)
+    )
+    .take(limit + 1)
+  budget.reads = Math.max(0, budget.reads - rows.length)
+  if (rows.length > limit) return null
+  return [
+    ...account.settledSinceBalance.filter((s) => s.eventId > eventId),
+    ...rows,
+  ].reduce((total, s) => total + big(s.gross), ZERO)
+}
+
+/**
+ * Deletes debit rows older than the applied absolute balance: it includes
+ * them, and a re-dispatch of their events is skipped by id. At most
+ * `DEBIT_PRUNE_BATCH` per call; rows left over are never read again and go
+ * with a later balance.
+ */
+export async function pruneBalanceDebits(
+  ctx: MutationCtx,
+  tabAccountId: Id<'tabAccounts'>,
+  beforeEventId: string,
+  limit = DEBIT_PRUNE_BATCH,
+  budget: DebitBudget = newDebitBudget()
+): Promise<number> {
+  const take = Math.max(0, Math.min(limit, budget.deletes))
+  if (take === 0) return 0
+  const rows = await ctx.db
+    .query('tabBalanceDebits')
+    .withIndex('by_account_event', (q) =>
+      q.eq('tabAccountId', tabAccountId).lt('eventId', beforeEventId)
+    )
+    .take(take)
+  for (const row of rows) await ctx.db.delete(row._id)
+  budget.deletes -= rows.length
+  return rows.length
 }
 
 /**

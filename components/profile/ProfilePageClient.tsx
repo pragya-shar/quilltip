@@ -20,6 +20,7 @@ import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import ProfileHeader from '@/components/profile/ProfileHeader'
 import { ProfileArticlesTabContent } from '@/components/profile/ProfileArticlesTabContent'
+import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
 import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabContent'
 import { AuthorNotFoundPage } from '@/components/profile/AuthorNotFoundPage'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
@@ -48,11 +49,18 @@ export function ProfilePageClient({
   username,
   initialProfile,
   initialArticles,
+  unavailableRetryHref,
 }: {
   username: string
   /** From the server render; undefined when the backend was unreachable. */
   initialProfile?: PublicProfile
   initialArticles?: ProfileArticlesPage
+  /**
+   * Set when the server could not read the writer or their articles in time:
+   * until the live query answers, that part shows a fallback that reads
+   * without scripts.
+   */
+  unavailableRetryHref?: string
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -119,6 +127,26 @@ export function ProfilePageClient({
 
   // The page renders without waiting for sign-in; own-profile actions appear
   // once auth resolves.
+  // The server could not read the writer in time. Outside LoadingRegion,
+  // which hides its fallback from assistive technology.
+  if (user === undefined && unavailableRetryHref) {
+    const unavailable = (
+      <ReadingUnavailable
+        what="This writer’s page"
+        retryHref={unavailableRetryHref}
+        headingLevel={1}
+      />
+    )
+    return activeTab === 'nfts' ? (
+      <div className="profile-page min-h-screen">
+        <AppNavigation />
+        {unavailable}
+      </div>
+    ) : (
+      <CollectionShell>{unavailable}</CollectionShell>
+    )
+  }
+
   if (user === undefined) {
     const loading = (
       <LoadingRegion
@@ -221,6 +249,7 @@ export function ProfilePageClient({
           isOwnProfile={isOwnProfile}
           displayName={profileDisplayName}
           initialData={initialArticles}
+          unavailableRetryHref={unavailableRetryHref}
         />
         <Link className="library-browse" href={`/${user.username}?tab=nfts`}>
           NFT collection ↗

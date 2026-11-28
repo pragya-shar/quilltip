@@ -136,26 +136,25 @@ type Pair = {
 
 const newAddress = () => Keypair.random().publicKey()
 
-async function userFor(t: T, address: string, now: number) {
-  return run(t, async (ctx) => {
-    const existing = await ctx.db
-      .query('users')
-      .withIndex('by_stellar_address', (q) => q.eq('stellarAddress', address))
-      .first()
-    if (existing) return existing._id
-    return ctx.db.insert('users', {
-      username: `u${address.slice(1, 9).toLowerCase()}`,
-      email: `${address.slice(1, 9).toLowerCase()}@example.test`,
-      stellarAddress: address,
-      stellarAddressVerifiedAt: now,
-      stellarAddressVerifiedNetwork: PASSPHRASE,
-      createdAt: now,
-      updatedAt: now,
-    })
+async function userIn(ctx: MutationCtx, address: string, now: number) {
+  const existing = await ctx.db
+    .query('users')
+    .withIndex('by_stellar_address', (q) => q.eq('stellarAddress', address))
+    .first()
+  if (existing) return existing._id
+  return ctx.db.insert('users', {
+    username: `u${address.slice(1, 9).toLowerCase()}`,
+    email: `${address.slice(1, 9).toLowerCase()}@example.test`,
+    stellarAddress: address,
+    stellarAddressVerifiedAt: now,
+    stellarAddressVerifiedNetwork: PASSPHRASE,
+    createdAt: now,
+    updatedAt: now,
   })
 }
 
-async function seedPair(t: T, o: PairOptions = {}): Promise<Pair> {
+/** The pure part of a seeded pair: addresses, receipts and the signed voucher. */
+function pairData(o: PairOptions) {
   const now = Date.now()
   const reader = o.reader ?? newAddress()
   const writer = o.writer ?? newAddress()
@@ -163,8 +162,6 @@ async function seedPair(t: T, o: PairOptions = {}): Promise<Pair> {
   const amounts = o.amounts ?? [XLM]
   const settleBy = LEDGER + (o.windowLedgers ?? 20 * DAY_LEDGERS)
   const acceptedAt = now - (o.ageMs ?? 60_000)
-  const readerId = await userFor(t, reader, now)
-  const writerId = await userFor(t, writer, now)
 
   let cumulative = BigInt(0)
   const receipts: StoredReceipt[] = amounts.map((amount, i) => {
@@ -193,142 +190,198 @@ async function seedPair(t: T, o: PairOptions = {}): Promise<Pair> {
   })
   const signature = bytesToHex(signEd25519(SESSION_SEED, payload))
 
-  const ids = await run(t, async (ctx) => {
-    const db = ctx.db
-    let account = (
-      await db
-        .query('tabAccounts')
-        .withIndex('by_reader', (q) => q.eq('readerAddress', reader))
-        .collect()
-    )[0]
-    if (!account) {
-      const id = await db.insert('tabAccounts', {
-        network: 'TESTNET',
-        chainEpoch: EPOCH,
-        userId: readerId,
-        readerAddress: reader,
-        tabContractId: TAB,
-        status: o.accountStatus ?? 'OPEN',
-        confirmedBalance: (BigInt(1_000) * XLM).toString(),
-        outstanding: '0',
-        acceptedToday: '0',
-        acceptedDay: '2026-12-02',
-        settledSinceBalance: [],
-        pendingKeys: [],
-        createdAt: now,
-        updatedAt: now,
-      })
-      account = (await db.get(id))!
-    }
-    await db.patch(account._id, {
-      outstanding: (BigInt(account.outstanding) + cumulative).toString(),
-    })
-    const key = await db
-      .query('tabSessionKeys')
-      .withIndex('by_account_key', (q) =>
-        q.eq('tabAccountId', account!._id).eq('keyId', keyId)
-      )
-      .first()
-    if (!key) {
-      await db.insert('tabSessionKeys', {
-        network: 'TESTNET',
-        chainEpoch: EPOCH,
-        tabAccountId: account._id,
-        keyId,
-        publicKey: SESSION_PUBLIC,
-        validUntilLedger: settleBy - SETTLE_GRACE_LEDGERS,
-        spendLimit: (BigInt(1_000) * XLM).toString(),
-        spentOnChain: '0',
-        acceptedTotal: cumulative.toString(),
-        revoked: false,
-        extractable: false,
-        createdAt: now,
-        updatedAt: now,
-      })
-    }
-    const articleId = await db.insert('articles', {
-      slug: `a-${receipts[0]!.clientRef}`,
-      title: 'A',
-      content: { type: 'doc', content: [] },
-      published: true,
-      authorId: writerId,
-      authorUsername: 'w',
+  return {
+    now,
+    reader,
+    writer,
+    keyId,
+    settleBy,
+    acceptedAt,
+    cumulative,
+    receipts,
+    leafHashes,
+    receiptsRoot,
+    signature,
+  }
+}
+
+type PairData = ReturnType<typeof pairData>
+
+/** Writes one seeded pair in the caller's transaction. */
+async function writePair(ctx: MutationCtx, d: PairData, o: PairOptions) {
+  const {
+    now,
+    reader,
+    writer,
+    keyId,
+    settleBy,
+    acceptedAt,
+    cumulative,
+    receipts,
+    leafHashes,
+    receiptsRoot,
+    signature,
+  } = d
+  const readerId = await userIn(ctx, reader, now)
+  const writerId = await userIn(ctx, writer, now)
+  const db = ctx.db
+  let account = (
+    await db
+      .query('tabAccounts')
+      .withIndex('by_reader', (q) => q.eq('readerAddress', reader))
+      .collect()
+  )[0]
+  if (!account) {
+    const id = await db.insert('tabAccounts', {
+      network: 'TESTNET',
+      chainEpoch: EPOCH,
+      userId: readerId,
+      readerAddress: reader,
+      tabContractId: TAB,
+      status: o.accountStatus ?? 'OPEN',
+      confirmedBalance: (BigInt(1_000) * XLM).toString(),
+      outstanding: '0',
+      acceptedToday: '0',
+      acceptedDay: '2026-12-02',
+      settledSinceBalance: [],
+      pendingKeys: [],
       createdAt: now,
       updatedAt: now,
     })
-    for (const r of receipts) {
-      const tipRowId = await db.insert('tips', {
-        articleId,
-        tipperId: readerId,
-        authorId: writerId,
-        articleTitle: 'A',
-        articleSlug: 'a',
-        amountUsd: 0.1,
-        amountCents: 10,
-        status: 'ACCEPTED',
-        contractVersion: 'v2',
-        channel: 'tab',
-        clientRef: r.clientRef,
-        grossBaseUnits: r.amount,
-        createdAt: acceptedAt,
-        updatedAt: acceptedAt,
-      })
-      await db.insert('tabReceipts', {
-        network: 'TESTNET',
-        chainEpoch: EPOCH,
-        tabAccountId: account._id,
-        keyId,
-        writerAddress: writer,
-        authorId: writerId,
-        articleId,
-        articleKey: r.articleId,
-        seq: r.seq,
-        amount: r.amount,
-        cumulativeAfter: r.cumulativeAfter,
-        clientRef: r.clientRef,
-        contentHash: r.contentHash,
-        leafHash: receiptLeafHex(r),
-        tipRowId,
-        status: 'ACCEPTED',
-        receiptsRoot,
-        voucherSignature: signature,
-        acceptorPublicKey: 'cc'.repeat(32),
-        acceptanceSignature: 'dd'.repeat(64),
-        acceptedAt,
-        createdAt: acceptedAt,
-        updatedAt: acceptedAt,
-      })
-    }
-    const voucherId = await db.insert('tabVouchers', {
+    account = (await db.get(id))!
+  }
+  await db.patch(account._id, {
+    outstanding: (BigInt(account.outstanding) + cumulative).toString(),
+  })
+  const key = await db
+    .query('tabSessionKeys')
+    .withIndex('by_account_key', (q) =>
+      q.eq('tabAccountId', account!._id).eq('keyId', keyId)
+    )
+    .first()
+  if (!key) {
+    await db.insert('tabSessionKeys', {
       network: 'TESTNET',
       chainEpoch: EPOCH,
       tabAccountId: account._id,
-      tabContractId: TAB,
-      tokenContractId: TOKEN,
-      readerAddress: reader,
+      keyId,
+      publicKey: SESSION_PUBLIC,
+      validUntilLedger: settleBy - SETTLE_GRACE_LEDGERS,
+      spendLimit: (BigInt(1_000) * XLM).toString(),
+      spentOnChain: '0',
+      acceptedTotal: cumulative.toString(),
+      revoked: false,
+      extractable: false,
+      createdAt: now,
+      updatedAt: now,
+    })
+  }
+  const articleId = await db.insert('articles', {
+    slug: `a-${receipts[0]!.clientRef}`,
+    title: 'A',
+    content: { type: 'doc', content: [] },
+    published: true,
+    authorId: writerId,
+    authorUsername: 'w',
+    createdAt: now,
+    updatedAt: now,
+  })
+  for (const r of receipts) {
+    const tipRowId = await db.insert('tips', {
+      articleId,
+      tipperId: readerId,
+      authorId: writerId,
+      articleTitle: 'A',
+      articleSlug: 'a',
+      amountUsd: 0.1,
+      amountCents: 10,
+      status: 'ACCEPTED',
+      contractVersion: 'v2',
+      channel: 'tab',
+      clientRef: r.clientRef,
+      grossBaseUnits: r.amount,
+      createdAt: acceptedAt,
+      updatedAt: acceptedAt,
+    })
+    await db.insert('tabReceipts', {
+      network: 'TESTNET',
+      chainEpoch: EPOCH,
+      tabAccountId: account._id,
       keyId,
       writerAddress: writer,
       authorId: writerId,
-      cumulative: cumulative.toString(),
+      articleId,
+      articleKey: r.articleId,
+      seq: r.seq,
+      amount: r.amount,
+      cumulativeAfter: r.cumulativeAfter,
+      clientRef: r.clientRef,
+      contentHash: r.contentHash,
+      leafHash: receiptLeafHex(r),
+      tipRowId,
+      status: 'ACCEPTED',
       receiptsRoot,
-      leafHashes,
-      signature,
-      acceptance: { acceptor: 'cc'.repeat(32), signature: 'dd'.repeat(64) },
-      seq: receipts.length,
-      paidOnChain: '0',
-      unsettled: true,
-      oldestUnsettledAt: acceptedAt,
-      settleBy,
-      settleQueue: o.queue ?? 'ready',
-      state: 'ACTIVE',
-      earnedNet: '0',
-      pendingNet: '0',
+      voucherSignature: signature,
+      acceptorPublicKey: 'cc'.repeat(32),
+      acceptanceSignature: 'dd'.repeat(64),
       acceptedAt,
-      updatedAt: now,
+      createdAt: acceptedAt,
+      updatedAt: acceptedAt,
     })
-    return { voucherId, accountId: account._id }
+  }
+  const voucherId = await db.insert('tabVouchers', {
+    network: 'TESTNET',
+    chainEpoch: EPOCH,
+    tabAccountId: account._id,
+    tabContractId: TAB,
+    tokenContractId: TOKEN,
+    readerAddress: reader,
+    keyId,
+    writerAddress: writer,
+    authorId: writerId,
+    cumulative: cumulative.toString(),
+    receiptsRoot,
+    leafHashes,
+    signature,
+    acceptance: { acceptor: 'cc'.repeat(32), signature: 'dd'.repeat(64) },
+    seq: receipts.length,
+    paidOnChain: '0',
+    unsettled: true,
+    oldestUnsettledAt: acceptedAt,
+    settleBy,
+    settleQueue: o.queue ?? 'ready',
+    state: 'ACTIVE',
+    earnedNet: '0',
+    pendingNet: '0',
+    acceptedAt,
+    updatedAt: now,
   })
-  return { ...ids, reader, writer, keyId, cumulative }
+  return { voucherId, accountId: account._id }
+}
+
+async function seedPair(t: T, o: PairOptions = {}): Promise<Pair> {
+  const d = pairData(o)
+  const ids = await run(t, (ctx) => writePair(ctx, d, o))
+  return {
+    ...ids,
+    reader: d.reader,
+    writer: d.writer,
+    keyId: d.keyId,
+    cumulative: d.cumulative,
+  }
+}
+
+/** Seeds `count` pairs with the same options, many per transaction. */
+async function seedPairs(t: T, count: number, o: PairOptions = {}) {
+  const BATCH = 100
+  for (let done = 0; done < count; done += BATCH) {
+    const batch = Array.from({ length: Math.min(BATCH, count - done) }, () =>
+      pairData(o)
+    )
+    await run(t, async (ctx) => {
+      for (const d of batch) await writePair(ctx, d, o)
+    })
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -1180,21 +1233,20 @@ describe('key windows and starvation', () => {
     )
   })
 
+  // It seeds 570 pairs, above SELECTION_SCAN and SWEEP_LIMIT, so the work
+  // cannot shrink without changing what it proves. Batched seeding keeps it
+  // under a second on CI; a heavily loaded machine needs more than 5 s.
   it('pairs that cannot settle do not starve due pairs', async () => {
     const t = convexTest(schema, modules)
     const fake = new FakeTab()
     // 320 parked (SHORTFALL) pairs with the oldest receipts and soonest windows,
     // and 250 expired pairs: more than one selection scan and one sweep call.
-    for (let i = 0; i < 320; i++) {
-      await seedPair(t, {
-        queue: 'blocked',
-        ageMs: OLD * 2,
-        windowLedgers: 3 * DAY_LEDGERS,
-      })
-    }
-    for (let i = 0; i < 250; i++) {
-      await seedPair(t, { ageMs: OLD * 2, windowLedgers: -5 })
-    }
+    await seedPairs(t, 320, {
+      queue: 'blocked',
+      ageMs: OLD * 2,
+      windowLedgers: 3 * DAY_LEDGERS,
+    })
+    await seedPairs(t, 250, { ageMs: OLD * 2, windowLedgers: -5 })
     const due = await seedPair(t, {
       ageMs: OLD,
       windowLedgers: 25 * DAY_LEDGERS,

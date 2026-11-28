@@ -17,6 +17,12 @@ const nextConfig: NextConfig = {
   // replaces, app/(legacy). A URL that matches neither renders
   // app/global-not-found.tsx.
   experimental: { globalNotFound: true },
+  // Vercel builds with immutable asset paths (`/_next/static/immutable/`).
+  // QUILLTIP_IMMUTABLE_ASSETS=1 makes a local build match, for measurements
+  // such as scripts/perf/tap-to-visible.ts. Off for every other build.
+  ...(process.env.QUILLTIP_IMMUTABLE_ASSETS === '1' && {
+    supportsImmutableAssets: true,
+  }),
   // Put page metadata in <head> for every client, not only Next's built-in bot
   // list, so all crawlers and link previews see article titles and tags. Pages
   // that set metadata already await the same data, so nothing is delayed.

@@ -1056,38 +1056,32 @@ describe('totals at any history length and across collects', () => {
     expect(reopened).toEqual(after)
   })
 
-  // Inherited, not fixed here: issue 584. The `Claimed` handler adds to
-  // `collectedBaseUnits` again when a stored event is processed a second
-  // time (a restore re-queues it). Collected and ready figures are derived
-  // from that field, so they inherit the double count: collected too high,
-  // ready too low, never ready too high. Flips when the fix merges.
-  it.fails(
-    'a stored Claimed event processed twice collects once (issue 584)',
-    async () => {
-      const t = convexTest(schema, modules)
-      const s = await seed(t)
-      const net = await settleTwo(t, s)
-      const quarter = net / BigInt(4)
-      await ingest(t, ev.claimed(WRITER, quarter))
-      const once = await as(t, s.authorId).query(api.earnings.mine, {})
-      expect(once).toMatchObject({
-        collectedCents: 97.5,
-        availableCents: 292.5,
-      })
-      // As after a restore: the stored event is queued and dispatched again.
-      await t.run(async (ctx) => {
-        const stored = (await ctx.db.query('chainEvents').collect()).filter(
-          (e) => e.type.toLowerCase() === 'claimed'
-        )
-        expect(stored).toHaveLength(1)
-        for (const e of stored)
-          await ctx.db.patch(e._id, { handled: 'pending' })
-      })
-      await t.mutation(internal.chain.indexer.redispatch, {})
-      const twice = await as(t, s.authorId).query(api.earnings.mine, {})
-      expect(twice).toEqual(once)
-    }
-  )
+  // A stored `Claimed` event processed a second time (a restore re-queues
+  // it) must not add to `collectedBaseUnits` again. Collected and ready
+  // figures are derived from that field (issue 584, fixed).
+  it('a stored Claimed event processed twice collects once (issue 584)', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    const net = await settleTwo(t, s)
+    const quarter = net / BigInt(4)
+    await ingest(t, ev.claimed(WRITER, quarter))
+    const once = await as(t, s.authorId).query(api.earnings.mine, {})
+    expect(once).toMatchObject({
+      collectedCents: 97.5,
+      availableCents: 292.5,
+    })
+    // As after a restore: the stored event is queued and dispatched again.
+    await t.run(async (ctx) => {
+      const stored = (await ctx.db.query('chainEvents').collect()).filter(
+        (e) => e.type.toLowerCase() === 'claimed'
+      )
+      expect(stored).toHaveLength(1)
+      for (const e of stored) await ctx.db.patch(e._id, { handled: 'pending' })
+    })
+    await t.mutation(internal.chain.indexer.redispatch, {})
+    const twice = await as(t, s.authorId).query(api.earnings.mine, {})
+    expect(twice).toEqual(once)
+  })
 
   it('values a partial collect at the average cost of what is available', async () => {
     const t = convexTest(schema, modules)
