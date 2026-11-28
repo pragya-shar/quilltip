@@ -270,7 +270,8 @@ export function TipControl({
 
   const closeTray = (returnFocus: boolean) => {
     setTrayOpen(false)
-    if (returnFocus) amountButton.current?.focus()
+    // Back to the amount control without moving the page.
+    if (returnFocus) amountButton.current?.focus({ preventScroll: true })
   }
 
   const face = (

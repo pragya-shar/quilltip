@@ -63,7 +63,7 @@ export function Menu({ label, items, icon = MoreIcon, className }: MenuProps) {
       window.innerHeight - trigger.current.getBoundingClientRect().bottom
     setAbove(room < list.current.offsetHeight + 16)
     const all = entries()
-    ;(open === 'last' ? all.at(-1) : all[0])?.focus()
+    ;(open === 'last' ? all.at(-1) : all[0])?.focus({ preventScroll: true })
   }, [open])
 
   useEffect(() => {
@@ -77,7 +77,7 @@ export function Menu({ label, items, icon = MoreIcon, className }: MenuProps) {
 
   const close = () => {
     setOpen(false)
-    trigger.current?.focus()
+    trigger.current?.focus({ preventScroll: true })
   }
 
   const onListKey = (event: KeyboardEvent<HTMLDivElement>) => {
