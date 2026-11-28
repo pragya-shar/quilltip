@@ -106,6 +106,7 @@ import type * as lib_xlmPrice from "../lib/xlmPrice.js";
 import type * as nftMetadataUpload from "../nftMetadataUpload.js";
 import type * as nfts from "../nfts.js";
 import type * as nftsV2 from "../nftsV2.js";
+import type * as passages from "../passages.js";
 import type * as passwordReset from "../passwordReset.js";
 import type * as permanentStorage from "../permanentStorage.js";
 import type * as publicRoutes from "../publicRoutes.js";
@@ -238,6 +239,7 @@ declare const fullApi: ApiFromModules<{
   nftMetadataUpload: typeof nftMetadataUpload;
   nfts: typeof nfts;
   nftsV2: typeof nftsV2;
+  passages: typeof passages;
   passwordReset: typeof passwordReset;
   permanentStorage: typeof permanentStorage;
   publicRoutes: typeof publicRoutes;

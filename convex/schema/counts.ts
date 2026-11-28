@@ -67,6 +67,8 @@ export const countsTables = {
   passageStats: defineTable({
     articleId: v.id('articles'),
     passageId: v.string(),
+    /** The writer the tips paid (the tip rows' `authorId`), for a writer's lines. */
+    authorId: v.id('users'),
     ...figures,
     /**
      * The passage's normalized text when first counted. Server only: used to
@@ -77,6 +79,8 @@ export const countsTables = {
   })
     .index('by_article_passage', ['articleId', 'passageId'])
     .index('by_article_tipCount', ['articleId', 'tipCount'])
+    .index('by_author_tipCount', ['authorId', 'tipCount'])
+    .index('by_tipCount', ['tipCount', 'lastTipAt'])
     .index('by_lastTipAt', ['lastTipAt']),
 
   /**
@@ -91,4 +95,21 @@ export const countsTables = {
     readerKey: v.string(),
     liveTips: v.number(),
   }).index('by_scope_key', ['scope', 'articleId', 'passageId', 'readerKey']),
+
+  /**
+   * The backfill's position (one row, key `counts`): `tips` first, then
+   * `highlightTips`. Each row is synced exactly as a status change would sync
+   * it, so a second run, or a run beside live tips, changes nothing.
+   */
+  countsBackfills: defineTable({
+    key: v.literal('counts'),
+    source: tipSourceValidator,
+    cursor: v.union(v.string(), v.null()),
+    /** Rows synced, and rows whose figures changed, in this run. */
+    rows: v.number(),
+    changed: v.number(),
+    startedAt: v.number(),
+    finishedAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index('by_key', ['key']),
 }

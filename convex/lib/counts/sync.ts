@@ -51,6 +51,8 @@ type CountedState = { counted: boolean; cents: number; state: string }
 
 type Identity = {
   articleId: Id<'articles'>
+  /** The writer the tip paid; null only for a row that no longer exists. */
+  authorId: Id<'users'> | null
   passageId: string | null
   readerKey: string | null
   tipAt: number
@@ -119,6 +121,7 @@ async function identityOf(
   const tipper = await ctx.db.get(row.tipperId)
   const base = {
     articleId: row.articleId,
+    authorId: row.authorId,
     readerKey: tipper ? `u:${row.tipperId}` : null,
     tipAt: row.createdAt,
   }
@@ -289,16 +292,24 @@ async function applyContribution(
     )
     .unique()
   const nextPassage = moved(passage ?? ZERO, c, sign, passageReaders, 'passage')
-  if (passage)
+  if (passage) {
     await ctx.db.patch(passage._id, { ...nextPassage, updatedAt: now })
-  else
-    await ctx.db.insert('passageStats', {
-      articleId: c.articleId,
-      passageId,
-      ...nextPassage,
-      quote: c.quote,
-      updatedAt: now,
-    })
+    return
+  }
+  const authorId =
+    c.authorId ?? (await ctx.db.get(c.articleId))?.authorId ?? null
+  if (authorId === null) {
+    console.error('counts: no writer for a new passage row; not counted')
+    return
+  }
+  await ctx.db.insert('passageStats', {
+    articleId: c.articleId,
+    passageId,
+    authorId,
+    ...nextPassage,
+    quote: c.quote,
+    updatedAt: now,
+  })
 }
 
 /**
@@ -333,6 +344,7 @@ export async function syncTipCounts(
   const identity: Identity = entry
     ? {
         articleId: entry.articleId,
+        authorId: row?.authorId ?? null,
         passageId: entry.passageId,
         readerKey: entry.readerKey,
         tipAt: entry.tipAt,
