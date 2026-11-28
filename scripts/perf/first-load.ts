@@ -8,16 +8,14 @@
 //   `next experimental-analyze --output`: which source modules each chunk
 //   holds. Used to refuse modules that must load only on demand.
 import { gzipSync } from 'zlib'
-import { SURFACE_FIRST_LOAD } from './routes'
+import { FIRST_LOAD_ENTRIES } from './routes'
 
-/** The routes whose first load is budgeted, as Next.js names them. */
-export const FIRST_LOAD_ROUTES = [
-  '/login',
-  '/[username]/[slug]',
-  // The rebuilt routes, one file per package (scripts/perf/routes).
-  ...SURFACE_FIRST_LOAD.map((entry) => entry.route),
-] as const
-export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
+/** The routes whose first load is budgeted, as Next.js names them: the
+ * legacy ones not yet replaced and every package's (scripts/perf/routes). */
+export const FIRST_LOAD_ROUTES: readonly string[] = FIRST_LOAD_ENTRIES.map(
+  (entry) => entry.route
+)
+export type FirstLoadRoute = string
 
 /**
  * Gzip budget for each route's first-load JavaScript, in KB (1024 bytes).
@@ -25,13 +23,10 @@ export type FirstLoadRoute = (typeof FIRST_LOAD_ROUTES)[number]
  * few KB of growth fails; raise a budget in the change that needs it. See
  * docs/performance/page-load.md.
  */
-export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> = {
-  '/login': 202, // measured 199.4
-  '/[username]/[slug]': 219, // measured 216.9
-  ...Object.fromEntries(
-    SURFACE_FIRST_LOAD.map((entry) => [entry.route, entry.budgetKb])
-  ),
-}
+export const FIRST_LOAD_BUDGET_KB: Record<FirstLoadRoute, number> =
+  Object.fromEntries(
+    FIRST_LOAD_ENTRIES.map((entry) => [entry.route, entry.budgetKb])
+  )
 
 /**
  * Modules that must never be in the first load of these routes. Wallet, SDK
@@ -73,7 +68,7 @@ export const FORBIDDEN_FIRST_LOAD_MODULES: {
     // (shell/pocket/loadPocket.ts), never with a page.
     label: 'the balance sheet (components/pocket)',
     pattern: /\[project\]\/components\/pocket\//,
-    // The balance's own page loads it; it is measured against the plan's
+    // The balance's own page loads it; it is measured against the
     // signed-in budget there (scripts/perf/routes/pocket.ts).
     allowedOn: ['/pocket'],
   },

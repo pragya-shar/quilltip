@@ -32,10 +32,9 @@ import {
   type Browser,
   type BrowserType,
 } from '@playwright/test'
-import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
-import { SURFACE_FONT_FALLBACK } from './routes'
+import { FONT_FALLBACK_ROUTES } from './routes'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
 const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
@@ -46,16 +45,12 @@ const ENGINE_NAMES = (process.env.PERF_FONT_ENGINES ?? 'chromium webkit')
   .split(/[\s,]+/)
   .filter(Boolean)
 
-// The four measured routes, and /guide, which uses Landing Syne at 500 and
-// Wallet Syne (the 600 file at every weight). PERF_FONT_ROUTES adds paths,
-// for example `/support /terms`, to look at other pages: their faces and
-// widths are checked, their movement is only reported.
+// The legacy routes not yet replaced and every package's
+// (scripts/perf/routes). PERF_FONT_ROUTES adds paths, for example
+// `/support /terms`, to look at other pages: their faces and widths are
+// checked, their movement is only reported.
 const ROUTES: { name: string; path: string; gateMovement: boolean }[] = [
-  { name: 'login', path: '/login', gateMovement: true },
-  { name: 'article', path: FIXTURE_ARTICLE_PATH, gateMovement: true },
-  { name: 'guide', path: '/guide', gateMovement: true },
-  // The rebuilt routes, one file per package (scripts/perf/routes).
-  ...SURFACE_FONT_FALLBACK,
+  ...FONT_FALLBACK_ROUTES,
   ...(process.env.PERF_FONT_ROUTES ?? '')
     .split(/[\s,]+/)
     .filter(Boolean)

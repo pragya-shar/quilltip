@@ -1,0 +1,46 @@
+# Every file under app/(legacy) on the base the surfaces build on (the route
+# split, then the money layer's balance page). scripts/rebuild/deleted-paths.test.ts: a file listed here that
+# is gone must be listed in a scripts/rebuild/deleted/<package>.txt (so it
+# never comes back), and no file under app/(legacy) may be added. Nobody
+# edits this list.
+app/(legacy)/(auth)/forgot-password/page.tsx
+app/(legacy)/(auth)/layout.tsx
+app/(legacy)/(auth)/login/page.tsx
+app/(legacy)/(auth)/register/page.tsx
+app/(legacy)/(auth)/reset-password/page.tsx
+app/(legacy)/(auth)/waitlist/page.tsx
+app/(legacy)/[username]/[slug]/layout.tsx
+app/(legacy)/[username]/[slug]/not-found.tsx
+app/(legacy)/[username]/[slug]/page.tsx
+app/(legacy)/[username]/not-found.tsx
+app/(legacy)/[username]/page.tsx
+app/(legacy)/articles/page.tsx
+app/(legacy)/contact/page.tsx
+app/(legacy)/dashboard/balance/page.tsx
+app/(legacy)/dashboard/earnings/page.tsx
+app/(legacy)/dashboard/feedback/page.tsx
+app/(legacy)/dashboard/layout.tsx
+app/(legacy)/dashboard/page.tsx
+app/(legacy)/dashboard/stats/page.tsx
+app/(legacy)/dashboard/tab/page.tsx
+app/(legacy)/dashboard/wallet/page.tsx
+app/(legacy)/demo/write/page.tsx
+app/(legacy)/drafts/page.tsx
+app/(legacy)/error.tsx
+app/(legacy)/guide/page.tsx
+app/(legacy)/layout.tsx
+app/(legacy)/library/page.tsx
+app/(legacy)/loading.tsx
+app/(legacy)/not-found.tsx
+app/(legacy)/ops/chain/page.tsx
+app/(legacy)/page.tsx
+app/(legacy)/privacy/page.tsx
+app/(legacy)/profile/page.tsx
+app/(legacy)/settings/page.tsx
+app/(legacy)/settings/profile/page.tsx
+app/(legacy)/status/page.tsx
+app/(legacy)/support/page.tsx
+app/(legacy)/terms/page.tsx
+app/(legacy)/wallet/practice/page.tsx
+app/(legacy)/welcome/page.tsx
+app/(legacy)/write/page.tsx

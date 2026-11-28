@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { prefetchFor } from '@/lib/routing/legacyRoutes'
 import { Button } from '../components/Button'
 import { EmptyState } from '../components/EmptyState'
 import { Heading } from '../components/Heading'
@@ -55,6 +56,7 @@ export function ReadingSection() {
               <Link
                 className="qt-fn-ref"
                 href="/system/reading#fn-1"
+                prefetch={prefetchFor('/system/reading')}
                 id="fnref-1"
               >
                 1
@@ -73,6 +75,7 @@ export function ReadingSection() {
                 The ledger is now in a shoebox in my mother’s closet.{' '}
                 <Link
                   href="/system/reading#fnref-1"
+                  prefetch={prefetchFor('/system/reading')}
                   aria-label="Back to the text"
                 >
                   ↩

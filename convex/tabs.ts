@@ -18,6 +18,7 @@ import {
   type QueryCtx,
 } from './_generated/server'
 import { readChainEnv } from './lib/chain/env'
+import { requestSettlement } from './lib/chain/settleSchedule'
 import { isHexOfLength } from './lib/chain/ids'
 import {
   MAX_KEY_LIFETIME_LEDGERS,
@@ -106,7 +107,12 @@ export const submitTip = mutation({
   },
   handler: async (ctx, args) => {
     const userId = await requireUserId(ctx)
-    return submitTabTip(ctx, { ...args, userId, now: Date.now() })
+    const now = Date.now()
+    const accepted = await submitTabTip(ctx, { ...args, userId, now })
+    // Settle soon after acceptance when the deployment asks for it
+    // (`TAB_SETTLE_AFTER_ACCEPT_MS`); otherwise the cron's due rules apply.
+    if (!accepted.alreadyAccepted) await requestSettlement(ctx, now)
+    return accepted
   },
 })
 

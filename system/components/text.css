@@ -66,7 +66,7 @@
     text-wrap: balance;
   }
   .qt-heading[data-variant='display'] {
-    font-family: var(--qt-font-read);
+    font-family: var(--qt-font-display);
     font-size: var(--qt-text-display);
     line-height: var(--qt-lh-display);
     font-weight: var(--qt-weight-title);
@@ -118,7 +118,9 @@
   }
   /* The lead-in: the first line of the first paragraph in small caps. */
   .qt-prose[data-lead-in] > p:first-of-type::first-line {
-    font-variant-caps: var(--qt-read-lead-in);
+    font-family: var(--qt-font-read-caps);
+    font-size: var(--qt-read-lead-in-size);
+    text-transform: uppercase;
     letter-spacing: var(--qt-read-lead-in-track);
   }
   .qt-prose h2 {
