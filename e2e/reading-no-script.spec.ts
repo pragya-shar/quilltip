@@ -145,5 +145,6 @@ test('/pocket: with no script, the page asks to sign in, with no waiting figure'
     'href',
     signInPathFromRoutes()
   )
-  await expect(main.locator('[aria-busy="true"]')).toBeHidden()
+  // The live balance's waiting figure is in the page, and hidden.
+  await expect(main.locator('[aria-busy="true"]:visible')).toHaveCount(0)
 })
