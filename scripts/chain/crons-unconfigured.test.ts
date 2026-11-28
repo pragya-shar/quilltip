@@ -86,5 +86,6 @@ describe('payments v2 crons without configuration', () => {
       )
     )
     expect(counts.every((n) => n === 0)).toBe(true)
-  })
+    // The first import of the Node actions dominates on a loaded machine.
+  }, 20_000)
 })

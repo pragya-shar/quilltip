@@ -1,15 +1,10 @@
-'use client'
+import type { Metadata } from 'next'
+import { EarningsScreenLive } from '@/components/payments/EarningsScreenLive'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { getDashboardTabPath } from '@/lib/dashboard/dashboardTab'
+export const metadata: Metadata = {
+  title: 'Earnings',
+}
 
 export default function DashboardEarningsPage() {
-  const router = useRouter()
-
-  useEffect(() => {
-    router.replace(getDashboardTabPath('stats'))
-  }, [router])
-
-  return null
+  return <EarningsScreenLive />
 }
