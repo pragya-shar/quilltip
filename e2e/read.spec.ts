@@ -122,6 +122,56 @@ const tipButton = (page: Page) =>
 const chosenTick = (page: Page) =>
   page.locator('.qt-read__tick[data-kind="chosen"]')
 
+/** Waits until the scroll and the saved place both hold. */
+async function placeHeld(page: Page) {
+  await settled(page)
+  let lastAt: number | null = null
+  await expect
+    .poll(
+      async () => {
+        const at = await page.evaluate(
+          () =>
+            (JSON.parse(
+              localStorage.getItem('quilltip:reading-position:v2') ?? '[]'
+            )[0]?.at as number | undefined) ?? null
+        )
+        const held = at !== null && at === lastAt
+        lastAt = at
+        return held
+      },
+      { intervals: [300] }
+    )
+    .toBe(true)
+}
+
+/** How far the saved sentence sits from the reading line, a third down. */
+async function offFromReadingLine(page: Page) {
+  return page.evaluate(() => {
+    const [place] = JSON.parse(
+      localStorage.getItem('quilltip:reading-position:v2') ?? '[]'
+    )
+    const body = document.getElementById('read-body')!
+    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
+    let seen = 0
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const length = node.textContent!.length
+      if (seen + length > place.at) {
+        const range = document.createRange()
+        range.setStart(node, place.at - seen)
+        range.setEnd(node, place.at - seen + 1)
+        return Math.abs(range.getBoundingClientRect().top - innerHeight / 3)
+      }
+      seen += length
+    }
+    return Infinity
+  })
+}
+
+/** The external page an article links to, served by the suite. */
+const EXTERNAL = /^https:\/\/example\.org\//
+const externalLink = (page: Page) =>
+  page.locator('#read-body a[href="https://example.org/ledgers"]')
+
 test('the article reads in full with its title, byline and end', async ({
   page,
 }) => {
@@ -547,6 +597,10 @@ test('a failed tip says nothing was charged and takes focus', async ({
   )
   await expect(note).toBeVisible()
   await expect(note).toBeFocused()
+  // The button that sends again names the amount it sends.
+  await expect(
+    page.locator('.qt-read__dock').getByRole('button', { name: /^Try again/ })
+  ).toHaveAccessibleName('Try again: tip $1')
 })
 
 test('the reader comes back to their place, with a tick and nothing chosen', async ({
@@ -555,25 +609,7 @@ test('the reader comes back to their place, with a tick and nothing chosen', asy
   await open(page)
   // The middle of the article: a place is kept between 3% and 95% read.
   await pointAt(page, 'Ten to the school')
-  // Wait until the scroll and the saved place both hold.
-  await settled(page)
-  let lastAt: number | null = null
-  await expect
-    .poll(
-      async () => {
-        const at = await page.evaluate(
-          () =>
-            (JSON.parse(
-              localStorage.getItem('quilltip:reading-position:v2') ?? '[]'
-            )[0]?.at as number | undefined) ?? null
-        )
-        const held = at !== null && at === lastAt
-        lastAt = at
-        return held
-      },
-      { intervals: [300] }
-    )
-    .toBe(true)
+  await placeHeld(page)
   const before = await page.evaluate(() => window.scrollY)
   expect(before).toBeGreaterThan(400)
   // Today's "Your place" reads the sentence and the share read from here.
@@ -592,33 +628,144 @@ test('the reader comes back to their place, with a tick and nothing chosen', asy
   await expect(
     page.getByRole('heading', { level: 1, name: TITLE })
   ).toBeVisible()
-  await expect
-    .poll(() => page.evaluate(() => window.scrollY))
-    .toBeGreaterThan(before - 120)
-  expect(await page.evaluate(() => window.scrollY)).toBeLessThan(before + 120)
-  // The saved sentence, not a share of the scroll, sits at the reading line.
-  const offFromLine = await page.evaluate(() => {
-    const [place] = JSON.parse(
-      localStorage.getItem('quilltip:reading-position:v2') ?? '[]'
-    )
-    const body = document.getElementById('read-body')!
-    const walker = document.createTreeWalker(body, NodeFilter.SHOW_TEXT)
-    let seen = 0
-    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-      const length = node.textContent!.length
-      if (seen + length > place.at) {
-        const range = document.createRange()
-        range.setStart(node, place.at - seen)
-        range.setEnd(node, place.at - seen + 1)
-        return Math.abs(range.getBoundingClientRect().top - innerHeight / 3)
-      }
-      seen += length
-    }
-    return Infinity
-  })
-  expect(offFromLine).toBeLessThan(60)
+  // The saved sentence, not a share of the scroll, sits at the reading line
+  // (a third down), wherever the reader had it on the screen.
+  await expect.poll(() => offFromReadingLine(page)).toBeLessThan(60)
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(400)
   await expect(page.locator('.qt-read__tick[data-kind="place"]')).toHaveCount(1)
   await expect(tipButton(page)).toHaveAccessibleName('Tip Tomás $1')
+})
+
+test('an external link opens in place, and Back returns to the same passage', async ({
+  page,
+}) => {
+  await page.route(EXTERNAL, (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      body: '<!doctype html><title>Ledgers</title><p>Elsewhere.</p>',
+    })
+  )
+  // Whether the article comes back from the back-forward cache or loads
+  // again: `pageshow` says which.
+  await page.addInitScript(() =>
+    addEventListener('pageshow', (event) =>
+      sessionStorage.setItem('qt-test:pageshow', String(event.persisted))
+    )
+  )
+  await open(page)
+  const link = externalLink(page)
+  // Same tab, and the page vouches for nothing it links to.
+  expect(await link.getAttribute('target')).toBeNull()
+  expect(await link.getAttribute('rel')).toBe(
+    'noopener noreferrer nofollow ugc'
+  )
+  // Midway down: the link's paragraph, as a reader reaches it.
+  await pointAt(page, 'Read about the ledger tradition')
+  await placeHeld(page)
+  const before = await page.evaluate(() => window.scrollY)
+  expect(before).toBeGreaterThan(400)
+  const pages = page.context().pages().length
+  await press(page, link)
+  await page.waitForURL(EXTERNAL)
+  expect(page.context().pages()).toHaveLength(pages)
+  await page.goBack()
+  await expect(
+    page.getByRole('heading', { level: 1, name: TITLE })
+  ).toBeVisible()
+  const restored = await page.evaluate(() =>
+    sessionStorage.getItem('qt-test:pageshow')
+  )
+  test.info().annotations.push({
+    type: 'back',
+    description: restored === 'true' ? 'back-forward cache' : 'loaded again',
+  })
+  // The passage the reader left, at the reading line.
+  await expect.poll(() => offFromReadingLine(page)).toBeLessThan(60)
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(400)
+  // Back is a return, not a choice: nothing chosen, nothing sent.
+  await expect(chosenTick(page)).toHaveCount(0)
+  expect((await server(page)).requests).toBe(0)
+})
+
+test('a modified, middle or right click on an article link is left to the browser', async ({
+  page,
+}) => {
+  test.skip(touch(page), 'a mouse with modifier keys and a middle button')
+  await page.route(EXTERNAL, (route) => route.abort())
+  await open(page)
+  // After the view's own handlers: whether any of them took the press. The
+  // suite then keeps the page, so no new tab or menu opens.
+  await page.evaluate(() => {
+    const seen: string[] = []
+    ;(window as unknown as { seen: string[] }).seen = seen
+    for (const type of ['click', 'auxclick', 'contextmenu'] as const)
+      addEventListener(type, (event) => {
+        seen.push(`${type}:${event.defaultPrevented}`)
+        event.preventDefault()
+      })
+  })
+  const link = externalLink(page)
+  await link.scrollIntoViewIfNeeded()
+  await settled(page)
+  const box = (await link.boundingBox())!
+  const x = box.x + box.width / 2
+  const y = box.y + box.height / 2
+  for (const key of ['ControlOrMeta', 'Shift'] as const) {
+    await page.keyboard.down(key)
+    await page.mouse.click(x, y)
+    await page.keyboard.up(key)
+  }
+  await page.mouse.click(x, y, { button: 'middle' })
+  await page.mouse.click(x, y, { button: 'right' })
+  // Every press reached the browser untouched (a right click also sends
+  // auxclick in some engines).
+  await expect
+    .poll(() =>
+      page.evaluate(() => (window as unknown as { seen: string[] }).seen)
+    )
+    .toEqual(
+      expect.arrayContaining([
+        'click:false',
+        'auxclick:false',
+        'contextmenu:false',
+      ])
+    )
+  const seen = await page.evaluate(
+    () => (window as unknown as { seen: string[] }).seen
+  )
+  expect(seen.filter((entry) => entry === 'click:false')).toHaveLength(2)
+  expect(seen.every((entry) => entry.endsWith(':false'))).toBe(true)
+  // None of them chose the line the link sits in.
+  await expect(chosenTick(page)).toHaveCount(0)
+  expect(new URL(page.url()).pathname).toBe(ARTICLE_PATH)
+})
+
+test('a long press on an article link keeps the native link menu', async ({
+  page,
+}) => {
+  await open(page)
+  // Nothing in the view turns off the link callout or the text selection
+  // a long press uses, on the link or the text around it.
+  const styles = await externalLink(page).evaluate((link) => {
+    const seen = [
+      link,
+      link.parentElement!,
+      document.getElementById('read-body')!,
+    ]
+    return seen.map((node) => {
+      const style = getComputedStyle(node) as CSSStyleDeclaration & {
+        webkitTouchCallout?: string
+      }
+      return {
+        callout: style.webkitTouchCallout ?? 'default',
+        select: style.userSelect || style.webkitUserSelect,
+      }
+    })
+  })
+  for (const style of styles) {
+    expect(style.callout).not.toBe('none')
+    expect(style.select).not.toBe('none')
+  }
 })
 
 test('an article edited since the page was rendered says so, quietly', async ({
@@ -810,13 +957,17 @@ test('the line tipped is the line pressed, even if another is tapped while sendi
   await expect(status).toContainText('Sent')
   const { accepted } = await server(page)
   expect(accepted.map((tip) => tip.target.passage?.text)).toEqual([LINES.gate])
-  // The mark and the receipt name the line the server booked.
-  const mine = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('mark.qt-mark[data-state="mine"]'))
-      .map((m) => m.textContent)
-      .join('')
-  )
-  expect(mine).toBe(LINES.gate)
+  // The mark and the receipt name the line the server booked. The mark is
+  // painted in the frame after "Sent".
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Array.from(document.querySelectorAll('mark.qt-mark[data-state="mine"]'))
+          .map((m) => m.textContent)
+          .join('')
+      )
+    )
+    .toBe(LINES.gate)
   await press(page, page.getByRole('button', { name: 'Receipt' }))
   await expect(page.getByRole('dialog', { name: 'Receipt' })).toContainText(
     LINES.gate

@@ -102,6 +102,13 @@ const MAIL_ADDRESS =
   /^[A-Za-z0-9.!#$&'*+/=^_`{|}~-]+@[A-Za-z0-9-]+(\.[A-Za-z0-9-]+)+$/
 
 /**
+ * The `rel` every article link carries. Links open in place, in the same
+ * tab, so the renderer writes no `target`; the page sends no referrer and
+ * vouches for no author's link.
+ */
+export const ARTICLE_LINK_REL = 'noopener noreferrer nofollow ugc'
+
+/**
  * Link targets a reader may follow: web pages without credentials, one mail
  * address, and same-site paths. Same-site is decided by parsing, and the
  * normalised path is what the page links to.

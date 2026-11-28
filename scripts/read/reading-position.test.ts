@@ -27,14 +27,21 @@ describe('reading position', () => {
     expect(scrollDeltaFor(saved, { top: 200, height: 2000 }, 800)).toBe(0)
   })
 
-  it('restores on a plain open, not over a named place or back', () => {
+  it('restores on every open and on Back, not over a named place or line', () => {
     expect(shouldRestore({ hash: '', navigationType: 'navigate' })).toBe(true)
     expect(shouldRestore({ hash: '', navigationType: 'reload' })).toBe(true)
+    // Back from another site loads the article again.
+    expect(shouldRestore({ hash: '', navigationType: 'back_forward' })).toBe(
+      true
+    )
     expect(shouldRestore({ hash: '#start', navigationType: 'navigate' })).toBe(
       false
     )
-    expect(shouldRestore({ hash: '', navigationType: 'back_forward' })).toBe(
-      false
-    )
+    expect(
+      shouldRestore({ hash: '#start', navigationType: 'back_forward' })
+    ).toBe(false)
+    expect(
+      shouldRestore({ hash: '', navigationType: 'navigate', aimed: true })
+    ).toBe(false)
   })
 })

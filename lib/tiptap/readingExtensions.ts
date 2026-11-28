@@ -2,13 +2,16 @@ import { Extension, Node } from '@tiptap/core'
 import type { DOMOutputSpec } from '@tiptap/pm/model'
 import Link from '@tiptap/extension-link'
 import StarterKit from '@tiptap/starter-kit'
-import { YOUTUBE_EMBED } from '@/lib/tiptap/sanitizeReadingDoc'
+import {
+  ARTICLE_LINK_REL,
+  YOUTUBE_EMBED,
+} from '@/lib/tiptap/sanitizeReadingDoc'
 
 /**
  * The extensions the reading view renders with, on a document already
  * reduced by `sanitizeReadingDoc`. Each renders only the attributes the
  * reading page allows: no author classes, styles or targets. Links always
- * carry `rel="noopener noreferrer nofollow ugc"` and open in the same tab.
+ * carry `ARTICLE_LINK_REL` and open in place, in the same tab.
  * Images and embeds render a fixed set of attributes, written here, and
  * headings render only levels 2 to 4.
  */
@@ -118,7 +121,8 @@ export function getReadingExtensions() {
       openOnClick: false,
       protocols: ['http', 'https', 'mailto'],
       HTMLAttributes: {
-        rel: 'noopener noreferrer nofollow ugc',
+        rel: ARTICLE_LINK_REL,
+        // Every article link opens in place.
         target: null,
         class: null,
       },

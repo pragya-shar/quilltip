@@ -38,17 +38,19 @@ export function scrollDeltaFor(
 
 /**
  * Whether to return the reader to their place on this open. Always, unless
- * the address names a place (`#section`) or the browser restores the scroll
- * itself (back and forward).
+ * the address names a place (`#section`) or a line (`?highlight=`). That
+ * includes Back from another site: the article often loads again then,
+ * and not every engine puts the scroll back on that load. A page the
+ * back-forward cache keeps comes back as it was and runs nothing again.
  */
 export function shouldRestore(input: {
   hash: string
-  navigationType: string | undefined
+  /** The navigation's type; a back or forward load restores too. */
+  navigationType?: string
   /** The address names a line (`?highlight=`): that wins over the place. */
   aimed?: boolean
 }): boolean {
-  if (input.hash || input.aimed) return false
-  return input.navigationType !== 'back_forward'
+  return !input.hash && !input.aimed
 }
 
 /** The block at the reading line (a third down the screen), for the tick. */
