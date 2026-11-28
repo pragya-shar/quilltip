@@ -1,4 +1,4 @@
-import type { SignOutCleanup, SignOutWarning } from './types'
+import type { SignOutAction, SignOutCleanup, SignOutWarning } from './types'
 
 /** What the pocket package clears on sign-out. Owned by that package. */
 export const cleanups: readonly SignOutCleanup[] = [
@@ -45,10 +45,7 @@ export const cleanups: readonly SignOutCleanup[] = [
  * keys (no wallet step), so a key that somehow survived the cleanup above
  * could not tip. The shell bounds it and never waits beyond that.
  */
-export const beforeSignOut: readonly {
-  name: string
-  run: (who: { userId: string | null }) => Promise<void>
-}[] = [
+export const beforeSignOut: readonly SignOutAction[] = [
   {
     name: 'stop quick tips keys',
     run: () =>

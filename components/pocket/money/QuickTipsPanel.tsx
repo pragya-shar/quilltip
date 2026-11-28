@@ -10,6 +10,7 @@ import {
 } from '@/lib/payments/money'
 import { keyUntil } from '@/lib/addMoney/consent'
 import { quickTipsRows, thisDevice } from '@/lib/addMoney/devices'
+import { unconfirmedStops } from '@/lib/payments/signOutStop'
 import type { AddMoneyServices } from '@/lib/addMoney/services'
 import {
   LEDGER_FINE_PRINT,
@@ -47,6 +48,8 @@ export function QuickTipsPanel({ services }: { services: AddMoneyServices }) {
   const device = thisDevice(reading, now)
   if (!device) return null
   const rows = quickTipsRows(reading, now)
+  // Keys a sign-out here asked Quilltip to stop, without a confirmation.
+  const notStopped = reading.userId ? unconfirmedStops(reading.userId) : []
   const line =
     device.kind === 'ready'
       ? balanceQuickTipsLine({
@@ -96,6 +99,12 @@ export function QuickTipsPanel({ services }: { services: AddMoneyServices }) {
                     <span className="qt-quick__device-name">
                       {key.here ? 'This device' : 'Another device'}
                     </span>
+                    {!key.revoked && notStopped.includes(key.keyId) ? (
+                      <span className="qt-quick__device-meta">
+                        Signing out did not finish turning this off. Turn it off
+                        here.
+                      </span>
+                    ) : null}
                     {unconfirmed ? (
                       <span className="qt-quick__device-meta">
                         Off in Quilltip. Your wallet has not confirmed it on

@@ -38,7 +38,11 @@ import {
   type OutboxEntry,
 } from '@/lib/payments/outbox'
 import { bindingHolds, pairOf, paymentsStore } from '@/lib/payments/store'
-import { signOutStop } from '@/lib/payments/signOutStop'
+import {
+  signOutStop,
+  stopKeys,
+  unconfirmedStops,
+} from '@/lib/payments/signOutStop'
 import { tipAmount } from '@/lib/payments/money'
 import {
   onJob,
@@ -260,19 +264,25 @@ export function PaymentsEngine() {
   // Before a sign-out, Quilltip stops accepting tips under this browser's
   // keys for this reader (shell/signOut/pocket.ts runs it, bounded).
   useEffect(() => {
-    if (!signer) return
+    if (!signer || !binding) return
+    const userId = binding.userId
     const live = new Set(
       (session?.devices ?? []).filter((d) => !d.revoked).map((d) => d.keyId)
     )
+    // A stop before an earlier sign-out that was not confirmed: try again
+    // now, for the keys still live.
+    const retry = unconfirmedStops(userId).filter((id) => live.has(id))
+    if (retry.length > 0)
+      void stopKeys(userId, retry, (keyId) => stopKey({ keyId }))
     return signOutStop.set(async () => {
       const held = await signer.heldKeyIds()
-      await Promise.all(
-        held
-          .filter((keyId) => live.has(keyId))
-          .map((keyId) => stopKey({ keyId }).catch(() => {}))
+      await stopKeys(
+        userId,
+        held.filter((keyId) => live.has(keyId)),
+        (keyId) => stopKey({ keyId })
       )
     })
-  }, [signer, devicesKey, stopKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [signer, bindingKey, devicesKey, stopKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!signer || !session || session.status !== 'open') return
