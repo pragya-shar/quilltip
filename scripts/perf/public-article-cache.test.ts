@@ -41,8 +41,9 @@ vi.mock('next/cache', () => ({
       return store.get(key) as R
     },
 }))
-vi.mock('convex/nextjs', () => ({
-  fetchQuery: async (ref: never, args: { slug: string }) => {
+vi.mock('../../lib/seo/publicQuery', async (original) => ({
+  ...(await original<typeof import('../../lib/seo/publicQuery')>()),
+  publicQuery: async (_limitMs: number, ref: never, args: { slug: string }) => {
     const row = state.rows.get(args.slug)
     const live = row?.published ? row : undefined
     switch (getFunctionName(ref)) {

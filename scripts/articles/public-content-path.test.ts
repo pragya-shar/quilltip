@@ -50,6 +50,10 @@ test.each([
   ['/_writer', { username: '_writer' }],
   ['/_writer/missing', { username: '_writer', slug: 'missing' }],
   ['/%E0%A4%A', null],
+  // No handle starts with "@" (#609): never a writer page, never a check.
+  ['/@pragya', null],
+  ['/@pragya/fame-beyond-limits', null],
+  ['/%40pragya', null],
 ])('publicContentPath(%s)', (path, expected) => {
   expect(publicContentPath(path)).toEqual(expected)
 })

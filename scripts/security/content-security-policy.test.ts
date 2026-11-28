@@ -6,8 +6,12 @@ import {
   NONCE_HEADER,
 } from '@/lib/security/contentSecurityPolicy'
 
-const fetchQuery = vi.hoisted(() => vi.fn())
-vi.mock('convex/nextjs', () => ({ fetchQuery }))
+// The proxy's backend checks (#609) go through publicQuery.
+const publicQuery = vi.hoisted(() => vi.fn())
+vi.mock('@/lib/seo/publicQuery', async (original) => ({
+  ...(await original<typeof import('@/lib/seo/publicQuery')>()),
+  publicQuery,
+}))
 
 const { proxy } = await import('../../proxy')
 
@@ -43,7 +47,7 @@ beforeEach(() => {
   )
   vi.stubEnv('NEXT_PUBLIC_STELLAR_RPC_URL', '')
   vi.stubEnv('VERCEL_ENV', '')
-  fetchQuery.mockReset()
+  publicQuery.mockReset()
 })
 
 afterEach(() => {
@@ -115,7 +119,7 @@ describe('content security policy on proxy responses', () => {
   })
 
   it('keeps the policy on a missing article answered with 404', async () => {
-    fetchQuery.mockResolvedValue({ kind: 'missing' })
+    publicQuery.mockResolvedValue({ kind: 'missing' })
     const response = await pageResponse('/someone/missing-article')
     expect(response.status).toBe(404)
     expect(policyOf(response).get('script-src')?.[1]).toMatch(/^'nonce-/)
