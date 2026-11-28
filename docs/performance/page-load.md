@@ -812,9 +812,14 @@ and rendered the page.
 
 - A view of `/articles` with every card in view and the pointer over each link
   makes no backend read for those links. A click makes one route check and at
-  most one article read. `bun run perf:prefetch-reads`
-  (`scripts/perf/prefetch-reads.ts`) checks this in Chromium and WebKit in the
-  Page-load Budget job, from the fixture backend's read counts.
+  most one article read while the server's copy of the article is under 60 s
+  old. `bun run perf:prefetch-reads` (`scripts/perf/prefetch-reads.ts`) checks
+  this in Chromium and WebKit in the Page-load Budget job, from the fixture
+  backend's read counts, on a fresh build.
+- A request that meets a copy older than 60 s makes two article reads: the
+  direct read that keeps every copy under 60 s old, and the cache's own
+  background refresh of the old entry. The next request uses the refreshed
+  copy. This holds for full loads and clicks alike and is not changed here.
 - The proxy keeps at most one route check in flight and one queued per path
   (`lib/seo/oneReadAtATime.ts`). A request that arrives while a check runs
   waits for the next one, which starts after it arrived, so an article hidden

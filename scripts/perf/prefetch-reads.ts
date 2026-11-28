@@ -4,6 +4,12 @@
 // costs one route check and at most one article read. Runs against the
 // fixture build of perf:budget; needs no secrets.
 //
+// "At most one article read" holds while the server's copy of the article is
+// under 60 s old, as on a fresh build. A request that meets an older copy
+// makes two (lib/seo/publicContent.ts, cachedFor: the direct read and the
+// cache's background refresh), so a rerun against an old .next/cache can
+// fail here without a prefetch.
+//
 //   NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
 //   bun run perf:prefetch-reads
 //   PERF_PREFETCH_MEASURE=1 bun run perf:prefetch-reads   # print only
