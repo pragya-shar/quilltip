@@ -1,23 +1,12 @@
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { canonicalText, sentencesOf } from '@/hooks/read/sentenceRule'
+import { canonicalText, sentencesOf } from '@/lib/passages/sentences'
+import { identityVectors as vectors } from '@/lib/passages/vectors'
 import { sentenceSpans } from '@/hooks/read/sentences'
 
-// The shared sentence rule's own vectors (pull request 603 at 3adc836a,
-// lib/passages/vectors/identity-v1.json, copied beside this test). Delete
-// both this copy and hooks/read/sentenceRule.ts when 603 merges.
-type Vector = {
-  name: string
-  content: unknown
-  text: string
-  sentences: { start: number; end: number; text: string }[]
-}
-const vectors = JSON.parse(
-  readFileSync(path.join(__dirname, 'sentence-vectors-v1.json'), 'utf8')
-) as { scheme: string; cases: Vector[] }
-
-describe('the copied sentence rule matches the shared vectors', () => {
+// The shared sentence rule's vectors (lib/passages/vectors), through the
+// reading view's own path: the rule on each document, and sentenceSpans on
+// each one-block case's text, as the view cuts lines.
+describe('the reading view cuts the shared vectors as the rule does', () => {
   it('is the scheme the vectors name', () => {
     expect(vectors.scheme).toBe('quilltip-passage-v1')
   })

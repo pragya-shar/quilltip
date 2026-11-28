@@ -127,7 +127,7 @@ describe('canonically equivalent text', () => {
   it('splits a decomposed paragraph where the stored-text rule does', async () => {
     const { lineSentences } = await import('@/hooks/read/passageOffsets')
     const { canonicalText, sentencesOf } =
-      await import('@/hooks/read/sentenceRule')
+      await import('@/lib/passages/sentences')
     for (const text of [
       'Café au lait. Next one.',
       'Café au lait. Next one.',

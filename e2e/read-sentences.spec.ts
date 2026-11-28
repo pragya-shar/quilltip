@@ -1,22 +1,10 @@
-import { readFileSync } from 'node:fs'
-import path from 'node:path'
 import { expect, test } from '@playwright/test'
+import { identityVectors as vectors } from '../lib/passages/vectors'
 
 // The shared sentence vectors in the browser engine (e2e/fixtures/read/
 // vectors.ts): the rule on each document, and the view's own path on the
 // rendered HTML of each one-block case. Run in Chromium and WebKit by the
 // read suite's config, so a difference between engines fails here.
-
-type Vector = {
-  name: string
-  sentences: { start: number; end: number; text: string }[]
-}
-const vectors = JSON.parse(
-  readFileSync(
-    path.join(__dirname, '../scripts/read/sentence-vectors-v1.json'),
-    'utf8'
-  )
-) as { cases: Vector[] }
 
 test('the sentence rule cuts every vector the same in this engine', async ({
   page,

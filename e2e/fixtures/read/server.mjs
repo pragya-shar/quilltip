@@ -66,13 +66,10 @@ const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta n
 // The sentence vectors page (`/vectors`): each case, and the rendered HTML
 // of the cases with one block, for the view's path in the browser.
 const { canonicalText } = await import(
-  path.join(root, 'hooks/read/sentenceRule.ts')
+  path.join(root, 'lib/passages/sentences.ts')
 )
-const vectorFile = JSON.parse(
-  await readFile(
-    path.join(root, 'scripts/read/sentence-vectors-v1.json'),
-    'utf8'
-  )
+const { identityVectors: vectorFile } = await import(
+  path.join(root, 'lib/passages/vectors/index.ts')
 )
 const vectorCases = vectorFile.cases.map(({ name, content }) => ({
   name,

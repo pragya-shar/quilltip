@@ -1,15 +1,17 @@
 /**
- * Sentence snapping for choosing a line, on the shared sentence rule (the
- * passage identity of pull request 603, copied in `./sentenceRule` until it
- * merges). A line is a sentence: a tap inside a sentence chooses it, and a
+ * Sentence snapping for choosing a line, on the shared sentence rule
+ * (`lib/passages/sentences`, the passage identity's). A line is a sentence: a tap inside a sentence chooses it, and a
  * selection grows to the whole sentences it touches. Offsets are UTF-16
  * indexes into one block's text (a paragraph or a list item), as the DOM
  * counts them; `gaps` are offsets where a hard break sits between words.
  *
- * Every function the reading view uses to cut sentences is in this file, so
- * moving to `@/lib/passages/sentences` is one import.
+ * Every function the reading view uses to cut sentences is in this file.
  */
-import { sentenceRange, sentencesOf, type Sentence } from './sentenceRule'
+import {
+  sentenceRange,
+  sentencesOf,
+  type Sentence,
+} from '@/lib/passages/sentences'
 
 export type Span = { start: number; end: number }
 /** A sentence of a block: its offsets, and its text as the rule writes it

@@ -3,7 +3,7 @@
 // page holds). The read suite compares both with the vectors, in Chromium
 // and in WebKit, so a difference between engines fails a test.
 import { lineSentences } from '../../../hooks/read/passageOffsets'
-import { canonicalText, sentencesOf } from '../../../hooks/read/sentenceRule'
+import { canonicalText, sentencesOf } from '../../../lib/passages/sentences'
 import { sentenceSpans } from '../../../hooks/read/sentences'
 
 type Case = { name: string; content: unknown; html: string | null }
