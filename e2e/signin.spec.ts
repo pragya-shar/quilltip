@@ -329,6 +329,58 @@ test('a long line takes three rows, and the form and both buttons stay in view a
   }
 })
 
+test('while the sheet slides in, nothing the reader can press lies outside it', async ({
+  page,
+}) => {
+  test.skip(!hasTouch(), 'phone widths')
+  await page.setViewportSize({ width: 360, height: 640 })
+  // Every frame from the open until the sheet's motion ends: a control
+  // whose centre is outside the sheet's panel must not be what a press
+  // there would reach.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __outside: string[]; __frames: number }
+    w.__outside = []
+    w.__frames = 0
+    const tick = () => {
+      const dialog = document.querySelector('dialog[open]')
+      const panel = dialog?.querySelector('.qt-modal__panel')
+      if (dialog && panel) {
+        w.__frames += 1
+        const box = panel.getBoundingClientRect()
+        for (const control of dialog.querySelectorAll(
+          'button, a[href], input'
+        )) {
+          const r = control.getBoundingClientRect()
+          const x = r.x + r.width / 2
+          const y = r.y + r.height / 2
+          const inside =
+            x >= box.left && x <= box.right && y >= box.top && y <= box.bottom
+          const hit = document.elementFromPoint(x, y)
+          if (!inside && hit && control.contains(hit))
+            w.__outside.push(control.textContent || control.outerHTML)
+        }
+        const moving = dialog.getAnimations({ subtree: true }).length > 0
+        if (!moving && w.__frames > 2) return
+      }
+      requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+  })
+  await page.goto('/article?long-line')
+  await press(tipButton(page))
+  await settled(sheet(page, /^Tip this line/))
+  const seen = await page.evaluate(
+    () =>
+      (window as unknown as { __outside: string[]; __frames: number }).__frames
+  )
+  expect(seen).toBeGreaterThan(0)
+  expect(
+    await page.evaluate(
+      () => (window as unknown as { __outside: string[] }).__outside
+    )
+  ).toEqual([])
+})
+
 test('show password sits on the password field, and shows it', async ({
   page,
 }) => {
