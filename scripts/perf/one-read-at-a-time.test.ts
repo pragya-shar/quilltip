@@ -32,7 +32,7 @@ describe('oneReadAtATime', () => {
     const ask = () =>
       answers.push({
         arrivedAfterHide: !state.visible,
-        answer: check('writer/lamp', read),
+        answer: check('writer/lamp', read).result,
       })
     ask() // starts read A, which sees "visible"
     await tick(5)
@@ -55,7 +55,9 @@ describe('oneReadAtATime', () => {
   it('keeps at most one read in flight per key, however many requests', async () => {
     const { state, read } = backend()
     const check = oneReadAtATime<string>()
-    await Promise.all(Array.from({ length: 10 }, () => check('a/b', read)))
+    await Promise.all(
+      Array.from({ length: 10 }, () => check('a/b', read).result)
+    )
     expect(state.reads).toBeLessThanOrEqual(2)
     expect(state.maxInFlight).toBe(1)
   })
@@ -63,16 +65,19 @@ describe('oneReadAtATime', () => {
   it('reads again for a request that arrives after the reads have settled', async () => {
     const { state, read } = backend(5)
     const check = oneReadAtATime<string>()
-    await check('a/b', read)
+    await check('a/b', read).result
     state.visible = false
-    await expect(check('a/b', read)).resolves.toBe('hidden')
+    await expect(check('a/b', read).result).resolves.toBe('hidden')
     expect(state.reads).toBe(2)
   })
 
   it('keeps keys apart', async () => {
     const { state, read } = backend()
     const check = oneReadAtATime<string>()
-    await Promise.all([check('a/one', read), check('a/two', read)])
+    await Promise.all([
+      check('a/one', read).result,
+      check('a/two', read).result,
+    ])
     expect(state.reads).toBe(2)
     expect(state.maxInFlight).toBe(2)
   })
@@ -85,10 +90,20 @@ describe('oneReadAtATime', () => {
       await tick(10)
       throw new Error(`read ${calls} failed`)
     }
-    const first = check('a/b', failing)
-    const second = check('a/b', failing)
+    const first = check('a/b', failing).result
+    const second = check('a/b', failing).result
     await expect(first).rejects.toThrow('read 1 failed')
-    await expect(second).rejects.toThrow('read 2 failed')
-    await expect(check('a/b', async () => 'ok')).resolves.toBe('ok')
+    // The waiter gets the same failure, with no second read.
+    await expect(second).rejects.toThrow('read 1 failed')
+    expect(calls).toBe(1)
+    await expect(check('a/b', async () => 'ok').result).resolves.toBe('ok')
+  })
+
+  it('says whether a call launched its read', () => {
+    const check = oneReadAtATime<string>()
+    const read = () => tick(10).then(() => 'x')
+    expect(check('a/b', read).first).toBe(true)
+    expect(check('a/b', read).first).toBe(false)
+    expect(check('a/b', read).first).toBe(false)
   })
 })

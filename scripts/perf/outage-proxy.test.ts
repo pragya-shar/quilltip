@@ -24,12 +24,24 @@ type Mode =
   | 'client-error'
   | 'paused'
   | 'near-miss'
-const backend = { mode: 'answering' as Mode, reads: 0, slowOnceUsed: false }
+  | 'delayed'
+const backend = {
+  mode: 'answering' as Mode,
+  reads: 0,
+  slowOnceUsed: false,
+  /** 'delayed': each read answers after this long, with the state at its start. */
+  delayMs: 0,
+  /** 'delayed': per-read delays, used in turn before `delayMs`. */
+  delays: [] as number[],
+  /** The article is hidden: route checks for it answer "missing". */
+  hidden: false,
+}
 
 function answer(path: string, args: { username?: string; slug?: string }) {
   if (path === 'publicRoutes:publicRouteExists') return false
   if (path === 'publicRoutes:resolvePublicRoute') {
     if (args.username === 'nobody') return { kind: 'missing' }
+    if (args.slug && backend.hidden) return { kind: 'missing' }
     return args.slug ? { kind: 'found', version: 'a1:1' } : { kind: 'found' }
   }
   throw new Error(`no stand-in for ${path}`)
@@ -69,6 +81,21 @@ function stubBackend(input: RequestInfo | URL, init?: RequestInit) {
     args: [{ username?: string; slug?: string }]
   }
   void input
+  if (backend.mode === 'delayed') {
+    // The answer reflects the state when the read started.
+    const value = answer(body.path, body.args[0])
+    return new Promise<Response>((resolve, reject) => {
+      const timer = setTimeout(
+        () =>
+          resolve(Response.json({ status: 'success', value, logLines: [] })),
+        backend.delays.shift() ?? backend.delayMs
+      )
+      signal?.addEventListener('abort', () => {
+        clearTimeout(timer)
+        reject(signal.reason)
+      })
+    })
+  }
   return Promise.resolve(
     Response.json({
       status: 'success',
@@ -97,7 +124,14 @@ beforeEach(async () => {
   vi.stubGlobal('fetch', vi.fn(stubBackend))
   vi.useFakeTimers({ toFake: ['Date'] })
   vi.setSystemTime(new Date('2026-11-28T12:00:00Z'))
-  Object.assign(backend, { mode: 'answering', reads: 0, slowOnceUsed: false })
+  Object.assign(backend, {
+    mode: 'answering',
+    reads: 0,
+    slowOnceUsed: false,
+    delayMs: 0,
+    delays: [],
+    hidden: false,
+  })
   // A fresh module: the outage memory and the "found" reuse start empty.
   vi.resetModules()
   proxy = (await import('../../proxy')).proxy
@@ -212,6 +246,93 @@ describe('a paused deployment', () => {
     expect(forwarded(article, ARTICLE_ROUTE_HEADER)).toBe('unknown')
     expect(backend.reads).toBe(2)
   })
+})
+
+describe('route checks for one path, one at a time (#630)', () => {
+  /** The proxy decides within two read limits (and 50 ms) for every request. */
+  const WORST_CASE_MS = 2 * PUBLIC_READ_TIMEOUT_MS + 50
+  const later = (ms: number, path: string) =>
+    new Promise<Awaited<ReturnType<typeof timed>>>((resolve) =>
+      setTimeout(() => resolve(timed(path)), ms)
+    )
+
+  it('two requests on a silent backend both answer 503 within the bound', async () => {
+    backend.mode = 'silent'
+    const [a, b] = await Promise.all([
+      timed('/fixture-writer/the-lamp'),
+      timed('/fixture-writer/the-lamp'),
+    ])
+    for (const { response, ms } of [a, b]) {
+      expect(response.status).toBe(503)
+      expect(ms).toBeLessThan(WORST_CASE_MS + 500)
+    }
+  }, 15_000)
+
+  it('a request queued behind a slow read gets its own fresh answer, with no outage', async () => {
+    // Each read takes 1.2 s: slow, but inside the limit.
+    backend.mode = 'delayed'
+    backend.delayMs = 1200
+    const [a, b] = await Promise.all([
+      timed('/fixture-writer/the-lamp'),
+      later(100, '/fixture-writer/the-lamp'),
+    ])
+    expect(a.response.status).toBe(200)
+    expect(forwarded(a.response, ARTICLE_ROUTE_HEADER)).toBe('found a1:1')
+    // B waited for A's read (to 1.2 s), then for its own (to 2.4 s).
+    expect(b.response.status).toBe(200)
+    expect(forwarded(b.response, ARTICLE_ROUTE_HEADER)).toBe('found a1:1')
+    expect(b.ms).toBeLessThan(WORST_CASE_MS + 300)
+    expect(backend.reads).toBe(2)
+    // Not an outage: the next request is checked as usual.
+    backend.mode = 'answering'
+    expect((await request('/articles')).status).toBe(200)
+  }, 15_000)
+
+  it(`the worst case (running read slow, queued read slow, one retry) stays within ${2 * PUBLIC_READ_TIMEOUT_MS + 50} ms`, async () => {
+    // Each read takes longer than the limit.
+    backend.mode = 'delayed'
+    backend.delayMs = PUBLIC_READ_TIMEOUT_MS + 100
+    const results = await Promise.all([
+      timed('/fixture-writer/the-lamp'),
+      later(100, '/fixture-writer/the-lamp'),
+    ])
+    // Every read runs past its limit: both requests fail twice, as without
+    // the queue, and the proxy declares the outage.
+    for (const { response, ms } of results) {
+      expect(response.status).toBe(503)
+      expect(ms).toBeLessThan(WORST_CASE_MS + 300)
+    }
+  }, 15_000)
+
+  it('the budget ends a chain of waits: a running read inside the limit, then two slow reads', async () => {
+    // A's read answers at 1.4 s. B (at 0.1 s) waits for it, then gets the
+    // next read, which runs past the limit (aborted at 2.9 s). B's retry has
+    // what is left of its budget (to 3.15 s) and is slow too.
+    backend.mode = 'delayed'
+    backend.delays = [1400, 1600, 1600]
+    const [a, b] = await Promise.all([
+      timed('/fixture-writer/the-lamp'),
+      later(100, '/fixture-writer/the-lamp'),
+    ])
+    expect(a.response.status).toBe(200)
+    expect(b.response.status).toBe(503)
+    expect(b.ms).toBeLessThan(WORST_CASE_MS + 300)
+  }, 15_000)
+
+  it('a request that arrives after a hide never gets "found"', async () => {
+    backend.mode = 'delayed'
+    backend.delayMs = 300
+    const before = timed('/fixture-writer/the-lamp') // read 1 sees it visible
+    await new Promise((r) => setTimeout(r, 100))
+    backend.hidden = true
+    const after = await later(50, '/fixture-writer/the-lamp')
+    expect((await before).response.status).toBe(200)
+    expect(forwarded(after.response, ARTICLE_ROUTE_HEADER)).not.toMatch(
+      /^found/
+    )
+    expect(after.response.status).toBe(404)
+    expect(forwarded(after.response, ARTICLE_ROUTE_HEADER)).toBe('missing')
+  }, 15_000)
 })
 
 describe('an outage', () => {

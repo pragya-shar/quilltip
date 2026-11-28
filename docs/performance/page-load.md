@@ -818,7 +818,17 @@ and rendered the page.
 - The proxy keeps at most one route check in flight and one queued per path
   (`lib/seo/oneReadAtATime.ts`). A request that arrives while a check runs
   waits for the next one, which starts after it arrived, so an article hidden
-  in between is never seen as visible.
+  in between is never seen as visible. A failed check fails its waiters too,
+  so an outage is still declared for every request (#609).
+- Each request has one budget for its route check: two read limits and 50 ms
+  (3,050 ms), from its arrival, on a monotonic clock. Time spent waiting in
+  the queue counts. This is the worst case for the proxy's decision; the page
+  worst case stays as above.
+- The cost: on a slow but healthy backend, a request that arrives while a
+  check runs waits for that check and then for its own, so it can answer up
+  to one read later. If its budget ends while it waits, the proxy lets it
+  through unchecked (`unknown`, not an outage), and the page makes one
+  uncached article read. The answer is never wrong.
 - A later option, not taken: `skipProxyUrlNormalize: true` would let the proxy
   see prefetch requests and answer them without a backend read for every
   link, including links the new shell adds. It changes what every proxy rule
