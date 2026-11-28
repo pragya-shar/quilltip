@@ -414,7 +414,7 @@ does not read that name. Remove it from Vercel after stage 2 passes
 
 Set by the operator, in this order. Secrets go in the Convex dashboard
 (**Settings → Environment Variables**), never on a command line or in a file
-in the repository.
+in the repository, and are never printed (stage 3, step 3, **Tab secrets**).
 
 | Order | Variable                                                                      | Value                                                          | Stage | Effect when set                                                                             |
 | ----- | ----------------------------------------------------------------------------- | -------------------------------------------------------------- | ----- | ------------------------------------------------------------------------------------------- |
@@ -957,7 +957,33 @@ payments off if needed (section 6).
    ```
 
 3. The operator sets variables 2 to 12 of section 3.1 on the live
-   deployment, in that order, with `CHAIN_V2_ENABLED=false`.
+   deployment, in that order, with `CHAIN_V2_ENABLED=false`. The owner sets
+   the two secrets (variables 9 and 10) in the dashboard, as below, before
+   `SETTLEMENT_ENABLED=true`.
+
+   **Tab secrets.** Never run a command that prints the secret of a real
+   identity (`live` or `integration`): not `stellar keys secret` or
+   `stellar keys show` without a pipe, and not `cat` of an identity file. A
+   printed secret ends up in terminal history, logs or a session transcript,
+   and the key must then be rotated. Copy each secret straight to the
+   clipboard instead, paste it into the dashboard, and clear the clipboard:
+
+   ```bash
+   stellar keys secret qt-v2-live-acceptor --config-dir <dir>/live | tr -d '\n' | pbcopy
+   stellar keys secret <settler identity> --config-dir <dir>/live | tr -d '\n' | pbcopy
+   ```
+
+   `<settler identity>` is `qt-v2-live-settler`, or the identity of a
+   rotated settler key.
+
+   Field check, by the owner, on the live deployment's dashboard
+   (**Settings → Environment Variables**), for `TAB_ACCEPTOR_SECRET` and
+   `TAB_SETTLER_SECRET`: the variable is on that deployment, and its value is
+   56 characters long, starts with `S`, and has no quotes, spaces or line
+   breaks. The settler refuses any other value with `TAB_SETTLER_UNAVAILABLE`
+   (`StrKey.isValidEd25519SecretSeed`, `convex/tabSettler.ts`). The healthy
+   settler run below is the proof that the value works.
+
 4. Hand-off to the Vercel owner: set the Vercel contract IDs from section 3.2
    and redeploy the site if stage 2 already ran. Check: the Vercel owner
    reports the four contract IDs (they are public); the operator compares
@@ -988,8 +1014,8 @@ payments off if needed (section 6).
   `TAB_SETTLER_UNAVAILABLE` and no `TAB_SETTLER_RUN_FAILED`.
 - One healthy settler run after the settler is enabled. After
   `SETTLEMENT_ENABLED=true` is set, and again after any change to
-  `TAB_SETTLER_SECRET`, run `tabSettler:settleDue` once from the Convex
-  dashboard (**Functions**) and read the value it returns. A successful run
+  `TAB_SETTLER_SECRET`, the operator runs `tabSettler:settleDue` once from
+  the Convex dashboard (**Functions**) and reads the value it returns. A successful run
   writes no log line, so the logs alone cannot show it, and a run that
   completes without an error only proves that the settler secret was read.
   The function takes the same lease as the `settle due tab vouchers` cron,
