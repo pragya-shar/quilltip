@@ -1607,6 +1607,38 @@ describe('v1 rows', () => {
     })
   })
 
+  it('return an article cover only from an allowed image source', async () => {
+    const own = 'https://own-name-123.convex.cloud'
+    vi.stubEnv('CONVEX_CLOUD_URL', own)
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    await seedV1(t, s)
+    const covers = async () => [
+      ...(
+        await t.query(api.nfts.getNFTsByOwner, { ownerId: s.collectorId })
+      ).map((n) => n.article?.coverImage),
+      ...(
+        await t.query(api.nfts.getNFTsByOwnerPaginated, {
+          ownerId: s.collectorId,
+        })
+      ).nfts.map((n) => n.article?.coverImage),
+      ...(
+        await t.query(api.nfts.getUserMintedNFTsPaginated, {
+          userId: s.authorId,
+        })
+      ).nfts.map((n) => n.article?.coverImage),
+    ]
+
+    await t.run(({ db }) =>
+      db.patch(s.articleId, { coverImage: 'https://example.com/cover.png' })
+    )
+    expect(await covers()).toEqual([undefined, undefined, undefined])
+
+    const stored = `${own}/api/storage/0123abcd`
+    await t.run(({ db }) => db.patch(s.articleId, { coverImage: stored }))
+    expect(await covers()).toEqual([stored, stored, stored])
+  })
+
   it('resolve a v2 owner from ownerAddress, not the currentOwner cache', async () => {
     const t = convexTest(schema, modules)
     const s = await seed(t)

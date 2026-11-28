@@ -7,6 +7,15 @@ import { verifiedStellarAddress } from './lib/walletVerification'
 import type { Doc, Id } from './_generated/dataModel'
 import type { QueryCtx } from './_generated/server'
 import { userForAddress } from './lib/chain/nftStore'
+import { withShownCover } from './lib/articleImages'
+
+/**
+ * The article cover for an NFT card, only from an allowed image source, as
+ * the article reads return it (#633). A cover on another host is left out.
+ */
+function shownCover(article: Doc<'articles'>): string | undefined {
+  return withShownCover({ coverImage: article.coverImage }).coverImage
+}
 
 /**
  * Version label for NFT rows. v2 rows come from the article NFT contract;
@@ -87,7 +96,7 @@ export const getNFTsByOwner = query({
                 title: article.title,
                 slug: article.slug,
                 excerpt: article.excerpt,
-                coverImage: article.coverImage,
+                coverImage: shownCover(article),
                 authorUsername: article.authorUsername,
               }
             : null,
@@ -133,7 +142,7 @@ export const getNFTsByOwnerPaginated = query({
                 title: article.title,
                 slug: article.slug,
                 excerpt: article.excerpt,
-                coverImage: article.coverImage,
+                coverImage: shownCover(article),
                 authorUsername: article.authorUsername,
               }
             : null,
@@ -339,7 +348,7 @@ export const getUserMintedNFTsPaginated = query({
                 title: article.title,
                 slug: article.slug,
                 excerpt: article.excerpt,
-                coverImage: article.coverImage,
+                coverImage: shownCover(article),
                 authorUsername: article.authorUsername,
               }
             : null,
