@@ -26,14 +26,27 @@ import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
 import { fixtureArticlePath } from './convex-fixture'
 import { fixtureBackendBehaviour, startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
-import { READING, wayHomeOn } from './no-script-reading'
+import { READING, wayHomeOn, type WayHome } from './no-script-reading'
 
 /** Rendering and CI noise on top of the read limits. */
 const MARGIN_MS = 1000
 
 /** Each page, the reads it waits for in sequence, and what it shows. */
-const PAGES = [
-  { path: READING.list, readsInSequence: 1, content: READING.articleTitle },
+const PAGES: {
+  path: string
+  readsInSequence: number
+  content: string
+  /** Where this page's way home is, when not READING.wayHome. */
+  wayHome?: WayHome
+}[] = [
+  // Today (`/`) is the list: one read. It is in the application shell,
+  // whose way home is the Today link in the navigation.
+  {
+    path: READING.list,
+    readsInSequence: 1,
+    content: READING.articleTitle,
+    wayHome: { within: 'navigation', role: 'link', name: 'Today' },
+  },
   // The proxy's route check, then the writer and their articles together.
   { path: READING.writer, readsInSequence: 2, content: READING.writerName },
   // The proxy's route check, then the article.
@@ -76,7 +89,10 @@ async function timedFetch(path: string, limitMs: number) {
   return { response, body, firstByte, whole: performance.now() - started }
 }
 
-async function readableWithoutScripts(page: Page) {
+async function readableWithoutScripts(
+  page: Page,
+  wayHome: WayHome = READING.wayHome
+) {
   const visible = (locator: ReturnType<Page['locator']>) =>
     locator
       .first()
@@ -88,8 +104,8 @@ async function readableWithoutScripts(page: Page) {
     missing.push(`no heading "… ${FALLBACK_TEXT}."`)
   if (!(await visible(page.getByRole('link', { name: RETRY_LINK }))))
     missing.push(`no "${RETRY_LINK}" link`)
-  if (!(await visible(wayHomeOn(page, READING.wayHome))))
-    missing.push(`no way home (${READING.wayHome.name})`)
+  if (!(await visible(wayHomeOn(page, wayHome))))
+    missing.push(`no way home (${wayHome.name})`)
   return missing
 }
 
@@ -143,7 +159,7 @@ async function main() {
         const run = browserRun++
         const browser = await (name === 'webkit' ? webkit : chromium).launch()
         try {
-          for (const { path } of PAGES) {
+          for (const { path, wayHome } of PAGES) {
             const context = await browser.newContext({
               viewport: { width: 375, height: 812 },
               javaScriptEnabled: false,
@@ -160,7 +176,7 @@ async function main() {
                 () => false
               )
             const missing = loaded
-              ? await readableWithoutScripts(page)
+              ? await readableWithoutScripts(page, wayHome)
               : ['the page did not load']
             console.log(
               `${label.padEnd(56)} ${missing.length ? 'FAILS' : 'reads'}`

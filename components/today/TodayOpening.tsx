@@ -55,6 +55,8 @@ export function TodayOpening({ article }: { article: TodayOpeningArticle }) {
         {/* Continues where the opening stopped (the paragraph anchor). */}
         <Button href={article.readMoreHref} variant="primary" size="l">
           Read more
+          {/* Named like the list's links: "Read more: {title}". */}
+          <span className="qt-visually-hidden">: {article.title}</span>
         </Button>
         {article.minutesLeft > 0 ? (
           <span className="qt-today__left">{article.minutesLeft} min left</span>

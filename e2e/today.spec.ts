@@ -106,7 +106,7 @@ test.describe('first visit, signed out', () => {
     ).toHaveAttribute('href', '/fixture-writer')
     await expect(opening.getByText(SENTENCE)).toBeVisible()
     await expect(
-      opening.getByRole('link', { name: 'Read more', exact: true })
+      opening.getByRole('link', { name: /^Read more: / })
     ).toHaveAttribute(
       'href',
       // It continues where the opening stopped: paragraph 7 of the article.

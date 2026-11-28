@@ -66,10 +66,7 @@ test.describe('with no script', () => {
       opening.getByRole('link', { name: TODAY.writer.name })
     ).toHaveAttribute('href', TODAY.writer.href)
     await expect(opening.getByText(TODAY.text)).toBeVisible()
-    const readMore = opening.getByRole('link', {
-      name: 'Read more',
-      exact: true,
-    })
+    const readMore = opening.getByRole('link', { name: /^Read more: / })
     await expect(readMore).toHaveAttribute('href', TODAY.readMore)
     await readMore.click()
     await expect(page).toHaveURL((url) =>
