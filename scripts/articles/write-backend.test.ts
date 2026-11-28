@@ -1108,13 +1108,6 @@ describe('review: publish rules and steps', () => {
         publishOf(w, { id: nameless.id, updatedAt: nameless.updatedAt })
       )
     ).toBe('username-required')
-    await w.t.run((ctx) =>
-      ctx.db.patch(w.ids.writer, { stellarAddressVerifiedAt: undefined })
-    )
-    const walletless = await ready(w, 'No wallet yet')
-    expect(await errorCode(publishOf(w, walletless))).toBe(
-      'wallet-not-verified'
-    )
     const rows = await w.t.run((ctx) => ctx.db.query('articles').collect())
     expect(rows.every((a) => !a.published)).toBe(true)
   })
@@ -1179,5 +1172,93 @@ describe('review: publish rules and steps', () => {
     expect(saved.searchContent).toContain('A stored excerpt')
     expect(saved.searchContent).toContain('Poems')
     expect(saved.searchContent).toContain('Changed body words.')
+  })
+})
+
+describe('publishing without a receiving address', () => {
+  /** One writer's publish, start to end, as the fields any article gets. */
+  async function publishedState(verified: boolean) {
+    const w = await setup()
+    if (!verified)
+      await w.t.run((ctx) =>
+        ctx.db.patch(w.ids.writer, {
+          stellarAddress: undefined,
+          stellarAddressVerifiedAt: undefined,
+          stellarAddressVerifiedNetwork: undefined,
+        })
+      )
+    // A first publish, then a republish with a share made in between.
+    const first = await w.writer.mutation(api.write.saveDraft, {
+      title: 'Harbour Lights',
+      content: doc('The lamps come on at dusk.'),
+    })
+    const anchor = await w.t.run(async (ctx) =>
+      publishContentAnchor((await ctx.db.get(first.id))!)
+    )
+    const result = await w.writer.mutation(api.write.publish, {
+      id: first.id,
+      baseUpdatedAt: first.updatedAt,
+    })
+    const again = await w.writer.mutation(api.write.saveDraft, {
+      title: 'Second article',
+      content: doc('A line that was shared before.'),
+    })
+    await w.t.run(async (ctx) => {
+      await ctx.db.patch(again.id, { content: doc('Rewritten since.') })
+      await ctx.db.insert('shares', {
+        code: 'abcdefgh',
+        kind: 'canonical',
+        articleId: again.id,
+        passageId: 'p1',
+        sentenceStart: 0,
+        sentenceEnd: 0,
+        quote: 'A line that was shared before.',
+        contentVersion: 1,
+        createdAt: 1,
+        checkedAt: 1,
+      })
+    })
+    await w.writer.mutation(api.write.publish, {
+      id: again.id,
+      baseUpdatedAt: (await row(w, again.id))!.updatedAt,
+    })
+    return w.t.run(async (ctx) => {
+      const article = (await ctx.db.get(first.id))!
+      const listed = await ctx.db
+        .query('readingRoomArticles')
+        .withIndex('by_article', (q) => q.eq('articleId', first.id))
+        .unique()
+      const scheduled = await ctx.db.system
+        .query('_scheduled_functions')
+        .collect()
+      return {
+        published: article.published,
+        slug: article.slug,
+        anchored:
+          result.contentHash === anchor.contentHash &&
+          article.contentHash === anchor.contentHash &&
+          article.contentVersion === anchor.contentVersion,
+        searchText: article.searchContent,
+        listedTitle: listed?.title ?? null,
+        articleCount: (await ctx.db.get(w.ids.writer))!.articleCount,
+        shareReconciles: scheduled.filter((f) =>
+          f.name.includes('shares:reconcileArticle')
+        ).length,
+      }
+    })
+  }
+
+  test('a writer with no confirmed address publishes, and the article is treated as any other', async () => {
+    const without = await publishedState(false)
+    const withAddress = await publishedState(true)
+    expect(without).toEqual(withAddress)
+    expect(without).toMatchObject({
+      published: true,
+      anchored: true,
+      listedTitle: 'Harbour Lights',
+      articleCount: 2,
+      shareReconciles: 1,
+    })
+    expect(without.searchText).toContain('The lamps come on at dusk.')
   })
 })

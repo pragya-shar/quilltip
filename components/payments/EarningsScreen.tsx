@@ -96,8 +96,8 @@ export function EarningsScreen({
       ) : null}
       {earnings.counts && earnings.counts.onHold > 0 ? (
         <p className="qt-notice qt-neutral" data-testid="earnings-on-hold">
-          {tipsCount(earnings.counts.onHold)} on hold, waiting on a
-          reader&apos;s balance.
+          {tipsCount(earnings.counts.onHold)} waiting for a reader&apos;s
+          balance.
         </p>
       ) : null}
       {earnings.counts && earnings.counts.notPaid > 0 ? (

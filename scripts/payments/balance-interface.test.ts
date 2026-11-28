@@ -13,13 +13,15 @@ import { FAKE_SCENARIOS, fakePayments } from '../../lib/payments/fake'
 import { MONEY_TEXT_SAMPLES } from '../../lib/payments/money-samples'
 import { createOutbox } from '../../lib/payments/outbox'
 import { articleIdOf, tipTargetOf } from '../../lib/payments/target'
-import { tapOnce } from '../../lib/payments/tip-machine'
+import { tapOnce, tipLabel } from '../../lib/payments/tip-machine'
 import type { TipPhase } from '../../lib/payments/types'
 import {
   centsToBaseUnits,
   convertedMoney,
   formatMoney,
+  money,
   spokenMoney,
+  tipAmount,
 } from '../../lib/payments/money'
 import type { OutboxEntry } from '../../lib/payments/outbox'
 import {
@@ -33,6 +35,8 @@ import {
   type ActivityEntry,
   type EarningsRead,
   type SessionRead,
+  effectiveChoice,
+  tipBlocked,
 } from '../../lib/payments/views'
 ;(
   globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }
@@ -125,7 +129,7 @@ describe('ActivityItem.fee, unpaid and unpaidNet', () => {
       requestId: 'q1',
       role: 'writer',
       counterparty: { name: 'A reader', username: null },
-      article: { title: 'A', slug: 'a', authorUsername: 'w' },
+      article: { id: 'article-1', title: 'A', slug: 'a', authorUsername: 'w' },
       passage: null,
       amountCents: 25,
       netCents: 24.375,
@@ -451,6 +455,47 @@ describe('the spoken form and the conversion price', () => {
       expect(v.pending).toMatchObject({ cents: 0, display: '$0.00' })
     }
   })
+
+  it('writes an empty balance as an exact zero, never a conversion', () => {
+    const empty = {
+      token: 'xlm',
+      contractId: 'C',
+      confirmed: '0',
+      outstanding: '0',
+      available: '0',
+      availableCents: 0,
+    }
+    const v = balance({
+      ...session(),
+      tokens: [empty],
+      availableCents: 0,
+    } as NonNullable<SessionRead>)
+    expect(v.status).toBe('ready')
+    expect(v.available).toEqual(money(0))
+    expect(v.available?.display).toBe('$0.00')
+    // A few base units are still a conversion: the exact amount is real.
+    const dust = balance({
+      ...session(),
+      tokens: [{ ...empty, confirmed: '5', available: '5' }],
+    } as NonNullable<SessionRead>)
+    expect(dust.available?.converted).toBe(true)
+  })
+
+  it('says no price as the server sends it: with no limits', () => {
+    // With no price the server has no limits to convert either.
+    const v = balance({ ...session(), prices: [], limits: null })
+    expect(v.status).toBe('ready')
+    expect(v.available).toBeNull()
+    expect(v.limits).toBeNull()
+    expect(v.amounts).toEqual([])
+    expect(v.noAmountReason).toBe('price')
+    // The tip control in the same state: blocked for the price, not
+    // "choose", and no amount to send.
+    const offered = v.amounts.map((a) => a.cents)
+    const cents = effectiveChoice(null, offered)
+    expect(cents).toBeNull()
+    expect(tipBlocked(cents, offered, v.noAmountReason)).toBe('price')
+  })
 })
 
 describe('the review’s contract points', () => {
@@ -462,7 +507,35 @@ describe('the review’s contract points', () => {
       expect(spokenMoney(sample.cents, sample.format), sample.name).toBe(
         sample.spoken
       )
+      // A tip amount carries its short text: a control needs no formatter.
+      if (sample.format?.short)
+        expect(tipAmount(sample.cents).short, sample.name).toBe(sample.text)
     }
+  })
+
+  it('gives each amount offered, and the one chosen, its short text', () => {
+    const v = balance(session())
+    expect(v.amounts.map((a) => a.short)).toEqual(
+      v.amounts.map((a) => formatMoney(a.cents, { short: true }))
+    )
+    expect(v.amounts.every((a) => a.display.includes('.'))).toBe(true)
+    const tap = tapOnce(
+      {},
+      'c',
+      100,
+      {
+        online: true,
+        available: convertedMoney(500),
+        unavailable: null,
+      },
+      'r1'
+    )
+    expect(tap.phase).toMatchObject({
+      amount: { short: '$1', display: '$1.00' },
+    })
+    expect(tipLabel({ phase: 'idle' }, tipAmount(100), true)).toBe(
+      'Tip this line $1'
+    )
   })
 
   it('refuses a second tap synchronously: one outbox entry', () => {

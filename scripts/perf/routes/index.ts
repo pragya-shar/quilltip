@@ -28,7 +28,12 @@ import { routes as write } from './write'
 import { routes as writer } from './writer'
 import { routes as you } from './you'
 
-export type { PageLoadBudget, PageLoadRoute, PerfRoutes } from './types'
+export type {
+  PageLoadBudget,
+  PageLoadRoute,
+  PerfRoutes,
+  WayHome,
+} from './types'
 
 export const PERF_ROUTE_PACKAGES = {
   foundation,
@@ -83,6 +88,7 @@ const merged = mergePackageRoutes(PERF_ROUTE_PACKAGES)
 export const SURFACE_FIRST_LOAD = merged.firstLoad
 export const SURFACE_PAGE_LOAD = merged.pageLoad
 export const SURFACE_FONT_FALLBACK = merged.fontFallback
+export const SURFACE_WAY_HOME = all.flatMap((p) => p.wayHome ?? [])
 
 const deleted = deletedPaths().map((entry) => entry.path.replace(/\/$/, ''))
 
@@ -133,3 +139,7 @@ export const FONT_FALLBACK_ROUTES = [
  * covers, and public routes left unmeasured, with why. */
 export const NO_SCRIPT_ROUTES = new Set(all.flatMap((p) => p.noScript ?? []))
 export const UNMEASURED = all.flatMap((p) => p.unmeasured ?? [])
+
+/** Protected old pages that send a signed-out reader to a package's page,
+ * which offers sign-in itself. */
+export const SIGNED_OUT_LANDING = all.flatMap((p) => p.signedOutLanding ?? [])

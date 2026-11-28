@@ -68,10 +68,33 @@ cargo check --locked --target wasm32v1-none --manifest-path contracts/tipping/Ca
 cargo check --locked --target wasm32v1-none --manifest-path contracts/article-nft/Cargo.toml
 ```
 
-[CI](../../.github/workflows/ci.yml) runs on pushes to `main` and PRs into `main`.
-`Required` aggregates quality, build, and dependency audit. The audit is a required
-job; its severity/exception rules are defined in the
-[audit policy](../../security/dependency-review.md). PR hygiene runs on PRs.
+[CI](../../.github/workflows/ci.yml) decides per pull request what to run. Its
+first job, What changed, turns on only the jobs that the changed files can
+reach: the app jobs for any app file, the contract jobs for contract files,
+and each fixture shard whose suites' bundles or specs, or the shared inputs
+(the proxy and routing registries, the Next config, the CSP module, the
+configs, the fixture runner), include a changed file. Lint & Typecheck and
+Dependency Audit always run. Everything runs on pushes to `main` and the
+overhaul branches, for a change to `package.json`, `bun.lock`, the workflow,
+`scripts/ci/` or `patches/`, for a path under a new top-level folder, and when What
+changed fails. `Required` always reports, and fails when a job fails, is
+cancelled or is skipped without a plan to skip it, or when What changed
+fails. **Re-run failed jobs** keeps the first plan, so it is not a full run.
+To force the full run on a pull request, add the `ci-full` label for one
+that should run everything on every push, or choose **Re-run all jobs** on
+its run page for one run. Details:
+[how CI decides](ci-pipeline.md). The audit is a required job; its
+severity/exception rules are defined in the
+[audit policy](../../security/dependency-review.md).
+PR hygiene runs on PRs. `bun scripts/ci/local.ts` runs the steps CI would plan
+for the checkout's changes locally, read from the workflow, on one production
+build per build setting (`--jobs production` for only the production-build
+checks, `--light` for lint, typecheck and unit tests; `--list` prints the
+steps, `--all` runs everything). It leaves out
+runner setup (actions, installs, failure-only steps) and needs Bun 1.4.4, the
+installed dependencies and the Playwright browsers; its header lists the rest.
+On a machine shared by several people or agents, run one heavy selection at a
+time.
 Local success does not establish remote CI or deployment success.
 
 ## Using Codex and Claude Code
@@ -90,6 +113,8 @@ Local success does not establish remote CI or deployment success.
   references on demand.
 - When parallel work is authorized, assign independent scopes and explicit
   ownership. Separate editing agents into worktrees; concurrent readers can share
-  a checkout. Give review work a correctness question and verification criteria.
+  a checkout. On macOS, add the worktrees' `node_modules` and `.next` folders
+  (or the folder that holds the worktrees) to Spotlight's privacy list, or
+  indexing them competes with builds and browsers for the CPU. Give review work a correctness question and verification criteria.
 
 Research and source-to-repo decisions: [agent workflow sources](agent-workflow-sources.md).

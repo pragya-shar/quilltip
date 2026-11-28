@@ -41,7 +41,6 @@ import { ARTICLE_SCHEMA } from './lib/chain/ids'
 import { syncReadingRoomArticle } from './lib/readingRoomIndex'
 import { scheduleShareReconcile } from './shares'
 import { nextUpdatedAt } from './lib/write/clock'
-import { verifiedStellarAddress } from './lib/walletVerification'
 import { tiptapJsonHasNonEmptyText } from './lib/tiptapContent'
 import { syncArticleUploadReferences } from './lib/uploadReferences'
 import {
@@ -315,10 +314,12 @@ export const saveDraft = mutation({
  * articles permanently. Errors: `not-signed-in`, `draft-not-found`,
  * `already-published`, `draft-changed` (with the server's `updatedAt`),
  * `document-too-large`, `document-not-readable` (not before the reading
- * sanitiser is wired), and the rules `articles.publishArticle` applies:
- * `wallet-not-verified` (no verified receiving wallet), `title-required`
- * (with `minLength`: empty, "Untitled" or shorter), `body-empty` (no text),
- * `username-required`. No excerpt or other preview is required.
+ * sanitiser is wired), and the rules `articles.publishArticle` applies
+ * except its receiving-wallet rule: `title-required` (with `minLength`:
+ * empty, "Untitled" or shorter), `body-empty` (no text), `username-required`.
+ * No receiving address, excerpt or other preview is required: an article
+ * published without an address takes no tips until the writer confirms one
+ * and turns tips on.
  */
 export const publish = mutation({
   args: {
@@ -348,10 +349,11 @@ export const publish = mutation({
 
     const user = await ctx.db.get(userId)
     if (!user) throw new ConvexError({ code: 'not-signed-in' })
-    // The publish rules of `articles.publishArticle`, as typed refusals.
-    if (!verifiedStellarAddress(user)) {
-      throw new ConvexError({ code: 'wallet-not-verified' })
-    }
+    // The publish rules of `articles.publishArticle`, as typed refusals, but
+    // one: publishing needs no receiving address. Tips are a second step
+    // (`publishing.registrationState`, `chain/articles` registration), which
+    // still requires the confirmed address; until then no tip path accepts
+    // the article.
     if (isPublishBlockedArticleTitle(article.title)) {
       throw new ConvexError({
         code: 'title-required',

@@ -42,7 +42,7 @@ export function BalanceScreen({
             {formatTokenAmount(balance.exact.available)}
           </p>
           <p className="qt-notice" role="status" data-testid="balance-no-price">
-            Dollar value not available right now.
+            Dollar amounts are not available right now, so tipping is paused.
           </p>
         </>
       ) : null}

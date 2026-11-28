@@ -24,7 +24,11 @@ export default function SampleReadingPage() {
   return (
     <PushedScreen>
       <div className="qt-page qt-sample" data-width="read">
-        <PushedHeader fallbackHref="/" backLabel="Back to reading" />
+        <PushedHeader
+          fallbackHref="/"
+          backLabel="Back to reading"
+          title="What my grandmother’s ledger taught me about money"
+        />
         <article className="qt-sample__article">
           <Heading level={1} variant="display">
             What my grandmother’s ledger taught me about money

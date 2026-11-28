@@ -78,6 +78,10 @@ describe('payments v2 crons without configuration', () => {
       inProgress: 0,
       failed: 0,
     })
+    // The fee sponsor's reconciler: off without SPONSOR_ENABLED.
+    expect(await t.action(internal.sponsor.reconcile, {})).toEqual({
+      checked: 0,
+    })
 
     expect(fetchSpy).not.toHaveBeenCalled()
     const counts = await t.run(async ({ db }) =>

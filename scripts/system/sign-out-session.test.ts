@@ -27,6 +27,7 @@ function memoryStorage(entries: Record<string, string> = {}) {
 const TOKEN = '__convexAuthJWT_example'
 const RECORD = `${REMEMBERED_WALLET_PREFIX}user1`
 const KIT = '@StellarWalletsKit/activeAddress'
+const WHO = { userId: 'user-1' }
 const walletKeys = (storage: ReturnType<typeof memoryStorage>) =>
   [...storage.map.keys()].filter((k) => k === RECORD || k.startsWith('@'))
 
@@ -83,18 +84,97 @@ describe('signing out here', () => {
       [SIGNED_IN_MARKER]: '1',
       [RECORD]: '{}',
     })
-    await signOutHere(async () => {
-      storage.setItem(KIT, 'G...') // the kit's teardown, before the token goes
-      storage.removeItem(TOKEN)
-      storage.setItem(RECORD, '{}') // and after it
-    }, storage)
+    await signOutHere(
+      async () => {
+        storage.setItem(KIT, 'G...') // the kit's teardown, before the token goes
+        storage.removeItem(TOKEN)
+        storage.setItem(RECORD, '{}') // and after it
+      },
+      storage,
+      WHO
+    )
     expect(walletKeys(storage)).toEqual([])
     expect(storage.getItem(SIGNED_IN_MARKER)).toBeNull()
   })
 
+  it('runs the actions before sign-out while the session is held, then signs out', async () => {
+    const storage = memoryStorage({ [TOKEN]: 't', [SIGNED_IN_MARKER]: '1' })
+    const order: string[] = []
+    await signOutHere(
+      async () => {
+        order.push(
+          `sign out (token ${storage.getItem(TOKEN) ? 'held' : 'gone'})`
+        )
+        storage.removeItem(TOKEN)
+      },
+      storage,
+      WHO,
+      async () => void order.push('cleanups'),
+      async () => {
+        order.push(`before (token ${storage.getItem(TOKEN) ? 'held' : 'gone'})`)
+        return []
+      }
+    )
+    expect(order).toEqual([
+      'before (token held)',
+      'sign out (token held)',
+      'cleanups',
+    ])
+  })
+
+  it('runs no action before sign-out when the session already ended', async () => {
+    const storage = memoryStorage({ [SIGNED_IN_MARKER]: '1' })
+    const before = vi.fn(async () => [])
+    await signOutHere(
+      async () => {},
+      storage,
+      WHO,
+      async () => {},
+      before
+    )
+    expect(before).not.toHaveBeenCalled()
+  })
+
+  it('signs out even when an action before it fails', async () => {
+    const storage = memoryStorage({ [TOKEN]: 't', [SIGNED_IN_MARKER]: '1' })
+    const signOut = vi.fn(async () => void storage.removeItem(TOKEN))
+    await signOutHere(
+      signOut,
+      storage,
+      WHO,
+      async () => {},
+      async () => {
+        throw new Error('offline')
+      }
+    )
+    expect(signOut).toHaveBeenCalledTimes(1)
+  })
+
+  it('gives the actions who is signing out, and the cleanups what did not finish', async () => {
+    const storage = memoryStorage({ [TOKEN]: 't', [SIGNED_IN_MARKER]: '1' })
+    const before = vi.fn(async () => ['quick-tip keys'])
+    const run = vi.fn(async () => {})
+    await signOutHere(
+      async () => void storage.removeItem(TOKEN),
+      storage,
+      { userId: null },
+      run,
+      before
+    )
+    expect(before).toHaveBeenCalledWith({ userId: null })
+    expect(run).toHaveBeenCalledWith({ unfinished: ['quick-tip keys'] })
+  })
+
+  it('tells the cleanups nothing is known on a later page', async () => {
+    const storage = memoryStorage({ [SIGNED_IN_MARKER]: '1' })
+    const run = vi.fn(async () => {})
+    expect(await settleSignedOut(storage, run)).toBe(true)
+    expect(run).toHaveBeenCalledWith({ unfinished: [] })
+  })
+
   it('removes a record a teardown writes after sign-out on the next load', async () => {
     const storage = memoryStorage({ [TOKEN]: 't', [SIGNED_IN_MARKER]: '1' })
-    await signOutHere(async () => void storage.removeItem(TOKEN), storage)
+    await signOutHere(async () => void storage.removeItem(TOKEN), storage, WHO)
     storage.setItem(RECORD, '{}') // a late teardown
     await settleSignedOut(storage, async () => {}) // the next shell load
     expect(walletKeys(storage)).toEqual([])
@@ -121,6 +201,7 @@ describe('signing out here', () => {
           storage.setItem(KIT, 'G...')
         }),
       storage,
+      WHO,
       run
     )
     page.dispatchEvent(new Event('pagehide'))
@@ -138,10 +219,14 @@ describe('signing out here', () => {
     expect(signInHref()).toBe('/login')
     expect(signInHref('https://evil.example/x')).toBe('/login?returnTo=%2F')
     let during = ''
-    await signOutHere(async () => {
-      during = signInHref('/shelf')
-      storage.removeItem(TOKEN)
-    }, storage)
+    await signOutHere(
+      async () => {
+        during = signInHref('/shelf')
+        storage.removeItem(TOKEN)
+      },
+      storage,
+      WHO
+    )
     expect(during).toBe('/login')
     expect(signInHref('/shelf', storage)).toBe('/login?returnTo=%2Fshelf')
   })

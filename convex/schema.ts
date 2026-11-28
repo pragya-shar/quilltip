@@ -7,6 +7,7 @@ import { chainTables, tabTables, tipChainFields } from './lib/chain/schema'
 import { lifetimeTotalsFields } from './lib/lifetimeTotalsFields'
 import { countsTables } from './schema/counts'
 import { passagesTables } from './schema/passages'
+import { sponsorTables } from './schema/sponsor'
 import { writeTables } from './schema/write'
 
 export default defineSchema({
@@ -879,5 +880,6 @@ export default defineSchema({
   ...tabTables,
   ...passagesTables,
   ...countsTables,
+  ...sponsorTables,
   ...writeTables,
 })

@@ -8,6 +8,7 @@ import {
   prepareReadingFaces,
   upgradeAtPageChange,
 } from '@/system/readingFaceUpgrade'
+import { isAddressInView, settleAddressInView } from './address'
 import { appHistory } from './appHistory'
 import { firstPage } from './firstPage'
 import { PocketBody } from './pocket/PocketBody'
@@ -46,15 +47,23 @@ export function SheetHost() {
   // is on screen (system/readingFaceUpgrade.ts).
   const sheetsOnScreen = useRef(entries.length > 0)
   sheetsOnScreen.current = entries.length > 0
+  // A change of the address inside the view (shell/address.ts) is no change
+  // of page: no face switch, no closing of the sheets.
   useLayoutEffect(() => {
-    upgradeAtPageChange(pathname !== lastPath.current, sheetsOnScreen.current)
+    upgradeAtPageChange(
+      pathname !== lastPath.current && !isAddressInView(pathname),
+      sheetsOnScreen.current
+    )
   }, [pathname])
   useEffect(() => prepareReadingFaces(), [pathname])
   useEffect(() => {
-    if (pathname !== firstPath.current) firstPage.markNavigated()
+    const sameView = isAddressInView(pathname)
+    settleAddressInView()
+    if (pathname !== firstPath.current && !sameView) firstPage.markNavigated()
+    // A replace at the same history length: the same entry, a new path.
     appHistory.arrive(pathname, window.history.length)
     // The place changed: sheets over the old one close.
-    if (pathname !== lastPath.current) sheetStack.closeAll()
+    if (pathname !== lastPath.current && !sameView) sheetStack.closeAll()
     lastPath.current = pathname
   }, [pathname])
   return (

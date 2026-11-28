@@ -18,7 +18,9 @@ async function imageErrors(code: string, file = 'components/read/Probe.tsx') {
   )
 }
 
-describe('images in the shell and its surfaces', () => {
+// The first lint starts ESLint and its plugins: on a loaded machine that
+// takes longer than the default 5 s.
+describe('images in the shell and its surfaces', { timeout: 30_000 }, () => {
   it('covers every surface package in the segment registry', () => {
     expect(SURFACE_PACKAGES).toContain('read')
     expect(SURFACE_PACKAGES).toContain('today')

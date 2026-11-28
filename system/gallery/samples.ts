@@ -20,13 +20,7 @@ export const money = {
   received: { cents: 98, display: '$0.98' },
 } satisfies Record<string, MoneyValue>
 
-export const amounts: MoneyValue[] = [
-  { cents: 100, display: '$1' },
-  { cents: 200, display: '$2' },
-  { cents: 300, display: '$3' },
-  { cents: 500, display: '$5' },
-  { cents: 1000, display: '$10' },
-]
+export { amounts } from './sampleAmounts'
 
 /** Worst cases the components must survive (break-ui). */
 export const worst = {

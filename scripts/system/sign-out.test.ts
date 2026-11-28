@@ -1,7 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
+  SIGN_OUT_BEFORE,
   SIGN_OUT_PACKAGES,
   SIGN_OUT_WARNINGS,
+  runBeforeSignOut,
   runSignOutCleanups,
   signOutWarnings,
 } from '@/shell/signOut'
@@ -35,6 +37,15 @@ describe('sign-out cleanups (shell/signOut)', () => {
     expect(failed).toEqual(['b'])
     quiet.mockRestore()
   })
+
+  it('tells every cleanup which actions before sign-out did not finish', async () => {
+    const told: unknown[] = []
+    await runSignOutCleanups(
+      [{ name: 'quick tips', run: (after) => void told.push(after) }],
+      { unfinished: ['quick-tip keys'] }
+    )
+    expect(told).toEqual([{ unfinished: ['quick-tip keys'] }])
+  })
 })
 
 describe('sign-out warnings', () => {
@@ -60,7 +71,78 @@ describe('sign-out warnings', () => {
     expect(said).toEqual(['2 drafts are only on this device.'])
   })
 
+  it('gives every check who is signing out', async () => {
+    const seen: (string | null)[] = []
+    const said = await signOutWarnings(
+      [
+        {
+          name: 'drafts',
+          check: async ({ userId }) => {
+            seen.push(userId)
+            return userId === 'user-1'
+              ? 'A draft is only on this device.'
+              : null
+          },
+        },
+      ],
+      50,
+      { userId: 'user-1' }
+    )
+    expect(seen).toEqual(['user-1'])
+    expect(said).toEqual(['A draft is only on this device.'])
+    // Not known: the check is asked with null.
+    await signOutWarnings(
+      [
+        {
+          name: 'drafts',
+          check: async ({ userId }) => (seen.push(userId), null),
+        },
+      ],
+      50
+    )
+    expect(seen).toEqual(['user-1', null])
+  })
+
   it('has a warnings list in every package file', () => {
     expect(SIGN_OUT_WARNINGS).toEqual([])
+  })
+})
+
+describe('actions before sign-out', () => {
+  it('runs every action at once with who is signing out, and drops one that fails or runs late', async () => {
+    const started: string[] = []
+    const t0 = Date.now()
+    const unfinished = await runBeforeSignOut(
+      [
+        {
+          name: 'revoke',
+          run: async ({ userId }) => void started.push(`revoke ${userId}`),
+        },
+        {
+          name: 'fails',
+          run: async () => {
+            started.push('fails')
+            throw new Error('offline')
+          },
+        },
+        {
+          name: 'late',
+          run: () => {
+            started.push('late')
+            return new Promise((done) => setTimeout(done, 2000))
+          },
+        },
+      ],
+      { userId: 'user-1' },
+      100
+    )
+    expect(started).toEqual(['revoke user-1', 'fails', 'late'])
+    expect(unfinished.sort()).toEqual(['fails', 'late'])
+    // Never past the limit, whatever an action does.
+    expect(Date.now() - t0).toBeLessThan(1000)
+  })
+
+  it('has none registered yet', () => {
+    expect(SIGN_OUT_BEFORE).toEqual([])
   })
 })

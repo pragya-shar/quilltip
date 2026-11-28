@@ -2,6 +2,14 @@
 // of the public queries the measured pages read, so CI can render real pages
 // without a backend or secrets. All text here is written for the fixture.
 
+import {
+  firstSentence,
+  minutesLeft,
+  openingOf,
+  readAnchor,
+  windowOf,
+} from '../../convex/lib/todayOpening'
+
 export const FIXTURE_WRITER = 'fixture-writer'
 export const FIXTURE_SLUG = 'the-lamp-on-orchard-street'
 export const FIXTURE_ARTICLE_PATH = `/${FIXTURE_WRITER}/${FIXTURE_SLUG}`
@@ -122,6 +130,47 @@ function publishedBySlug(username: unknown, slug: unknown) {
 
 type QueryArgs = Record<string, unknown>
 
+/**
+ * Today's answer (`today.opening`): the articles in their fixed order, the
+ * skipped ones (`exclude`) moved to the back, as the query does. The first
+ * opens Today, up to 12 follow. Built with the query's own opening rule, so
+ * the page renders what the backend would send for these articles.
+ */
+function todayOpening(at: number, exclude: unknown) {
+  const skip = new Set(Array.isArray(exclude) ? exclude : [])
+  const ordered = [
+    ...ARTICLES.filter((a) => !skip.has(a._id)),
+    ...ARTICLES.filter((a) => skip.has(a._id)),
+  ]
+  const card = (article: (typeof ARTICLES)[number]) => ({
+    articleId: article._id,
+    title: article.title,
+    href: `/${FIXTURE_WRITER}/${article.slug}`,
+    author: { name: FIXTURE_AUTHOR.name, username: FIXTURE_WRITER },
+    readMinutes: article.readTime,
+  })
+  const first = ordered[0]!
+  const opening = openingOf(first.content)!
+  return {
+    window: windowOf(at),
+    opening: {
+      ...card(first),
+      publishedAt: first.publishedAt,
+      paragraphs: opening.paragraphs,
+      continues: opening.continues,
+      readMoreHref: opening.continues
+        ? `/${FIXTURE_WRITER}/${first.slug}#${readAnchor(opening.nextParagraph)}`
+        : `/${FIXTURE_WRITER}/${first.slug}`,
+      minutesLeft: minutesLeft(opening.totalWords - opening.shownWords),
+      peek: opening.peek,
+    },
+    more: ordered.slice(1, 13).map((article) => ({
+      ...card(article),
+      first: firstSentence(openingOf(article.content)!.paragraphs[0]!),
+    })),
+  }
+}
+
 /** Answers a public query by function path, or returns undefined if unknown. */
 export function answerFixtureQuery(
   path: string,
@@ -160,6 +209,10 @@ export function answerFixtureQuery(
                 createdAt: BASE_TIME,
               }
             : null,
+      }
+    case 'today:opening':
+      return {
+        value: todayOpening(Number(args.at) || BASE_TIME, args.exclude),
       }
     case 'articles:listArticles':
       return {

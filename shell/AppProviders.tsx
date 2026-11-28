@@ -6,6 +6,7 @@ import type { ReactNode } from 'react'
 import { AuthSessionProvider } from '@/components/providers/AuthContext'
 import { BalanceSourceContext } from './balance'
 import { useLiveBalance } from './liveBalance'
+import { LiveSignOutViewer } from './signOut/liveViewer'
 import { SignOutWatch } from './SignOutWatch'
 
 // The same deployment and the same Convex Auth storage key as the legacy
@@ -13,8 +14,8 @@ import { SignOutWatch } from './SignOutWatch'
 const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
 
 /**
- * The application's providers: Convex with auth, the one auth state, and
- * the balance source the bar and the Pocket read.
+ * The application's providers: Convex with auth, the one auth state, the
+ * balance source the bar and the Pocket read, and who is signing out.
  * They render their children on the server as they are; nothing here waits
  * or suspends, so content is in the first response.
  */
@@ -23,7 +24,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
     <ConvexAuthProvider client={convex}>
       <AuthSessionProvider>
         <BalanceSourceContext.Provider value={useLiveBalance}>
-          {children}
+          <LiveSignOutViewer>{children}</LiveSignOutViewer>
         </BalanceSourceContext.Provider>
         <SignOutWatch />
       </AuthSessionProvider>

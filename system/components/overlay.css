@@ -46,7 +46,9 @@
     display: flex;
     flex-direction: column;
     width: 100%;
-    max-height: calc(100dvh - var(--qt-safe-top) - var(--qt-space-8));
+    /* Of the dialog, which useModal fits to the visible area (above the
+     * keyboard). */
+    max-height: calc(100% - var(--qt-safe-top) - var(--qt-space-8));
     border: 1px solid transparent;
     border-start-start-radius: var(--qt-radius-sheet);
     border-start-end-radius: var(--qt-radius-sheet);
