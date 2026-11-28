@@ -5,12 +5,11 @@
 //   bun scripts/perf/first-link.ts \
 //     --targets base=http://127.0.0.1:3304,change=http://127.0.0.1:3306 \
 //     --browsers webkit,chromium --modes delayed,blocked,nojs \
-//     --paths /,/articles,/some-writer/some-article --runs 10 --out out.json
+//     --paths /,/some-writer,/some-writer/some-article --runs 10 --out out.json
 //
 // What counts as "reading" depends on the path:
-// - `/`: the first visible link in <main> to /articles or to a demo reading;
-// - a path with one segment (`/articles`, a writer): the first visible link in
-//   <main> whose path is /<writer>/<slug>;
+// - `/` (Today, which lists the articles) and a path with one segment (a
+//   writer): the first visible link in <main> whose path is /<writer>/<slug>;
 // - a path with two segments (an article): the first paragraph in <main> with
 //   more than 80 characters of text.
 //
@@ -48,12 +47,12 @@ const TARGETS = list('targets', '').map((entry) => {
 })
 const BROWSERS = list('browsers', 'webkit')
 const MODES = list('modes', 'delayed,blocked,nojs') as Mode[]
-const PATHS = list('paths', '/articles')
+const PATHS = list('paths', '/')
 const RUNS = Number(args.get('runs') ?? 10)
 const OUT = args.get('out') ?? 'first-link.json'
 
 type Mode = 'delayed' | 'blocked' | 'nojs'
-type Kind = 'home-link' | 'article-link' | 'prose'
+type Kind = 'article-link' | 'prose'
 
 /** A mid-range phone on a slow 4G connection (Lighthouse mobile). */
 const PROFILE = {
@@ -87,16 +86,14 @@ const RESERVED = [
 
 function kindFor(path: string): Kind {
   const parts = path.split('?')[0]!.split('/').filter(Boolean)
-  if (parts.length === 0) return 'home-link'
-  return parts.length === 1 ? 'article-link' : 'prose'
+  // Today (`/`) lists articles, as a writer's page does.
+  return parts.length <= 1 ? 'article-link' : 'prose'
 }
 
 /** Whether a link's path is the reading target for this kind of page. */
 function isTargetHref(kind: Kind, href: string, reserved: string[]) {
   if (!href.startsWith('/')) return false
   const path = href.split(/[?#]/)[0]!
-  if (kind === 'home-link')
-    return path === '/articles' || path.startsWith('/demos/')
   const parts = path.split('/').filter(Boolean)
   return parts.length === 2 && !reserved.includes(parts[0]!)
 }
@@ -124,8 +121,6 @@ function frameProbe({ kind, reserved }: { kind: Kind; reserved: string[] }) {
   const isTarget = (href: string) => {
     if (!href.startsWith('/')) return false
     const path = href.split(/[?#]/)[0]!
-    if (kind === 'home-link')
-      return path === '/articles' || path.startsWith('/demos/')
     const parts = path.split('/').filter(Boolean)
     return parts.length === 2 && !reserved.includes(parts[0]!)
   }

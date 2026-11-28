@@ -11,7 +11,7 @@
 //   --runs N             runs per case, mode and browser (default 20)
 //   --load-runs N        runs of the no-tap load mode (default 5)
 //   --browsers LIST      chromium,webkit (default both)
-//   --cases LIST         login,articles-menu,article-menu,landing
+//   --cases LIST         login,support-menu,article-menu,today
 //   --modes LIST         paint,t1500,load (default all three)
 //   --article-path PATH  the article page (default: the perf fixture article)
 //   --email ADDRESS      the address typed into the sign-in form. The default
@@ -28,8 +28,10 @@
 //     --base-url http://127.0.0.1:3104 --label change --out webkit.json
 //
 // Cases: a tap on the `/login` submit button (fields filled first), and on
-// the mobile menu button of `/articles` and an article page. `landing` has no
-// tap (the landing page has no menu button); it adds `/` to the load mode.
+// the mobile menu button of an old page with the header (`/support`;
+// `/articles` now redirects to Today) and an article page. `today` has no
+// tap (Today has the shell's bar, not that menu button); it adds `/` to the
+// load mode.
 //
 // Modes:
 // - paint: tap as soon as the control is visible, right after first paint.
@@ -68,7 +70,7 @@ import { FIXTURE_ARTICLE_PATH } from './convex-fixture'
 
 type Mode = 'paint' | 't1500' | 'load'
 type BrowserName = 'chromium' | 'webkit'
-type CaseId = 'login' | 'articles-menu' | 'article-menu' | 'landing'
+type CaseId = 'login' | 'support-menu' | 'article-menu' | 'today'
 
 const args = new Map<string, string>()
 for (let i = 2; i < process.argv.length; i += 2)
@@ -119,8 +121,8 @@ const CASES: Case[] = [
     response: 'signin',
   },
   {
-    id: 'articles-menu',
-    path: '/articles',
+    id: 'support-menu',
+    path: '/support',
     control: 'button.app-menu-trigger',
     response: 'sheet',
   },
@@ -130,7 +132,7 @@ const CASES: Case[] = [
     control: 'button.app-menu-trigger',
     response: 'sheet',
   },
-  { id: 'landing', path: '/' },
+  { id: 'today', path: '/' },
 ]
 const SELECTED = (args.get('cases') ?? CASES.map((c) => c.id).join(','))
   .split(',')
