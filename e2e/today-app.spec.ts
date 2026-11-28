@@ -18,9 +18,9 @@ const TODAY = {
   heading: 'The Lamp on Orchard Street',
   writer: { name: 'Fixture Writer', href: '/fixture-writer' },
   text: 'The lamp on Orchard Street came on every evening at a quarter past six',
-  // The opening shows paragraphs 0 to 6; Read more continues at the eighth
+  // The opening shows paragraphs 0 and 1; Read more continues at the third
   // (the article view's paragraph anchor).
-  readMore: '/fixture-writer/the-lamp-on-orchard-street#s-7-0',
+  readMore: '/fixture-writer/the-lamp-on-orchard-street#s-2-0',
 }
 
 /** Old paths and where they now go (lib/routing/redirects/today.ts). */

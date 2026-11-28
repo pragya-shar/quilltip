@@ -109,8 +109,8 @@ test.describe('first visit, signed out', () => {
       opening.getByRole('link', { name: /^Read more: / })
     ).toHaveAttribute(
       'href',
-      // It continues where the opening stopped: paragraph 7 of the article.
-      '/fixture-writer/the-lamp-on-orchard-street#s-7-0'
+      // It continues where the opening stopped: paragraph 2 of the article.
+      '/fixture-writer/the-lamp-on-orchard-street#s-2-0'
     )
     await expect(
       page.getByText('Writing you can tip, down to the sentence.')

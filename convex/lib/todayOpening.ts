@@ -45,12 +45,14 @@ export const MORE_LIMIT = 12
 /** An article needs at least this many body paragraphs to open Today. */
 export const MIN_PARAGRAPHS = 2
 
-/** The opening shows whole paragraphs up to this many words, never more. */
-export const OPENING_WORDS = 220
+/** The opening shows whole paragraphs up to this many words, never more:
+ * at 390 px with a title of two or three lines, the text and its Read more
+ * fit the first screen, above the bar. */
+export const OPENING_WORDS = 90
 
 /** Below this many words the opening goes on into the next paragraph, cut
  * at a sentence, so it is never one short line under the fade. */
-export const OPENING_MIN_WORDS = 60
+export const OPENING_MIN_WORDS = 40
 
 export function windowOf(at: number) {
   const index = Math.floor(at / WINDOW_MS)
@@ -180,7 +182,7 @@ export function openingOf(content: unknown): {
   let nextParagraph = paragraphs.length
   // Too little shown (a short first paragraph before a long one, or a
   // first paragraph longer than the whole opening): go on into the next
-  // paragraph, cut at a sentence within what is left of the 220 words, and
+  // paragraph, cut at a sentence within what is left of OPENING_WORDS, and
   // let Read more continue in that paragraph.
   if (words < OPENING_MIN_WORDS && paragraphs.length < all.length) {
     const next = paragraphs.length

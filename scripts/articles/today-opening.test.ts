@@ -159,16 +159,16 @@ describe('today.opening', () => {
       readMinutes: expect.any(Number),
       paragraphs: expect.any(Array),
       continues: true,
-      // Seven paragraphs shown (0 to 6): Read more continues at the eighth.
-      readMoreHref: '/writer0/a0#s-7-0',
+      // Three paragraphs shown (0 to 2): Read more continues at the fourth.
+      readMoreHref: '/writer0/a0#s-3-0',
       minutesLeft: expect.any(Number),
     })
-    // Whole paragraphs up to 220 words: seven of 30 words (210).
-    expect(result.opening!.paragraphs).toHaveLength(7)
+    // Whole paragraphs up to 90 words: three of 30 words (90).
+    expect(result.opening!.paragraphs).toHaveLength(3)
     expect(result.opening!.paragraphs[0]).toMatch(/^a0 Part 1: /)
-    expect(result.opening!.paragraphs[6]).toMatch(/^a0 Part 7: /)
-    // 150 words left at 230 a minute.
-    expect(result.opening!.minutesLeft).toBe(1)
+    expect(result.opening!.paragraphs[2]).toMatch(/^a0 Part 3: /)
+    // 270 words left at 230 a minute.
+    expect(result.opening!.minutesLeft).toBe(2)
     expect(JSON.stringify(result)).not.toContain('private planning notes')
   })
 
@@ -413,27 +413,27 @@ describe('today.opening', () => {
 })
 
 describe('the opening rule', () => {
-  test('takes whole paragraphs up to 220 words, never more', () => {
-    // Paragraphs of 29 words: seven fit (203), the eighth would not.
+  test('takes whole paragraphs up to 90 words, never more', () => {
+    // Paragraphs of 29 words: three fit (87), the fourth would not.
     const opening = openingOf(body(12, 3))!
-    expect(opening.paragraphs).toHaveLength(7)
-    expect(opening.shownWords).toBe(203)
+    expect(opening.paragraphs).toHaveLength(3)
+    expect(opening.shownWords).toBe(87)
     expect(opening.continues).toBe(true)
-    // Paragraphs of 92 words: two fit (184).
-    expect(openingOf(body(4, 10))!.paragraphs).toHaveLength(2)
+    // Paragraphs of 47 words: one fits (47), two would not (94).
+    expect(openingOf(body(4, 5))!.paragraphs).toHaveLength(1)
     // A short article shows whole, and says it does not continue.
     const whole = openingOf(body(2, 4))!
     expect(whole.paragraphs).toHaveLength(2)
     expect(whole.continues).toBe(false)
     expect(whole.shownWords).toBe(whole.totalWords)
-    expect(opening.nextParagraph).toBe(7)
+    expect(opening.nextParagraph).toBe(3)
   })
 
-  test('a first paragraph over 220 words is cut at a sentence', () => {
+  test('a first paragraph over 90 words is cut at a sentence', () => {
     // 30 sentences of nine words in one paragraph, then a second paragraph.
     const opening = openingOf(body(2, 30))!
     expect(opening.paragraphs).toHaveLength(1)
-    expect(opening.shownWords).toBeLessThanOrEqual(220)
+    expect(opening.shownWords).toBeLessThanOrEqual(90)
     expect(opening.paragraphs[0]).toMatch(/bread\.$/)
     expect(opening.continues).toBe(true)
     // Reading continues in the same first paragraph.
@@ -597,13 +597,13 @@ describe('Read more', () => {
     const doc = {
       type: 'doc',
       content: [
-        paragraph(`${SENTENCE} `.repeat(20)),
-        { type: 'blockquote', content: [paragraph(`${SENTENCE} `.repeat(4))] },
+        paragraph(`${SENTENCE} `.repeat(6)),
+        { type: 'blockquote', content: [paragraph(`${SENTENCE} `.repeat(3))] },
         { type: 'heading', content: [{ type: 'text', text: 'Heading' }] },
-        paragraph(`${SENTENCE} `.repeat(20)),
+        paragraph(`${SENTENCE} `.repeat(6)),
       ],
     }
-    // 180 + 36 words fit; the third body paragraph (index 2) does not.
+    // 54 + 27 words fit; the third body paragraph (index 2) does not.
     expect(openingOf(doc)!.nextParagraph).toBe(2)
     expect(readAnchor(2)).toBe('s-2-0')
   })
@@ -647,7 +647,7 @@ describe('the read is bounded', () => {
 })
 
 describe('a short first paragraph', () => {
-  test('goes on into the next paragraph, cut at a sentence, never past 220 words', () => {
+  test('goes on into the next paragraph, cut at a sentence, never past 90 words', () => {
     const doc = {
       type: 'doc',
       content: [
@@ -658,8 +658,8 @@ describe('a short first paragraph', () => {
     }
     const opening = openingOf(doc)!
     expect(opening.paragraphs).toHaveLength(2)
-    expect(opening.shownWords).toBeGreaterThanOrEqual(60)
-    expect(opening.shownWords).toBeLessThanOrEqual(220)
+    expect(opening.shownWords).toBeGreaterThanOrEqual(40)
+    expect(opening.shownWords).toBeLessThanOrEqual(90)
     expect(opening.paragraphs[1]).toMatch(/bread\.$/)
     // Read more continues in the paragraph that was cut.
     expect(opening.nextParagraph).toBe(1)
