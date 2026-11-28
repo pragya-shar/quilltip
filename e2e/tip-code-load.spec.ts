@@ -53,3 +53,36 @@ test('a tip form that fails to load leaves the article, and Try again loads it',
     )
   ).toBe(true)
 })
+
+test('tip buttons that fail to load at page load leave the article, and Try again brings them back', async ({
+  page,
+}) => {
+  await page.addInitScript(installVarialEmulator, {
+    mode: 'connected' as const,
+    address: UNUSED,
+  })
+  // Offline before the page renders: the tip buttons' own code never loads.
+  const failed: string[] = []
+  await page.route('**/chunk-*.js', (route) => {
+    failed.push(new URL(route.request().url()).pathname)
+    return route.abort('internetdisconnected')
+  })
+  await page.goto('/')
+  await expect(page.locator('h1')).toBeVisible()
+  await expect(page.getByText(/^Opening line\./)).toBeVisible()
+  const notices = page
+    .getByRole('alert')
+    .filter({ hasText: 'Tips couldn’t load.' })
+  await expect(notices.first()).toBeVisible()
+  expect(failed.length).toBeGreaterThan(0)
+  await expect(page.getByRole('button', { name: 'Tip article' })).toHaveCount(0)
+
+  await page.unroute('**/chunk-*.js')
+  // Each notice retries its own control; retry them all.
+  for (let i = 0; i < 5 && (await notices.count()) > 0; i += 1) {
+    await notices.first().getByRole('button', { name: 'Try again' }).click()
+  }
+  await expect(notices).toHaveCount(0)
+  await expect(page.getByRole('button', { name: 'Tip article' })).toBeVisible()
+  await expect(page.getByText(/^Opening line\./)).toBeVisible()
+})
