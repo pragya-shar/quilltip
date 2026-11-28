@@ -147,9 +147,12 @@ export function TipDialogV2({
   const check = checkAmount(cents, eligibility.minTipCents, custom)
   const minLabel = formatCents(Math.max(eligibility.minTipCents ?? 1, 1))
   const maxLabel = formatCents(TIP_MAX_CENTS)
+  /** The error does not state the range, so the range follows it. */
+  const rangeAfter = (error: string) =>
+    error === AMOUNT_ERRORS.empty || error === AMOUNT_ERRORS.invalid
   /** An amount error as shown: with the range when the error does not say it. */
   const amountErrorText = (error: string) =>
-    error === AMOUNT_ERRORS.empty || error === AMOUNT_ERRORS.invalid
+    rangeAfter(error)
       ? `${error} ${TIP_DIALOG.range(minLabel, maxLabel)}`
       : error
   const longestAmountError = [
@@ -552,7 +555,16 @@ export function TipDialogV2({
                     {amountError ? (
                       <p id={ids.error} className="tip-v2-field-error">
                         <CircleAlert aria-hidden="true" />
-                        <span>{amountErrorText(amountError)}</span>
+                        <span>
+                          {amountError}
+                          {rangeAfter(amountError) ? (
+                            // Seen only: the hint, which the field's
+                            // description also reads, states the range.
+                            <span aria-hidden="true">
+                              {` ${TIP_DIALOG.range(minLabel, maxLabel)}`}
+                            </span>
+                          ) : null}
+                        </span>
                       </p>
                     ) : null}
                     {/* The longest error, unseen: the box keeps its room. */}

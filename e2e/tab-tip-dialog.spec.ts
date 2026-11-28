@@ -580,12 +580,18 @@ test.describe('one amount for the dialog', () => {
         expect(await tops()).toEqual(before)
         await chooseAmount(dialog, '')
       }
-      // The hint is still the field's description, after the error.
+      // The hint is still the field's description, after the error, and
+      // the range is read once: the error's own copy of it is seen only.
       await chooseAmount(dialog, 'abc')
       await field.blur()
       await expect(field).toHaveAccessibleDescription(
-        /^Enter an amount in dollars, for example 1\.50\. Tips go from \$0\.03 to \$100\. From \$0\.03 to \$100\./
+        /^Enter an amount in dollars, for example 1\.50\. From \$0\.03 to \$100\. The XLM amount is set when you send\./
       )
+      await expect(
+        dialog
+          .getByText(/Tips go from \$0\.03 to \$100\./)
+          .filter({ visible: true })
+      ).toBeVisible()
     })
 
     test('a press that leaves the button before its release does nothing', async ({
@@ -657,6 +663,36 @@ test.describe('one amount for the dialog', () => {
       await expect(
         page.getByRole('dialog', { name: 'Choose a wallet' })
       ).toBeVisible()
+    })
+  })
+
+  test.describe('at 320 px without a tab', () => {
+    // The narrowest layout: the longest amount error wraps to more lines
+    // than the hint, so the box keeps room for it (#658).
+    test.use({ viewport: { width: 320, height: 568 } })
+
+    test('the amount error does not move Connect wallet or Add to tip basket', async ({
+      page,
+    }) => {
+      await open(page, 'tip-no-tab')
+      const dialog = await openDialog(page, 'article')
+      const field = dialog.getByLabel('Other amount')
+      await expect(field).toBeVisible()
+      const buttons = [
+        dialog.getByRole('button', { name: 'Connect wallet' }),
+        dialog.getByRole('button', { name: 'Add to tip basket' }),
+      ]
+      await animationsSettled(dialog)
+      const tops = () =>
+        Promise.all(buttons.map(async (b) => (await b.boundingBox())!.y))
+      for (const amount of ['abc', '0.01', '200']) {
+        await chooseAmount(dialog, amount)
+        const before = await tops()
+        await field.blur()
+        await expect(field).toHaveAttribute('aria-invalid', 'true')
+        expect(await tops()).toEqual(before)
+        await chooseAmount(dialog, '')
+      }
     })
   })
 

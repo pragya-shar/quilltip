@@ -78,11 +78,16 @@ export async function cancelledPress(page: Page, target: Locator) {
   await page.mouse.up()
 }
 
-/** Waits for the animations in `scope` to end, so boxes can be compared. */
+/**
+ * Waits for the animations in `scope` to end, so boxes can be compared. A
+ * cancelled animation rejects its `finished` promise; it has ended too.
+ */
 export async function animationsSettled(scope: Locator): Promise<void> {
   await scope.evaluate((element) =>
     Promise.all(
-      element.getAnimations({ subtree: true }).map((a) => a.finished)
+      element
+        .getAnimations({ subtree: true })
+        .map((a) => a.finished.catch(() => undefined))
     ).then(() => undefined)
   )
 }

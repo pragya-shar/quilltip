@@ -36,7 +36,7 @@ export default defineConfig({
     {
       name: 'webkit-focus',
       testMatch: /(tab-tip-dialog|tab-ui)\.spec\.ts/,
-      grep: /keyboard and screen readers|refusal focus|dialog at its full height/,
+      grep: /keyboard and screen readers|refusal focus|dialog at its full height|at 320 px without a tab/,
       use: { ...devices['Desktop Safari'] },
     },
   ],
