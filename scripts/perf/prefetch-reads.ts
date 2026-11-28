@@ -5,10 +5,12 @@
 // fixture build of perf:budget; needs no secrets.
 //
 // "At most one article read" holds while the server's copy of the article is
-// under 60 s old, as on a fresh build. A request that meets an older copy
-// makes two (lib/seo/publicContent.ts, cachedFor: the direct read and the
-// cache's background refresh), so a rerun against an old .next/cache can
-// fail here without a prefetch.
+// under 60 s old. A request that meets an older copy makes two
+// (lib/seo/publicContent.ts, cachedFor: the direct read and the cache's
+// background refresh; #674). So the check owns that precondition: for each
+// engine it empties the server's data cache (.next/cache/fetch-cache) and
+// starts a fresh app, and the click meets no copy at all. A rerun against an
+// old .next/cache then counts as CI does.
 //
 //   NEXT_PUBLIC_CONVEX_URL=http://127.0.0.1:3299 bun run build
 //   bun run perf:prefetch-reads
@@ -18,6 +20,8 @@
 // route check and the page's reads); the browser's live queries use its
 // silent WebSocket and are not counted.
 
+import { readdirSync, rmSync } from 'fs'
+import { join } from 'path'
 import { chromium, webkit, type Page } from '@playwright/test'
 import {
   fixtureBackendReads,
@@ -34,6 +38,20 @@ const ENGINES = (process.env.PERF_READING_ENGINES ?? 'chromium,webkit').split(
   ','
 )
 const MEASURE_ONLY = process.env.PERF_PREFETCH_MEASURE === '1'
+/** The server's data cache (unstable_cache entries), kept across restarts. */
+const DATA_CACHE = join(process.cwd(), '.next', 'cache', 'fetch-cache')
+
+/** Empties the server's data cache and says how many entries it held. */
+function emptyDataCache(): number {
+  let entries = 0
+  try {
+    entries = readdirSync(DATA_CACHE).length
+  } catch {
+    return 0
+  }
+  rmSync(DATA_CACHE, { recursive: true, force: true })
+  return entries
+}
 
 const ROUTE_CHECK = 'publicRoutes:resolvePublicRoute'
 const ARTICLE_READ = 'articles:getArticleBySlug'
@@ -70,12 +88,44 @@ async function scrollAndHover(page: Page) {
   }
 }
 
+/**
+ * Stops the app and waits until its port is free, so the next engine gets a
+ * fresh app. Fails rather than measure against an app still serving.
+ */
+async function stopApp(app: Awaited<ReturnType<typeof startProductionApp>>) {
+  if (!app) return
+  try {
+    // The whole process group when the app has its own (next-server runs
+    // as a grandchild of `bunx`); otherwise this throws and kill() remains.
+    if (app.pid) process.kill(-app.pid, 'SIGTERM')
+  } catch {
+    /* No process group of its own. */
+  }
+  app.kill()
+  for (let i = 0; i < 100; i++) {
+    const answering = await fetch(BASE_URL + '/login')
+      .then(() => true)
+      .catch(() => false)
+    if (!answering) return
+    await sleep(100)
+  }
+  throw new Error(`The app on ${BASE_URL} still answers after it was stopped`)
+}
+
 async function main() {
   const backend = startFixtureBackend(CONVEX_PORT)
-  const app = await startProductionApp(APP_PORT, BASE_URL)
   const failures: string[] = []
   try {
     for (const engine of ENGINES) {
+      if (process.env.PERF_BASE_URL)
+        console.log(
+          `${engine}: PERF_BASE_URL is set, so the server cache is not emptied; a click may meet an old copy (#674)`
+        )
+      else
+        console.log(
+          `${engine}: emptied the server data cache (${emptyDataCache()} entries) and started a fresh app`
+        )
+      const app = await startProductionApp(APP_PORT, BASE_URL)
       const browser = await (engine === 'webkit' ? webkit : chromium).launch()
       try {
         const page = await browser.newPage({
@@ -128,10 +178,10 @@ async function main() {
           failures.push(`${engine}: the click did not open the article`)
       } finally {
         await browser.close()
+        await stopApp(app)
       }
     }
   } finally {
-    app?.kill()
     backend.closeAllConnections()
     backend.close()
   }
