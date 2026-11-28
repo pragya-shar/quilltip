@@ -25,7 +25,10 @@ import {
   SIGNED_IN_SHARES_PER_ARTICLE_PER_HOUR,
   SIGNED_OUT_SHARES_PER_ARTICLE_PER_DAY,
   SHARE_CODE_SECRET_PLACEHOLDERS,
+  SIGNED_OUT_SHARES_PER_DAY,
   SWEEP_ARTICLES_PER_STEP,
+  SWEEP_ROWS_PER_DAY,
+  SWEEP_RUNS_PER_DAY,
   canonicalCode,
   shareCodeSecret,
 } from '../../convex/shares'
@@ -1074,5 +1077,141 @@ describe('sweep', () => {
     ).toBe(false)
     expect(await t.mutation(api.shares.resolve, { code: tide.code })).toBeNull()
     expect((await shareRow(t, tide.code))!.quote).toBe(SHARED)
+  })
+  test('walks at least 60,000 rows a day, more than signed-out sharing can add', () => {
+    expect(SWEEP_ROWS_PER_DAY).toBe(SWEEP_RUNS_PER_DAY * 25 * RECONCILE_BATCH)
+    expect(SWEEP_ROWS_PER_DAY).toBeGreaterThanOrEqual(SIGNED_OUT_SHARES_PER_DAY)
+    const job = (
+      crons as unknown as {
+        crons: Record<string, { schedule: { type: string; hours: number } }>
+      }
+    ).crons['sweep passage share quotes']!
+    expect(job.schedule).toEqual({
+      type: 'interval',
+      hours: 24 / SWEEP_RUNS_PER_DAY,
+    })
+  })
+
+  test('steps that stop at the article budget do not use up the run', async () => {
+    const { t, ids } = await setup()
+    const articleIds = await t.run(async (ctx) => {
+      const source = (await ctx.db.get(ids.article))!
+      const { _id, _creationTime, ...rest } = source
+      void _id
+      void _creationTime
+      const out: Id<'articles'>[] = []
+      for (let i = 0; i < 30; i++)
+        out.push(
+          await ctx.db.insert('articles', {
+            ...rest,
+            slug: `a${i}`,
+            updatedAt: 5,
+          })
+        )
+      for (let i = 0; i < 250; i++)
+        await ctx.db.insert('shares', {
+          code: `t${String(i).padStart(7, '2')}`,
+          kind: 'canonical',
+          articleId: out[i % 30]!,
+          passageId: `p${i}`,
+          sentenceStart: 1,
+          sentenceEnd: 1,
+          quote: `A line that is not in the article, number ${i}.`,
+          contentVersion: 1,
+          createdAt: 1,
+          checkedAt: 1,
+        })
+      return out
+    })
+    // One cron run: three full pages, each needing several article budgets.
+    await t.mutation(internal.shares.sweep, {})
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+    const rows = await t.run((ctx) => ctx.db.query('shares').collect())
+    const mine = rows.filter((r) => articleIds.includes(r.articleId))
+    expect(mine).toHaveLength(250)
+    expect(mine.every((r) => r.quote === null)).toBe(true)
+    expect(
+      await t.run((ctx) => ctx.db.query('shareSweeps').unique())
+    ).toMatchObject({ cursor: null, lastPassAt: expect.any(Number) })
+  })
+
+  test('deleted rows are never a resume point', async () => {
+    const { t, ids } = await setup()
+    await t.run(async (ctx) => {
+      const source = (await ctx.db.get(ids.article))!
+      const { _id, _creationTime, ...rest } = source
+      void _id
+      void _creationTime
+      const out: Id<'articles'>[] = []
+      for (let i = 0; i < 20; i++)
+        out.push(
+          await ctx.db.insert('articles', {
+            ...rest,
+            slug: `b${i}`,
+            updatedAt: 5,
+          })
+        )
+      // Alternating: an old cleared row, then a live row of another article.
+      for (let i = 0; i < 100; i++)
+        await ctx.db.insert('shares', {
+          code: `u${String(i).padStart(7, '2')}`,
+          kind: 'canonical',
+          articleId: out[i % 20]!,
+          passageId: i % 2 ? `p${i}` : null,
+          sentenceStart: i % 2 ? 1 : null,
+          sentenceEnd: i % 2 ? 1 : null,
+          // Live rows keep a line that is still there, so a revisit costs a read.
+          quote: i % 2 ? SHARED : null,
+          contentVersion: 1,
+          createdAt: 1,
+          checkedAt: 1,
+          ...(i % 2 ? {} : { clearedAt: 1 }),
+        })
+    })
+    vi.advanceTimersByTime(CLEARED_SHARE_RETENTION_MS + 1000)
+    let steps = 0
+    let done = false
+    while (!done && steps < 200) {
+      done = (await t.mutation(internal.shares.sweep, { steps: 1 })).done
+      steps++
+    }
+    expect(done).toBe(true)
+    // 50 live rows over 10 articles, 8 articles a step: 7 steps, each
+    // resuming after the last live row it handled.
+    expect(steps).toBe(7)
+    const rows = await t.run((ctx) => ctx.db.query('shares').collect())
+    const kept = rows.filter((r) => r.code.startsWith('u'))
+    expect(kept).toHaveLength(50)
+    expect(kept.every((r) => r.quote === SHARED)).toBe(true)
+    expect(
+      await t.run((ctx) => ctx.db.query('retiredShareCodes').collect())
+    ).toHaveLength(50)
+  })
+
+  test('a deleted share’s code is never issued again', async () => {
+    const { t, ids } = await setup()
+    const first = await shareTide(t, ids.article)
+    await t.run((ctx) => ctx.db.patch(ids.article, { published: false }))
+    await t.mutation(internal.shares.sweep, {})
+    vi.advanceTimersByTime(CLEARED_SHARE_RETENTION_MS + 1000)
+    expect(await t.mutation(internal.shares.sweep, {})).toMatchObject({
+      purged: 1,
+    })
+    expect(await shareRow(t, first.code)).toBeNull()
+    expect(
+      await t.mutation(api.shares.resolve, { code: first.code })
+    ).toBeNull()
+    await t.run((ctx) => ctx.db.patch(ids.article, { published: true }))
+    // The same line again: its first canonical code is retired, so another.
+    const again = await shareTide(t, ids.article)
+    expect(again.code).not.toBe(first.code)
+    expect(again.code).toBe(
+      await canonicalCode(
+        SECRET,
+        String(ids.article),
+        (await shareRow(t, again.code))!.passageId!,
+        1
+      )
+    )
   })
 })

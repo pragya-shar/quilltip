@@ -10,8 +10,8 @@
  * engine's Unicode tables, so a character added in a newer Unicode version
  * than an engine knows may be read differently there. The guard is the shared
  * vectors (`lib/passages/vectors/identity-v1.json`): the tests here run them in
- * the edge runtime, and the article view runs them in Chromium and WebKit
- * against its own copy of this module.
+ * the edge runtime; a browser run lives with the article view's suite, not in
+ * this change.
  *
  * Offsets are counted the way highlight offsets are counted today
  * (`convex/lib/tiptapContent.ts`): the characters of the TipTap text nodes in
@@ -44,13 +44,17 @@
  *    bytes of `quilltip-passage-v1` + LF + article id + LF + normalised text.
  *    An ambiguous passage hashes `quilltip-passage-v1:at` + LF + article id +
  *    LF + `<sentenceStart>:<sentenceEnd>` + LF + normalised text.
- * 4. The sentence rule (`sentencesOf`), on the article's characters as stored
- *    (not normalised):
+ * 4. The sentence rule (`sentencesOf`). Offsets stay those of the article's
+ *    characters as stored, but every decision is the one the rule makes on
+ *    the NFC form, so canonically equivalent text (precomposed or decomposed
+ *    accents) always splits the same way: the characters the rule looks at
+ *    one by one (terminators, closers, openers, whitespace, digits) are ones
+ *    NFC leaves in the same class, and the word before a stop is read in NFC.
  *    a. A sentence ends after a terminator run (`TERMINATORS`) and any closing
  *       marks (`CLOSERS`) when whitespace, a hard break or the block end
  *       follows; after a wide terminator (`WIDE_TERMINATORS`) it ends at once.
- *       A plain semicolon (U+003B) never ends a sentence; only the Greek
- *       question mark U+037E does, and only where the text stores U+037E.
+ *       A semicolon never ends a sentence, and so neither does the Greek
+ *       question mark U+037E, whose NFC form is the semicolon U+003B.
  *    b. It does not end there when the next character after the whitespace is
  *       a lower-case letter, where a letter is lower case when it differs from
  *       its upper case and equals its lower case, except Georgian Mkhedruli
@@ -60,10 +64,13 @@
  *       digit follows; is one letter (an initial, so also "p. 5"); is dotted
  *       letters ("U.S.", "a.m.": they never end a sentence by themselves, so
  *       "He lives in the U.S. The weather is fine." is one sentence); or is a
- *       number that opens the sentence ("1. First"). The word before a stop
- *       runs back to whitespace, a hard break or the sentence start, and is
- *       read for at most `MAX_WORD_LOOKBACK` UTF-16 units: a longer word is
- *       none of these, and opening marks (`OPENERS`) are removed from it.
+ *       number (decimal digits `\p{Nd}`, any script) that opens the sentence
+ *       ("1. First", "१. पहला"). The word before a stop runs back to
+ *       whitespace, a hard break or the sentence start; it is read for at
+ *       most `MAX_WORD_LOOKBACK` characters that are not combining marks, and
+ *       with no run of more than `MAX_COMBINING_MARK_RUN` marks: a longer
+ *       word is none of these. It is taken in NFC, and opening marks
+ *       (`OPENERS`) are removed from it.
  *    d. The full-width full stop U+FF0E does not end a sentence between two
  *       decimal digits ("３．１４") or after a number that opens the sentence
  *       ("１．はじめに").
@@ -199,23 +206,11 @@ export function canonicalText(content: unknown): CanonicalText {
  * Characters that end a sentence when whitespace, a hard break or the block
  * end follows: full stop, exclamation and question marks, ellipsis,
  * interrobang, the Devanagari danda (U+0964) and double danda (U+0965), the
- * Arabic question mark (U+061F), the Arabic full stop (U+06D4), the Armenian
- * full stop (U+0589) and the Greek question mark (U+037E, written as an escape
- * because it looks like a semicolon; a plain semicolon never ends a sentence).
+ * Arabic question mark (U+061F), the Arabic full stop (U+06D4) and the
+ * Armenian full stop (U+0589). Not the Greek question mark (U+037E): its NFC
+ * form is the semicolon, which never ends a sentence (rule 4).
  */
-const TERMINATORS = new Set([
-  '.',
-  '!',
-  '?',
-  '…',
-  '‽',
-  '।',
-  '॥',
-  '؟',
-  '۔',
-  '։',
-  '\u037e',
-])
+const TERMINATORS = new Set(['.', '!', '?', '…', '‽', '।', '॥', '؟', '۔', '։'])
 /**
  * Terminators that end a sentence with no space after them: the ideographic
  * full stop (U+3002), the full-width exclamation and question marks (U+FF01,
@@ -304,8 +299,28 @@ const LETTER_OR_DIGIT = /[\p{L}\p{N}]/u
 const DECIMAL_DIGIT = /^\p{Nd}$/u
 const DIGITS = /^\p{Nd}+$/u
 
-/** The longest word, in UTF-16 units, read back from a stop (rule 4c). */
+/**
+ * The longest word read back from a stop (rule 4c), in characters that are
+ * not combining marks, so a precomposed and a decomposed word count alike.
+ */
 export const MAX_WORD_LOOKBACK = 32
+
+/**
+ * The longest run of combining marks (`\p{M}`) a searchable text may hold.
+ * NFC is slow on longer runs, so the share paths refuse such an article and
+ * `legacyPassageOf` does not snap in one (see `hasLongCombiningRun`).
+ */
+export const MAX_COMBINING_MARK_RUN = 32
+const LONG_COMBINING_RUN = new RegExp(
+  `\\p{M}{${MAX_COMBINING_MARK_RUN + 1},}`,
+  'u'
+)
+const COMBINING_MARK = /^\p{M}$/u
+
+/** True when `text` has a run of more than `MAX_COMBINING_MARK_RUN` marks. */
+export function hasLongCombiningRun(text: string): boolean {
+  return LONG_COMBINING_RUN.test(text)
+}
 
 /** The full-width full stop, which is also a decimal point (rule 4d). */
 const FULL_WIDTH_STOP = '\uff0e'
@@ -318,9 +333,10 @@ function codePointString(text: string, i: number): string {
 
 /**
  * The word that ends at `stop` (exclusive): back to whitespace, a hard break
- * (`gaps`) or `from`, with opening marks removed. Null when it is longer than
- * `MAX_WORD_LOOKBACK`. `opensSentence`: it starts at `from` with no opening
- * mark.
+ * (`gaps`) or `from`, in NFC, with opening marks removed. Null when it has
+ * more than `MAX_WORD_LOOKBACK` characters that are not combining marks, or
+ * a run of marks longer than `MAX_COMBINING_MARK_RUN`. `opensSentence`: it
+ * starts at `from` with no opening mark.
  */
 function wordBefore(
   text: string,
@@ -329,11 +345,28 @@ function wordBefore(
   gaps: Set<number>
 ): { word: string; opensSentence: boolean } | null {
   let i = stop
+  let letters = 0
+  let marks = 0
   while (i > from && !isWhitespace(text[i - 1]) && !gaps.has(i)) {
-    if (stop - i === MAX_WORD_LOOKBACK) return null
-    i--
+    // One code point back (a surrogate pair is one).
+    const low = text.charCodeAt(i - 1)
+    const step =
+      low >= 0xdc00 &&
+      low <= 0xdfff &&
+      i - 2 >= from &&
+      text.charCodeAt(i - 2) >= 0xd800 &&
+      text.charCodeAt(i - 2) <= 0xdbff
+        ? 2
+        : 1
+    if (COMBINING_MARK.test(text.slice(i - step, i))) {
+      if (++marks > MAX_COMBINING_MARK_RUN) return null
+    } else {
+      if (++letters > MAX_WORD_LOOKBACK) return null
+      marks = 0
+    }
+    i -= step
   }
-  const raw = text.slice(i, stop)
+  const raw = text.slice(i, stop).normalize('NFC')
   const word = raw.replace(OPENERS, '')
   return { word, opensSentence: i === from && word === raw }
 }
@@ -359,8 +392,8 @@ function keepsSentenceOpen(
     return true
   // Dotted letters ("U.S.", "a.m.") never end a sentence by themselves.
   if (/^(?:\p{L}\.)+\p{L}$/u.test(word)) return true
-  // A list number that opens the sentence ("1. First").
-  if (/^\d+$/.test(word) && before.opensSentence) return true
+  // A list number that opens the sentence ("1. First", "१. पहला").
+  if (DIGITS.test(word) && before.opensSentence) return true
   return false
 }
 
@@ -842,7 +875,9 @@ export async function identifyPassage(
  * text: when the text there still equals the row's stored `text`, the row
  * joins the snapped passage; otherwise (the article was edited, the offsets
  * are unknown) it keeps a passage of its own, `legacy:<highlightId>`, which
- * never merges with another. Writes nothing.
+ * never merges with another. It also keeps its own passage in an article
+ * with a run of more than `MAX_COMBINING_MARK_RUN` combining marks, which is
+ * not split. Writes nothing.
  */
 export async function legacyPassageOf(
   row: {
@@ -869,6 +904,8 @@ export async function legacyPassageOf(
     return own
   const canonical = canonicalText(article.content)
   if (endOffset > canonical.text.length) return own
+  // Too slow to split (NFC on a long run of marks): the row keeps its own.
+  if (hasLongCombiningRun(canonical.text)) return own
   if (highlightTextAt(canonical, startOffset, endOffset) !== row.text)
     return own
   const sentences = sentencesOf(canonical)

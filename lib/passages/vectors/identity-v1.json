@@ -3228,7 +3228,7 @@
     },
     {
       "name": "Greek question mark",
-      "note": "The Greek question mark (U+037E) ends a sentence; the id uses NFC, which maps it to U+003B.",
+      "note": "Knowingly crude: the rule decides on NFC text, where the Greek question mark (U+037E) is a semicolon (U+003B), so it never ends a sentence; the same as the plain semicolon case.",
       "content": {
         "type": "doc",
         "content": [
@@ -3247,33 +3247,14 @@
       "sentences": [
         {
           "start": 0,
-          "end": 10,
-          "text": "Τι κάνεις;"
-        },
-        {
-          "start": 11,
           "end": 16,
-          "text": "Καλά."
+          "text": "Τι κάνεις; Καλά."
         }
       ],
       "passages": [
         {
           "sentenceStart": 0,
           "sentenceEnd": 0,
-          "text": "Τι κάνεις;",
-          "passageId": "36c6134b814183173c013dc7bd51",
-          "ambiguous": false
-        },
-        {
-          "sentenceStart": 1,
-          "sentenceEnd": 1,
-          "text": "Καλά.",
-          "passageId": "02dd78db01ae177d5b89c6e112b9",
-          "ambiguous": false
-        },
-        {
-          "sentenceStart": 0,
-          "sentenceEnd": 1,
           "text": "Τι κάνεις; Καλά.",
           "passageId": "64e863bc60b96798d19580f1968c",
           "ambiguous": false
@@ -3281,18 +3262,475 @@
       ],
       "selections": [
         {
-          "start": 12,
-          "end": 12,
-          "sentenceStart": 1,
-          "sentenceEnd": 1,
-          "passageId": "02dd78db01ae177d5b89c6e112b9"
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "64e863bc60b96798d19580f1968c"
         },
         {
           "start": 1,
-          "end": 9,
+          "end": 15,
           "sentenceStart": 0,
           "sentenceEnd": 0,
-          "passageId": "36c6134b814183173c013dc7bd51"
+          "passageId": "64e863bc60b96798d19580f1968c"
+        }
+      ]
+    },
+    {
+      "name": "accented dotted letters, precomposed",
+      "note": "Dotted letters keep the sentence open; precomposed accents.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "é.é. Z."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "é.é. Z.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 7,
+          "text": "é.é. Z."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "é.é. Z.",
+          "passageId": "fc2d36a24e05884868f7bf880428",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "fc2d36a24e05884868f7bf880428"
+        },
+        {
+          "start": 1,
+          "end": 6,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "fc2d36a24e05884868f7bf880428"
+        }
+      ]
+    },
+    {
+      "name": "accented dotted letters, decomposed",
+      "note": "The rule reads the word before a stop in NFC, so decomposed accents split exactly as precomposed ones.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "é.é. Z."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "é.é. Z.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 9,
+          "text": "é.é. Z."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "é.é. Z.",
+          "passageId": "fc2d36a24e05884868f7bf880428",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "fc2d36a24e05884868f7bf880428"
+        },
+        {
+          "start": 1,
+          "end": 8,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "fc2d36a24e05884868f7bf880428"
+        }
+      ]
+    },
+    {
+      "name": "a long accented dotted word, decomposed",
+      "note": "The lookback counts characters that are not combining marks, so 16 decomposed accented letters count as 16 and the dotted word keeps the sentence open.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "É.É.É.É.É.É.É.É.É.É.É.É.É.É.É.É. Next one. Last one."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "É.É.É.É.É.É.É.É.É.É.É.É.É.É.É.É. Next one. Last one.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 58,
+          "text": "É.É.É.É.É.É.É.É.É.É.É.É.É.É.É.É. Next one."
+        },
+        {
+          "start": 59,
+          "end": 68,
+          "text": "Last one."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "É.É.É.É.É.É.É.É.É.É.É.É.É.É.É.É. Next one.",
+          "passageId": "124236e471981b1afdac71f0842f",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Last one.",
+          "passageId": "d54dedf6e6d23c873c58a685fcfa",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "É.É.É.É.É.É.É.É.É.É.É.É.É.É.É.É. Next one. Last one.",
+          "passageId": "269806b6ed94130ab117acc70390",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 60,
+          "end": 60,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "d54dedf6e6d23c873c58a685fcfa"
+        },
+        {
+          "start": 1,
+          "end": 57,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "124236e471981b1afdac71f0842f"
+        }
+      ]
+    },
+    {
+      "name": "a run of more than 32 combining marks",
+      "note": "A word with a run of more than 32 combining marks is none of the exceptions, so its stop ends the sentence. The share paths refuse such an article.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Á́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́. Next one."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Á́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́. Next one.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 35,
+          "text": "Á́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́."
+        },
+        {
+          "start": 36,
+          "end": 45,
+          "text": "Next one."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Á́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́.",
+          "passageId": "f2df293d841cfcbb1dedd77cedb3",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "Next one.",
+          "passageId": "f15174e7dca31809bd63e9a7ef49",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Á́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́́. Next one.",
+          "passageId": "a71c2f19f7211c549e634b41c9e5",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 37,
+          "end": 37,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "f15174e7dca31809bd63e9a7ef49"
+        },
+        {
+          "start": 1,
+          "end": 34,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "f2df293d841cfcbb1dedd77cedb3"
+        }
+      ]
+    },
+    {
+      "name": "Devanagari list numbers",
+      "note": "A number in any script's decimal digits that opens a sentence keeps its stop, like \"1. First\".",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "१. पहला। २. दूसरा।"
+              }
+            ]
+          }
+        ]
+      },
+      "text": "१. पहला। २. दूसरा।",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 8,
+          "text": "१. पहला।"
+        },
+        {
+          "start": 9,
+          "end": 18,
+          "text": "२. दूसरा।"
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "१. पहला।",
+          "passageId": "0ddfbad4aaed88a77512d870f2a8",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "२. दूसरा।",
+          "passageId": "e0b98b3b693cd0d05152f87e4822",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "१. पहला। २. दूसरा।",
+          "passageId": "824c658d42d2083502469f6db075",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 10,
+          "end": 10,
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "passageId": "e0b98b3b693cd0d05152f87e4822"
+        },
+        {
+          "start": 1,
+          "end": 7,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "0ddfbad4aaed88a77512d870f2a8"
+        }
+      ]
+    },
+    {
+      "name": "crude: a one-letter grade before a stop",
+      "note": "Knowingly crude: \"A.\" is read as an initial, so this is one sentence.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "I got an A. She got a B."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "I got an A. She got a B.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 24,
+          "text": "I got an A. She got a B."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "I got an A. She got a B.",
+          "passageId": "a5aaef09fd5414bdd53460612e25",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 1,
+          "end": 1,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "a5aaef09fd5414bdd53460612e25"
+        },
+        {
+          "start": 1,
+          "end": 23,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "a5aaef09fd5414bdd53460612e25"
+        }
+      ]
+    },
+    {
+      "name": "crude: a month abbreviation",
+      "note": "Knowingly crude: month names are not listed, so \"Jan.\" and \"Feb.\" end their sentences.",
+      "content": {
+        "type": "doc",
+        "content": [
+          {
+            "type": "paragraph",
+            "content": [
+              {
+                "type": "text",
+                "text": "Jan. 5 was cold. Feb. Was warm."
+              }
+            ]
+          }
+        ]
+      },
+      "text": "Jan. 5 was cold. Feb. Was warm.",
+      "sentences": [
+        {
+          "start": 0,
+          "end": 4,
+          "text": "Jan."
+        },
+        {
+          "start": 5,
+          "end": 16,
+          "text": "5 was cold."
+        },
+        {
+          "start": 17,
+          "end": 21,
+          "text": "Feb."
+        },
+        {
+          "start": 22,
+          "end": 31,
+          "text": "Was warm."
+        }
+      ],
+      "passages": [
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "text": "Jan.",
+          "passageId": "3b46d5a8f5bcda2c4b74f76640c6",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 1,
+          "sentenceEnd": 1,
+          "text": "5 was cold.",
+          "passageId": "0f33d5116ab6c65fd64670059eef",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 2,
+          "sentenceEnd": 2,
+          "text": "Feb.",
+          "passageId": "9669bbf7952c62fd3377d4cec73d",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 3,
+          "sentenceEnd": 3,
+          "text": "Was warm.",
+          "passageId": "04541d2973a8ba18cbb6f4428d0c",
+          "ambiguous": false
+        },
+        {
+          "sentenceStart": 0,
+          "sentenceEnd": 1,
+          "text": "Jan. 5 was cold.",
+          "passageId": "5393778eed8054c814d2e2309e90",
+          "ambiguous": false
+        }
+      ],
+      "selections": [
+        {
+          "start": 23,
+          "end": 23,
+          "sentenceStart": 3,
+          "sentenceEnd": 3,
+          "passageId": "04541d2973a8ba18cbb6f4428d0c"
+        },
+        {
+          "start": 1,
+          "end": 3,
+          "sentenceStart": 0,
+          "sentenceEnd": 0,
+          "passageId": "3b46d5a8f5bcda2c4b74f76640c6"
         }
       ]
     },

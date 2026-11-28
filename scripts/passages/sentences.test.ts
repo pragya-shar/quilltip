@@ -16,6 +16,7 @@ import {
   legacyPassageOf,
   normalizePassageText,
   highlightTextAt,
+  hasLongCombiningRun,
   passageIndexOf,
   passageMatchesAt,
   passageText,
@@ -362,6 +363,61 @@ describe('cost of the worst shapes', () => {
     const started = performance.now()
     expect(sentencesOf(canonicalText(para(text)))).toHaveLength(1)
     expect(performance.now() - started).toBeLessThan(1_000)
+  })
+})
+
+describe('canonically equivalent text splits the same way', () => {
+  test('precomposed and decomposed vectors give the same sentences and ids', () => {
+    const pairs = [
+      [
+        'accented dotted letters, precomposed',
+        'accented dotted letters, decomposed',
+      ],
+      [
+        'decomposed accent (NFC in the id)',
+        'precomposed accent (NFC in the id)',
+      ],
+    ]
+    for (const [a, b] of pairs) {
+      const [x, y] = [a, b].map((n) => vectors.cases.find((c) => c.name === n)!)
+      expect(x!.sentences.length).toBe(y!.sentences.length)
+      expect(x!.passages.map((p) => p.passageId)).toEqual(
+        y!.passages.map((p) => p.passageId)
+      )
+    }
+  })
+
+  test('U+037E splits as a semicolon does', () => {
+    const greek = sentencesOf(canonicalText(para('Τι κάνεις\u037e Καλά.')))
+    const plain = sentencesOf(canonicalText(para('Τι κάνεις; Καλά.')))
+    expect(greek.map((s) => s.key)).toEqual(plain.map((s) => s.key))
+  })
+})
+
+describe('combining mark runs', () => {
+  test('a run over 32 marks is found quickly; 32 is allowed', () => {
+    const long = 'a' + '\u0315\u0300'.repeat(99_988)
+    const started = performance.now()
+    expect(hasLongCombiningRun(long)).toBe(true)
+    expect(hasLongCombiningRun('a' + '\u0300'.repeat(32))).toBe(false)
+    expect(hasLongCombiningRun('a' + '\u0300'.repeat(33))).toBe(true)
+    expect(performance.now() - started).toBeLessThan(500)
+  })
+
+  test('legacyPassageOf keeps its own passage in such an article, quickly', async () => {
+    const content = para('A plain line.', 'a' + '\u0315\u0300'.repeat(99_988))
+    const started = performance.now()
+    const got = await legacyPassageOf(
+      {
+        highlightId: 'h1',
+        text: 'A plain line.',
+        startOffset: 0,
+        endOffset: 13,
+      },
+      { _id: 'k1', content }
+    )
+    expect(got).toEqual({ passageId: 'legacy:h1', range: null })
+    expect(performance.now() - started).toBeLessThan(500)
   })
 })
 

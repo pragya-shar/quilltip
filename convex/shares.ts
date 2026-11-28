@@ -21,13 +21,14 @@
  *   public: by `reconcileArticle`, which the article's publish, edit, unpublish
  *   and delete paths schedule; by `clearIfStale`, which `resolve` schedules;
  *   and by `sweep`, the safety net for a path that missed its call. The sweep
- *   deletes a cleared row `CLEARED_SHARE_RETENTION_MS` after it was cleared.
- *   A canonical code can then be issued again, but only for the same line
- *   (its code is keyed from the passage id, which is the line's text).
+ *   deletes a cleared row `CLEARED_SHARE_RETENTION_MS` after it was cleared
+ *   and keeps its code in `retiredShareCodes`, so neither the random codes
+ *   nor another line's canonical code can ever reuse it.
  * - Every path that reads an article's text (`create`, `resolve`,
  *   `clearIfStale`, `reconcileArticle`, `sweep`) first checks its size
  *   (`readShareable`): past `MAX_SHAREABLE_CHARACTERS`,
- *   `MAX_SHAREABLE_BREAKS` or `MAX_SHAREABLE_SENTENCES` the article is not
+ *   `MAX_SHAREABLE_BREAKS` or `MAX_SHAREABLE_SENTENCES`, or with a run of
+ *   more than `MAX_COMBINING_MARK_RUN` combining marks, the article is not
  *   searched. `create` refuses it, `resolve` answers null without clearing,
  *   and the clean-up paths leave its shares as they are.
  */
@@ -44,6 +45,7 @@ import { consumeFixedWindow } from './lib/fixedWindowLimit'
 import {
   canonicalText,
   findPassage,
+  hasLongCombiningRun,
   identifyRange,
   passageIndexOf,
   passageMatchesAt,
@@ -96,14 +98,27 @@ export const SIGNED_OUT_SHARES_PER_ARTICLE_PER_DAY = 500
 export const SIGNED_OUT_SHARES_PER_DAY = 50_000
 /** Rows one reconcile or sweep step reads. */
 export const RECONCILE_BATCH = 100
-/** Sweep steps chained from one cron run. */
+/**
+ * Full pages one cron run walks (steps that stop early at the article budget
+ * are not counted), and cron runs a day (`convex/crons.ts`, hourly).
+ */
 export const SWEEP_STEPS_PER_RUN = 25
+export const SWEEP_RUNS_PER_DAY = 24
+/**
+ * Rows the sweep walks a day: 24 × 25 × 100 = 60,000, above the 50,000 new
+ * signed-out rows a day allows, so a pass keeps up with signed-out sharing.
+ */
+export const SWEEP_ROWS_PER_DAY =
+  SWEEP_RUNS_PER_DAY * SWEEP_STEPS_PER_RUN * RECONCILE_BATCH
 /**
  * Distinct articles one sweep step reads; the step stops at the next one and
  * the following step resumes at that share.
  */
 export const SWEEP_ARTICLES_PER_STEP = 8
-/** How long a cleared row is kept before the sweep deletes it: 30 days. */
+/**
+ * How long a cleared row is kept before the sweep deletes it: 30 days. Its
+ * code then moves to `retiredShareCodes`, so it is never issued again.
+ */
 export const CLEARED_SHARE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000
 
 /** A selection in the article's canonical offsets (`canonicalText`). */
@@ -181,6 +196,8 @@ type Shareable = {
 export function readShareable(content: unknown): Shareable | null {
   const canonical = canonicalText(content)
   if (canonical.text.length > MAX_SHAREABLE_CHARACTERS) return null
+  // Before any NFC: normalising a long run of combining marks is quadratic.
+  if (hasLongCombiningRun(canonical.text)) return null
   let breaks = 0
   for (const block of canonical.blocks) breaks += block.gaps.length
   if (breaks > MAX_SHAREABLE_BREAKS) return null
@@ -288,11 +305,18 @@ async function consumeLimits(
   }
 }
 
-async function codeTaken(ctx: MutationCtx, code: string) {
-  return ctx.db
+/** A code is taken while a share row or a retired code holds it. */
+async function codeTaken(ctx: MutationCtx, code: string): Promise<boolean> {
+  const live = await ctx.db
     .query('shares')
     .withIndex('by_code', (q) => q.eq('code', code))
     .first()
+  if (live) return true
+  const retired = await ctx.db
+    .query('retiredShareCodes')
+    .withIndex('by_code', (q) => q.eq('code', code))
+    .first()
+  return retired !== null
 }
 
 async function freeRandomCode(ctx: MutationCtx): Promise<string> {
@@ -669,11 +693,18 @@ export const sweep = internalMutation({
       }
       if (share.quote === null && share.passageId === null) {
         const clearedAt = share.clearedAt ?? share.checkedAt
+        seen++
         if (clearedAt + CLEARED_SHARE_RETENTION_MS < now) {
+          // The code stays unusable: a link to it must never reach another line.
+          await ctx.db.insert('retiredShareCodes', {
+            code: share.code,
+            retiredAt: now,
+          })
           await ctx.db.delete(share._id)
           purged++
+          // A deleted row cannot be where the next step resumes.
+          continue
         }
-        seen++
         lastHandled = share._id
         continue
       }
@@ -754,10 +785,12 @@ export const sweep = internalMutation({
     } else if (page.page.length > 0) {
       await ctx.db.insert('shareSweeps', { key: 'shares', ...record })
     }
+    // A step that stopped at the article budget does not use up a step of
+    // the run: the run walks `SWEEP_STEPS_PER_RUN` full pages.
     const steps = args.steps ?? SWEEP_STEPS_PER_RUN
-    if (!finished && steps > 1) {
+    if (!finished && (stopped || steps > 1)) {
       await ctx.scheduler.runAfter(0, internal.shares.sweep, {
-        steps: steps - 1,
+        steps: stopped ? steps : steps - 1,
       })
     }
     return { seen, rechecked, cleared, purged, skipped, failed, done: finished }

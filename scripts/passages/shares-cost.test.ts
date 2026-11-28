@@ -257,3 +257,65 @@ describe('one paragraph of "中." joined by hard breaks', () => {
     expect(reconcileMs).toBeLessThan(BUDGET_MS)
   })
 })
+
+describe('one paragraph with a long run of combining marks', () => {
+  const plain = 'A plain line to share.'
+  // "a" and 99,988 pairs of marks: 199,977 characters, under the size limit.
+  const marks = 'a' + '\u0315\u0300'.repeat(99_988)
+
+  test('refused or skipped before any NFC, on every path', async () => {
+    const w = await setup(doc(paragraph(plain)))
+    const { code } = await w.t.mutation(api.shares.create, {
+      articleId: w.ids.article,
+      passage: { startOffset: 0, endOffset: 0 },
+    })
+    await replace(w, w.ids.article, doc(paragraph(plain), paragraph(marks)))
+    const [resolveMs, resolved] = await timed(() =>
+      w.t.mutation(api.shares.resolve, { code })
+    )
+    expect(resolved).toBeNull()
+    expect(resolveMs).toBeLessThan(BUDGET_MS)
+    const [createMs, created] = await timed(() =>
+      w.t.mutation(api.shares.create, {
+        articleId: w.ids.article,
+        passage: { startOffset: 0, endOffset: 0 },
+      })
+    )
+    expect(created).toBe('ARTICLE_TOO_LONG')
+    expect(createMs).toBeLessThan(BUDGET_MS)
+    const [sweepMs, swept] = await timed(() => sweepStep(w))
+    expect(swept).toMatchObject({ skipped: 1, cleared: 0 })
+    expect(sweepMs).toBeLessThan(BUDGET_MS)
+    const [reconcileMs, reconciled] = await timed(() => reconcile(w))
+    expect(reconciled).toEqual({ cleared: 0, done: true })
+    expect(reconcileMs).toBeLessThan(BUDGET_MS)
+  })
+
+  test('runs of 32 marks are searched, within budget', async () => {
+    const run = Array.from(
+      { length: 2_000 },
+      () => 'a' + '\u0300'.repeat(32)
+    ).join(' ')
+    const w = await setup(doc(paragraph(plain), paragraph(run)))
+    const [createMs, created] = await timed(() =>
+      w.t.mutation(api.shares.create, {
+        articleId: w.ids.article,
+        passage: { startOffset: 0, endOffset: 0 },
+      })
+    )
+    expect(created).toMatchObject({ code: expect.any(String) })
+    expect(createMs).toBeLessThan(BUDGET_MS)
+    const { code } = created as { code: string }
+    const [resolveMs, resolved] = await timed(() =>
+      w.t.mutation(api.shares.resolve, { code })
+    )
+    expect(resolved).toMatchObject({ status: 'exact' })
+    expect(resolveMs).toBeLessThan(BUDGET_MS)
+    await replace(w, w.ids.article, doc(paragraph(plain), paragraph(run)))
+    const [sweepMs, swept] = await timed(() => sweepStep(w))
+    expect(swept).toMatchObject({ rechecked: 1, cleared: 0 })
+    expect(sweepMs).toBeLessThan(BUDGET_MS)
+    const [reconcileMs] = await timed(() => reconcile(w))
+    expect(reconcileMs).toBeLessThan(BUDGET_MS)
+  })
+})

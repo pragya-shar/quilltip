@@ -50,6 +50,16 @@ export const passagesTables = {
       'createdBy',
     ]),
 
+  /**
+   * Codes of deleted share rows. A code here is never issued again, so a
+   * link to a deleted share can only ever answer like an unknown code. One
+   * small row per deleted share.
+   */
+  retiredShareCodes: defineTable({
+    code: v.string(),
+    retiredAt: v.number(),
+  }).index('by_code', ['code']),
+
   /** The sweep's position over `shares` (one row, key `shares`). */
   shareSweeps: defineTable({
     key: v.literal('shares'),
