@@ -10,6 +10,10 @@ type EmptyStateProps = {
   body?: ReactNode
   /** One action that fills it. */
   action?: ReactNode
+  /** The title as a heading of this level, when the empty place is a
+   * section of the page (an empty Shelf: 1 or 2). Without it the title is
+   * a paragraph. */
+  headingLevel?: 1 | 2 | 3
   className?: string
 }
 
@@ -19,8 +23,10 @@ export function EmptyState({
   title,
   body,
   action,
+  headingLevel,
   className,
 }: EmptyStateProps) {
+  const Title = headingLevel ? (`h${headingLevel}` as const) : 'p'
   return (
     <div className={cx('qt-empty', className)}>
       {icon ? (
@@ -28,7 +34,7 @@ export function EmptyState({
           <Icon icon={icon} size={28} />
         </span>
       ) : null}
-      <p className="qt-empty__title">{title}</p>
+      <Title className="qt-empty__title">{title}</Title>
       {body ? <p className="qt-empty__body">{body}</p> : null}
       {action ? <div className="qt-empty__action">{action}</div> : null}
     </div>

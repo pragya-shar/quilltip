@@ -1,8 +1,7 @@
 /**
  * What this visit has done so far. A pushed screen that mounts after the
  * first page arrived by navigation and may slide in; the first page never
- * animates. Back returns through history only after an in-app
- * navigation; otherwise it would leave the application.
+ * animates. (Where back goes is shell/appHistory.ts.)
  */
 let shown = false
 let navigated = false

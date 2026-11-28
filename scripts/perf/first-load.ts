@@ -9,6 +9,13 @@
 //   holds. Used to refuse modules that must load only on demand.
 import { gzipSync } from 'zlib'
 import { FIRST_LOAD_ENTRIES } from './routes'
+import { LEGACY_FIRST_LOAD } from './routes/legacy'
+
+/** Legacy routes still measured: they load the legacy layout's payments
+ * shell, the shell's routes never do. */
+const LEGACY_ROUTES = LEGACY_FIRST_LOAD.filter((entry) =>
+  FIRST_LOAD_ENTRIES.includes(entry)
+).map((entry) => entry.route)
 
 /** The routes whose first load is budgeted, as Next.js names them: the
  * legacy ones not yet replaced and every package's (scripts/perf/routes). */
@@ -71,6 +78,16 @@ export const FORBIDDEN_FIRST_LOAD_MODULES: {
     // The balance's own page loads it; it is measured against the
     // signed-in budget there (scripts/perf/routes/pocket.ts).
     allowedOn: ['/pocket'],
+  },
+  {
+    // The shell reads the money layer's state (lib/payments/store, types
+    // only besides) and loads its payments shell after hydration
+    // (shell/DeferredPaymentsShell.tsx): no other payments code in a first
+    // load. The legacy layout mounts the payments shell directly.
+    label: 'payments code beyond its store (lib/payments, components/payments)',
+    pattern:
+      /\[project\]\/(?:components\/payments\/|lib\/payments\/(?!(?:store|types)\.ts\b))/,
+    allowedOn: LEGACY_ROUTES,
   },
   {
     // Sheets declared in shell/sheets load when they open.

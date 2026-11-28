@@ -12,6 +12,7 @@ import {
   SURFACE_FIRST_LOAD,
   SURFACE_FONT_FALLBACK,
   SURFACE_PAGE_LOAD,
+  mergePackageRoutes,
 } from './routes'
 import {
   FIRST_LOAD_BUDGET_KB,
@@ -69,9 +70,10 @@ describe('measured routes from scripts/perf/routes', () => {
       expect(
         entry.budgetKb,
         `${entry.route}: a ${entry.access} route's first-load budget is its first CI measurement plus 2 KB, at most ${ceiling} KB` +
+          ` (more than ${ceiling} needs the owner's word` +
           (entry.access === 'public'
-            ? ` (the target is ${FIRST_LOAD_TARGET_KB} KB; more than ${ceiling} needs the owner's word)`
-            : '')
+            ? `; the target is ${FIRST_LOAD_TARGET_KB} KB)`
+            : ')')
       ).toBeLessThanOrEqual(ceiling)
       expect(FIRST_LOAD_ROUTES).toContain(entry.route)
       expect(FIRST_LOAD_BUDGET_KB[entry.route]).toBe(entry.budgetKb)
@@ -89,10 +91,52 @@ describe('measured routes from scripts/perf/routes', () => {
         expect(kb).toBeGreaterThan(0)
   })
 
+  it('drops a foundation placeholder when a package names its route', () => {
+    const merged = mergePackageRoutes({
+      foundation: {
+        firstLoad: [
+          { route: '/system/reading', budgetKb: 186, access: 'public' },
+          { route: '/shelf', budgetKb: 183, access: 'public' },
+        ],
+        fontFallback: [{ name: 'shelf', path: '/shelf', gateMovement: true }],
+      },
+      shelf: {
+        firstLoad: [{ route: '/shelf', budgetKb: 179, access: 'public' }],
+        fontFallback: [
+          { name: 'shelf page', path: '/shelf', gateMovement: true },
+        ],
+      },
+    })
+    expect(merged.firstLoad).toEqual([
+      { route: '/system/reading', budgetKb: 186, access: 'public' },
+      { route: '/shelf', budgetKb: 179, access: 'public' },
+    ])
+    expect(merged.fontFallback.map((e) => e.name)).toEqual(['shelf page'])
+  })
+
   it('keeps the shell reading page measured, at the public limits', () => {
-    expect(FIRST_LOAD_BUDGET_KB['/system/reading']).toBe(183)
+    expect(FIRST_LOAD_BUDGET_KB['/system/reading']).toBe(186)
     const reading = SURFACE_PAGE_LOAD.find((e) => e.path === '/system/reading')
     expect(reading?.budget).toMatchObject({ cls: 0.05, lcpMobileMs: 2000 })
+  })
+})
+
+describe('payments code in a first load', () => {
+  it('is the store alone on a shell route', () => {
+    const store = '[project]/lib/payments/store.ts'
+    const engine = '[project]/lib/payments/tip-machine.ts'
+    const shell = '[project]/components/payments/PaymentsShell.tsx'
+    expect(forbiddenModules([store], '/system/reading')).toEqual([])
+    expect(
+      forbiddenModules(
+        [`${store} [app-client] (ecmascript)`],
+        '/system/reading'
+      )
+    ).toEqual([])
+    expect(forbiddenModules([engine], '/system/reading')).toHaveLength(1)
+    expect(forbiddenModules([shell], '/system/reading')).toHaveLength(1)
+    // The legacy layout mounts the payments shell itself.
+    expect(forbiddenModules([shell], '/login')).toEqual([])
   })
 })
 

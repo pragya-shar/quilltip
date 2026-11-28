@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Switch } from '../components/Switch'
 import { Tabs, tabId } from '../components/Tabs'
 import { TextField } from '../components/TextField'
+import { LiveErrorDemo } from './LiveErrorDemo'
 import { GallerySection } from './GallerySection'
 import { Specimen } from './Specimen'
 import { SwitchDemo } from './SwitchDemo'
@@ -78,6 +79,9 @@ export function FormsSection() {
           defaultValue="tomas@"
           error="Enter an email like name@example.com."
         />
+      </Specimen>
+      <Specimen name="Error while focus is elsewhere">
+        <LiveErrorDemo />
       </Specimen>
       <Specimen name="Disabled">
         <TextField

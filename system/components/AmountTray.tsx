@@ -8,14 +8,20 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from 'react'
-import type { MoneyValue } from '../money/figure'
+import { spokenValue, type MoneyValue } from '../money/figure'
 import { centsFromInput } from '../money/tip'
+import { MoneyFigure } from './MoneyFigure'
 
 type AmountTrayProps = {
   id: string
   amounts: readonly MoneyValue[]
   value: MoneyValue | null
   allowOther: boolean
+  /** What the reader can tip now, from the money layer: "≈ $18.40 ready to
+   * tip" above the amounts. */
+  balance?: MoneyValue | null
+  /** Opens the balance from its caption. Without it the caption is text. */
+  onOpenBalance?: () => void
   onChange: (cents: number) => void
   /** `returnFocus`: put focus back on the amount button. */
   onClose: (returnFocus: boolean) => void
@@ -33,10 +39,13 @@ export function AmountTray({
   amounts,
   value,
   allowOther,
+  balance,
+  onOpenBalance,
   onChange,
   onClose,
   anchor,
 }: AmountTrayProps) {
+  const balanceWords = balance ? spokenValue(balance) : null
   const labelId = useId()
   const otherId = useId()
   const errorId = useId()
@@ -76,6 +85,12 @@ export function AmountTray({
     event: KeyboardEvent<HTMLButtonElement>,
     index: number
   ) => {
+    // A held key chooses once: repeats never close the tray again onto the
+    // amount button, nor run past the amounts.
+    if (event.repeat && (event.key === 'Enter' || event.key === ' ')) {
+      event.preventDefault()
+      return
+    }
     const forward = ['ArrowRight', 'ArrowDown']
     const back = ['ArrowLeft', 'ArrowUp']
     let next = index
@@ -116,6 +131,27 @@ export function AmountTray({
 
   return (
     <div className="qt-tray" id={id} ref={root}>
+      {balance && onOpenBalance ? (
+        <button
+          type="button"
+          className="qt-tray__caption"
+          data-control=""
+          aria-label={`${balanceWords ?? 'Your balance'} ready to tip. Open balance`}
+          onClick={() => {
+            onClose(false)
+            onOpenBalance()
+          }}
+        >
+          <span aria-hidden="true">
+            <MoneyFigure value={balance} size="s" />
+          </span>{' '}
+          ready to tip
+        </button>
+      ) : balance ? (
+        <p className="qt-tray__caption">
+          <MoneyFigure value={balance} size="s" /> ready to tip
+        </p>
+      ) : null}
       <span className="qt-visually-hidden" id={labelId}>
         Tip amount
       </span>

@@ -9,10 +9,9 @@ import { PaymentsBoundary } from './PaymentsBoundary'
  * so a payment failure never takes the page down and nothing above reading
  * content can suspend.
  *
- * The headless payments shell (`components/payments/PaymentsShell`, with
- * its engine loaded after first paint) arrives with pull request 561.
- * Adopting it is one line in app/(app)/layout.tsx:
- *   <PaymentsSlot><PaymentsShell /></PaymentsSlot>
+ * The root layout mounts `<PaymentsSlot><DeferredPaymentsShell /></PaymentsSlot>`:
+ * the money layer's payments shell, loaded after hydration
+ * (shell/DeferredPaymentsShell.tsx).
  */
 export function PaymentsSlot({ children }: { children?: ReactNode }) {
   if (!children) return null

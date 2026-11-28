@@ -67,6 +67,53 @@ export default [
     },
   },
   {
+    // The application shell and its surfaces link through AppLink, which
+    // decides prefetch (never a legacy page; on intent only for a page
+    // behind the proxy's route check). This block repeats the Zod rule
+    // because a later no-restricted-imports replaces an earlier one.
+    files: [
+      'app/(app)/**/*.{ts,tsx}',
+      'system/**/*.{ts,tsx}',
+      'shell/**/*.{ts,tsx}',
+      'components/{read,pocket,today,shelf,write,writer,search,you,signin,resources,ops}/**/*.{ts,tsx}',
+    ],
+    ignores: ['system/components/AppLink.tsx', 'system/components/Avatar.tsx'],
+    rules: {
+      // A person's image goes through Avatar, which accepts only this
+      // deployment's storage or a same-site path and sends no referrer.
+      'no-restricted-syntax': [
+        'error',
+        {
+          selector: "JSXOpeningElement[name.name='img']",
+          message:
+            "Draw a person's image with Avatar from '@/system/components/Avatar' (allowed sources, no referrer). Other images need their own reviewed component.",
+        },
+      ],
+      'no-restricted-imports': [
+        'error',
+        {
+          paths: [
+            {
+              name: 'zod',
+              message: "Import { z } from '@/lib/zod' (CSP-safe settings).",
+            },
+            {
+              name: 'next/image',
+              message:
+                "Draw a person's image with Avatar from '@/system/components/Avatar' (allowed sources, no referrer).",
+            },
+            {
+              name: 'next/link',
+              importNames: ['default'],
+              message:
+                "Link with AppLink from '@/system/components/AppLink': it decides prefetch for legacy pages and pages behind the route check.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
     files: ['**/*.{js,jsx,ts,tsx}'],
     plugins: {
       '@next/next': nextPlugin,

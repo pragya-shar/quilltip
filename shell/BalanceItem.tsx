@@ -1,12 +1,14 @@
 'use client'
 
+import { useEffect, useSyncExternalStore } from 'react'
 import { Icon } from '@/system/components/Icon'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { BalanceIcon } from '@/system/icons'
-import { figureState, spokenDollars } from '@/system/money/figure'
+import { figureState, spokenValue } from '@/system/money/figure'
 import { useBalanceReading } from './balance'
 import { POCKET } from './navigation'
 import { warmPocket } from './pocket/loadPocket'
+import { SESSION_ATTR, hasAuthToken } from './prePaint'
 import { openSignIn } from './signIn'
 import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
@@ -26,8 +28,30 @@ import { useSheets } from './useSheets'
  *   "Balance" while it loads or when payments cannot answer.
  * A screen reader hears "Balance, about 18 dollars 40. Open balance".
  */
+const noSubscribe = () => () => {}
+const tokenHeld = () => {
+  try {
+    return hasAuthToken(window.localStorage)
+  } catch {
+    return false
+  }
+}
+
 export function BalanceItem({ className }: { className: string }) {
   const reading = useBalanceReading()
+  // While auth loads: a held session token means the person is almost
+  // surely signed in, so a press opens the balance (it waits there,
+  // neutral) instead of following the sign-in link. False on the server and
+  // with no script, where the link is right.
+  const held = useSyncExternalStore(noSubscribe, tokenHeld, () => false)
+  // Once auth answers, the marker the pre-paint script set from a stored
+  // token follows the answer: what shows before auth (this item's word, the
+  // /pocket page's prompt or balance) is right after it too.
+  useEffect(() => {
+    const root = document.documentElement
+    if (reading.auth === 'signed-in') root.setAttribute(SESSION_ATTR, 'held')
+    else if (reading.auth === 'signed-out') root.removeAttribute(SESSION_ATTR)
+  }, [reading.auth])
   const open = useSheets().some((entry) => entry.id === 'pocket' && entry.open)
   const unknown = reading.auth === 'loading'
   const signedOut = reading.auth === 'signed-out'
@@ -36,21 +60,25 @@ export function BalanceItem({ className }: { className: string }) {
       ? figureState(reading.available)
       : null
   const parts = state?.kind === 'value' ? state.parts : null
+  const words =
+    parts && reading.auth === 'signed-in' && reading.available
+      ? spokenValue(reading.available)
+      : null
   const label = signedOut
     ? 'Sign in'
-    : parts
-      ? `Balance, ${spokenDollars(parts)}. Open balance`
+    : words
+      ? `Balance, ${words}. Open balance`
       : unknown
         ? undefined
         : 'Balance. Open balance'
   return (
     <a
-      href={signedOut || unknown ? POCKET.signIn : POCKET.href}
+      href={signedOut || (unknown && !held) ? POCKET.signIn : POCKET.href}
       className={className}
       data-balance=""
       aria-label={label}
-      aria-haspopup={signedOut || unknown ? undefined : 'dialog'}
-      aria-expanded={signedOut || unknown ? undefined : open}
+      aria-haspopup={signedOut || (unknown && !held) ? undefined : 'dialog'}
+      aria-expanded={signedOut || (unknown && !held) ? undefined : open}
       onPointerEnter={signedOut ? undefined : warmPocket}
       onFocus={signedOut ? undefined : warmPocket}
       onClick={(event) => {
@@ -61,7 +89,7 @@ export function BalanceItem({ className }: { className: string }) {
           if (openSignIn()) event.preventDefault()
           return
         }
-        if (unknown) return
+        if (unknown && !held) return
         event.preventDefault()
         sheetStack.toggle('pocket')
       }}

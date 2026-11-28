@@ -9,10 +9,14 @@ export const routes: PerfRoutes = {
   // Moving the backend client out of public first loads brings it toward
   // the 150 KB target.
   firstLoad: [
-    { route: '/system/reading', budgetKb: 183, access: 'public' },
+    // With the second set of shell work (sign-out state, the money store,
+    // the link rule, the focus watchers) it measured 184.0 KB, after the
+    // sign-out work moved out of the first load: that plus 2.
+    { route: '/system/reading', budgetKb: 186, access: 'public' },
     // The placeholder until the Shelf package's page replaces it: the same
     // shell as the reading sample, so the same budget until its first
-    // measurement (then that plus 2).
+    // measurement (then that plus 2). It drops out when
+    // scripts/perf/routes/shelf.ts names /shelf; nothing here changes.
     { route: '/shelf', budgetKb: 183, access: 'public' },
   ],
   // e2e/reading-no-script.spec.ts, in the "reading without scripts" check.

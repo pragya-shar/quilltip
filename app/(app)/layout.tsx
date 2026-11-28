@@ -10,6 +10,7 @@ import {
 import { ToastRegion } from '@/system/components/ToastRegion'
 import { AppProviders } from '@/shell/AppProviders'
 import { AppShell } from '@/shell/AppShell'
+import { DeferredPaymentsShell } from '@/shell/DeferredPaymentsShell'
 import { PaymentsSlot } from '@/shell/PaymentsSlot'
 import { SheetHost } from '@/shell/SheetHost'
 import { PRE_PAINT_SCRIPT } from '@/shell/prePaint'
@@ -71,7 +72,9 @@ export default async function AppRootLayout({
               <>
                 <SheetHost />
                 <ToastRegion />
-                <PaymentsSlot />
+                <PaymentsSlot>
+                  <DeferredPaymentsShell />
+                </PaymentsSlot>
               </>
             }
           >

@@ -81,6 +81,13 @@ export function ListsSection() {
           />
         </div>
       </Specimen>
+      <Specimen name="Avatar sources">
+        <div className="qt-gallery__row" data-avatar-sources="">
+          <Avatar name="Same Site" src="/images/quilltip-logo.png" />
+          <Avatar name="Other Host" src="https://images.example.org/me.png" />
+          <Avatar name="No Image" />
+        </div>
+      </Specimen>
       <Specimen name="List rows">
         <div>
           <ListRow
