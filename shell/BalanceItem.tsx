@@ -1,6 +1,11 @@
 'use client'
 
-import { useEffect, useSyncExternalStore } from 'react'
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type MouseEvent,
+} from 'react'
 import { Icon } from '@/system/components/Icon'
 import { MoneyFigure } from '@/system/components/MoneyFigure'
 import { BalanceIcon } from '@/system/icons'
@@ -8,7 +13,8 @@ import { figureState, spokenValue } from '@/system/money/figure'
 import { useBalanceReading } from './balance'
 import { POCKET } from './navigation'
 import { warmPocket } from './pocket/loadPocket'
-import { SESSION_ATTR, hasAuthToken } from './prePaint'
+import { hasAuthToken } from './prePaint'
+import { applySessionMarker, createMarkerSync } from './sessionMarker'
 import { openSignIn } from './signIn'
 import { sheetStack } from './sheetStack'
 import { useSheets } from './useSheets'
@@ -17,9 +23,11 @@ import { useSheets } from './useSheets'
  * The fourth item: the balance. It is not a place: a press opens it over
  * the current page (a sheet on a phone, a panel on a desktop).
  *
- * Its label sits in a fixed slot (86 px), the same width in every state:
- * - before auth is known, as the server sends it and with no script: two
- *   links, and the pre-paint marker shows one. "Sign in", a real link to
+ * It is the same two links in every state, and the session marker on
+ * <html> shows one. Its label sits in a fixed slot (86 px), the same width
+ * in every state:
+ * - before auth is known, as the server sends it and with no script: the
+ *   pre-paint marker chooses. "Sign in", a real link to
  *   sign in (with no script nobody can be signed in); when the pre-paint
  *   script found a session token (`data-session` on <html>), "Balance", a
  *   link to /pocket, so a signed-in person never sees "Sign in" flash, and a
@@ -50,12 +58,13 @@ export function BalanceItem({ className }: { className: string }) {
   // /pocket page's prompt or balance) is right after it too.
   // Before it answers, a held token sets it as the pre-paint script does,
   // where none ran.
+  // Never while a pointer is down on the item (shell/sessionMarker.ts).
+  const [marker] = useState(() => createMarkerSync(applySessionMarker))
   useEffect(() => {
-    const root = document.documentElement
     if (reading.auth === 'signed-in' || (reading.auth === 'loading' && held))
-      root.setAttribute(SESSION_ATTR, 'held')
-    else if (reading.auth === 'signed-out') root.removeAttribute(SESSION_ATTR)
-  }, [reading.auth, held])
+      marker.set(true)
+    else if (reading.auth === 'signed-out') marker.set(false)
+  }, [reading.auth, held, marker])
   const open = useSheets().some((entry) => entry.id === 'pocket' && entry.open)
   const unknown = reading.auth === 'loading'
   const signedOut = reading.auth === 'signed-out'
@@ -68,89 +77,70 @@ export function BalanceItem({ className }: { className: string }) {
     parts && reading.auth === 'signed-in' && reading.available
       ? spokenValue(reading.available)
       : null
-  const label = signedOut
-    ? 'Sign in'
-    : words
-      ? `Balance, ${words}. Open balance`
-      : 'Balance. Open balance'
-  if (unknown) {
-    // Both links, switched by the pre-paint marker (shell/shell.css).
-    return (
-      <span className="qt-balance-switch" data-session-switch="">
-        <a
-          href={POCKET.signIn}
-          className={className}
-          data-balance=""
-          data-when="signed-out"
-        >
-          <Icon icon={BalanceIcon} size={24} />
-          <span className="qt-nav__label qt-balance-slot">Sign in</span>
-        </a>
-        <a
-          href={POCKET.href}
-          className={className}
-          data-balance=""
-          data-when="held"
-          aria-label="Balance. Open balance"
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          onPointerEnter={warmPocket}
-          onFocus={warmPocket}
-          onClick={(event) => {
-            if (
-              event.metaKey ||
-              event.ctrlKey ||
-              event.shiftKey ||
-              event.altKey
-            )
-              return
-            // A session token is held: the balance opens and waits there,
-            // neutral, until auth answers.
-            if (!held) return
-            event.preventDefault()
-            sheetStack.toggle('pocket')
-          }}
-        >
-          <Icon icon={BalanceIcon} size={24} />
-          <span className="qt-nav__label qt-balance-slot">Balance</span>
-        </a>
-      </span>
-    )
-  }
+  const label = words
+    ? `Balance, ${words}. Open balance`
+    : 'Balance. Open balance'
+  const modified = (event: MouseEvent<HTMLAnchorElement>) =>
+    event.metaKey || event.ctrlKey || event.shiftKey || event.altKey
+  // Always the same two links, in every state, and the session marker on
+  // <html> shows one (shell/shell.css): the item kept no element when auth
+  // answered, and a press that went down on the old link and up on the new
+  // one made no click, so the first tap after a full load was lost. The
+  // marker follows auth (the effect above), so the right link shows once it
+  // answers; until then, the pre-paint marker chose.
   return (
-    <a
-      href={signedOut ? POCKET.signIn : POCKET.href}
-      className={className}
-      data-balance=""
-      aria-label={label}
-      aria-haspopup={signedOut ? undefined : 'dialog'}
-      aria-expanded={signedOut ? undefined : open}
-      onPointerEnter={signedOut ? undefined : warmPocket}
-      onFocus={signedOut ? undefined : warmPocket}
-      onClick={(event) => {
-        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey)
-          return
-        if (signedOut) {
-          // The sign-in sheet when a surface has registered it; else the link.
-          if (openSignIn()) event.preventDefault()
-          return
-        }
-        event.preventDefault()
-        sheetStack.toggle('pocket')
-      }}
+    <span
+      className="qt-balance-switch"
+      data-session-switch=""
+      onPointerDown={marker.pointerDown}
+      onPointerUp={marker.pointerEnd}
+      onPointerCancel={marker.pointerEnd}
+      onPointerLeave={marker.pointerEnd}
     >
-      <Icon icon={BalanceIcon} size={24} />
-      <span className="qt-nav__label qt-balance-slot">
-        {signedOut ? (
-          'Sign in'
-        ) : parts ? (
-          <span aria-hidden="true">
-            <MoneyFigure value={reading.available} size="s" />
-          </span>
-        ) : (
-          'Balance'
-        )}
-      </span>
-    </a>
+      <a
+        href={POCKET.signIn}
+        className={className}
+        data-balance=""
+        data-when="signed-out"
+        onClick={(event) => {
+          if (modified(event)) return
+          // The sign-in sheet when a surface has registered it; else the link.
+          if (signedOut && openSignIn()) event.preventDefault()
+        }}
+      >
+        <Icon icon={BalanceIcon} size={24} />
+        <span className="qt-nav__label qt-balance-slot">Sign in</span>
+      </a>
+      <a
+        href={POCKET.href}
+        className={className}
+        data-balance=""
+        data-when="held"
+        aria-label={label}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onPointerEnter={warmPocket}
+        onFocus={warmPocket}
+        onClick={(event) => {
+          if (modified(event)) return
+          // Signed in, or a session token held while auth loads (the
+          // balance opens and waits there, neutral): over the page.
+          if (!(reading.auth === 'signed-in' || (unknown && held))) return
+          event.preventDefault()
+          sheetStack.toggle('pocket')
+        }}
+      >
+        <Icon icon={BalanceIcon} size={24} />
+        <span className="qt-nav__label qt-balance-slot">
+          {parts ? (
+            <span aria-hidden="true">
+              <MoneyFigure value={reading.available} size="s" />
+            </span>
+          ) : (
+            'Balance'
+          )}
+        </span>
+      </a>
+    </span>
   )
 }

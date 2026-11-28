@@ -875,10 +875,10 @@ async function expectPressHeld(
     // A press that got through would show in the count by now.
     await page.waitForTimeout(150)
     const press = await lastPress(page)
-    test.info().annotations.push({
-      type: 'held press',
-      description: `attempt ${attempt}: ${press.gap} ms after the close, on ${press.target}, ${press.passed ? 'passed' : 'held'}`,
-    })
+    const record = `attempt ${attempt}: ${press.gap} ms after the close, ${JSON.stringify((JSON.parse(press.log) as { presses: unknown[] }).presses.at(-1))}`
+    test.info().annotations.push({ type: 'held press', description: record })
+    // In the run's output too, so a CI log shows each engine's click.
+    console.log(`held press [${test.info().project.name}] ${record}`)
     // Not a press that missed (no click, or a click beside the button).
     expect(
       press.target,

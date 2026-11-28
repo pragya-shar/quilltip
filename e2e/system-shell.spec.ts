@@ -321,7 +321,9 @@ test('a converted balance reads about, and every state keeps the slot width', as
     'signed-out',
   ]) {
     await page.goto(`/shelf?balance=${state}`)
-    const box = await nav(page).locator('.qt-balance-slot').boundingBox()
+    const box = await nav(page)
+      .locator('.qt-balance-slot:visible')
+      .boundingBox()
     widths.push(Math.round(box!.width))
   }
   expect(new Set(widths).size).toBe(1)
