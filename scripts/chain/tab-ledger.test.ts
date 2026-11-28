@@ -7214,6 +7214,149 @@ describe('spendable balance across settler records and indexed events', () => {
     expect(await earnings()).toMatchObject({ shortfallPairs: 0 })
     expect(await spendable(t, s)).toBe(BigInt(11) * CENT)
   })
+
+  // Review of #619: delivery order, re-dispatch, replay and repeat short
+  // payments.
+
+  const settledShort = (paidAfter: number, gross: number) => ({
+    ...shortPayment,
+    paidAfter: BigInt(paidAfter) * CENT,
+    gross: BigInt(gross) * CENT,
+  })
+  const selected = async (t: T) =>
+    (
+      await t.query(internal.tabSettlement.selectCandidates, {
+        ledger: LEDGER + 10,
+        now: T0 + 24 * 60 * 60 * 1000,
+      })
+    ).candidates.length
+
+  it('review #619: a later deposit indexed before a settle_own short payment leaves the pair ready', async () => {
+    const { t, s, pair, earnings } = await overCommitted()
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(20) * CENT, BigInt(20) * CENT, {
+        ledger: LEDGER + 4,
+      })
+    )
+    // The writer's own settlement, no settler record, from an older ledger.
+    await ingest(t, settledEvent(shortPayment, { ledger: LEDGER + 3 }))
+    expect((await pair()).settleQueue).toBe('ready')
+    expect(await earnings()).toMatchObject({ shortfallPairs: 0 })
+    expect(await selected(t)).toBe(1)
+    await redispatchEvents(t)
+    expect((await pair()).settleQueue).toBe('ready')
+    expect(await spendable(t, s)).toBe(BigInt(11) * CENT)
+  })
+
+  it('review #619: re-dispatch and replay of a short payment keep a parked pair parked and change no figure', async () => {
+    const { t, s, pair, earnings } = await overCommitted()
+    const { settlementId } = await beginSettlement(t)
+    await settlerRecord(t, settlementId, [shortPayment], LEDGER + 3)
+    await ingest(t, settledEvent(shortPayment, { ledger: LEDGER + 3 }))
+    const before = {
+      pair: await pair(),
+      earnings: await earnings(),
+      spendable: await spendable(t, s),
+      receipts: await receiptStatuses(t),
+    }
+    expect(before.pair.settleQueue).toBe('blocked')
+    for (let round = 0; round < 2; round++) {
+      await redispatchEvents(t)
+      const after = await pair()
+      expect(after.settleQueue).toBe('blocked')
+      expect(after.paidOnChain).toBe(before.pair.paidOnChain)
+      expect(await earnings()).toEqual(before.earnings)
+      expect(await spendable(t, s)).toBe(before.spendable)
+      expect(await receiptStatuses(t)).toEqual(before.receipts)
+      expect(await selected(t)).toBe(0)
+    }
+  })
+
+  it('review #619: a second short payment after a small deposit parks the pair again; the first one re-dispatched does not', async () => {
+    const { t, s, pair, earnings } = await overCommitted()
+    const first = await beginSettlement(t)
+    await settlerRecord(t, first.settlementId, [shortPayment], LEDGER + 3)
+    await ingest(t, settledEvent(shortPayment, { ledger: LEDGER + 3 }))
+    // 0.02 XLM in: the pair returns to the queue and is paid 0.07 of 0.14.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(2) * CENT, BigInt(2) * CENT, {
+        ledger: LEDGER + 4,
+      })
+    )
+    expect((await pair()).settleQueue).toBe('ready')
+    const second = await beginSettlement(t)
+    expect(second.vouchers).toHaveLength(1)
+    const again = settledShort(7, 2)
+    // The event is indexed while the settlement is still open.
+    await ingest(t, settledEvent(again, { ledger: LEDGER + 5 }))
+    expect((await pair()).settleQueue).toBe('inflight')
+    await settlerRecord(t, second.settlementId, [again], LEDGER + 5)
+    expect(await pair()).toMatchObject({
+      settleQueue: 'blocked',
+      paidOnChain: (BigInt(7) * CENT).toString(),
+    })
+    expect((await pair()).settlementId).toBeUndefined()
+    expect(await earnings()).toMatchObject({
+      shortfallPairs: 1,
+      shortfallNet: netOf(BigInt(7) * CENT).toString(),
+    })
+    // The older short payment, dispatched again, changes nothing.
+    await redispatchEvents(t)
+    expect((await pair()).settleQueue).toBe('blocked')
+    expect(await selected(t)).toBe(0)
+    // A larger deposit; the rest settles in full and stays settled on replay.
+    await ingest(
+      t,
+      ev.deposited(READER, BigInt(20) * CENT, BigInt(20) * CENT, {
+        ledger: LEDGER + 6,
+      })
+    )
+    expect((await pair()).settleQueue).toBe('ready')
+    const third = await beginSettlement(t)
+    const rest = settledShort(14, 7)
+    await settlerRecord(t, third.settlementId, [rest], LEDGER + 7)
+    await ingest(t, settledEvent(rest, { ledger: LEDGER + 7 }))
+    expect((await pair()).settleQueue).toBe('done')
+    // A new tip after the full payment: the old short events, dispatched
+    // again, do not park the new amount.
+    await tip(t, s, { cents: 3 })
+    expect((await pair()).settleQueue).toBe('ready')
+    await redispatchEvents(t)
+    expect((await pair()).settleQueue).toBe('ready')
+    expect(await receiptStatuses(t)).toEqual(['SETTLED', 'SETTLED', 'ACCEPTED'])
+    expect(await earnings()).toMatchObject({ shortfallPairs: 0 })
+    expect(await spendable(t, s)).toBe(BigInt(10) * CENT)
+  })
+
+  it('review #619: only one settlement is open, and a pair that left it before the record is still parked', async () => {
+    const { t, pair } = await overCommitted()
+    const { settlementId } = await beginSettlement(t)
+    // A second run cannot take the pair while the first is open.
+    await expect(
+      t.mutation(internal.tabSettlement.begin, {
+        voucherIds: [(await pair())._id],
+        cumulatives: [(await pair()).cumulative],
+        submitter: READER,
+        maxTime: Math.floor(Date.now() / 1000) + 300,
+      })
+    ).rejects.toThrow()
+    // The pair leaves the settlement before the record arrives.
+    await t.run(async (ctx) => {
+      const v = (await ctx.db.query('tabVouchers').collect()).find(
+        (row) => row.writerAddress === WRITER
+      )!
+      await ctx.db.patch(v._id, { settlementId: undefined })
+    })
+    await settlerRecord(t, settlementId, [shortPayment], LEDGER + 3)
+    // The record still applies the payment and parks the pair.
+    expect(await pair()).toMatchObject({
+      settleQueue: 'blocked',
+      paidOnChain: (BigInt(5) * CENT).toString(),
+    })
+    expect((await pair()).settlementId).toBeUndefined()
+  })
 })
 
 // ---------------------------------------------------------------------------
