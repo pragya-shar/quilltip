@@ -26,13 +26,15 @@ later work.
 
 1. The release tag is on a commit that contains each payment and sign-up
    fix: #583, #565, #577, #596 (the fix for #584), #597 and #572, all merged.
-   The release commit also contains the content limits for article image
-   sources (#625 for #615, open) and the v1 client removal (#559). The checks
+   It also contains the v1 client removal (#559, `fd39cf71`), the short-paid
+   pair fix (#619, `e650829f`), the short tab notice (#620, `3854cfd8`), the
+   live window tool (#593, `7b69c565`), and the content limits for article
+   image sources (#625 for #615, still open). The checks
    in section 1.3 pass on that commit. The tab debit fix (#585) is merged and
    needs no operator step: its table and field ship with the stage 1 push,
    and its test variables `TAB_DEBIT_SCAN_LIMIT` and `TAB_DEBIT_READ_BUDGET`
-   stay unset on the live deployment. The short-paid pair fix (#619) is
-   merged and needs no operator step. #559 raises the page-load budgets of
+   stay unset on the live deployment. #619 and #620 need no operator step.
+   #559 raises the page-load budgets of
    `/articles` and `/[username]/[slug]` by 1 KB, to 217 KB and 220 KB, for a
    bundler chunk split.
 2. The owner has decided the backend push method, and the push uses a deploy
@@ -667,9 +669,14 @@ has ended, if the value is malformed, if a `.env*` file or a committed file
 holds it, if another Convex target is set, or if `CONVEX_DEPLOY_KEY` is not a
 development deploy key for that deployment. Mainnet is refused as always.
 
-1. Check that `~/.quilltip/live-window/builds` is absent or empty, so that
-   every build of this window is new. Then set the approval, in the clean
-   checkout of the tag, after `bun install --frozen-lockfile`:
+1. Before the first run, remove the window's build root:
+   `rm -rf ~/.quilltip/live-window/builds`. The package cache in it is kept
+   per commit, and a reused cache is not checked again. With the root
+   removed, the first run is a fresh build from the registry, checked
+   against the lockfile's hashes (about 11 seconds measured). Run every
+   window operation from the same operator account, and let no other
+   session write to that folder during the window. Then set the approval,
+   in the clean checkout of the tag, after `bun install --frozen-lockfile`:
 
    ```bash
    unset CONVEX_DEPLOYMENT CONVEX_DEPLOYMENT_TOKEN CONVEX_SELF_HOSTED_URL CONVEX_SELF_HOSTED_ADMIN_KEY
@@ -765,20 +772,32 @@ the snapshot file opens (`unzip -l <file>.zip` lists one folder per table and
 
    It takes no arguments. It returns `storageOrigin`, the article counts
    (`articles.published` and `articles.draft`), and `images` and `covers`:
-   one row per host with `allowed`, `published` and `draft`. It returns no
-   article text, title, author or ID. The function exists only in the
+   one row per host with `publishedAllowed`, `publishedRefused`,
+   `draftAllowed` and `draftRefused`. Each address is judged on its own, so
+   one host can have both allowed and refused addresses (for example
+   `http` against `https`). It returns no address, article text, title,
+   author or ID. The function exists only in the
    release code, so it runs after the push and before the merge in step 5.
    - `storageOrigin` must equal the origin of the site's
      `NEXT_PUBLIC_CONVEX_URL` (go/no-go item 7). If they differ, stop and do
      not merge: every uploaded image would stop showing.
    - List for the owner, before step 5, every host in `images` or `covers`
-     with `allowed: false` and `published` above 0. After the merge, images
-     from those hosts stop showing in published articles. Older articles
+     with `publishedRefused` above 0. After the merge, those images stop
+     showing in published articles. Older articles
      can hold storage addresses of other Convex deployments; those images
      stop showing too.
    - The owner's default is to continue and record the hosts. The check
      makes this a decision before the release site goes live. Record the
      full output.
+   - If the owner wants such an article moved back to draft, so that its
+     author can replace the image (published articles cannot be changed):
+     the reviewed path is the internal mutation
+     `articles:hideReviewedArticles`. It takes 1 to 50 articles, each with
+     `id`, `expectedTitle` and `expectedUpdatedAt` from the dashboard
+     **Data** view, refuses an article that changed since that review, and
+     is a dry run unless `"dryRun": false`. It is not on the window tool's
+     list (section 5.0.3), so it cannot run in this window without a
+     reviewed change to that list.
 
 5. Merge the release PR (`overhaul/v2` into `main`) right after step 4, and
    continue with stage 2. With the default plan, Vercel builds and promotes
