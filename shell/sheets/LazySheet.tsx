@@ -11,7 +11,7 @@ import {
   preloadSheet,
 } from './loadSheet'
 import { SheetLoadBoundary } from './SheetLoadBoundary'
-import { holdPressedLook, lastPressed } from './pressedOpener'
+import { holdPressedLook, sheetOpener } from './pressedOpener'
 
 /** How long a first open waits for the body's code before drawing the
  * sheet with a placeholder. The code usually arrives in a few frames. */
@@ -45,7 +45,7 @@ export function LazySheet({
     let live = true
     // The press that opened the sheet keeps its pressed look until the
     // sheet draws, so the wait never reads as a press that did nothing.
-    const release = holdPressedLook(lastPressed())
+    const release = holdPressedLook(sheetOpener())
     const done = () => {
       release()
       if (live) setWaited(true)

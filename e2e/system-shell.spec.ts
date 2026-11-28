@@ -353,17 +353,46 @@ test('while a first open waits for its code, the control looks pressed; past the
 }) => {
   await page.goto('/sheets')
   const opener = page.getByRole('button', { name: 'Open the lazy sheet' })
+  // Recorded by order, not by a time window: the mark set (with the style
+  // it gives), the mark removed, and the sheet opened.
+  await opener.evaluate((el) => {
+    const w = window as unknown as { __events: string[] }
+    w.__events = []
+    new MutationObserver(() => {
+      if (el.hasAttribute('data-opening')) {
+        // The pressed style itself, not a frame of its transition.
+        const button = el as HTMLElement
+        button.style.transition = 'none'
+        const transform = getComputedStyle(button).transform
+        button.style.transition = ''
+        w.__events.push(`set ${transform}`)
+      } else w.__events.push('removed')
+    }).observe(el, { attributes: true, attributeFilter: ['data-opening'] })
+    new MutationObserver(() => {
+      if (
+        document.querySelector('dialog[open]') &&
+        !w.__events.includes('open')
+      )
+        w.__events.push('open')
+    }).observe(document.body, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      attributeFilter: ['open'],
+    })
+  })
   await press(opener)
-  // The demo sheet's code takes 400 ms: for the first 200 ms nothing new
-  // is drawn, and the control keeps its pressed look.
-  await expect(opener).toHaveAttribute('data-opening', '')
-  expect(
-    await opener.evaluate((el) => getComputedStyle(el).transform)
-  ).not.toBe('none')
+  // The demo sheet's code takes 400 ms: past the 200 ms wait the sheet
+  // draws with its placeholder, then fills in.
   const sheet = page.getByRole('dialog', { name: 'Add money to tip $3' })
-  await expect(sheet).toBeVisible()
-  await expect(opener).not.toHaveAttribute('data-opening')
   await expect(sheet.getByText('Loaded on demand for $3.')).toBeVisible()
+  const events = await page.evaluate(
+    () => (window as unknown as { __events: string[] }).__events
+  )
+  expect(events[0]).toMatch(/^set matrix/)
+  expect(events[0]).not.toBe('set none')
+  expect(events.slice(1)).toEqual(['removed', 'open'])
+  await expect(opener).not.toHaveAttribute('data-opening')
 })
 
 test('a sheet whose code fails to load says so and tries again', async ({
