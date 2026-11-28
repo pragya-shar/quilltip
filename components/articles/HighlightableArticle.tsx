@@ -201,7 +201,8 @@ export function HighlightableArticle({
       // Keyboard selection (shift+arrow, ctrl+a) still runs this path.
       if (isDraggingRef.current || isKeyboardSelectingRef.current) return
       if (touchInputRef.current) {
-        offerTouchSelection(state)
+        // A press on the offer may empty the selection; keep the offer.
+        if (!offerPressRef.current) offerTouchSelection(state)
         return
       }
 

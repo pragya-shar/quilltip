@@ -140,14 +140,22 @@ test('a press on the offer that clears the selection still opens the slip with t
   const passage = await selectWords(paragraph, 6)
   await expect(offer).toBeVisible()
   // Some browsers clear the native selection when the button is pressed.
-  await offer.evaluate((button) => {
-    button.dispatchEvent(
-      new PointerEvent('pointerdown', { bubbles: true, pointerType: 'touch' })
-    )
-    window.getSelection()?.removeAllRanges()
-  })
-  await page.evaluate(
-    () => new Promise((resolve) => requestAnimationFrame(() => resolve(null)))
+  // Wait for the selectionchange event itself, not a frame: it is its own
+  // task, so a frame can pass before it is dispatched.
+  await offer.evaluate(
+    (button) =>
+      new Promise((resolve) => {
+        document.addEventListener('selectionchange', () => resolve(null), {
+          once: true,
+        })
+        button.dispatchEvent(
+          new PointerEvent('pointerdown', {
+            bubbles: true,
+            pointerType: 'touch',
+          })
+        )
+        window.getSelection()?.removeAllRanges()
+      })
   )
   await expect(offer).toBeVisible()
   await offer.click()
