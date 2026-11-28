@@ -13,6 +13,7 @@ import type { Doc, Id } from '../../_generated/dataModel'
 import type { MutationCtx, QueryCtx } from '../../_generated/server'
 import { requireChainV2Enabled } from './env'
 import { confirmedTipPatch } from '../verifiedTips'
+import { syncTipCounts } from '../counts/sync'
 import { isHexOfLength, newClientRefHex } from './ids'
 import type { ChainRecordStatus } from './schema'
 import {
@@ -442,6 +443,7 @@ async function patchRowWithOutcome(
   } else {
     await ctx.db.patch(row._id as Id<'highlightTips'>, patch)
   }
+  await syncTipCounts(ctx, table, row._id, now)
 }
 
 async function patchRowStatus(
@@ -455,6 +457,7 @@ async function patchRowStatus(
   } else {
     await ctx.db.patch(id as Id<'highlightTips'>, patch)
   }
+  await syncTipCounts(ctx, table, id)
 }
 
 /** Recomputes a submission's state from its rows once every row is final. */

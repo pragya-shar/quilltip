@@ -21,6 +21,7 @@ import {
 import { resolveHorizonUrl } from './stellarVerify'
 import { creditAuthorEarnings, writerShareCents } from './lib/authorEarnings'
 import { creditV1TipTotals } from './lib/lifetimeEarnings'
+import { syncTipCounts } from './lib/counts/sync'
 
 export const getArticleTipForVerify = internalQuery({
   args: { tipId: v.id('tips') },
@@ -204,6 +205,7 @@ export const confirmVerifiedArticleTip = internalMutation({
       stellarLedger: args.stellarLedger,
       failureReason: undefined,
     })
+    await syncTipCounts(ctx, 'tips', args.tipId, now)
 
     const article = await ctx.db.get(tip.articleId)
     if (article) {

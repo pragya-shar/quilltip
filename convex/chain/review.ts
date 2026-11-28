@@ -14,6 +14,7 @@ import { ConvexError, v } from 'convex/values'
 import type { Doc, Id } from '../_generated/dataModel'
 import { internalMutation, query } from '../_generated/server'
 import { readChainEnv } from '../lib/chain/env'
+import { syncTipCounts } from '../lib/counts/sync'
 import { opsUserIds } from './indexer'
 
 type TipRow = Doc<'tips'> | Doc<'highlightTips'>
@@ -198,6 +199,7 @@ export const resolveFlaggedTip = internalMutation({
     } else {
       await ctx.db.patch(row._id as Id<'highlightTips'>, patch)
     }
+    await syncTipCounts(ctx, args.table, row._id, now)
     return { resolution: args.resolution }
   },
 })

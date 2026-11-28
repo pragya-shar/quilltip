@@ -33,6 +33,7 @@ import {
   verifiedStellarAddress,
 } from '../walletVerification'
 import { syncPaidPart, syncReceiptMoney, type PaidPart } from './balanceFigures'
+import { syncTipCountsForReceipt } from '../counts/sync'
 import { requireChainV2Enabled, type ChainEnv } from './env'
 import { BPS_DENOMINATOR, FEE_BPS } from './fees'
 import { highlightIdHex, isHexOfLength, newClientRefHex } from './ids'
@@ -1373,6 +1374,8 @@ async function creditTabPaidRange(
       token: voucher.tokenContractId,
       now: Date.now(),
     })
+    // The paid part counts even if the rest of the tip is never paid.
+    await syncTipCountsForReceipt(ctx, receipt._id)
     if (!row) continue
     await creditTabTipTotals(
       ctx,
@@ -1411,10 +1414,20 @@ export function receiptNet(
 }
 
 /**
- * Brings the running money figures (`balanceFigures.ts`) in step with the
- * receipt's current status. Acceptance and every status change call it.
+ * Brings the running money figures (`balanceFigures.ts`) and the tip counts
+ * (`convex/lib/counts/sync.ts`) in step with the receipt's current status.
+ * Acceptance and every status change call it.
  */
 export async function syncReceiptMoneyFor(
+  ctx: MutationCtx,
+  receiptId: Id<'tabReceipts'>,
+  now: number
+): Promise<void> {
+  await syncReceiptMoneyOnly(ctx, receiptId, now)
+  await syncTipCountsForReceipt(ctx, receiptId, now)
+}
+
+async function syncReceiptMoneyOnly(
   ctx: MutationCtx,
   receiptId: Id<'tabReceipts'>,
   now: number
