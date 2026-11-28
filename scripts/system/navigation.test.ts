@@ -88,7 +88,7 @@ describe('isActive', () => {
     id: 'shelf',
     label: 'Shelf',
     href: '/shelf',
-    icon: [],
+    icon: 'shelf',
     match: 'prefix',
   }
   it('matches a prefix on nested paths, not on lookalikes', () => {
