@@ -14,6 +14,9 @@ import {
 // Runs without an account or email delivery. With no AUTH_RESEND_KEY on the
 // backend, the request step must say that no code was sent. Set
 // PLAYWRIGHT_RESET_EMAIL_CONFIGURED=1 when the backend can send email.
+// CI runs it in the Early Taps job (scripts/perf/early-taps-check.ts),
+// against the fixture backend, which answers no actions: the request step's
+// test skips there.
 
 for (const viewport of [
   { width: 1440, height: 1000 },
@@ -42,6 +45,10 @@ for (const viewport of [
     test('request step validates and reports the outcome honestly', async ({
       page,
     }) => {
+      test.skip(
+        process.env.QUILLTIP_FIXTURE_BACKEND === '1',
+        'The fixture backend answers queries only, not the reset request.'
+      )
       await page.goto('/forgot-password')
       const email = page.getByLabel('Email', { exact: true })
       await page.getByRole('button', { name: 'Send reset code' }).click()
