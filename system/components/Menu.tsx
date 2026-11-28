@@ -20,6 +20,8 @@ export type MenuItem = {
   icon?: IconGlyph
   /** danger: an action that removes or ends something. */
   tone?: 'default' | 'danger'
+  /** Shown but not usable now: never focused on open or by arrow keys. */
+  disabled?: boolean
 } & (
   | { onSelect: () => void; href?: undefined }
   | { href: string; onSelect?: undefined }
@@ -48,9 +50,12 @@ export function Menu({ label, items, icon = MoreIcon, className }: MenuProps) {
   const trigger = useRef<HTMLButtonElement>(null)
   const list = useRef<HTMLDivElement>(null)
 
+  // The items a reader can use: a list opens on the first of them.
   const entries = () =>
     Array.from(
-      list.current?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []
+      list.current?.querySelectorAll<HTMLElement>(
+        '[role="menuitem"]:not([aria-disabled="true"])'
+      ) ?? []
     )
 
   useLayoutEffect(() => {
@@ -137,7 +142,14 @@ export function Menu({ label, items, icon = MoreIcon, className }: MenuProps) {
               tabIndex: -1,
               className: 'qt-menu__item',
               'data-tone': item.tone ?? 'default',
+              'aria-disabled': item.disabled || undefined,
             } as const
+            if (item.disabled)
+              return (
+                <span key={item.id} {...common}>
+                  {inner}
+                </span>
+              )
             return item.href !== undefined ? (
               <Link
                 key={item.id}

@@ -259,8 +259,13 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
 3. **Tab wraps, in every engine.** Tab and Shift+Tab move through every
    control and wrap, and so do Option+Tab and Shift+Option+Tab in Safari
    (by default Safari's plain Tab reaches only text fields).
-4. **Focus goes back.** On close, focus returns to the element that opened
-   the sheet, or to the page content (`#content`) if that element is gone.
+4. **Focus goes back.** On Escape or Close, focus returns to the element
+   that opened the sheet, or to the page content (`#content`, else `main`)
+   if that element is gone, never the page body. If the page has moved
+   focus by the time a sheet goes (it unmounted mid-close), focus stays
+   where the page put it. Lazily loaded sheets keep focus on the title after
+   their body arrives. `e2e/helpers/modalFocus.ts` checks a modal by its role
+   and its own `aria-labelledby`.
 5. **Focus after a payment starts.** Safari does not focus a button on
    click, so never rely on the pressed button holding focus. When a tip or
    any money act starts, move focus to its status ("Sending $1"); when it
@@ -287,6 +292,11 @@ follows them too (use `focusDestination` from `@/system/inputModality`).
    "invalid"). When focus stays elsewhere (a server answer while the reader
    is on the button), pass `errorAnnouncement="live"`: a polite live region,
    present from the start, says it. Never both.
+
+10. **A list of choices opens on the first usable one.** A menu, a
+    radio group or a list in a sheet puts focus on the first choice the
+    reader can use, never a disabled or unavailable one (`Menu` items take
+    `disabled`; arrow keys skip them too).
 
 ## Money
 

@@ -38,7 +38,8 @@ export function focusables(root: HTMLElement): HTMLElement[] {
  *   Option (Safari reaches buttons only with Option+Tab; both wrap here).
  * - Escape goes through `onClose`, so React stays the source of truth.
  * - Focus returns to the element that opened it, or to the page content if
- *   that element is gone.
+ *   that element is gone (never the page body); if the page moved focus
+ *   elsewhere while it closed, focus stays there.
  * - The page behind does not scroll (iOS Safari included).
  * - For a moment after a press closes it, pointer presses are swallowed
  *   (system/pressGuard.ts), so a second tap never reaches the sliding
@@ -124,12 +125,33 @@ export function useModal(
         // Opened again before the exit finished: keep it open.
         if (dialog.dataset.closing === undefined) return
         delete dialog.dataset.closing
+        // The page already moved focus elsewhere while the sheet closed (a
+        // navigation, a new sheet): leave it there.
+        const active = document.activeElement
+        const moved =
+          active instanceof HTMLElement &&
+          active !== document.body &&
+          !dialog.contains(active)
         if (dialog.open) dialog.close()
+        if (moved) {
+          if (document.activeElement !== active)
+            active.focus({ preventScroll: true })
+          return
+        }
         const opener = openerRef.current
+        // Back to the opener, or, if it is gone, to the page content: never
+        // the page body.
         const target =
           opener?.isConnected && opener.getClientRects().length > 0
             ? opener
-            : document.getElementById('content')
+            : (document.getElementById('content') ??
+              document.querySelector<HTMLElement>('main'))
+        if (
+          target &&
+          !target.hasAttribute('tabindex') &&
+          target.tagName === 'MAIN'
+        )
+          target.tabIndex = -1
         target?.focus({ preventScroll: true })
       }
       const reduced = window.matchMedia('(prefers-reduced-motion: reduce)')

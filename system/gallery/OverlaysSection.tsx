@@ -68,6 +68,30 @@ export function OverlaysSection() {
           }
         />
       </Specimen>
+      <Specimen name="Menu whose first action is not available">
+        <Menu
+          label="Article actions"
+          items={[
+            {
+              id: 'download',
+              label: 'Download (not available yet)',
+              disabled: true,
+              onSelect: () => {},
+            },
+            {
+              id: 'copy',
+              label: 'Copy link',
+              icon: LinkIcon,
+              onSelect: () => showToast({ title: 'Link copied', tone: 'done' }),
+            },
+            {
+              id: 'report',
+              label: 'Report',
+              onSelect: () => showToast({ title: 'Reported' }),
+            },
+          ]}
+        />
+      </Specimen>
       <Specimen name="Menu">
         <Menu
           label="Share options"

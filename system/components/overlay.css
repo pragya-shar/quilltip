@@ -371,6 +371,10 @@
     font-weight: var(--qt-weight-ui);
     text-align: start;
   }
+  .qt-menu__item[aria-disabled='true'] {
+    color: var(--qt-ink-3);
+    cursor: default;
+  }
   .qt-menu__item[data-tone='danger'] {
     color: var(--qt-danger);
   }

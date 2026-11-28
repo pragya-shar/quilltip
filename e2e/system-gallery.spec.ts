@@ -981,3 +981,25 @@ test('a field error is read once: by focus, or by a live region', async ({
   ).toHaveAttribute('aria-invalid', 'true')
   await expect(live.locator('[role="alert"]')).toHaveCount(0)
 })
+
+test('a list of choices opens on the first one the reader can use', async ({
+  page,
+}) => {
+  await open(page)
+  const specimen = page.locator(
+    '[data-specimen="Menu whose first action is not available"]'
+  )
+  await specimen.getByRole('button', { name: 'Article actions' }).focus()
+  await page.keyboard.press('Enter')
+  const menu = specimen.getByRole('menu', { name: 'Article actions' })
+  await expect(menu.getByRole('menuitem', { name: 'Copy link' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitem', { name: 'Report' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  // Past the end: back to the first usable one, never the unavailable one.
+  await expect(menu.getByRole('menuitem', { name: 'Copy link' })).toBeFocused()
+  await expect(
+    menu.getByRole('menuitem', { name: 'Download (not available yet)' })
+  ).toHaveAttribute('aria-disabled', 'true')
+  await page.keyboard.press('Escape')
+})

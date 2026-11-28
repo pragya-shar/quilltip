@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expectFocusWraps, expectOpensOnTitle } from './helpers/modalFocus'
 import { signInPathFromRoutes } from '../lib/routing/signInPath'
 
 // The application shell around the gallery, the sample reading page
@@ -298,4 +299,71 @@ test('the skip link moves focus to the content', async ({
   await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab')
   await page.keyboard.press('Enter')
   await expect(page.locator('#content')).toBeFocused()
+})
+
+test('every sheet: title first, focus wraps, Escape and Close return it', async ({
+  page,
+}) => {
+  // The balance, as a sheet on a phone.
+  if (!wide()) {
+    await page.goto('/shelf')
+    const item = nav(page).getByRole('link', { name: /^Balance/ })
+    await item.focus()
+    await page.keyboard.press('Enter')
+    const pocket = page.getByRole('dialog', { name: 'Balance' })
+    await expectOpensOnTitle(pocket)
+    await expectFocusWraps(page, pocket)
+    await page.keyboard.press('Escape')
+    await expect(pocket).toBeHidden()
+    await expect(item).toBeFocused()
+  }
+
+  // A sheet that loads on demand: still on its title once its body arrives.
+  await page.goto('/sheets')
+  const opener = page.getByRole('button', { name: 'Open the lazy sheet' })
+  await opener.focus()
+  await page.keyboard.press('Enter')
+  const lazy = page.getByRole('dialog', { name: 'Add money to tip $3' })
+  await expect(lazy.getByText('Loaded on demand for $3.')).toBeVisible()
+  await expectOpensOnTitle(lazy)
+  await expectFocusWraps(page, lazy)
+  await lazy.getByRole('button', { name: 'Close' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(lazy).toBeHidden()
+  await expect(opener).toBeFocused()
+})
+
+test('with its opener gone, a closed sheet gives focus to the page, never the body', async ({
+  page,
+}) => {
+  await page.goto('/sheets')
+  await page.getByRole('button', { name: 'Open, and the opener goes' }).focus()
+  await page.keyboard.press('Enter')
+  const sheet = page.getByRole('dialog', { name: 'The opener is gone' })
+  await expectOpensOnTitle(sheet)
+  await page.keyboard.press('Escape')
+  await expect(sheet).toBeHidden()
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement?.id ?? ''))
+    .toBe('content')
+})
+
+test('a sheet that goes while the page moves focus leaves focus there', async ({
+  page,
+}) => {
+  await page.goto('/sheets')
+  const opener = page.getByRole('button', {
+    name: 'Open, then the page moves on',
+  })
+  await opener.focus()
+  await page.keyboard.press('Enter')
+  const sheet = page.getByRole('dialog', { name: 'The page moves on' })
+  await expectOpensOnTitle(sheet)
+  await sheet.getByRole('button', { name: 'Go on' }).focus()
+  await page.keyboard.press('Enter')
+  await expect(sheet).toHaveCount(0)
+  await page.waitForTimeout(400) // past the sheet's exit
+  await expect(
+    page.getByRole('button', { name: 'Where the page went' })
+  ).toBeFocused()
 })
