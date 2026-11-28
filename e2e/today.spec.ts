@@ -217,10 +217,17 @@ test.describe('the shell over Today', () => {
       )
       let opened = false
       new MutationObserver(() => {
-        const open = !!document.querySelector('dialog, [role="dialog"]')
+        const open = !!document.querySelector(
+          'dialog[open], [role="dialog"]:not(dialog)'
+        )
         if (open) opened = true
         else if (opened && w.__gone === undefined) w.__gone = performance.now()
-      }).observe(document, { childList: true, subtree: true })
+      }).observe(document, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+        attributeFilter: ['open'],
+      })
     })
     await page.goto('/?auth=signed-in')
     const link = page

@@ -321,7 +321,7 @@ describe('today.opening', () => {
     expect(before.more.map((m) => m.articleId)).toEqual([fresh])
     // The first moment of the next hour: both are in that hour's order.
     const after = await t.query(api.today.opening, { at: nextHour })
-    const order = [older, fresh].sort(
+    const order = [older!, fresh].sort(
       compareForWindow(windowOf(nextHour).index)
     )
     expect([
