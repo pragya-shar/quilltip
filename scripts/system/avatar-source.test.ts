@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { avatarSrc, type AvatarSources } from '@/system/media/avatarSource'
+import {
+  AVATAR_SOURCES,
+  avatarSrc,
+  type AvatarSources,
+} from '@/system/media/avatarSource'
 
 const sources: AvatarSources = {
   storageOrigin: 'https://quiet-otter-123.convex.cloud',
@@ -8,6 +12,11 @@ const sources: AvatarSources = {
 }
 
 describe('where an avatar may come from', () => {
+  it("allows this deployment's storage and /images/ only", () => {
+    expect(AVATAR_SOURCES.sitePaths).toEqual(['/images/'])
+    expect(AVATAR_SOURCES.storagePath).toBe('/api/storage/')
+  })
+
   it("takes this deployment's storage and same-site paths", () => {
     expect(
       avatarSrc(
@@ -47,6 +56,10 @@ describe('where an avatar may come from', () => {
       '/images/..%2F_next/image',
       '/images/%5c_next/image',
       '/images/a.png%00.svg',
+      // Encoded twice, and three times.
+      '/images/%252f%252fevil.example/p.png',
+      '/images/%25252f_next/image',
+      '/images/%255c_next/image',
       ' ',
       '',
       null,
