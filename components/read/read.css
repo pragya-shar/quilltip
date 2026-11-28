@@ -107,16 +107,6 @@
   .qt-read__prose li {
     text-wrap: pretty;
   }
-  /* The lead-in's first line, small and tracked, in the reading face and
-   * in lower case in every engine. WebKit does not apply text-transform on
-   * ::first-line, so the system's capitals reach it as lower case drawn in
-   * the capitals' fallback (sized for capitals), and the paragraph re-wraps
-   * when Literata arrives. Lower case in the reading face matches its own
-   * fallback in both engines. */
-  .qt-read__prose[data-lead-in] > p:first-of-type::first-line {
-    font-family: var(--qt-font-read);
-    text-transform: none;
-  }
   /* The lead-in and figures are the system's (Prose, data-lead-in). An
    * image with no caption is a bare img: it bleeds as a figure does. */
   .qt-read__prose img {
