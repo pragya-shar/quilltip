@@ -433,6 +433,8 @@ test('the skip link moves focus to the content', async ({
   browserName,
 }) => {
   await page.goto('/')
+  // The fixture renders in the browser: the link is there to take the key.
+  await expect(page.locator('.qt-shell')).toBeVisible()
   // WebKit, like Safari, includes links in the Tab order only with Option.
   await page.keyboard.press(browserName === 'webkit' ? 'Alt+Tab' : 'Tab')
   await page.keyboard.press('Enter')
