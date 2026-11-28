@@ -3,7 +3,6 @@
 import './signin.css'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Heading } from '@/system/components/Heading'
-import { TestnetNote } from '@/system/components/TestnetNote'
 import { useAuthPhase } from '@/hooks/auth/useAuthPhase'
 import type { AuthMode } from '@/lib/auth/authErrors'
 import { sameSitePath } from '@/lib/auth/returnPath'
@@ -81,7 +80,6 @@ export function SignInPage({
               onSignedIn={() => window.location.assign(destination)}
               returnTo={destination}
             />
-            <TestnetNote />
           </>
         )}
       </div>

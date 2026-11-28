@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { tipIntent } from '@/lib/auth/intent'
+import { draftIntent, tipIntent } from '@/lib/auth/intent'
+import { sheets } from '@/shell/sheets/signin'
 import { sheetStack } from '@/shell/sheetStack'
 import { SIGN_IN_SHEET, openSignIn } from '@/shell/signIn'
 
@@ -33,6 +34,14 @@ describe('openSignIn', () => {
     expect((top()!.props as { intent: unknown }).intent).toEqual(tip)
   })
 
+  it('opens in the form it is asked for, keeping the intent', () => {
+    expect(openSignIn(tip, { mode: 'sign-in' })).toBe(true)
+    expect(top()!.props).toEqual({ intent: tip, mode: 'sign-in' })
+    sheetStack.closeAll()
+    expect(openSignIn(null, { mode: 'nonsense' as never })).toBe(true)
+    expect(top()!.props).toEqual({})
+  })
+
   it('in production, opens the sheet without an intent it cannot read', () => {
     vi.stubEnv('NODE_ENV', 'production')
     const handMade = { kind: 'draft', draft: 'l-1' } as never
@@ -58,5 +67,17 @@ describe('openSignIn', () => {
     expect(() => openSignIn({ kind: 'publish', draft: 'x' } as never)).toThrow(
       /publishIntent/
     )
+  })
+})
+
+describe('the sheet title says the act', () => {
+  const title = (props: unknown) =>
+    (sheets['sign-in']!.title as (p: unknown) => string)(props)
+  it('names a draft to save, a tip and a plain sign-in', () => {
+    expect(
+      title({ intent: draftIntent({ path: '/write/l-1', draftId: 'l-1' }) })
+    ).toBe('Save this draft')
+    expect(title({ intent: tip })).toBe('Tip this line $1')
+    expect(title({})).toBe('Sign in to Quilltip')
   })
 })

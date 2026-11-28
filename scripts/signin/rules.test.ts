@@ -9,6 +9,7 @@ import {
   keepIntent,
   parseIntent,
   publishIntent,
+  draftIntent,
   readIntent,
   tipIntent,
   saveIntent,
@@ -369,6 +370,13 @@ describe('intents are built by the contract’s builders', () => {
     expect(
       followIntent({ path: '/theo', writerId: 'w1', writer: 'Theo Marsh' })
     ).toMatchObject({ kind: 'follow', writer: 'Theo Marsh' })
+    // A device draft id or an article id; nothing else.
+    const deviceId = 'l-0f8fad5b-d9cb-469f-a165-70867728950e'
+    expect(
+      draftIntent({ path: `/write/${deviceId}`, draftId: deviceId })
+    ).toEqual({ kind: 'draft', path: `/write/${deviceId}`, draftId: deviceId })
+    expect(draftIntent({ path: '/write/x', draftId: 'a b' })).toBeNull()
+    expect(draftIntent({ path: '//evil.example', draftId: 'abc' })).toBeNull()
   })
 
   it('returns null for input that is not valid', () => {

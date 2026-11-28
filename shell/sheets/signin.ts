@@ -15,6 +15,8 @@ function title(props: Props): string {
     }
     case 'keep':
       return 'Keep this line'
+    case 'draft':
+      return 'Save this draft'
     case 'publish':
       return 'Publish on Quilltip'
     case 'follow':

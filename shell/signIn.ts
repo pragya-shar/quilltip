@@ -18,7 +18,14 @@ export const SIGN_IN_SHEET = 'sign-in'
  * throws there. Returns false while no sign-in sheet is registered: the
  * caller then follows its link to the sign-in page.
  */
-export function openSignIn(intent?: SignInIntent | null): boolean {
+export function openSignIn(
+  intent?: SignInIntent | null,
+  options: {
+    /** Which form the sheet starts with. By default: creating an account
+     * when it opens from an act (an intent), signing in otherwise. */
+    mode?: 'sign-in' | 'create'
+  } = {}
+): boolean {
   // Registered by loaded code, or declared in shell/sheets: either counts.
   if (!knownSheet(SIGN_IN_SHEET)) return false
   let kept: SignInIntent | null = null
@@ -33,7 +40,14 @@ export function openSignIn(intent?: SignInIntent | null): boolean {
     if (process.env.NODE_ENV !== 'production') throw new Error(message)
     console.error(message)
   }
-  return sheetStack.open(SIGN_IN_SHEET, kept ? { intent: kept } : {})
+  const mode =
+    options.mode === 'sign-in' || options.mode === 'create'
+      ? { mode: options.mode }
+      : {}
+  return sheetStack.open(
+    SIGN_IN_SHEET,
+    kept ? { intent: kept, ...mode } : { ...mode }
+  )
 }
 
 /**

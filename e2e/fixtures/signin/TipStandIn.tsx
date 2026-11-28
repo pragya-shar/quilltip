@@ -55,7 +55,9 @@ export function TipStandIn() {
               passage: LINE,
               amount: { cents: amount, display: show(amount) },
               writer: 'Theo Marsh',
-            })
+            }),
+            // As another sheet's "I have an account" opens it.
+            params.has('returning') ? { mode: 'sign-in' } : undefined
           )
         }}
       >

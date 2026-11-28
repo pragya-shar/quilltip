@@ -50,7 +50,6 @@ export default async function SignInRoute({
                 Signing in needs JavaScript, which is off in this browser. Turn
                 it on and reload this page. Reading articles works without it.
               </p>
-              <p className="qt-testnet">Testnet. Practice money only.</p>
             </div>
           </noscript>
         </SignInPage>

@@ -213,6 +213,14 @@ export function SignInForm({
           autoComplete="username"
           autoCapitalize="none"
           spellCheck={false}
+          // The keyboard's key moves on to the password; it never sends a
+          // form with the password still empty.
+          enterKeyHint="next"
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || password.current?.value) return
+            event.preventDefault()
+            password.current?.focus()
+          }}
           error={errors.email}
           onChange={() =>
             errors.email && setErrors((e) => ({ ...e, email: undefined }))
@@ -224,6 +232,7 @@ export function SignInForm({
           name="password"
           type={showPassword ? 'text' : 'password'}
           autoComplete={mode === 'create' ? 'new-password' : 'current-password'}
+          enterKeyHint="go"
           {...(mode === 'create' ? PASSWORD_RULES : null)}
           // The rule shows once: an error about it takes the hint's place.
           hint={
@@ -236,32 +245,6 @@ export function SignInForm({
             errors.password && setErrors((e) => ({ ...e, password: undefined }))
           }
         />
-        <div className="qt-signin__row">
-          <button
-            type="button"
-            className="qt-signin__text-button"
-            aria-pressed={showPassword}
-            onClick={() => setShowPassword((on) => !on)}
-          >
-            {showPassword ? 'Hide password' : 'Show password'}
-          </button>
-          {mode === 'sign-in' ? (
-            // The email typed here fills the reset page (kept in this tab,
-            // never in an address).
-            <span
-              onClickCapture={() =>
-                rememberResetEmail(email.current?.value ?? '')
-              }
-            >
-              <TextLink href={resetHref(returnTo)} variant="standalone">
-                Forgot your password?
-              </TextLink>
-            </span>
-          ) : null}
-        </div>
-        {mode === 'create' ? (
-          <p className="qt-signin__fine">Creating an account sends no money.</p>
-        ) : null}
         <Button
           type="submit"
           variant="primary"
@@ -286,6 +269,34 @@ export function SignInForm({
           <Button variant="secondary" size="l" block onClick={switchMode}>
             {mode === 'sign-in' ? 'Create an account' : 'I have an account'}
           </Button>
+          <div className="qt-signin__row">
+            <button
+              type="button"
+              className="qt-signin__text-button"
+              aria-pressed={showPassword}
+              onClick={() => setShowPassword((on) => !on)}
+            >
+              {showPassword ? 'Hide password' : 'Show password'}
+            </button>
+            {mode === 'sign-in' ? (
+              // The email typed here fills the reset page (kept in this tab,
+              // never in an address).
+              <span
+                onClickCapture={() =>
+                  rememberResetEmail(email.current?.value ?? '')
+                }
+              >
+                <TextLink href={resetHref(returnTo)} variant="standalone">
+                  Forgot your password?
+                </TextLink>
+              </span>
+            ) : null}
+          </div>
+          {mode === 'create' ? (
+            <p className="qt-signin__fine">
+              Creating an account sends no money.
+            </p>
+          ) : null}
           <p className="qt-signin__terms">
             By continuing you agree to the{' '}
             <TextLink href="/terms">Terms</TextLink>.

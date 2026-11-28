@@ -5,7 +5,6 @@ import './signin.css'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Button } from '@/system/components/Button'
 import { Notice } from '@/system/components/Notice'
-import { TestnetNote } from '@/system/components/TestnetNote'
 import { TextField } from '@/system/components/TextField'
 import { focusDestination } from '@/system/inputModality'
 import { useEarlySubmit } from '@/components/auth/useEarlySubmit'
@@ -274,7 +273,6 @@ export function ResetPassword({ returnTo = '/' }: { returnTo?: string }) {
           </p>
         </form>
       )}
-      <TestnetNote />
     </div>
   )
 }

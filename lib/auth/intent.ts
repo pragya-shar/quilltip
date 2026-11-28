@@ -3,15 +3,15 @@ import { isSigningOut } from '@/shell/signOut/state'
 
 /**
  * What a person was doing when they were asked to sign in (a tip, a kept
- * line, a publish, a follow), kept across the sign-in so the page can show
+ * line, a publish, a follow, a draft to save), kept across the sign-in so the page can show
  * it again. Keeping it never acts on it:
  * after sign-in the surface shows the intent ready, and a tip still needs
  * its own press. An intent's amount is a ceiling: a resumed tip may be
  * smaller, never larger. Account creation never sends money.
  *
  * The contract:
- * - Build an intent only with `tipIntent`, `keepIntent`, `publishIntent` or
- *   `followIntent`; each checks its input and returns null when it is wrong.
+ * - Build an intent only with `tipIntent`, `keepIntent`, `publishIntent`,
+ *   `followIntent` or `draftIntent`; each checks its input and returns null when it is wrong.
  *   `openSignIn` takes only what they return.
  * - After sign-in, the surface that owns the intent's kind takes it back on
  *   the intent's own page with `useResumedIntent(kind)`
@@ -60,6 +60,12 @@ export type SignInIntent = Built &
       }
     | {
         kind: 'publish'
+        path: string
+        draftId: string
+      }
+    | {
+        /** Words only on this device, to go to the account after sign-in. */
+        kind: 'draft'
         path: string
         draftId: string
       }
@@ -162,6 +168,9 @@ export function parseIntent(value: unknown): SignInIntent | null {
     case 'publish':
       if (!id(value.draftId)) return null
       return built({ kind: 'publish', path: at, draftId: value.draftId })
+    case 'draft':
+      if (!id(value.draftId)) return null
+      return built({ kind: 'draft', path: at, draftId: value.draftId })
     case 'follow':
       if (!id(value.writerId) || !shortString(value.writer, 120)) return null
       return built({
@@ -192,6 +201,12 @@ export const publishIntent = (fields: Fields<'publish'>) =>
   parseIntent({ ...fields, kind: 'publish' }) as Extract<
     SignInIntent,
     { kind: 'publish' }
+  > | null
+/** A draft on this device the person wanted to save to an account. */
+export const draftIntent = (fields: Fields<'draft'>) =>
+  parseIntent({ ...fields, kind: 'draft' }) as Extract<
+    SignInIntent,
+    { kind: 'draft' }
   > | null
 /** A writer the person wanted to follow. */
 export const followIntent = (fields: Fields<'follow'>) =>

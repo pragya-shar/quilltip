@@ -184,6 +184,21 @@ test.describe('a newcomer from a tip creates an account first', () => {
     expect(box.width).toBeCloseTo(submit.width, 0)
   })
 
+  test('opened for a returning reader, it starts with signing in and keeps the tip', async ({
+    page,
+  }) => {
+    const dialog = await openFromTip(page, '/article?returning', false)
+    await expect(dialog).toHaveAccessibleName(/^Tip this line/)
+    await expect(
+      dialog.getByRole('button', { name: 'Sign in', exact: true })
+    ).toBeVisible()
+    await fill(dialog, EMAIL, PASSWORD)
+    await press(dialog.getByRole('button', { name: 'Sign in', exact: true }))
+    await expect(dialog).toBeHidden()
+    await expect(page.locator('[data-line-chosen]')).toHaveCount(1)
+    await expect(tipButton(page)).toHaveAttribute('data-sends', '0')
+  })
+
   test('a returning reader who types their password into it is signed in', async ({
     page,
   }) => {

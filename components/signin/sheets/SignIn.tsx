@@ -2,12 +2,14 @@
 
 import '../signin.css'
 import { useEffect, useMemo } from 'react'
-import { TestnetNote } from '@/system/components/TestnetNote'
 import type { SheetBodyProps } from '@/shell/sheets/types'
 import { parseIntent, saveIntent, type SignInIntent } from '@/lib/auth/intent'
 import { SignInForm } from '../SignInForm'
 
-export type SignInProps = { intent?: unknown } | null | undefined
+export type SignInProps =
+  | { intent?: unknown; mode?: 'sign-in' | 'create' }
+  | null
+  | undefined
 
 function lead(intent: SignInIntent | null): string | null {
   switch (intent?.kind) {
@@ -17,6 +19,8 @@ function lead(intent: SignInIntent | null): string | null {
       return 'Sign in to keep this line on every device.'
     case 'publish':
       return 'Sign in to publish. Your draft stays where it is.'
+    case 'draft':
+      return 'Sign in and it goes to your account. Until then it stays on this device.'
     case 'follow':
       return 'Sign in to follow. You can stop following at any time.'
     default:
@@ -52,12 +56,15 @@ export default function SignInBody({
       <SignInForm
         // Opened from an act (a tip, a keep, a follow, a publish), the
         // person is most likely new: the sheet starts with creating an
-        // account. Opened plainly, it starts with signing in.
-        initialMode={intent ? 'create' : 'sign-in'}
+        // account. Opened plainly, or to save a draft whose session ended,
+        // it starts with signing in.
+        initialMode={
+          props?.mode ??
+          (intent && intent.kind !== 'draft' ? 'create' : 'sign-in')
+        }
         onSignedIn={close}
         returnTo={`${window.location.pathname}${window.location.search}`}
       />
-      <TestnetNote />
     </div>
   )
 }
