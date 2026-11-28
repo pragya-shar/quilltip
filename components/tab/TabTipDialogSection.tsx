@@ -253,9 +253,12 @@ export function TabTipDialogSection({
         <PaymentNotice
           kind="refused"
           copy={limitCopy(check, limits?.tipMax ?? null)!}
-          // The daily and device limits state an XLM amount (#676).
+          // The daily and device limits, and the maximum when its XLM limit
+          // is in hand, state an XLM amount (#676).
           showsAmount={
-            check.reason === 'daily-limit' || check.reason === 'key-limit'
+            check.reason === 'daily-limit' ||
+            check.reason === 'key-limit' ||
+            (check.reason === 'above-max' && limits?.tipMax != null)
           }
           announce
           headingLevel={4}

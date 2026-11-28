@@ -863,6 +863,25 @@ test('the stats cover the same tips in XLM, dollars and count (#552)', async ({
   await expect(card).not.toContainText('At least')
 })
 
+test('a long exact total reflows at 200% zoom and reads as one figure (#676)', async ({
+  page,
+}) => {
+  // 375 px at 200% zoom: the figure breaks only after a comma or the point.
+  await page.setViewportSize({ width: 188, height: 900 })
+  await open(page, 'stats-worst')
+  const earned = page
+    .locator('.account-stat')
+    .filter({ hasText: 'Earned (testnet)' })
+    .locator('dd')
+  await expect(earned).toContainText('123,456,789.0123456 XLM')
+  expect(await overflow(page)).toBeLessThanOrEqual(0)
+  expect(
+    await earned.evaluate((dd) => dd.scrollWidth - dd.clientWidth)
+  ).toBeLessThanOrEqual(0)
+  // The break points add no text: assistive tech reads one number.
+  expect(await earned.ariaSnapshot()).toContain('123,456,789.0123456 XLM')
+})
+
 test('lower bounds say "At least" on the count, the XLM and the dollars (#552)', async ({
   page,
 }) => {

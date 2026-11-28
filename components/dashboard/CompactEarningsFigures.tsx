@@ -1,9 +1,9 @@
 import { Coins } from 'lucide-react'
+import { ExactXlmFigure } from '@/components/dashboard/ExactXlmFigure'
 import {
   AT_LEAST,
   EARNINGS_UPDATING_NOTE,
   earningsLabel,
-  formatXlmFromStroops,
   networkLabelLowercase,
   usdEstimateNote,
 } from '@/lib/copy/network-status'
@@ -47,7 +47,7 @@ export function CompactEarningsFigures({
       {bound && <p className="text-sm text-muted-foreground">{AT_LEAST}</p>}
       <p className="text-2xl font-bold text-foreground tabular-nums">
         {/* A settled, server-summed figure: every stroop (#676). */}
-        {formatXlmFromStroops(earnedStroops)}
+        <ExactXlmFigure stroops={earnedStroops} />
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
         {usdEstimateNote(

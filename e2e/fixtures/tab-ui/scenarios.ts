@@ -1046,6 +1046,17 @@ const S: Scenario[] = [
     },
   },
   {
+    // A maximum of whole dollars: $4, never "$4.00" (#676).
+    id: 'dialog-whole-max',
+    title: 'Tip dialog: a 40 XLM tab tip maximum, $4 at the price',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.tab!.tipLimits = tipLimitsFor({ tipMax: '400000000' })
+    },
+  },
+  {
     id: 'dialog-no-price',
     title: 'Tip dialog: no current XLM price',
     view: 'tip',

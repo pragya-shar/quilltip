@@ -137,9 +137,7 @@ type StateCase = {
 }
 
 const sendFromTab = async (dialog: Locator) => {
-  await tabSection(dialog)
-    .getByRole('button', { name: /^Send \$\d+\.\d\d from your tab$/ })
-    .click()
+  await tabSection(dialog).getByRole('button', { name: SEND_FROM_TAB }).click()
 }
 
 const STATES: Record<string, StateCase> = {
@@ -396,6 +394,32 @@ test.describe('one amount for the dialog', () => {
         { exact: true }
       )
     ).toBeVisible()
+    // The notice states the XLM limit, so it carries the network (#676).
+    await expect(
+      tabSection(dialog).locator('.pay-panel').getByText('Stellar testnet')
+    ).toBeVisible()
+  })
+
+  test('a whole-dollar maximum is written without cents (#676)', async ({
+    page,
+  }) => {
+    await open(page, 'dialog-whole-max')
+    const dialog = await openDialog(page, 'article')
+    await expect(tabSection(dialog)).toBeVisible()
+    await expect(
+      dialog.getByText(
+        'Tab tips go up to 40 XLM, worth about $4 if this were real XLM.',
+        { exact: false }
+      )
+    ).toBeVisible()
+    await chooseAmount(dialog, '5')
+    await expect(
+      tabSection(dialog).getByText(
+        'That is about $4 if this were real XLM. Choose $4 or less, or send this amount from your wallet.',
+        { exact: true }
+      )
+    ).toBeVisible()
+    await expect(dialog.getByText(/\$4\.00/)).toHaveCount(0)
   })
 
   test('without a tab, the presets stay as they are', async ({ page }) => {
@@ -639,7 +663,7 @@ test.describe('keyboard and screen readers', () => {
       await open(page, 'tip-daily-limit')
       const dialog = await openDialog(page, 'article')
       const send = tabSection(dialog).getByRole('button', {
-        name: /^Send \$\d+\.\d\d from your tab$/,
+        name: SEND_FROM_TAB,
       })
       await expect(send).toBeVisible()
       if (how === 'click') await send.click()
