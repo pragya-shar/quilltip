@@ -140,16 +140,15 @@ export const session = query({
         : null
     let limits = null
     try {
-      const l = tabLimits()
+      const l = tabLimits(process.env, price ? price.usd : null)
       limits = price
         ? {
             perTipCents: maxCentsWithin(l.tipMax, price.usd),
             dailyCents: maxCentsWithin(l.dailyLimit, price.usd),
             acceptedDay: account.acceptedDay,
-            acceptedTodayCents: centsFromBaseUnits(
-              BigInt(account.acceptedToday),
-              price.usd
-            ),
+            acceptedTodayCents:
+              account.acceptedTodayCents ??
+              centsFromBaseUnits(BigInt(account.acceptedToday), price.usd),
             minTipCents: minTip ? minimumTipCents(minTip, price.usd) : null,
             quickTipMaxCents: QUICK_TIP_MAX_CENTS,
             defaultTipCents: DEFAULT_TIP_CENTS,
@@ -302,7 +301,10 @@ export const publicTipTerms = query({
         : null
     try {
       return {
-        perTipCents: maxCentsWithin(tabLimits().tipMax, price.usd),
+        perTipCents: maxCentsWithin(
+          tabLimits(process.env, price.usd).tipMax,
+          price.usd
+        ),
         minTipCents: minTip ? minimumTipCents(minTip, price.usd) : null,
         quickTipMaxCents: QUICK_TIP_MAX_CENTS,
         defaultTipCents: DEFAULT_TIP_CENTS,
