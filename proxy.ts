@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchQuery } from 'convex/nextjs'
 import { api } from '@/convex/_generated/api'
 import { publicContentPath } from '@/lib/routing/publicContentPath'
 import {
@@ -11,7 +10,20 @@ import { PUBLIC_READ_TIMEOUT_MS } from '@/lib/seo/publicReadTimeout'
 import {
   ARTICLE_ROUTE_HEADER,
   formatArticleRoute,
+  formatWriterRoute,
 } from '@/lib/seo/articleRoute'
+import { countsAsOutage, publicQuery } from '@/lib/seo/publicQuery'
+import { readingListState } from '@/lib/seo/readingListState'
+import {
+  READ_DEADLINE_HEADER,
+  REQUEST_READ_BUDGET_MS,
+  formatReadDeadline,
+} from '@/lib/seo/readDeadline'
+import { outageBodyFor, outagePathKind } from '@/lib/outage/outageBody'
+import {
+  OUTAGE_RETRY_AFTER_SECONDS,
+  outageContentSecurityPolicy,
+} from '@/lib/outage/outageHtml'
 
 const ROUTE_CHECK_TIMEOUT_MS = PUBLIC_READ_TIMEOUT_MS
 
@@ -35,12 +47,67 @@ type RouteCheck =
   | { kind: 'found'; version?: string }
   | { kind: 'missing' }
   | { kind: 'moved'; username: string }
+  // /articles: the backend answered its list state.
+  | { kind: 'list' }
+  // The check failed twice, or an outage was declared within the last 5 s.
+  | { kind: 'outage' }
 
 /**
- * Check writer and article URLs before the page renders, so a missing one
- * answers 404 and an earlier handle redirects. (These pages once streamed
- * behind a root loading boundary that fixed the status at 200; they no longer
- * do, #428.) Any failure lets the request through unchanged.
+ * Outage memory, per server instance (#609). Once a check has failed twice,
+ * every public reading request answers 503 at once, with no backend read,
+ * until this time. The proxy cannot tell a prefetch from a document load
+ * (Next.js removes the flight headers before it runs), so this bounds an
+ * outage to one two-limit check per 5 s however many links are prefetched.
+ *
+ * Only a twice-failed check sets it; a 503 served from it never renews it.
+ * After it expires the next request checks again, and the first good answer
+ * ends the outage. The cost: one check that fails twice on one path makes
+ * this instance answer 503 on every checked path for up to 5 s. The 503
+ * response itself is `no-store`.
+ */
+const OUTAGE_MEMORY_MS = 5000
+let outageUntil = 0
+
+/** The backend is down: a timeout, a network failure or a 5xx. */
+const FAILED = Symbol('failed')
+/**
+ * The backend answered, but wrongly: a function that threw or a 4xx (for
+ * example a frontend deployed ahead of its backend). Never an outage: the
+ * request goes on unchecked and the page reads for itself.
+ */
+const WRONG = Symbol('wrong')
+
+async function attempt<T>(
+  read: () => Promise<T>
+): Promise<T | typeof FAILED | typeof WRONG> {
+  try {
+    return await read()
+  } catch (error) {
+    return countsAsOutage(error) ? FAILED : WRONG
+  }
+}
+
+/**
+ * The proxy's own check, retried once: a single slow or failed query against
+ * a healthy backend still gives the page. Two failures declare the outage.
+ * The retry touches only this check, never the page's reads.
+ */
+async function checkWithRetry<T>(
+  read: () => Promise<T>
+): Promise<T | typeof FAILED | typeof WRONG> {
+  const first = await attempt(read)
+  if (first !== FAILED) return first
+  const second = await attempt(read)
+  if (second === FAILED) outageUntil = Date.now() + OUTAGE_MEMORY_MS
+  return second
+}
+
+/**
+ * Check `/articles`, writer and article URLs before the page renders, so a
+ * missing one answers 404, an earlier handle redirects, and an unreachable
+ * backend answers 503 (#609). (These pages once streamed behind a root
+ * loading boundary that fixed the status at 200; they no longer do, #428.)
+ * Every full load of these pages makes one backend read here; `/` makes none.
  */
 /**
  * Recent "found" answers for writer pages, per server instance. A found writer
@@ -80,31 +147,87 @@ function rememberFound(key: string) {
 async function checkPublicContent(
   request: NextRequest
 ): Promise<RouteCheck | null> {
+  const pathKind = outagePathKind(request.nextUrl.pathname)
+  if (!pathKind) return null
+  // A declared outage answers every public reading path at once, writer
+  // pages inside their "found" window included.
+  if (Date.now() < outageUntil) return { kind: 'outage' }
   // Only full page loads carry a status that crawlers read; this skip is meant
   // for client navigations and link prefetches (RSC requests). Under
   // `next start`, Next.js removes the RSC header before the proxy runs
   // (next/dist/server/web/adapter.js), so those are checked as well.
   if (request.headers.get('rsc') === '1') return null
+
+  if (pathKind === 'articles') {
+    const state = await checkWithRetry(() =>
+      readingListState(ROUTE_CHECK_TIMEOUT_MS)
+    )
+    if (state === WRONG) return null
+    return state === FAILED ? { kind: 'outage' } : { kind: 'list' }
+  }
+
   const target = publicContentPath(request.nextUrl.pathname)
   if (!target) return null
   const key = target.slug === undefined ? foundKey(target) : null
   if (key && wasRecentlyFound(key)) return { kind: 'found' }
 
-  let timer: ReturnType<typeof setTimeout> | undefined
-  try {
-    const check = await Promise.race([
-      fetchQuery(api.publicRoutes.resolvePublicRoute, target),
-      new Promise<null>((resolve) => {
-        timer = setTimeout(() => resolve(null), ROUTE_CHECK_TIMEOUT_MS)
-      }),
-    ])
-    if (key && check?.kind === 'found') rememberFound(key)
-    return check
-  } catch {
-    return null
-  } finally {
-    clearTimeout(timer)
+  const check = await checkWithRetry(() =>
+    publicQuery(
+      ROUTE_CHECK_TIMEOUT_MS,
+      api.publicRoutes.resolvePublicRoute,
+      target
+    )
+  )
+  if (check === WRONG) return null
+  if (check === FAILED) return { kind: 'outage' }
+  if (key && check.kind === 'found') rememberFound(key)
+  return check
+}
+
+/** Headers every response gets, the outage response included. */
+function setSecurityHeaders(response: NextResponse, csp: string | null) {
+  response.headers.set('X-Frame-Options', 'DENY')
+  response.headers.set('X-Content-Type-Options', 'nosniff')
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
+  response.headers.set('X-XSS-Protection', '1; mode=block')
+  response.headers.set(
+    'Permissions-Policy',
+    'camera=(), microphone=(), geolocation=()'
+  )
+  if (csp) response.headers.set('Content-Security-Policy', csp)
+  // HSTS only in production
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains; preload'
+    )
   }
+}
+
+/**
+ * The outage response (#609): 503, `Retry-After`, `no-store`, and the body of
+ * the path's root layout, with its own policy (only its nonce'd style
+ * loads). A HEAD request gets the same headers and no body.
+ */
+function outageResponse(
+  request: NextRequest,
+  outage: NonNullable<ReturnType<typeof outageBodyFor>>,
+  nonce: string
+): NextResponse {
+  const body =
+    request.method === 'HEAD'
+      ? null
+      : outage.body(outage.kind, new URL(request.url), nonce)
+  const response = new NextResponse(body, {
+    status: 503,
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Retry-After': String(OUTAGE_RETRY_AFTER_SECONDS),
+      'Cache-Control': 'no-store',
+    },
+  })
+  setSecurityHeaders(response, outageContentSecurityPolicy(nonce))
+  return response
 }
 
 function movedUrl(request: NextRequest, username: string) {
@@ -118,6 +241,7 @@ function movedUrl(request: NextRequest, username: string) {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
+  const startedAt = Date.now()
   const check = await checkPublicContent(request)
 
   // Production pages get a per-request nonce. Next.js reads it from the
@@ -137,22 +261,36 @@ export async function proxy(request: NextRequest) {
           VERCEL_ENV: process.env.VERCEL_ENV,
         })
       : null
+
+  if (check?.kind === 'outage') {
+    const outage = outageBodyFor(pathname)
+    if (outage) return outageResponse(request, outage, nonce)
+  }
+
   const requestHeaders = new Headers(request.headers)
   // Only the proxy's own answer may reach the article page: a copy the client
   // sent is removed on every request. A request that arrives marked as RSC
   // is not checked above, so it carries no answer and the page asks itself.
   requestHeaders.delete(ARTICLE_ROUTE_HEADER)
-  if (
-    publicContentPath(pathname)?.slug !== undefined &&
-    request.headers.get('rsc') !== '1'
-  ) {
+  requestHeaders.delete(READ_DEADLINE_HEADER)
+  const target = publicContentPath(pathname)
+  if (target && request.headers.get('rsc') !== '1') {
+    const answer =
+      check?.kind === 'found' || check?.kind === 'missing'
+        ? check
+        : ({ kind: 'unknown' } as const)
     requestHeaders.set(
       ARTICLE_ROUTE_HEADER,
-      formatArticleRoute(
-        check?.kind === 'found' || check?.kind === 'missing'
-          ? check
-          : { kind: 'unknown' }
-      )
+      target.slug !== undefined
+        ? formatArticleRoute(answer)
+        : formatWriterRoute({ kind: answer.kind })
+    )
+  }
+  // The page's reads get only what is left of the request's budget (#609).
+  if (check) {
+    requestHeaders.set(
+      READ_DEADLINE_HEADER,
+      formatReadDeadline(startedAt + REQUEST_READ_BUDGET_MS)
     )
   }
   if (csp) {
@@ -187,23 +325,7 @@ export async function proxy(request: NextRequest) {
   }
 
   // Security headers (apply to all routes)
-  response.headers.set('X-Frame-Options', 'DENY')
-  response.headers.set('X-Content-Type-Options', 'nosniff')
-  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
-  response.headers.set('X-XSS-Protection', '1; mode=block')
-  response.headers.set(
-    'Permissions-Policy',
-    'camera=(), microphone=(), geolocation=()'
-  )
-  if (csp) response.headers.set('Content-Security-Policy', csp)
-
-  // HSTS only in production
-  if (process.env.NODE_ENV === 'production') {
-    response.headers.set(
-      'Strict-Transport-Security',
-      'max-age=31536000; includeSubDomains; preload'
-    )
-  }
+  setSecurityHeaders(response, csp)
 
   // Handle dynamic article routes with additional headers
   if (pathname.match(/^\/[^\/]+\/[^\/]+$/)) {

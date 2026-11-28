@@ -1,7 +1,7 @@
 'use client'
 
 import { useUserByUsername } from '@/hooks/convex'
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { LoadingRegion } from '@/components/a11y/LoadingRegion'
 import { useStaleLoading } from '@/hooks/useStaleLoading'
@@ -20,7 +20,6 @@ import AppNavigation from '@/components/layout/AppNavigation'
 import { SiteFooter } from '@/components/layout/SiteFooter'
 import ProfileHeader from '@/components/profile/ProfileHeader'
 import { ProfileArticlesTabContent } from '@/components/profile/ProfileArticlesTabContent'
-import { ReadingUnavailable } from '@/components/articles/ReadingUnavailable'
 import { ProfileNftsTabContent } from '@/components/profile/ProfileNftsTabContent'
 import { AuthorNotFoundPage } from '@/components/profile/AuthorNotFoundPage'
 import { ProfilePageLoadingSkeleton } from '@/components/profile/ProfilePageLoadingSkeleton'
@@ -49,18 +48,20 @@ export function ProfilePageClient({
   username,
   initialProfile,
   initialArticles,
-  unavailableRetryHref,
+  unavailable,
+  articlesUnavailable,
 }: {
   username: string
   /** From the server render; undefined when the backend was unreachable. */
   initialProfile?: PublicProfile
   initialArticles?: ProfileArticlesPage
   /**
-   * Set when the server could not read the writer or their articles in time:
-   * until the live query answers, that part shows a fallback that reads
-   * without scripts.
+   * The readable fallback, rendered on the server (#609), when the server
+   * could not read the writer in time: shown until the live query answers.
    */
-  unavailableRetryHref?: string
+  unavailable?: ReactNode
+  /** The same for the writer's articles on this tab. */
+  articlesUnavailable?: ReactNode
 }) {
   const pathname = usePathname()
   const router = useRouter()
@@ -129,14 +130,7 @@ export function ProfilePageClient({
   // once auth resolves.
   // The server could not read the writer in time. Outside LoadingRegion,
   // which hides its fallback from assistive technology.
-  if (user === undefined && unavailableRetryHref) {
-    const unavailable = (
-      <ReadingUnavailable
-        what="This writer’s page"
-        retryHref={unavailableRetryHref}
-        headingLevel={1}
-      />
-    )
+  if (user === undefined && unavailable) {
     return activeTab === 'nfts' ? (
       <div className="profile-page min-h-screen">
         <AppNavigation />
@@ -249,7 +243,7 @@ export function ProfilePageClient({
           isOwnProfile={isOwnProfile}
           displayName={profileDisplayName}
           initialData={initialArticles}
-          unavailableRetryHref={unavailableRetryHref}
+          unavailable={articlesUnavailable}
         />
         <Link className="library-browse" href={`/${user.username}?tab=nfts`}>
           NFT collection <span aria-hidden="true">↗︎</span>
