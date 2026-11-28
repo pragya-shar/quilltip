@@ -149,6 +149,89 @@ test('no face changes at a change of page while a sheet or panel is up', async (
   await expect.poll(() => readingLead(page)).toBe('Literata Fixture Next')
 })
 
+/** The first family of a reading variable on <html>. */
+const lead = (page: Page, variable: string) =>
+  page.evaluate(
+    (name) =>
+      getComputedStyle(document.documentElement)
+        .getPropertyValue(name)
+        .split(',')[0]!
+        .trim()
+        .replace(/["']/g, ''),
+    variable
+  )
+
+test('a face not yet loaded under its second name keeps its first name', async ({
+  page,
+}) => {
+  // The italic file answers late: its second name is not loaded at the
+  // first change of page, the roman's is.
+  await page.route('**/fonts/literata-latin-italic.woff2', async (route) => {
+    await new Promise((done) => setTimeout(done, 4000))
+    await route.continue().catch(() => {})
+  })
+  await page.goto('/reading', { waitUntil: 'domcontentloaded' })
+  await secondNameLoaded(page)
+  await expect(page.locator('html')).not.toHaveAttribute(
+    'data-reading-faces-loaded',
+    /latinItalic/
+  )
+  await goTo(page, '/shelf')
+  await expect
+    .poll(() => lead(page, '--qt-face-read'))
+    .toBe('Literata Fixture Next')
+  expect(await lead(page, '--qt-face-read-italic')).toBe(
+    'Literata Fixture Italic'
+  )
+  // Once it loads, a later change of page switches it.
+  await expect(page.locator('html')).toHaveAttribute(
+    'data-reading-faces-loaded',
+    /latinItalic/,
+    { timeout: 15_000 }
+  )
+  await goTo(page, '/reading')
+  await expect
+    .poll(() => lead(page, '--qt-face-read-italic'))
+    .toBe('Literata Fixture Italic Next')
+})
+
+test('the balance figure changing face at a change of page moves no nav item', async ({
+  page,
+}) => {
+  // Every font late: the first view stays in the fallback, the next page
+  // reads in Literata.
+  await page.route('**/fonts/*.woff2', async (route) => {
+    await new Promise((done) => setTimeout(done, 1500))
+    await route.continue().catch(() => {})
+  })
+  await page.goto('/shelf', { waitUntil: 'domcontentloaded' })
+  const figure = nav(page).locator('[data-balance]:visible .qt-money')
+  await expect(figure).toBeVisible()
+  await secondNameLoaded(page)
+  const items = () =>
+    nav(page)
+      .locator('a:visible')
+      .evaluateAll((links) =>
+        links.map((a) => {
+          const r = a.getBoundingClientRect()
+          return [r.x, r.y, r.width, r.height].map(Math.round).join(',')
+        })
+      )
+  const before = await items()
+  const width = () => figure.evaluate((el) => el.getBoundingClientRect().width)
+  const figureBefore = await width()
+  await goTo(page, '/pocket')
+  await expect
+    .poll(() => lead(page, '--qt-face-read'))
+    .toBe('Literata Fixture Next')
+  expect(await items()).toEqual(before)
+  // The figure itself may change width inside its fixed slot.
+  test.info().annotations.push({
+    type: 'figure width',
+    description: `${figureBefore.toFixed(1)} px to ${(await width()).toFixed(1)} px`,
+  })
+})
+
 test('a change of path closes the sheets over the old page', async ({
   page,
 }) => {
