@@ -29,7 +29,10 @@ later work.
    #584) are merged; #597 and #572 once they merge (#597 merges before #572;
    #572 waits on a test fix tracked as #607). The
    release commit also contains the v1 client removal (#559). The checks in
-   section 1.3 pass on that commit.
+   section 1.3 pass on that commit. The tab debit fix (#585) is merged and
+   needs no operator step: its table and field ship with the stage 1 push,
+   and its test variables `TAB_DEBIT_SCAN_LIMIT` and `TAB_DEBIT_READ_BUDGET`
+   stay unset on the live deployment.
 2. The owner has decided the backend push method, and the push uses a deploy
    key whose `--dry-run` output names the live deployment (section 5.0.2). On
    the tagged commit, `npx tsc -p convex/tsconfig.json --noEmit` exits 0, and
@@ -781,6 +784,9 @@ payments off if needed (section 6).
    them with the `live` section of `docs/contracts/v2-testnet-deployment.md`
    (`NEXT_PUBLIC_ARTICLE_NFT_CONTRACT_ID` equals `NFT_CONTRACT_ID`), and the
    stage 2 health command passes for the new build's commit.
+5. After step 3, run `bunx convex run chain/indexer:redispatch` once, so that
+   a stored event that waited for a variable is dispatched again
+   (section 7.2, **Pending events**).
 
 **Check:**
 
@@ -1334,7 +1340,7 @@ Set `CHAIN_V2_ENABLED=true` only when all of these are true. Leave
    and `events.error: 0`. In the **Data** view, the `chainEvents` rows with
    `handled` `orphan` and `pending` are the same as in the second export.
    Some are normal: the deploy's smoke-flow events stay `orphan`, and events
-   that no handler records (role grants, for example) stay `pending`. A new
+   that no handler records (Core and Tab role grants) stay `pending`. A new
    `orphan` means a restored row is missing. (The `/ops/chain` counts stop
    at 100.)
 3. `authorEarnings` equals the second export, apart from the corrections
@@ -1389,6 +1395,21 @@ and the writer receives the rest (97.5%).
 `lastRunAt` (status alone stays `OK` when the indexer is not running). Check
 again after 1 hour and after 24 hours. `events.error` is 0. Alerts are Convex log lines
 with codes starting `CHAIN_INDEXER_`.
+
+**Pending events.** A `chainEvents` row with `handled` `pending` whose event
+type has a handler is waiting, for example for a variable or a handler
+deploy; it is not at rest. After you set a variable or deploy a handler that
+a stored event waits for, run this once:
+
+```bash
+bunx convex run chain/indexer:redispatch
+```
+
+The result gives `checked` and `resolved`. One run checks at most `limit`
+pending rows (default 200, at most 500; for example `'{"limit":500}'`).
+Core and Tab `role_granted` events have no handler and stay `pending` by
+design, so they count in `checked`. NFT `role_granted` events are recorded
+as `done`.
 
 ### 7.3 Settler run
 
