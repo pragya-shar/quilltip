@@ -11,7 +11,11 @@ import {
 import { keyUntil } from '@/lib/addMoney/consent'
 import { quickTipsRows, thisDevice } from '@/lib/addMoney/devices'
 import type { AddMoneyServices } from '@/lib/addMoney/services'
-import { LEDGER_FINE_PRINT, balanceQuickTipsLine } from '@/lib/addMoney/words'
+import {
+  LEDGER_FINE_PRINT,
+  OFF_WHEN_SIGNED_OUT,
+  balanceQuickTipsLine,
+} from '@/lib/addMoney/words'
 
 function used(
   accepted: string | null,
@@ -99,6 +103,11 @@ export function QuickTipsPanel({ services }: { services: AddMoneyServices }) {
                       </span>
                     ) : (
                       <>
+                        {key.here ? (
+                          <span className="qt-quick__device-meta">
+                            {OFF_WHEN_SIGNED_OUT}
+                          </span>
+                        ) : null}
                         {until ? (
                           <span className="qt-quick__device-meta">
                             Ends {until}

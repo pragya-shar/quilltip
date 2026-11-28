@@ -669,7 +669,6 @@ export function AddMoneyFlow({
         choice={plan.choice}
         withQuickTips={request.withQuickTips}
         consent={consent}
-        firstDeposit={reading.status === 'none'}
         cancelsWithdrawal={reading.status === 'closing'}
         primary={primaryLabel(
           formatMoney(request.cents, { short: true }),

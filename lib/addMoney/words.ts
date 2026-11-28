@@ -30,7 +30,10 @@ export const LEDGER_FINE_PRINT =
   'The time follows Stellar testnet’s ledgers and can move by a few minutes.'
 
 export const TURN_OFF_LATER =
-  'You can turn quick tips off for this device later, from any device you sign in on, in Balance. Quilltip stops accepting them at once, and your wallet confirms it with one approval.'
+  'You can turn quick tips off in Balance, from any device you sign in on. Signing out turns them off on this device.'
+
+/** The Balance row for this device, its second line. */
+export const OFF_WHEN_SIGNED_OUT = 'Off when you sign out.'
 
 export const MONEY_ONLY_LINE =
   'Only money is added. This device will ask your wallet before it tips.'

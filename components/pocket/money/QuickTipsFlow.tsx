@@ -29,6 +29,7 @@ import {
   QUICK_TIPS_DEFINITION,
   QUICK_TIPS_FOOT,
   LEDGER_FINE_PRINT,
+  TURN_OFF_LATER,
   feeRow,
   fromRow,
   networkName,
@@ -289,6 +290,7 @@ export function QuickTipsFlow({
           ]}
         />
         <p className="qt-add__fine">{LEDGER_FINE_PRINT}</p>
+        <p className="qt-add__fine">{TURN_OFF_LATER}</p>
         <div className="qt-add__actions">
           <Button variant="primary" size="l" block onClick={onPrimary}>
             {label}

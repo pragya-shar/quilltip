@@ -393,6 +393,7 @@ test.describe('turning quick tips off', () => {
     const rows = page.locator('.qt-quick__device')
     await expect(rows).toHaveCount(2)
     await expect(rows.first()).toContainText('This device')
+    await expect(rows.first()).toContainText('Off when you sign out.')
     await expect(rows.nth(1)).toContainText('Another device')
     await expect(rows.nth(1)).toContainText(
       /Ends \w{3} \d{1,2} \w{3}, \d{2}:\d{2}/

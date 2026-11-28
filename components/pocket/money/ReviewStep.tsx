@@ -25,7 +25,6 @@ export function ReviewStep({
   choice,
   withQuickTips,
   consent,
-  firstDeposit,
   cancelsWithdrawal,
   primary,
   againLabel,
@@ -42,7 +41,6 @@ export function ReviewStep({
   withQuickTips: boolean
   /** The until and cap of the approval, when the request carries one. */
   consent: { until: string; cap: string } | null
-  firstDeposit: boolean
   cancelsWithdrawal: boolean
   primary: string
   /** "Also set up quick tips" / "Also renew quick tips". */
@@ -59,7 +57,7 @@ export function ReviewStep({
           {consentLine(consent.until, consent.cap)}
         </p>
         <p className="qt-add__fine">{LEDGER_FINE_PRINT}</p>
-        {firstDeposit ? <p className="qt-add__fine">{TURN_OFF_LATER}</p> : null}
+        <p className="qt-add__fine">{TURN_OFF_LATER}</p>
       </>
     ) : null
   return (
