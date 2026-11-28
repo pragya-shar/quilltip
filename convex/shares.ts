@@ -1,8 +1,9 @@
 /**
  * Passage share links: `/p/<code>`. A line the author removed or changed is
- * never shown again through a shared link, and a link whose line is gone, or
- * whose article is unpublished or deleted, cannot be told apart from a code
- * that never existed.
+ * never shown again through a shared link: the link lands on the current
+ * article and says that the line changed. A link whose article is
+ * unpublished or deleted, or whose row is gone, cannot be told apart from a
+ * code that never existed.
  *
  * - `create` snaps a passage to whole sentences on the server. A share made
  *   without an account is one sentence and gets the line's canonical code,
@@ -14,10 +15,11 @@
  * - `resolve` is the query the `/p/[code]` page reads: link previews and
  *   crawlers fetch that page, so it reads a bounded number of documents and
  *   writes nothing. It answers `exact` or `moved` with the line's current
- *   text and place, `changed` when the line still exists but occurs more
- *   than once, and the same `null` for an unknown code, a line that is gone,
- *   and an unpublished or deleted article. It never returns the stored quote
- *   or the sharer.
+ *   text and place; `changed` with the article's address and no line when
+ *   the line occurs more than once, or is gone (removed or reworded, also
+ *   once its row is cleared), for as long as the row exists; and the same
+ *   `null` for an unknown code, a row the sweep deleted, and an unpublished
+ *   or deleted article. It never returns the stored quote or the sharer.
  * - The stored quote exists only to find the sentence again. It is cleared
  *   (with the passage fields) once the line is gone or the article is not
  *   public: by `reconcileArticle`, which the article's publish, edit, unpublish
@@ -487,24 +489,26 @@ export const create = mutation({
  * Resolves a share code for the `/p/[code]` page. A query: it reads the
  * code's row, its article and the article's writer, and writes and
  * schedules nothing, so a page load or a link preview changes no state. It
- * returns nothing that the public page does not show, and the same `null`
- * for an unknown or malformed code, a line that is gone, and an unpublished
- * or deleted article. A cleared row is read as an unknown code: the same
- * reads, and no article work. The text it returns is always the current
- * article's, never the stored quote, also before the article's clean-up has
- * run. An article past the size limits answers null.
+ * returns nothing that the public page does not show:
+ * - `exact` or `moved`: the line's current text and place;
+ * - `changed`: the article's address and no line, when the line occurs more
+ *   than once or is gone, including a cleared row inside its retention (no
+ *   text is searched for a cleared row);
+ * - the same `null`, at the same reads, for an unknown or malformed code, a
+ *   row the sweep deleted, and an unpublished or deleted article.
+ * The text it returns is always the current article's, never the stored
+ * quote, also before the article's clean-up has run. A live row whose
+ * article is past the size limits answers null.
  */
 export const resolve = query({
   args: { code: v.string() },
   returns: resolvedValidator,
   handler: async (ctx, args) => {
     const code = args.code.slice(0, 64).trim().toLowerCase()
-    const row = await ctx.db
+    const share = await ctx.db
       .query('shares')
       .withIndex('by_code', (q) => q.eq('code', code))
       .first()
-    // A cleared row answers exactly as an unknown code does.
-    const share = row && row.quote !== null ? row : null
     const article = share
       ? await ctx.db.get(share.articleId)
       : // The same read an existing code makes, with nothing to find.
@@ -515,13 +519,12 @@ export const resolve = query({
           .then(() => null)
     if (!share || !isPublic(article)) return null
 
-    const text = readShareable(article.content)
-    if (!text) return null
-    const { canonical, sentences, index } = text
-    const located = locate(share, article, text)
-    // Gone: `reconcileArticle` and `sweep` clear the row.
-    if (located.status === 'gone') return null
-
+    // A cleared row's line is gone; its article is not searched.
+    const text = share.quote === null ? null : readShareable(article.content)
+    if (share.quote !== null && !text) return null
+    // Gone (also before `reconcileArticle` or `sweep` cleared the row): the
+    // article, with no line.
+    const located = text ? locate(share, article, text) : null
     const author = await ctx.db.get(article.authorId)
     const username = author?.username ?? article.authorUsername
     const summary = {
@@ -531,9 +534,15 @@ export const resolve = query({
       writerName: author?.name ?? article.authorName ?? username,
       href: `/${username}/${article.slug}`,
     }
-    if (located.status === 'changed') {
+    if (
+      !text ||
+      !located ||
+      located.status === 'gone' ||
+      located.status === 'changed'
+    ) {
       return { status: 'changed' as const, article: summary, passage: null }
     }
+    const { canonical, sentences, index } = text
     const range = rangeOfSentences(sentences, located.from, located.to)!
     const identity = await identifyRange(
       String(article._id),

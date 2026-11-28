@@ -155,10 +155,9 @@ describe('10,000 copies of "5!" and 167-sentence quotes', () => {
     const [missMs, missed] = await timed(() =>
       w.t.query(api.shares.resolve, { code: codes[1]! })
     )
-    expect(missed).toBeNull()
+    expect(missed).toMatchObject({ status: 'changed', passage: null })
     expect(missMs).toBeLessThan(BUDGET_MS)
     const [sweep2Ms, swept2] = await timed(() => sweepStep(w))
-    // The clear that resolve scheduled may run first (real timers here).
     const { rechecked, cleared } = swept2 as {
       rechecked: number
       cleared: number
