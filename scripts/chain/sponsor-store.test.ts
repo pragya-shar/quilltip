@@ -686,6 +686,10 @@ describe('the order of checks', () => {
     vi.stubEnv('TOKEN_CONTRACT_ID', StrKey.encodeContract(Buffer.alloc(32, 22)))
     vi.stubEnv('SPONSOR_ACCOUNT_WASM_HASH', 'c5'.repeat(32))
     vi.stubEnv('SPONSOR_ACCOUNT_DEPLOYER', Keypair.random().publicKey())
+    vi.stubEnv(
+      'SPONSOR_ACCOUNT_VERIFIER',
+      StrKey.encodeContract(Buffer.alloc(32, 23))
+    )
     vi.stubEnv('SPONSOR_PUBLIC_KEY', Keypair.random().publicKey())
     vi.stubEnv('SPONSOR_SECRET', '')
     try {

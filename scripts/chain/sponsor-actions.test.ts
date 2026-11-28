@@ -197,6 +197,7 @@ const DEPLOY_PAYLOAD = {
   func: deploy.func,
   auth: deploy.auth,
   contractId: deploy.contractId,
+  signerKey: deploy.signerKey,
 }
 type T = ReturnType<typeof convexTest>
 
@@ -268,6 +269,7 @@ function env(over: Record<string, string | undefined> = {}) {
     TOKEN_CONTRACT_ID: TOKEN,
     SPONSOR_ACCOUNT_WASM_HASH: WASM,
     SPONSOR_ACCOUNT_DEPLOYER: deploy.deployer,
+    SPONSOR_ACCOUNT_VERIFIER: deploy.verifier,
     SPONSOR_PUBLIC_KEY: sponsorKey.publicKey(),
     SPONSOR_SECRET: sponsorKey.secret(),
     SPONSOR_DAILY_BUDGET_STROOPS: '20000000000',
@@ -523,6 +525,21 @@ describe('deploys take the same path as balance calls', () => {
     expect(pending!.txHash).toMatch(/^[0-9a-f]{64}$/)
   })
 
+  it('signs nothing for an account that is not born with the given passkey', async () => {
+    const { t } = await setup()
+    node.get = 'success'
+    const other = Buffer.from(deploy.signerKey, 'hex')
+    other[10] = other[10]! ^ 1
+    const r = await outcome(
+      t.action(internal.sponsor.deployAccount, {
+        ...DEPLOY_PAYLOAD,
+        signerKey: other.toString('hex'),
+      })
+    )
+    expect(r.code).toBe('SPONSOR_DEPLOY_REFUSED')
+    expect(node.sent).toEqual([])
+  })
+
   it('checks the budget before the secret is read', async () => {
     const { t } = await setup({
       SPONSOR_DAILY_BUDGET_STROOPS: '1000',
@@ -726,6 +743,48 @@ describe('nothing but codes in the log lines a public caller can receive', () =>
         JSON.stringify(f.args).includes('SPONSOR_LOW_BALANCE')
     )
     expect(JSON.stringify(detail?.args)).toContain('below the floor')
+  })
+
+  it('a missing or malformed verifier: not ready, deploy refused with a code only', async () => {
+    for (const verifier of [undefined, 'MARKER-not-a-contract']) {
+      const { t, as } = await setup({ SPONSOR_ACCOUNT_VERIFIER: verifier })
+      const lines = captureLogs()
+      expect(await t.action(internal.sponsor.checkReadiness, {})).toBeNull()
+      expect(await t.query(api.sponsorStore.passkeyTipAvailable, {})).toBe(
+        false
+      )
+      const d = await outcome(
+        t.action(internal.sponsor.deployAccount, DEPLOY_PAYLOAD)
+      )
+      expect(d.code).toBe('SPONSOR_CONFIG_INVALID')
+      expect(d.message).toBe('Sponsored calls are paused for now.')
+      expect((await outcome(prepare(as))).code).toBe('SPONSOR_CONFIG_INVALID')
+      const text = lines.join('\n')
+      expect(text).toContain('SPONSOR_CONFIG_INVALID')
+      expect(text).not.toMatch(/MARKER|SPONSOR_ACCOUNT_VERIFIER/)
+      expect(node.simulated).toEqual([])
+      expect(node.sent).toEqual([])
+      vi.restoreAllMocks()
+    }
+  })
+
+  it('with the sponsor off, a missing verifier is never read and the secret is never parsed', async () => {
+    const { t, as } = await setup({
+      SPONSOR_ENABLED: 'false',
+      SPONSOR_ACCOUNT_VERIFIER: undefined,
+      SPONSOR_SECRET: 'MARKER-secret',
+    })
+    const lines = captureLogs()
+    expect(await t.action(internal.sponsor.checkReadiness, {})).toBeNull()
+    expect(await t.query(api.sponsorStore.passkeyTipAvailable, {})).toBe(false)
+    const d = await outcome(
+      t.action(internal.sponsor.deployAccount, DEPLOY_PAYLOAD)
+    )
+    expect(d.code).toBe('SPONSOR_DISABLED')
+    expect((await outcome(prepare(as))).code).toBe('SPONSOR_DISABLED')
+    expect(lines.join('\n')).not.toMatch(/MARKER|SPONSOR_ACCOUNT_VERIFIER/)
+    expect(node.simulated).toEqual([])
+    expect(node.sent).toEqual([])
   })
 
   it('a simulation error under a classified code keeps its text out of the answer', async () => {

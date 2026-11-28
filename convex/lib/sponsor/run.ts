@@ -362,13 +362,26 @@ export async function runSubmit(
   )
 }
 
-/** Deploys a passkey account from the kit's `{ func, auth }`, after the allowlist checks. */
+/**
+ * Deploys a passkey account from a `{ func, auth }` payload, after the
+ * allowlist checks. `signerKey` is the verified passkey key the account must
+ * be born with (hex: public key, then credential id).
+ */
 export async function runDeploy(
   d: SponsorDeps,
-  payload: { func: string; auth: string[]; contractId: string },
+  payload: {
+    func: string
+    auth: string[]
+    contractId: string
+    signerKey: string
+  },
   hooks: SendHooks = {}
 ): Promise<Confirmed> {
-  if (!d.cfg.accountWasmHash || !d.cfg.accountDeployer) {
+  if (
+    !d.cfg.accountWasmHash ||
+    !d.cfg.accountDeployer ||
+    !d.cfg.accountVerifier
+  ) {
     refuse('SPONSOR_DEPLOY_DISABLED', 'Account creation is not configured.')
   }
   const { func, auth } = checkDeployPayload({
@@ -376,6 +389,8 @@ export async function runDeploy(
     auth: payload.auth,
     wasmHash: d.cfg.accountWasmHash,
     deployer: d.cfg.accountDeployer,
+    verifier: d.cfg.accountVerifier,
+    signerKey: payload.signerKey,
     expectedContractId: payload.contractId,
     passphrase: d.passphrase,
   })
