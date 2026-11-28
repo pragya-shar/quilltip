@@ -12,10 +12,9 @@
  *    teardown writes after sign-out is gone at the next one, in any order.
  * 3. While a sign-out runs, `isSigningOut()` is true, and a guard that
  *    sends a signed-out reader to sign in writes no return path
- *    (`signInHref`): the reader asked to leave, not to come back.
+ *    (`signInHref` in shell/signIn.ts): the reader asked to leave, not to
+ *    come back.
  */
-import { getSafeReturnPath } from '@/lib/auth/safeReturnPath'
-import { SIGN_IN_PATH } from '../navigation'
 import { forgetAllRememberedWallets } from '@/lib/wallet/remembered-wallet'
 import { hasAuthToken } from '../prePaint'
 import { runSignOutCleanups } from './index'
@@ -102,16 +101,4 @@ export async function signOutHere(
     target?.removeEventListener('pagehide', forget)
     signingOut = false
   }
-}
-
-/**
- * Where a guard sends a signed-out reader: the sign-in page (`SIGN_IN_PATH`)
- * with the way back, or with none while a sign-out runs.
- */
-export function signInHref(
-  returnPath: string,
-  storage: MarkerStorage | null = null
-): string {
-  if (isSigningOut(storage)) return SIGN_IN_PATH
-  return `${SIGN_IN_PATH}?returnTo=${encodeURIComponent(getSafeReturnPath(returnPath))}`
 }

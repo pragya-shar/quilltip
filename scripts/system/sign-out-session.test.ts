@@ -4,9 +4,9 @@ import {
   isSigningOut,
   markSignedIn,
   settleSignedOut,
-  signInHref,
   signOutHere,
 } from '@/shell/signOut/session'
+import { signInHref } from '@/shell/signIn'
 import { REMEMBERED_WALLET_PREFIX } from '@/lib/wallet/remembered-wallet'
 
 /** localStorage in memory. */
@@ -135,6 +135,8 @@ describe('signing out here', () => {
   it('writes no return path while signing out', async () => {
     const storage = memoryStorage({ [TOKEN]: 't', [SIGNED_IN_MARKER]: '1' })
     expect(signInHref('/shelf', storage)).toBe('/login?returnTo=%2Fshelf')
+    expect(signInHref()).toBe('/login')
+    expect(signInHref('https://evil.example/x')).toBe('/login?returnTo=%2F')
     let during = ''
     await signOutHere(async () => {
       during = signInHref('/shelf')
