@@ -380,6 +380,17 @@
     font-size: 15px;
     gap: 24px;
     min-height: 68px;
+    /* Seven sections do not fit a phone: the row scrolls inside itself, so
+       the page never scrolls sideways. */
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+  .account-nav::-webkit-scrollbar {
+    display: none;
+  }
+  .account-nav a {
+    flex: none;
   }
   .account-name {
     display: none;

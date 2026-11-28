@@ -79,6 +79,7 @@
   margin: 0;
   color: var(--account-ink);
   font-size: 18px;
+  overflow-wrap: anywhere;
 }
 .ops-review-scroll {
   overflow-x: auto;
@@ -107,4 +108,15 @@
 }
 .ops-review-flag {
   color: var(--account-wine);
+}
+/* Amounts and ledgers stay on one line; the table scrolls inside its box. */
+.ops-reserves-table {
+  min-width: 36rem;
+}
+.ops-reserves-table th,
+.ops-reserves-table td {
+  white-space: nowrap;
+}
+.ops-reserves-table td:nth-child(2) {
+  white-space: normal;
 }

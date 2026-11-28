@@ -9,6 +9,7 @@ import { analyticsServerKey } from '@/lib/analytics/config'
 import { NONCE_HEADER } from '@/lib/security/contentSecurityPolicy'
 import { SITE_META_DESCRIPTION } from '@/lib/copy/landing-sections'
 import { SITE_NAME, SITE_ORIGIN } from '@/lib/seo/siteMetadata'
+import { EARLY_MENU_SCRIPT } from '@/lib/navigation/earlyMenuScript'
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_ORIGIN),
@@ -24,7 +25,11 @@ export default async function RootLayout({
   // Reading the request renders every page per request. Next.js adds the CSP
   // nonce from proxy.ts to its scripts only while rendering, so a prerendered
   // page would carry scripts the policy blocks. The theme script needs the
-  // same nonce. See docs/security/content-security-policy.md.
+  // same nonce, as do the early-menu and early-submit scripts. They are
+  // not in <head>: an inline script there changes when Chrome runs the page's
+  // chunks (first paint about 0.9 s earlier, React about 0.9 s later on the
+  // slow phone profile; issue #554). See
+  // docs/security/content-security-policy.md.
   const nonce = (await headers()).get(NONCE_HEADER) ?? undefined
   return (
     <html lang="en" suppressHydrationWarning>
@@ -40,7 +45,7 @@ export default async function RootLayout({
         />
       </head>
       <body className="font-sans antialiased bg-background text-foreground">
-        <Providers nonce={nonce}>
+        <Providers nonce={nonce} earlyMenuScript={EARLY_MENU_SCRIPT}>
           {children}
           <PaymentsShell />
         </Providers>

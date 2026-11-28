@@ -6,6 +6,7 @@ import {
 } from '@/lib/articles/readingRoomListArgs'
 import { searchParamsRecordReader } from '@/lib/auth/safeReturnPath'
 import { getReadingRoomList } from '@/lib/seo/publicContent'
+import { retryHrefFor } from '@/components/articles/ReadingUnavailable'
 import { preloadUiFont } from '@/lib/fonts/preloadFonts'
 import { listArticleForClient } from '@/lib/articles/listArticleForClient'
 import '@/components/articles/reading-room.css'
@@ -21,12 +22,13 @@ export default async function ArticlesPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   preloadUiFont()
-  const params = searchParamsRecordReader(await searchParams)
+  const query = await searchParams
+  const params = searchParamsRecordReader(query)
   const args = readingRoomListArgs(params)
-  const list =
-    params.get('bookmarked') === '1'
-      ? undefined
-      : await getReadingRoomList(args)
+  // Bookmarks and search load in the browser by design; only the plain list
+  // is read here.
+  const readsOnServer = params.get('bookmarked') !== '1' && !args.search
+  const list = readsOnServer ? await getReadingRoomList(args) : undefined
   // Cards need each article's opening, not its whole body.
   const initialList =
     list &&
@@ -40,6 +42,11 @@ export default async function ArticlesPage({
       <ReadingRoomPage
         initialList={initialList}
         initialListKey={initialList ? readingRoomListKey(args) : undefined}
+        unavailableRetryHref={
+          readsOnServer && list === undefined
+            ? retryHrefFor('/articles', query)
+            : undefined
+        }
       />
     </ReadingRoomShell>
   )

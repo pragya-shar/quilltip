@@ -4,6 +4,7 @@ import * as React from 'react'
 import * as AlertDialogPrimitive from '@radix-ui/react-alert-dialog'
 
 import { cn } from '@/lib/utils'
+import { dialogFocusHandlers, useDialogFocusRefs } from './dialog-focus'
 import { buttonVariants } from '@/components/ui/button'
 
 const AlertDialog = AlertDialogPrimitive.Root
@@ -30,19 +31,34 @@ AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
->(({ className, ...props }, ref) => (
-  <AlertDialogPortal>
-    <AlertDialogOverlay />
-    <AlertDialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        'font-ui fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[var(--ui-radius)] translate-x-[-50%] translate-y-[-50%] gap-4 border border-ui-border text-ui-foreground bg-ui-surface p-6 shadow-ui duration-150 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-[var(--ui-radius)]',
-        className
-      )}
-      {...props}
-    />
-  </AlertDialogPortal>
-))
+>(
+  (
+    { className, onOpenAutoFocus, onCloseAutoFocus, onKeyDown, ...props },
+    ref
+  ) => {
+    const { content, opener, setRef } = useDialogFocusRefs(ref)
+    // Radix opens an alert dialog on its Cancel action; that stays.
+    const focus = dialogFocusHandlers(content, opener, {
+      onOpenAutoFocus,
+      onCloseAutoFocus,
+      onKeyDown,
+    })
+    return (
+      <AlertDialogPortal>
+        <AlertDialogOverlay />
+        <AlertDialogPrimitive.Content
+          ref={setRef}
+          {...focus}
+          className={cn(
+            'font-ui fixed left-[50%] top-[50%] z-50 grid w-[calc(100%-2rem)] max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-[var(--ui-radius)] translate-x-[-50%] translate-y-[-50%] gap-4 border border-ui-border text-ui-foreground bg-ui-surface p-6 shadow-ui duration-150 motion-safe:data-[state=open]:animate-in motion-safe:data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-[var(--ui-radius)]',
+            className
+          )}
+          {...props}
+        />
+      </AlertDialogPortal>
+    )
+  }
+)
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName
 
 const AlertDialogHeader = ({
@@ -79,7 +95,7 @@ const AlertDialogTitle = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Title
     ref={ref}
-    className={cn('text-lg font-semibold', className)}
+    className={cn('text-lg font-semibold focus:outline-none', className)}
     {...props}
   />
 ))
