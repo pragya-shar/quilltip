@@ -51,6 +51,9 @@ export const READING = {
   writerName: 'Fixture Writer',
   article: FIXTURE_ARTICLE_PATH,
   articleTitle: 'The Lamp on Orchard Street',
+  /** The landing page's reading link and how soon the keyboard reaches it. */
+  homeReadLink: /here to read/,
+  homeReadLinkTabStops: 8,
   /** A sentence from the article's body. */
   prose: 'came on every evening at a quarter past six',
   /** An unpublished article of the writer: its URL answers 404. */
@@ -120,6 +123,40 @@ async function check(page: Page, failures: string[], label: string) {
   await page.goto(BASE_URL + READING.home, { waitUntil: 'load' })
   if (!(await shown(page.locator(`a[href="${READING.list}"]`))))
     fail(`${READING.home} shows no link to ${READING.list}`)
+  // The landing page's reading link (#598): present, reached early by the
+  // keyboard, and it opens the article list.
+  const readLink = page.getByRole('link', { name: READING.homeReadLink })
+  if (!(await shown(readLink))) {
+    fail(`${READING.home} shows no link named "${READING.homeReadLink}"`)
+  } else {
+    if ((await readLink.first().getAttribute('href')) !== READING.list)
+      fail(`"${READING.homeReadLink}" does not lead to ${READING.list}`)
+    let presses = 0
+    while (presses < READING.homeReadLinkTabStops) {
+      await page.keyboard.press('Tab')
+      presses += 1
+      if (
+        await readLink
+          .first()
+          .evaluate((link) => link === document.activeElement)
+      )
+        break
+    }
+    if (
+      !(await readLink
+        .first()
+        .evaluate((link) => link === document.activeElement))
+    )
+      fail(
+        `"${READING.homeReadLink}" is not reached within ${READING.homeReadLinkTabStops} Tab presses`
+      )
+    await readLink.first().click()
+    await page
+      .waitForURL((url) => url.pathname === READING.list, { timeout: 20_000 })
+      .catch(() => {})
+    if (new URL(page.url()).pathname !== READING.list)
+      fail(`following "${READING.homeReadLink}" did not open ${READING.list}`)
+  }
 
   await page.goto(BASE_URL + READING.list, { waitUntil: 'load' })
   const articleLink = page.getByRole('link', { name: READING.articleTitle })
