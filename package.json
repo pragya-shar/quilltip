@@ -42,6 +42,7 @@
     "perf:font-fallbacks": "bun scripts/perf/font-fallback-check.ts",
     "perf:no-script-reading": "bun scripts/perf/no-script-reading.ts",
     "perf:slow-backend-reading": "bun scripts/perf/slow-backend-reading.ts",
+    "perf:prefetch-reads": "bun scripts/perf/prefetch-reads.ts",
     "perf:unpublish-refresh": "bun scripts/perf/unpublish-refresh.ts",
     "perf:first-load": "next experimental-analyze --output && bun scripts/perf/first-load-budget.ts",
     "contracts:deploy-v2": "bun scripts/contracts/deploy-v2-testnet.ts",

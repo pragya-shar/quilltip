@@ -162,6 +162,9 @@ jobs:
       - name: Check reading with a slow backend
         run: bun run perf:slow-backend-reading
 
+      - name: Check backend reads by link prefetches
+        run: bun run perf:prefetch-reads
+
       # An unpublished, replaced or moved article leaves the page at once
       # (scripts/perf/unpublish-refresh.ts).
       - name: Check that an unpublished article leaves the page
