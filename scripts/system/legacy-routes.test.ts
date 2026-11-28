@@ -93,10 +93,14 @@ describe('links from the shell to legacy pages never prefetch', () => {
     expect(shell.filter((segment) => !SHELL_SEGMENTS.has(segment))).toEqual([])
   })
 
-  it('sends every link in system/ and shell/ through AppLink', () => {
-    const files = execFileSync('git', ['ls-files', 'system', 'shell'], {
-      cwd: root,
-    })
+  it('sends every link in system/, shell/ and app/(app) through AppLink', () => {
+    const files = execFileSync(
+      'git',
+      ['ls-files', 'system', 'shell', 'app/(app)'],
+      {
+        cwd: root,
+      }
+    )
       .toString()
       .split('\n')
       .filter((file) => /\.tsx?$/.test(file))

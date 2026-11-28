@@ -222,6 +222,12 @@ surface edits only its own file; it never edits `proxy.ts`,
 - The tip control, menus, sheets and the payments runtime attach to text
   that is already there. They never wrap it.
 
+## Known bounds
+
+- A list of articles (Today's "More to read", a writer's page) can show a
+  hidden article's card for up to 60 seconds after it is hidden: the list
+  cache keeps it that long, until the cache is fixed on the backend.
+
 ## Signed-in routes need no server guard
 
 `app/(app)/(signed-in)/` has no server-side check, and needs none: no route

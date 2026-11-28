@@ -19,6 +19,10 @@ describe('/@handle', () => {
     )
     expect(at('/@tomas/ledger')).toBe('https://quilltip.example/tomas/ledger')
     expect(at('/%40tomas')).toBe('https://quilltip.example/tomas')
+    // A handle that starts like a reserved word is a writer: the proxy's
+    // matcher lets it through.
+    expect(at('/@apiary')).toBe('https://quilltip.example/apiary')
+    expect(at('/@Tomas')).toBe('https://quilltip.example/Tomas')
   })
 
   it('never leaves the site or reaches an application route', () => {

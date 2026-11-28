@@ -61,6 +61,16 @@ describe('reserved first path segments (lib/routing/segments)', () => {
         )
   })
 
+  it('compares segments as the handle rules do: exact, in lower case', () => {
+    expect(publicContentPath('/apiary')).toEqual({ username: 'apiary' })
+    expect(publicContentPath('/api-notes')).toEqual({ username: 'api-notes' })
+    // Reserved names are lower case; a handle is checked in lower case.
+    expect(handleFormatError('Shelf')).toBe('That handle is reserved.')
+    expect(handleFormatError('shelves')).toBeNull()
+    for (const segment of APP_ROUTE_SEGMENTS)
+      expect(segment, segment).toBe(segment.toLowerCase())
+  })
+
   it('reserves sign-in before its page ships', () => {
     expect(publicContentPath('/signin')).toBeNull()
     expect(publicContentPath('/signin/reset')).toBeNull()
