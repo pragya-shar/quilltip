@@ -5,6 +5,10 @@ import jsxA11yPlugin from 'eslint-plugin-jsx-a11y'
 import tseslint from 'typescript-eslint'
 import noBufferGlobal from './scripts/eslint/no-buffer-global.mjs'
 import oneComponentPerFile from './scripts/eslint/one-component-per-file.mjs'
+import { SURFACE_PACKAGES } from './scripts/eslint/surface-packages.mjs'
+
+const IMAGE_MESSAGE =
+  "Draw a person's image with Avatar from '@/system/components/Avatar' (allowed sources, no referrer). Other images need their own reviewed component."
 
 export default [
   {
@@ -75,19 +79,25 @@ export default [
       'app/(app)/**/*.{ts,tsx}',
       'system/**/*.{ts,tsx}',
       'shell/**/*.{ts,tsx}',
-      'components/{read,pocket,today,shelf,write,writer,search,you,signin,resources,ops}/**/*.{ts,tsx}',
+      `components/{${SURFACE_PACKAGES.join(',')}}/**/*.{ts,tsx}`,
     ],
     ignores: ['system/components/AppLink.tsx', 'system/components/Avatar.tsx'],
     rules: {
       // A person's image goes through Avatar, which accepts only this
       // deployment's storage or a same-site path and sends no referrer.
+      // Every way to draw an image from an address: an img, a picture or
+      // media source, an SVG image, one made in script, a CSS background.
       'no-restricted-syntax': [
         'error',
-        {
-          selector: "JSXOpeningElement[name.name='img']",
-          message:
-            "Draw a person's image with Avatar from '@/system/components/Avatar' (allowed sources, no referrer). Other images need their own reviewed component.",
-        },
+        ...[
+          "JSXOpeningElement[name.name='img']",
+          "JSXOpeningElement[name.name='source']",
+          "JSXOpeningElement[name.name='image']",
+          "CallExpression[callee.property.name='createElement'][arguments.0.value=/^(img|image|source)$/i]",
+          "JSXAttribute[name.name='style'] Property[key.name=/^(backgroundImage|listStyleImage|maskImage|borderImage)$/]",
+          "JSXAttribute[name.name='style'] Property[key.name=/^(background|content|listStyle|mask)$/] Literal[value=/url\\(/]",
+          "JSXAttribute[name.name='style'] Property[key.name=/^(background|content|listStyle|mask)$/] TemplateElement[value.raw=/url\\(/]",
+        ].map((selector) => ({ selector, message: IMAGE_MESSAGE })),
       ],
       'no-restricted-imports': [
         'error',
@@ -97,11 +107,8 @@ export default [
               name: 'zod',
               message: "Import { z } from '@/lib/zod' (CSP-safe settings).",
             },
-            {
-              name: 'next/image',
-              message:
-                "Draw a person's image with Avatar from '@/system/components/Avatar' (allowed sources, no referrer).",
-            },
+            { name: 'next/image', message: IMAGE_MESSAGE },
+            { name: 'next/legacy/image', message: IMAGE_MESSAGE },
             {
               name: 'next/link',
               importNames: ['default'],

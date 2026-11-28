@@ -42,8 +42,9 @@ export default function SampleReadingPage() {
               totals never added up to anything.
             </p>
             {/* One line within 0.1 percent of the measure at the desktop
-                reading size: a fallback face any wider wraps it to two, and
-                the font fallback check sees everything below it move. */}
+                reading size, for the fallback's calibration: in a fallback
+                face any wider it takes two lines. Nothing moves either way,
+                since a page view keeps the face it started in. */}
             <p>She set down each coin she gave, the name by it, in ink.</p>
             <p>
               <PassageMark state="others" count={9}>

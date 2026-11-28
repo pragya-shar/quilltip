@@ -2,6 +2,7 @@
 
 import { useId, useRef, type ReactNode } from 'react'
 import { cx } from '../cx'
+import { notePressClose } from '../pressGuard'
 import { useModal } from './useModal'
 
 type DialogProps = {
@@ -53,8 +54,10 @@ export function Dialog({
           role === 'dialog' &&
           scrimPress.current &&
           event.target === event.currentTarget
-        )
+        ) {
+          notePressClose()
           onClose()
+        }
         scrimPress.current = false
       }}
     >

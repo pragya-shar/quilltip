@@ -18,11 +18,12 @@ import { useSheets } from './useSheets'
  * the current page (a sheet on a phone, a panel on a desktop).
  *
  * Its label sits in a fixed slot (86 px), the same width in every state:
- * - before auth is known, as the server sends it and with no script: "Sign
- *   in", a real link to sign in (with no script nobody can be signed in);
- *   when the pre-paint script found a session token (`data-session` on
- *   <html>), it shows "Balance" instead, so a signed-in person never sees
- *   "Sign in" flash;
+ * - before auth is known, as the server sends it and with no script: two
+ *   links, and the pre-paint marker shows one. "Sign in", a real link to
+ *   sign in (with no script nobody can be signed in); when the pre-paint
+ *   script found a session token (`data-session` on <html>), "Balance", a
+ *   link to /pocket, so a signed-in person never sees "Sign in" flash, and a
+ *   press before the scripts run opens their balance, not the sign-in page;
  * - signed out: "Sign in";
  * - signed in: the amount ("≈ $18.40" when it is a conversion), or
  *   "Balance" while it loads or when payments cannot answer.
@@ -47,11 +48,14 @@ export function BalanceItem({ className }: { className: string }) {
   // Once auth answers, the marker the pre-paint script set from a stored
   // token follows the answer: what shows before auth (this item's word, the
   // /pocket page's prompt or balance) is right after it too.
+  // Before it answers, a held token sets it as the pre-paint script does,
+  // where none ran.
   useEffect(() => {
     const root = document.documentElement
-    if (reading.auth === 'signed-in') root.setAttribute(SESSION_ATTR, 'held')
+    if (reading.auth === 'signed-in' || (reading.auth === 'loading' && held))
+      root.setAttribute(SESSION_ATTR, 'held')
     else if (reading.auth === 'signed-out') root.removeAttribute(SESSION_ATTR)
-  }, [reading.auth])
+  }, [reading.auth, held])
   const open = useSheets().some((entry) => entry.id === 'pocket' && entry.open)
   const unknown = reading.auth === 'loading'
   const signedOut = reading.auth === 'signed-out'
@@ -68,17 +72,59 @@ export function BalanceItem({ className }: { className: string }) {
     ? 'Sign in'
     : words
       ? `Balance, ${words}. Open balance`
-      : unknown
-        ? undefined
-        : 'Balance. Open balance'
+      : 'Balance. Open balance'
+  if (unknown) {
+    // Both links, switched by the pre-paint marker (shell/shell.css).
+    return (
+      <span className="qt-balance-switch" data-session-switch="">
+        <a
+          href={POCKET.signIn}
+          className={className}
+          data-balance=""
+          data-when="signed-out"
+        >
+          <Icon icon={BalanceIcon} size={24} />
+          <span className="qt-nav__label qt-balance-slot">Sign in</span>
+        </a>
+        <a
+          href={POCKET.href}
+          className={className}
+          data-balance=""
+          data-when="held"
+          aria-label="Balance. Open balance"
+          aria-haspopup="dialog"
+          aria-expanded={open}
+          onPointerEnter={warmPocket}
+          onFocus={warmPocket}
+          onClick={(event) => {
+            if (
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.altKey
+            )
+              return
+            // A session token is held: the balance opens and waits there,
+            // neutral, until auth answers.
+            if (!held) return
+            event.preventDefault()
+            sheetStack.toggle('pocket')
+          }}
+        >
+          <Icon icon={BalanceIcon} size={24} />
+          <span className="qt-nav__label qt-balance-slot">Balance</span>
+        </a>
+      </span>
+    )
+  }
   return (
     <a
-      href={signedOut || (unknown && !held) ? POCKET.signIn : POCKET.href}
+      href={signedOut ? POCKET.signIn : POCKET.href}
       className={className}
       data-balance=""
       aria-label={label}
-      aria-haspopup={signedOut || (unknown && !held) ? undefined : 'dialog'}
-      aria-expanded={signedOut || (unknown && !held) ? undefined : open}
+      aria-haspopup={signedOut ? undefined : 'dialog'}
+      aria-expanded={signedOut ? undefined : open}
       onPointerEnter={signedOut ? undefined : warmPocket}
       onFocus={signedOut ? undefined : warmPocket}
       onClick={(event) => {
@@ -89,19 +135,13 @@ export function BalanceItem({ className }: { className: string }) {
           if (openSignIn()) event.preventDefault()
           return
         }
-        if (unknown && !held) return
         event.preventDefault()
         sheetStack.toggle('pocket')
       }}
     >
       <Icon icon={BalanceIcon} size={24} />
       <span className="qt-nav__label qt-balance-slot">
-        {unknown ? (
-          <>
-            <span data-when="signed-out">Sign in</span>
-            <span data-when="held">Balance</span>
-          </>
-        ) : signedOut ? (
+        {signedOut ? (
           'Sign in'
         ) : parts ? (
           <span aria-hidden="true">

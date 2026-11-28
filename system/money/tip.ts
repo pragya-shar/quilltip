@@ -50,6 +50,16 @@ export function buttonAmount(
 }
 
 /**
+ * How long the button ignores presses after the phase becomes this one, in
+ * ms. A refusal or a short balance turns the button into another action
+ * (Try again, Add money): the second tap of a double tap that sent the
+ * first must not start it.
+ */
+export function pressHoldAfter(phase: TipControlPhase['phase']): number {
+  return phase === 'failed' || phase === 'needs-funds' ? 500 : 0
+}
+
+/**
  * Whether the reader may choose the amount in this phase: only where the
  * button's amount is the chosen one (`buttonAmount` reads it). In every
  * other phase the amount is the phase's own, so the amount control is not

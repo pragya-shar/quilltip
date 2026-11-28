@@ -10,6 +10,7 @@ import {
   type LegacyRouteTree,
 } from '@/lib/routing/legacyRoutes'
 import { legacyRouteTree } from '@/lib/routing/legacyRouteTree'
+import { SURFACE_PACKAGES } from '../eslint/surface-packages.mjs'
 import { RESERVED_SEGMENTS } from '@/lib/routing/segments'
 
 const root = path.resolve(__dirname, '../..')
@@ -122,19 +123,7 @@ describe('links from the shell to legacy pages never prefetch', () => {
 
   it('sends every link of the shell and its surfaces through AppLink', () => {
     // The same places as the lint rule in eslint.config.mjs.
-    const surfaces = [
-      'read',
-      'pocket',
-      'today',
-      'shelf',
-      'write',
-      'writer',
-      'search',
-      'you',
-      'signin',
-      'resources',
-      'ops',
-    ].map((name) => `components/${name}`)
+    const surfaces = SURFACE_PACKAGES.map((name) => `components/${name}`)
     const files = execFileSync(
       'git',
       ['ls-files', 'system', 'shell', 'app/(app)', ...surfaces],

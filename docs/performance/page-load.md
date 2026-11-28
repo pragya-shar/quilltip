@@ -794,25 +794,34 @@ regressions, not as the measured result.
 ### Font fallback check
 
 `bun run perf:font-fallbacks` (`scripts/perf/font-fallback-check.ts`) uses the
-same build and fixture backend as `perf:budget`. For `/`, `/login`,
-`/articles`, the article page and `/guide`, in Chromium and WebKit, at 375 and
-1440 px, it loads the page twice: once with every font request blocked, so
-text stays in the fallback faces, and once with the web fonts loaded. It
-fails when:
+same build and fixture backend as `perf:budget`. For the legacy routes and
+every package's `fontFallback` route, in Chromium and WebKit, at 375 and
+1440 px, it loads each page three ways: with every font request blocked, so
+text stays in the fallback faces; with the web fonts in the cache, so the
+view paints in them; and with the font responses held back 5 s, past the
+block period, comparing the layout before and after they arrive in the same
+page view. It fails when:
 
 1. a text element names a fallback family (`... Fallback`) that has no font
    face for its weight;
 2. for a font (family, weight and style) set in a fallback stack, the page's
-   text in that font is more than 7% wider or narrower in the fallback face.
-   Each element's width is the sum of its line pieces, so it does not depend
-   on where lines break, and fonts with fewer than 30 characters on the page
-   are skipped;
-3. a heading (`h1` to `h3`) anywhere on the page changes its height, that is
-   its number of lines;
-4. on the first 1.5 screens, the 90th percentile of the text blocks' vertical
-   movement is over 4 px. Positions are layout positions (`offsetTop`), so
+   text in that font is more than 7% wider or narrower in the fallback face
+   (2.5% for the reading faces' fallbacks), blocked against cached. Each
+   element's width is the sum of its line pieces, so it does not depend on
+   where lines break, and fonts with fewer than 30 characters on the page
+   are skipped. It is a calibration figure for the face, not a rule for
+   any one line;
+3. a heading (`h1` to `h3`) changes its height, that is its number of lines,
+   when the late fonts arrive;
+4. on the first 1.5 screens, text blocks move when the late fonts arrive: by
+   more than 0 px on the shell's routes, whose reading faces use
+   `font-display: optional` (a view that started in the fallback stays in
+   it), and by more than 4 px at the 90th percentile on the legacy routes,
+   whose faces swap. Positions are layout positions (`offsetTop`), so
    transforms and animations do not count. One case is exempt, by name, with
-   its reason: `/guide` at 375 px (below).
+   its reason: `/guide` at 375 px (below). On the shell's routes the same
+   holds for a first view with the roman face on time and the italic faces
+   late (only the roman file is preloaded), reported on its own line.
 
 Rule 2 is what the faces control. On the fixture build, over 13 routes in
 three engines, matched faces measured 0.985 to 1.051. A face matched to the

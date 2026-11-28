@@ -4,7 +4,9 @@
  * an image from anywhere would tell its host every reader's address and the
  * time of each visit. So an avatar shows only an image this deployment
  * stores (its file storage: the backend's origin, under `/api/storage/`) or
- * a same-site path; anything else draws initials.
+ * a file under one of this site's own image paths (`sitePaths`); anything
+ * else draws initials. Never `/_next/` (the image optimiser fetches any
+ * address it is given) or `/api/`.
  *
  * The seam: when the article view's `safeImageSrc(value, sources)`
  * (lib/tiptap/sanitizeReadingDoc.ts) and the shared host list
@@ -18,6 +20,8 @@ export type AvatarSources = {
   storageOrigin: string | null
   /** The storage path every stored file sits under. */
   storagePath: string
+  /** This site's own image paths, from public/. */
+  sitePaths: readonly string[]
 }
 
 function originOf(value: string | undefined): string | null {
@@ -35,12 +39,14 @@ function originOf(value: string | undefined): string | null {
 export const AVATAR_SOURCES: AvatarSources = {
   storageOrigin: originOf(process.env.NEXT_PUBLIC_CONVEX_URL),
   storagePath: '/api/storage/',
+  sitePaths: ['/images/', '/prototype/'],
 }
 
 /**
- * The address to draw, or null to draw initials: a same-site path (one
- * leading slash, no backslash), or an address in this deployment's storage.
- * Never a data, blob or javascript address; never another host.
+ * The address to draw, or null to draw initials: a file under one of this
+ * site's image paths (after `..` and encoded dots are resolved, with no
+ * query), or an address in this deployment's storage. Never a data, blob or
+ * javascript address; never another host.
  */
 export function avatarSrc(
   value: string | null | undefined,
@@ -48,7 +54,19 @@ export function avatarSrc(
 ): string | null {
   const raw = value?.trim()
   if (!raw || /[\\\s]/.test(raw)) return null
-  if (raw.startsWith('/') && !raw.startsWith('//')) return raw
+  if (raw.startsWith('/') && !raw.startsWith('//')) {
+    let path: URL
+    try {
+      path = new URL(raw, 'https://site.invalid')
+    } catch {
+      return null
+    }
+    if (path.origin !== 'https://site.invalid' || path.search) return null
+    const pathname = path.pathname
+    return sources.sitePaths.some((prefix) => pathname.startsWith(prefix))
+      ? pathname
+      : null
+  }
   let url: URL
   try {
     url = new URL(raw)

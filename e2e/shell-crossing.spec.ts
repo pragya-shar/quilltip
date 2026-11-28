@@ -82,6 +82,36 @@ test('before scripts run, a held session shows Balance, never Sign in, at the sa
   expect(held!.width).toBe(signedOut!.width)
 })
 
+test('before scripts run, a press on the balance item goes where the marker says', async ({
+  page,
+}) => {
+  // The app's scripts are held back until after the press, as on a slow
+  // phone: only the server HTML and the pre-paint script have run.
+  await page.route('**/_next/static/chunks/**', (route) =>
+    route.request().resourceType() === 'script'
+      ? route.abort()
+      : route.continue()
+  )
+  const item = page
+    .getByRole('navigation', { name: 'Main' })
+    .locator('[data-balance]:visible')
+  // A held session token: the balance, not the sign-in page.
+  await page.goto('/system/reading')
+  await page.evaluate(() =>
+    localStorage.setItem('__convexAuthJWT_test', 'held')
+  )
+  await page.goto('/shelf')
+  await expect(item).toHaveCount(1)
+  await item.click()
+  await expect(page).toHaveURL(/\/pocket$/)
+  // No token: the sign-in page.
+  await page.evaluate(() => localStorage.clear())
+  await page.goto('/shelf')
+  await expect(item).toHaveCount(1)
+  await item.click()
+  await expect(page).toHaveURL(/\/(login|signin)/)
+})
+
 test('the first tap after a full page load is never lost', async ({ page }) => {
   // A same-origin full load (a reload, or a crossing from the legacy pages),
   // then a press at once where the balance item is drawn, with no wait for
