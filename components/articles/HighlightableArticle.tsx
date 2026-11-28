@@ -16,12 +16,12 @@ import {
 } from '@tiptap/react'
 import StarterKit from '@tiptap/starter-kit'
 import Underline from '@tiptap/extension-underline'
-import Link from '@tiptap/extension-link'
 import CodeBlockLowlight from '@tiptap/extension-code-block-lowlight'
 import { lowlight } from '@/lib/lowlight'
 import { ResizableImage } from '@/components/editor/extensions/ResizableImage'
 import HighlightExtension from '@/components/editor/extensions/HighlightExtension'
 import { EditorKeymap } from '@/components/editor/extensions/EditorKeymap'
+import { createArticleLinkExtension } from '@/lib/tiptap/articleLink'
 import { createYoutubeExtension } from '@/lib/tiptap/youtubeExtension'
 import { HighlightConverter } from '@/lib/highlights/HighlightConverter'
 import { TextSelection } from '@tiptap/pm/state'
@@ -233,9 +233,7 @@ export function HighlightableArticle({
           underline: false,
         }),
         Underline,
-        Link.configure({
-          openOnClick: false,
-        }),
+        createArticleLinkExtension({ openOnClick: false }),
         CodeBlockLowlight.configure({
           lowlight,
         }),
