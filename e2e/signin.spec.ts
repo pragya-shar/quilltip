@@ -179,12 +179,17 @@ test('the first open draws the sheet with its form in the same frame', async ({
         form: boolean
         busy: boolean
         pressed: boolean
+        afterPress: boolean
       }[]
       __watch: () => void
     }
     w.__frames = []
     w.__watch = () => {
       const tip = document.querySelector('[data-fixture="tip-button"]')!
+      let pressedYet = false
+      document.addEventListener('pointerdown', () => (pressedYet = true), {
+        capture: true,
+      })
       const tick = () => {
         const dialog = document.querySelector('dialog[open]')
         w.__frames.push({
@@ -192,6 +197,7 @@ test('the first open draws the sheet with its form in the same frame', async ({
           form: Boolean(dialog?.querySelector('input[name="email"]')),
           busy: Boolean(dialog?.querySelector('[aria-busy="true"]')),
           pressed: tip.matches(':active') || tip.hasAttribute('data-opening'),
+          afterPress: pressedYet,
         })
         if (w.__frames.length < 90) requestAnimationFrame(tick)
       }
@@ -214,6 +220,7 @@ test('the first open draws the sheet with its form in the same frame', async ({
             form: boolean
             busy: boolean
             pressed: boolean
+            afterPress: boolean
           }[]
         }
       ).__frames
@@ -221,13 +228,15 @@ test('the first open draws the sheet with its form in the same frame', async ({
   const at = frames.findIndex((frame) => frame.open)
   expect(frames[at]).toMatchObject({ open: true, form: true, busy: false })
   expect(frames.some((frame) => frame.busy)).toBe(false)
-  // From the press to the sheet's first frame, the button looks pressed;
-  // once the sheet is drawn, the mark is gone.
-  const pressedFrom = frames.findIndex((frame) => frame.pressed)
-  expect(pressedFrom).toBeGreaterThanOrEqual(0)
-  expect(frames.slice(pressedFrom, at).every((frame) => frame.pressed)).toBe(
-    true
-  )
+  // Every frame drawn after the press and before the sheet shows the
+  // button pressed (there may be none: the code often arrives within the
+  // frame); once the sheet is drawn, the mark is gone.
+  expect(
+    frames
+      .slice(0, at)
+      .filter((frame) => frame.afterPress)
+      .every((frame) => frame.pressed)
+  ).toBe(true)
   await expect(tipButton(page)).not.toHaveAttribute('data-opening')
 })
 
