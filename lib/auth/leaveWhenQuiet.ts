@@ -16,9 +16,21 @@
 export const QUIET_WAIT_MS = 2_000
 export const PROBE_EVERY_MS = 25
 
+/**
+ * Set on every probe, so a listener can tell a probe from a real unload.
+ * A probe is a real event to every `beforeunload` listener on the page, up
+ * to QUIET_WAIT_MS / PROBE_EVERY_MS times: a listener with side effects (a
+ * save, a beacon) must not be on a page that uses this, or must return
+ * early for an event that has this property. On /signin today the only
+ * listeners are the backend client's request guard and the auth library's
+ * refresh guard, which only look.
+ */
+export const UNLOAD_PROBE = 'quilltipUnloadProbe'
+
 /** Whether an unload now would be warned about, by any listener. */
 export function wouldWarn(target: EventTarget): boolean {
   const probe = new Event('beforeunload', { cancelable: true })
+  Object.defineProperty(probe, UNLOAD_PROBE, { value: true })
   target.dispatchEvent(probe)
   return probe.defaultPrevented
 }

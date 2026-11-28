@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest'
-import { leaveWhenQuiet, wouldWarn } from '@/lib/auth/leaveWhenQuiet'
+import {
+  UNLOAD_PROBE,
+  leaveWhenQuiet,
+  wouldWarn,
+} from '@/lib/auth/leaveWhenQuiet'
 
 /** A page with an unload guard that warns while `busy()` is true. */
 function pageWithGuard(busy: () => boolean) {
@@ -52,5 +56,16 @@ describe('leaving the sign-in page', () => {
     const target = pageWithGuard(() => true)
     expect(wouldWarn(target)).toBe(true)
     expect(wouldWarn(target)).toBe(true)
+  })
+
+  it('marks each probe, so a listener can tell it from a real unload', () => {
+    const target = new EventTarget()
+    const seen: boolean[] = []
+    target.addEventListener('beforeunload', (event) =>
+      seen.push(UNLOAD_PROBE in event)
+    )
+    wouldWarn(target)
+    target.dispatchEvent(new Event('beforeunload', { cancelable: true }))
+    expect(seen).toEqual([true, false])
   })
 })

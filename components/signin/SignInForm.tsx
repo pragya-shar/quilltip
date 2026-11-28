@@ -98,6 +98,9 @@ export function SignInForm({
   })
   // A press before the page script runs is held, then sent once from here.
   const early = useEarlySubmit('signin')
+  // Signed in and handed over: the status stays (the page may still wait a
+  // moment before it leaves; the form never comes back idle).
+  const [handedOver, setHandedOver] = useState(false)
   const done = useRef(onSignedIn)
   useEffect(() => {
     done.current = onSignedIn
@@ -107,11 +110,11 @@ export function SignInForm({
   // (each bounded in time, none able to hold the person), anything they say
   // is shown, and the caller takes over.
   useEffect(() => {
-    if (!waiting || phase !== 'signed-in') return
+    if (!waiting || handedOver || phase !== 'signed-in') return
     let live = true
     void runAfterSignIn().then((notices) => {
       if (!live) return
-      setWaiting(false)
+      setHandedOver(true)
       done.current()
       // A notice never covers the sign-in sheet: it waits for it to close.
       afterSignInSheet(() => {
@@ -121,10 +124,10 @@ export function SignInForm({
     return () => {
       live = false
     }
-  }, [waiting, phase])
+  }, [waiting, handedOver, phase])
   // Not confirmed in time: say so, and let them try again.
   useEffect(() => {
-    if (!waiting) return
+    if (!waiting || handedOver) return
     const id = window.setTimeout(() => {
       signInSession.settle()
       setWaiting(false)
@@ -133,7 +136,7 @@ export function SignInForm({
       )
     }, CONFIRM_MS)
     return () => window.clearTimeout(id)
-  }, [waiting])
+  }, [waiting, handedOver])
   useEffect(() => {
     if (formError) focusDestination(notice.current)
   }, [formError])
@@ -208,9 +211,11 @@ export function SignInForm({
           tabIndex={-1}
           role="status"
         >
-          {mode === 'create'
-            ? 'Account created. Signing you in…'
-            : 'Signing you in…'}
+          {handedOver
+            ? 'Signed in. Taking you back…'
+            : mode === 'create'
+              ? 'Account created. Signing you in…'
+              : 'Signing you in…'}
         </p>
       ) : null}
       {/* method="post" keeps an email and password out of the address if
