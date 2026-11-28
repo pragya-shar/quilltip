@@ -26,3 +26,16 @@ export function useAuth() {
       }
     : { user: null, isAuthenticated: false, isLoading: false }
 }
+
+// Other reader hooks import these; the fixture has no lists to page.
+export function useQueries() {
+  return {}
+}
+export function usePaginatedQuery() {
+  return {
+    results: [],
+    status: 'Exhausted' as const,
+    isLoading: false,
+    loadMore: () => {},
+  }
+}
