@@ -13,6 +13,7 @@ import {
   MORE_LIMIT,
   WINDOW_MS,
   cleanExclude,
+  compareForWindow,
   firstSentence,
   minutesLeft,
   openingOf,
@@ -38,9 +39,12 @@ const body = (count: number, sentences = 3, tag = '') => ({
   ),
 })
 
-/** Day 1000 since the epoch, at 07:00 UTC: inside the 06:00 window. */
+/** Day 1000 since the epoch, at 07:00 UTC: the start of the 07:00 window. */
 const NOW = 1000 * 24 * 60 * 60 * 1000 + 7 * 60 * 60 * 1000
 const HOUR = 60 * 60 * 1000
+const MINUTE = 60 * 1000
+/** Half past seven, inside the 07:00 window, for articles of that hour. */
+const HALF_PAST = NOW + 30 * MINUTE
 
 async function writer(ctx: MutationCtx, username: string, name?: string) {
   return ctx.db.insert('users', {
@@ -239,81 +243,129 @@ describe('today.opening', () => {
     }
   })
 
-  test('an article published during the day follows the day’s order, and the opening holds', async () => {
+  test('an article from the current hour follows the hour’s order, and the opening holds', async () => {
     const t = convexTest(schema, modules)
     const [older] = await catalogue(t, 1)
     const fresh = await t.run(async (ctx) => {
       const authorId = await writer(ctx, 'fresh')
-      return article(
-        ctx,
-        authorId,
-        'fresh',
-        'fresh',
-        windowOf(NOW).startsAt + 1
-      )
+      return article(ctx, authorId, 'fresh', 'fresh', HALF_PAST - 10 * MINUTE)
     })
-    const now = await t.query(api.today.opening, { at: NOW })
+    const now = await t.query(api.today.opening, { at: HALF_PAST })
     expect(now.opening!.articleId).toBe(older)
     expect(now.more.map((m) => m.articleId)).toEqual([fresh])
-    // Later the same day: the same opening.
-    const later = await t.query(api.today.opening, { at: NOW + 10 * HOUR })
+    // Later in the same hour: the same opening.
+    const later = await t.query(api.today.opening, {
+      at: HALF_PAST + 29 * MINUTE,
+    })
     expect(later.opening!.articleId).toBe(older)
   })
 
-  test('a catalogue whose every article is from today opens on its newest', async () => {
+  test('a catalogue whose every article is from the current hour opens on its newest', async () => {
     const t = convexTest(schema, modules)
-    const start = windowOf(NOW).startsAt
+    const start = windowOf(HALF_PAST).startsAt
     const [first, second, third] = await t.run(async (ctx) => {
       const ids: Id<'articles'>[] = []
       for (const [i, at] of [
-        start + 1,
-        start + 2 * HOUR,
-        start + 3 * HOUR,
+        start,
+        start + 10 * MINUTE,
+        start + 20 * MINUTE,
       ].entries()) {
-        const authorId = await writer(ctx, `today${i}`)
-        ids.push(await article(ctx, authorId, `today${i}`, `t${i}`, at))
+        const authorId = await writer(ctx, `hour${i}`)
+        ids.push(await article(ctx, authorId, `hour${i}`, `h${i}`, at))
       }
       return ids
     })
-    const result = await t.query(api.today.opening, { at: NOW })
+    const result = await t.query(api.today.opening, { at: HALF_PAST })
     expect(result.opening!.articleId).toBe(third)
     expect(result.more.map((m) => m.articleId)).toEqual([second, first])
   })
 
+  test('a catalogue from today but an earlier hour opens in the hour’s order', async () => {
+    const t = convexTest(schema, modules)
+    const start = windowOf(HALF_PAST).startsAt
+    const ids = await t.run(async (ctx) => {
+      const ids: Id<'articles'>[] = []
+      for (let i = 0; i < 4; i++) {
+        const authorId = await writer(ctx, `early${i}`)
+        ids.push(
+          await article(
+            ctx,
+            authorId,
+            `early${i}`,
+            `e${i}`,
+            start - (i + 1) * HOUR
+          )
+        )
+      }
+      return ids
+    })
+    const result = await t.query(api.today.opening, { at: HALF_PAST })
+    const order = [...ids].sort(compareForWindow(windowOf(HALF_PAST).index))
+    expect([
+      result.opening!.articleId,
+      ...result.more.map((m) => m.articleId),
+    ]).toEqual(order)
+  })
+
+  test('at the hour boundary an article of the past hour joins the hour’s order', async () => {
+    const t = convexTest(schema, modules)
+    const [older] = await catalogue(t, 1)
+    const nextHour = windowOf(HALF_PAST).endsAt
+    const fresh = await t.run(async (ctx) => {
+      const authorId = await writer(ctx, 'fresh')
+      return article(ctx, authorId, 'fresh', 'fresh', HALF_PAST)
+    })
+    // The last moment of the hour: the opening held, the new article after it.
+    const before = await t.query(api.today.opening, { at: nextHour - 1 })
+    expect(before.opening!.articleId).toBe(older)
+    expect(before.more.map((m) => m.articleId)).toEqual([fresh])
+    // The first moment of the next hour: both are in that hour's order.
+    const after = await t.query(api.today.opening, { at: nextHour })
+    const order = [older, fresh].sort(
+      compareForWindow(windowOf(nextHour).index)
+    )
+    expect([
+      after.opening!.articleId,
+      ...after.more.map((m) => m.articleId),
+    ]).toEqual(order)
+  })
+
   test('an article published after the moment rendered is not shown yet', async () => {
     const t = convexTest(schema, modules)
-    const start = windowOf(NOW).startsAt
+    const start = windowOf(HALF_PAST).startsAt
     const [early, late] = await t.run(async (ctx) => {
       const a = await writer(ctx, 'early')
       const b = await writer(ctx, 'late')
       return [
         await article(ctx, a, 'early', 'early', start + 1),
-        await article(ctx, b, 'late', 'late', NOW + 1),
+        await article(ctx, b, 'late', 'late', HALF_PAST + 1),
       ]
     })
-    const now = await t.query(api.today.opening, { at: NOW })
+    const now = await t.query(api.today.opening, { at: HALF_PAST })
     expect(now.opening!.articleId).toBe(early)
     expect(now.more).toEqual([])
-    const after = await t.query(api.today.opening, { at: NOW + 1 })
+    const after = await t.query(api.today.opening, { at: HALF_PAST + 1 })
     expect(after.opening!.articleId).toBe(late)
   })
 
-  test('a finished article from today moves to the back like any other', async () => {
+  test('an opened article from the current hour moves to the back like any other', async () => {
     const t = convexTest(schema, modules)
-    const start = windowOf(NOW).startsAt
+    const start = windowOf(HALF_PAST).startsAt
     const [older, newer] = await t.run(async (ctx) => {
       const a = await writer(ctx, 'older')
       const b = await writer(ctx, 'newer')
       return [
         await article(ctx, a, 'older', 'older', start + 1),
-        await article(ctx, b, 'newer', 'newer', start + HOUR),
+        await article(ctx, b, 'newer', 'newer', start + 10 * MINUTE),
       ]
     })
     const result = await t.query(api.today.opening, {
-      at: NOW,
+      at: HALF_PAST,
       exclude: [newer],
     })
     expect(result.opening!.articleId).toBe(older)
+    // A skipped article does not fill the list once another opens.
+    expect(result.more).toEqual([])
   })
 
   test('a finished article is skipped while another exists', async () => {

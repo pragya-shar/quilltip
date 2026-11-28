@@ -8,12 +8,14 @@ const MINUTE_MS = 60_000
 
 /**
  * Seconds the answer for a reader with no skip list may be reused. The
- * opening changes once per UTC day; this short reuse bounds how long an
+ * opening changes once per UTC hour; this short reuse bounds how long an
  * unpublished article can stay on Today (60 s) and spares the backend a
- * round trip on most requests. A newly published article joins the
- * candidates on the next UTC day. Only answers are stored: a failed read
- * throws inside, and a late one is cut off outside, so "unreachable" is
- * never cached.
+ * round trip on most requests. The key stays the minute, not the hour:
+ * the hour's own articles are read up to the moment rendered, so a newly
+ * published article shows within a minute when the list has room (or opens
+ * Today when nothing older exists), and joins the hour's order at the next
+ * UTC hour. Only answers are stored: a failed read throws inside, and a
+ * late one is cut off outside, so "unreachable" is never cached.
  */
 const REUSE_SECONDS = 60
 

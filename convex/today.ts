@@ -148,8 +148,8 @@ export const opening = query({
     // Enough writers for the opening and the list, plus some skipped ones
     // (at most 20 count toward the read; the rest only reorder).
     const wanted = 1 + MORE_LIMIT + Math.min(skip.size, SKIP_READ_LIMIT)
-    // Articles published before this day began come first, in the day's
-    // order, so the opening holds all day once one exists.
+    // Articles published before this hour began come first, in the hour's
+    // order, so the opening holds for the hour once one exists.
     const before = new Map<string, Candidate>()
     const used = await candidates(
       ctx,
@@ -162,9 +162,9 @@ export const opening = query({
     const ranked = [...before.values()].sort((a, b) =>
       compare(a.article._id, b.article._id)
     )
-    // Too few: the day's own articles, up to `at`, follow, newest first, so
-    // a catalogue whose every article is from today is never empty. On the
-    // first day the newest article opens Today.
+    // Too few: the hour's own articles, up to `at`, follow, newest first, so
+    // Today is never empty while an eligible article is published. In an
+    // hour with no older article, the newest opens Today.
     if (before.size < wanted && used < CANDIDATE_PAGES) {
       const today = new Map(before)
       await candidates(

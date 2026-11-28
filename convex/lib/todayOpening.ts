@@ -3,21 +3,21 @@
  * query and its tests share them. The rule and its reasons are written down
  * in docs/architecture/v3/today-opening.md.
  *
- * In short: a daily rotation among the writers with the most recent
- * eligible articles. Time is cut into windows of WINDOW_MS (one UTC day).
+ * In short: an hourly rotation among the writers with the most recent
+ * eligible articles. Time is cut into windows of WINDOW_MS (one UTC hour).
  * The candidates are the newest eligible article of each writer, read from
- * the newest articles published before the day began, until enough writers
+ * the newest articles published before the hour began, until enough writers
  * are found (at most 200 articles read). Each candidate gets a score from a
- * hash of (day, article id); the lowest opens Today, the next ones are "More
- * to read". When too few are found, the day's own articles follow, newest
+ * hash of (hour, article id); the lowest opens Today, the next ones are "More
+ * to read". When too few are found, the hour's own articles follow, newest
  * first, so Today is empty only when nothing eligible is published. Tips
  * play no part. A writer whose newest article is older than those of the
- * candidates found is not a candidate that day.
+ * candidates found is not a candidate that hour.
  */
 
-/** One UTC day: the place is called Today, and its opening is the
- * same for everyone that day. */
-export const WINDOW_MS = 24 * 60 * 60 * 1000
+/** One UTC hour: Today's opening is the same for everyone that hour, and
+ * an article published in it joins the candidates at the next hour. */
+export const WINDOW_MS = 60 * 60 * 1000
 
 /** Reading speed for "N min left". */
 export const WORDS_PER_MINUTE = 230
