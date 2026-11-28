@@ -30,7 +30,7 @@ import { LazyTabTipAction } from '@/components/tab/LazyTabTipAction'
   writerName={authorName}
   manageHref="/dashboard/tab"
   amountCents={check.ok ? check.cents : null} // the dialog's amount
-  onMaxChange={setTabMaxCents} // largest tab tip at today's price, or null
+  onMaxChange={setTabMax} // { cents, stroops } of the tab maximum, or null
   onPhaseChange={onTabPhase} // 'unavailable' | 'ready' | 'busy' | 'result'
   onInvalidAmount={focusAmountField}
   onDone={closeDialog}

@@ -1,11 +1,15 @@
 'use client'
 
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import type { Id } from '@/convex/_generated/dataModel'
+import {
+  TipCodeBoundary,
+  retryableLazy,
+} from '@/components/tipping/v2/TipCodeBoundary'
 
 // The flow loads with import(), so the article page's first load holds none
 // of it.
-const HighlightTipV2 = lazy(() =>
+const highlightTip = retryableLazy(() =>
   import('@/components/tipping/v2/HighlightTipV2').then((mod) => ({
     default: mod.HighlightTipV2,
   }))
@@ -37,24 +41,31 @@ export interface HighlightTipButtonProps {
  */
 export function HighlightTipButton(props: HighlightTipButtonProps) {
   return (
-    <Suspense fallback={null}>
-      <HighlightTipV2
-        articleId={props.articleId}
-        articleSlug={props.articleSlug}
-        articleTitle={props.articleTitle}
-        authorName={props.authorName}
-        highlightText={props.highlightText}
-        startOffset={props.startOffset}
-        endOffset={props.endOffset}
-        startContainerPath={props.startContainerPath}
-        endContainerPath={props.endContainerPath}
-        className={props.className}
-        label={props.label}
-        onBeforeOpen={props.onBeforeOpen}
-        disabled={props.disabled}
-        onSuccess={props.onSuccess}
-        onDone={props.onDone}
-      />
-    </Suspense>
+    <TipCodeBoundary variant="inline" onRetry={highlightTip.retry}>
+      {() => {
+        const HighlightTipV2 = highlightTip.Component
+        return (
+          <Suspense fallback={null}>
+            <HighlightTipV2
+              articleId={props.articleId}
+              articleSlug={props.articleSlug}
+              articleTitle={props.articleTitle}
+              authorName={props.authorName}
+              highlightText={props.highlightText}
+              startOffset={props.startOffset}
+              endOffset={props.endOffset}
+              startContainerPath={props.startContainerPath}
+              endContainerPath={props.endContainerPath}
+              className={props.className}
+              label={props.label}
+              onBeforeOpen={props.onBeforeOpen}
+              disabled={props.disabled}
+              onSuccess={props.onSuccess}
+              onDone={props.onDone}
+            />
+          </Suspense>
+        )
+      }}
+    </TipCodeBoundary>
   )
 }

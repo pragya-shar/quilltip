@@ -280,12 +280,23 @@ shows. Screenshots before and after at 375, 768 and 1440 px, signed in and
 signed out, with and without reduced motion, are pixel-identical apart from
 animation timing.
 
-- **Toasts (reverted):** loading the toaster on demand saved about 9.7 KB per
-  route, and Sonner showed toasts raised before it mounted. But its live
-  region was then created in the same moment as such a toast, which screen
-  readers may not announce, and that could not be checked with a screen
-  reader here. The toaster stays in the first load; a test checks that a
-  saved profile's toast appears in the `aria-live` region.
+- **Toasts:** loading the toaster on demand saved about 9.7 KB per route,
+  and Sonner showed toasts raised before it mounted. But its live region was
+  then created in the same moment as such a toast, which screen readers may
+  not announce, so it was reverted. It is now lazy again
+  (`components/providers/Providers.tsx`), loaded at hydration rather than at
+  the first toast, and the Toaster holds every toast until its empty region
+  has existed for two frames (`components/ui/sonner.tsx`): a toast raised
+  before it loaded, or in the same moment, goes into a region that is already
+  there. `scripts/ui/toaster-region.test.ts` checks the order (region first,
+  message at least two frames later) and that Providers loads the Toaster with
+  `next/dynamic` and no server render; e2e `account-navigation.spec.ts` checks
+  that a saved profile's toast appears in the `aria-live` region. The empty
+  region is no longer in the server HTML; it appears after hydration. The
+  hold relies on two sonner 2.0.8 behaviours (the Toaster's `id` only filters
+  which toasts it lists; toasts raised before it subscribed are replayed).
+  bun.lock pins 2.0.8 and CI installs with `--frozen-lockfile`, so an upgrade
+  comes as a lockfile change, which must pass `toaster-region.test.ts`.
 - **Site header:** the mobile navigation sheet (Radix dialog, focus trap,
   scroll lock) loads after the page has loaded and the browser is idle, on
   hover or focus of the menu button, or on the first press. The button is a

@@ -1068,6 +1068,17 @@ const S: Scenario[] = [
     },
   },
   {
+    // A maximum of whole dollars: $4, never "$4.00" (#676).
+    id: 'dialog-whole-max',
+    title: 'Tip dialog: a 40 XLM tab tip maximum, $4 at the price',
+    view: 'tip',
+    device: 'ready',
+    seed: (s) => {
+      open(s)
+      s.tab!.tipLimits = tipLimitsFor({ tipMax: '400000000' })
+    },
+  },
+  {
     id: 'dialog-no-price',
     title: 'Tip dialog: no current XLM price',
     view: 'tip',
@@ -1158,6 +1169,21 @@ const S: Scenario[] = [
       estimatedUsd: 195.0975,
       complete: false,
       source: 'previous',
+    },
+    seed: (s) => writer(s),
+  },
+  {
+    // A large settled total at full precision: every stroop shows (#676).
+    id: 'stats-worst',
+    title: 'Stats: worst case total',
+    view: 'stats',
+    device: 'none',
+    stats: {
+      tipCount: 123456,
+      earnedStroops: '1234567890123456',
+      estimatedUsd: 12345678.9,
+      complete: true,
+      source: 'lifetime',
     },
     seed: (s) => writer(s),
   },

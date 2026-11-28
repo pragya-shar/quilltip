@@ -86,7 +86,11 @@ loads with `import()` when the dialog opens (`components/tab/README.md`).
   dialog then offers presets up to it (`tabTipPresets`: the maximum, rounded
   down to 5 cents from 20 cents up unless that is below the minimum, and the
   largest smaller steps; never above the maximum), and the amount hint adds
-  "Tab tips go up to {max} at today’s XLM price."
+  "Tab tips go up to {xlm}, worth about {usd} if this were real XLM." The
+  limit is set in XLM (`TAB_TIP_MAX`, in the app's number form); the dollar
+  figure is that limit at the cached price (`formatCents`), a hint, never a
+  real market price (#676). Without a fresh price there is no hint: the
+  section shows its no-price notice.
 - **Explained before sending.** `checkTabTipAmount` applies prepare's checks
   in prepare's order to the chosen amount: no fresh price, below the minimum,
   above the maximum, today's limit, the free balance, this device's spend
@@ -101,19 +105,19 @@ loads with `import()` when the dialog opens (`components/tab/README.md`).
   Accepted, settled and the other receipt results replace the amount and the
   wallet tip; "Done" closes the dialog and "Send another" returns to the form.
 
-| State                               | The section shows                                                          |
-| ----------------------------------- | -------------------------------------------------------------------------- |
-| Loading                             | One placeholder line, the height of the "no tab" line                      |
-| Signed out, unverified, tabs off    | Nothing: the wallet gate covers it                                         |
-| No tab                              | "Tip without a wallet prompt from a prepaid tab." and an "Open a tab" link |
-| Co-author splits                    | The kit's splits note; the wallet tip stays                                |
-| No key on this device, key problems | The key's own notice and next step                                         |
-| Settlement off, tab closing         | The kit notice; the wallet tip stays                                       |
-| Ready                               | Free balance, "No wallet prompt…", "Send {amount} from your tab"           |
-| Above the maximum                   | "Tab tips go up to {max} right now", send disabled                         |
-| Not enough free balance             | The kit's tab balance notice with "Top up", send disabled                  |
-| Today's limit, device limit, price  | Their notices, send disabled                                               |
-| Sending, accepted, settled, other   | `TransactionProgress` for `tab-tip`, from the receipt status               |
+| State                               | The section shows                                                                          |
+| ----------------------------------- | ------------------------------------------------------------------------------------------ |
+| Loading                             | One placeholder line, the height of the "no tab" line                                      |
+| Signed out, unverified, tabs off    | Nothing: the wallet gate covers it                                                         |
+| No tab                              | "Tip without a wallet prompt from a prepaid tab." and an "Open a tab" link                 |
+| Co-author splits                    | The kit's splits note; the wallet tip stays                                                |
+| No key on this device, key problems | The key's own notice and next step                                                         |
+| Settlement off, tab closing         | The kit notice; the wallet tip stays                                                       |
+| Ready                               | Free balance, "No wallet prompt…", "Send {amount} from your tab"                           |
+| Above the maximum                   | "Tab tips go up to {xlm}", with "That is about {usd} if this were real XLM", send disabled |
+| Not enough free balance             | The kit's tab balance notice with "Top up", send disabled                                  |
+| Today's limit, device limit, price  | Their notices, send disabled                                                               |
+| Sending, accepted, settled, other   | `TransactionProgress` for `tab-tip`, from the receipt status                               |
 
 Fixture: `/dialog?state=<id>` on the tab UI fixture (port 4183), tested by
 `e2e/tab-tip-dialog.spec.ts` in both dialogs.

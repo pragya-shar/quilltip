@@ -460,11 +460,11 @@ jobs:
             browsers: chromium
           # Every state in Chromium; keyboard, focus and results in WebKit.
           - shard: tips-v2
-            suites: tips-v2,article-images
+            suites: tips-v2,article-images,passage-touch
             browsers: chromium webkit
           # Every state in Chromium; the transfer footer's layout in WebKit.
           - shard: nft-v2
-            suites: nft-v2
+            suites: nft-v2,tip-code-split
             browsers: chromium webkit
           # The tab session-key suite runs in all three engines.
           - shard: tab

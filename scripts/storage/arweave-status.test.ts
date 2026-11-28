@@ -12,7 +12,7 @@ test.each([
   ['pending', 'Uploading to Arweave'],
   ['uploaded', 'Confirming on Arweave'],
   ['verified', 'Permanently stored'],
-  ['failed', 'Upload failed'],
+  ['failed', 'Not stored permanently'],
 ])('the %s status reads "%s"', (status, label) => {
   expect(render(status)).toContain(label)
 })

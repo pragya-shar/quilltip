@@ -1,13 +1,14 @@
 'use client'
 
-import { lazy, Suspense, useEffect } from 'react'
+import { Suspense, useEffect } from 'react'
 import { TipButtonSkeleton } from '@/components/articles/TipButtonSkeleton'
 import type { Id } from '@/convex/_generated/dataModel'
 import { clearLegacyTipStorage } from '@/lib/tip/legacyTipStorage'
+import { TipCodeBoundary, retryableLazy } from './v2/TipCodeBoundary'
 
 // The flow loads with import(), so the article page's first load holds none
 // of it.
-const ArticleTipV2 = lazy(() =>
+const articleTip = retryableLazy(() =>
   import('./v2/ArticleTipV2').then((mod) => ({ default: mod.ArticleTipV2 }))
 )
 
@@ -26,14 +27,21 @@ export interface TipButtonProps {
 export function TipButton(props: TipButtonProps) {
   useEffect(() => clearLegacyTipStorage(), [])
   return (
-    <Suspense fallback={<TipButtonSkeleton />}>
-      <ArticleTipV2
-        articleId={props.articleId}
-        articleTitle={props.articleTitle}
-        articleSlug={props.articleSlug}
-        authorName={props.authorName}
-        className={props.className}
-      />
-    </Suspense>
+    <TipCodeBoundary variant="inline" onRetry={articleTip.retry}>
+      {() => {
+        const ArticleTipV2 = articleTip.Component
+        return (
+          <Suspense fallback={<TipButtonSkeleton />}>
+            <ArticleTipV2
+              articleId={props.articleId}
+              articleTitle={props.articleTitle}
+              articleSlug={props.articleSlug}
+              authorName={props.authorName}
+              className={props.className}
+            />
+          </Suspense>
+        )
+      }}
+    </TipCodeBoundary>
   )
 }

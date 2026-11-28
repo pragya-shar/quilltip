@@ -1,6 +1,7 @@
 'use client'
 
 import { useId, useState } from 'react'
+import Link from 'next/link'
 import {
   ExternalLink,
   ChevronDown,
@@ -45,9 +46,18 @@ const statusConfig: Record<
   failed: {
     className: 'bg-ui-surface text-ui-danger',
     icon: <XCircle className="w-4 h-4" />,
-    label: 'Upload failed',
+    label: 'Not stored permanently',
   },
 }
+
+/**
+ * Only the writer receives an unfinished or failed status (#679): readers
+ * get a finished upload or nothing. So the failed row speaks to the writer
+ * and says what they can do.
+ */
+export const STORAGE_FAILED_DETAIL =
+  'Your article is published and readers can read it. Its permanent copy did not upload.'
+export const STORAGE_FAILED_ACTION = 'Contact Quilltip to try again'
 
 export function ArweaveStatus({
   status,
@@ -83,6 +93,15 @@ export function ArweaveStatus({
             <ChevronDown className="w-4 h-4" />
           ))}
       </button>
+
+      {status === 'failed' ? (
+        <p className="mt-2 text-sm text-ui-foreground">
+          {STORAGE_FAILED_DETAIL}{' '}
+          <Link href="/contact" className="underline">
+            {STORAGE_FAILED_ACTION}
+          </Link>
+        </p>
+      ) : null}
 
       {expanded && txId && (
         <div

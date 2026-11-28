@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, Suspense, useState } from 'react'
+import { Suspense, useState } from 'react'
 import { useQuery } from 'convex/react'
 import { Heart } from 'lucide-react'
 import { api } from '@/convex/_generated/api'
@@ -23,13 +23,14 @@ import { TIP_DIALOG } from '@/lib/copy/tip-flow'
 import { cn } from '@/lib/utils'
 import { LastTipLine } from './LastTipLine'
 import { TipBasketButton } from './TipBasketButton'
+import { TipCodeBoundary, retryableLazy } from './TipCodeBoundary'
 import { TipDialogLoading } from './TipDialogLoading'
 import '../tipping.css'
 import './tip-v2.css'
 
 // The form, the payment kit, the wallet and RPC code load when the reader
 // opens the dialog, not with the article page.
-const TipDialogV2 = lazy(() =>
+const tipDialog = retryableLazy(() =>
   import('./TipDialogV2').then((mod) => ({ default: mod.TipDialogV2 }))
 )
 
@@ -105,25 +106,32 @@ export function ArticleTipV2({
             </DialogDescription>
           </DialogHeader>
           {open ? (
-            <Suspense fallback={<TipDialogLoading />}>
-              <TipDialogV2
-                variant="article"
-                articleId={articleId}
-                articleSlug={articleSlug}
-                articleTitle={articleTitle}
-                authorName={authorName}
-                eligibility={eligibility}
-                onBusyChange={setBusy}
-                onOpenBasket={() => {
-                  setOpen(false)
-                  requestOpenBasket()
-                }}
-                onDone={() => {
-                  setOpen(false)
-                  last.refresh()
-                }}
-              />
-            </Suspense>
+            <TipCodeBoundary onRetry={tipDialog.retry}>
+              {() => {
+                const TipDialogV2 = tipDialog.Component
+                return (
+                  <Suspense fallback={<TipDialogLoading />}>
+                    <TipDialogV2
+                      variant="article"
+                      articleId={articleId}
+                      articleSlug={articleSlug}
+                      articleTitle={articleTitle}
+                      authorName={authorName}
+                      eligibility={eligibility}
+                      onBusyChange={setBusy}
+                      onOpenBasket={() => {
+                        setOpen(false)
+                        requestOpenBasket()
+                      }}
+                      onDone={() => {
+                        setOpen(false)
+                        last.refresh()
+                      }}
+                    />
+                  </Suspense>
+                )
+              }}
+            </TipCodeBoundary>
           ) : null}
         </DialogContent>
       </Dialog>

@@ -121,5 +121,10 @@ export type PaymentNoticeProps = {
     }
   | { kind: 'network-busy' }
   /** A Convex refusal with no notice of its own (`refusalFromTabError`). */
-  | { kind: 'refused'; copy: { title: string; detail: string } }
+  | {
+      kind: 'refused'
+      copy: { title: string; detail: string }
+      /** The copy states an XLM amount: the notice carries the label. */
+      showsAmount?: boolean
+    }
 )

@@ -303,6 +303,36 @@
   display: grid;
   gap: 12px;
 }
+/* Tip code failed to load: the tip control says so; the article stays. */
+.tip-v2-code-failed-inline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.tip-v2-code-failed-inline .tip-v2-retry {
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 600;
+}
+.tip-v2-code-failed {
+  display: grid;
+  gap: 8px;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.tip-v2-code-failed .tip-v2-retry {
+  justify-self: start;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-weight: 600;
+}
 
 /*
  * Two ways to send the dialog's amount (issue #546): "From your tab" and
@@ -337,6 +367,11 @@
   font: 600 15px/1.4 var(--ui-font);
 }
 .tip-tab-free {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 2px 10px;
   color: var(--ui-muted-foreground);
   font-size: 14px;
   font-variant-numeric: tabular-nums;

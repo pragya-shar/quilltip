@@ -74,6 +74,16 @@ export const FIXTURES = [
     },
   },
   {
+    // Tip code that fails to load (#669): the v2 tip fixture built with code
+    // splitting, chunk requests aborted. Chromium and WebKit (its own config).
+    name: 'tip-code-split',
+    server: 'e2e/fixtures/tips-v2/server-split.mjs',
+    port: 4191,
+    spec: 'e2e/tip-code-load.spec.ts',
+    config: 'e2e/fixtures/tips-v2/playwright.split.config.ts',
+    env: {},
+  },
+  {
     // The v2 article NFT: mint at the threshold and transfer, every state
     // in Chromium; the transfer footer's layout check in WebKit too (its
     // own config).
@@ -107,6 +117,16 @@ export const FIXTURES = [
     spec: 'e2e/article-images.spec.ts',
     config: 'e2e/fixtures/article-images/playwright.config.ts',
     env: { ARTICLE_IMAGES_FIXTURES: '1' },
+  },
+  {
+    // Passage selection on a touch screen (#665): the real article reader,
+    // signed out, no backend. Chromium (Pixel 5) and WebKit (iPhone 13).
+    name: 'passage-touch',
+    server: 'e2e/fixtures/passage-touch/server.mjs',
+    port: 4192,
+    spec: 'e2e/touch-passage-offer.spec.ts',
+    config: 'e2e/fixtures/passage-touch/playwright.config.ts',
+    env: { PASSAGE_TOUCH_FIXTURES: '1' },
   },
   {
     // Tab screens (#449) and the tip dialog's tab section (#546): every

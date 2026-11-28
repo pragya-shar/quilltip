@@ -13,16 +13,63 @@ export function permanentStorageEnabled(): boolean {
   )
 }
 
+/** The permanent-storage fields stored on an article. */
+type StoredStorageFields = {
+  arweaveStatus?: string
+  arweaveTxId?: string
+  arweaveUrl?: string
+  arweaveTimestamp?: number
+  arweaveErrorMessage?: string
+  arweaveVerifyAttempts?: number
+}
+
 /**
- * The storage status a reader sees. With permanent storage off, nothing
- * uploads a `pending` article (the upload action returns at once), so that
- * status is a leftover and readers see no status. The stored row is unchanged.
+ * The permanent-storage fields a viewer gets (#679). Spread it after the
+ * article document so it replaces the stored fields.
+ *
+ * - A finished upload (`verified`) is public: status, transaction, link and
+ *   time go to everyone.
+ * - Anything else (pending, uploaded, failed or unknown) is the writer's
+ *   business: a reader gets no storage fields at all, so no reader surface
+ *   can show an upload in progress or a failed one.
+ * - The writer gets the stored status, except a `pending` left over while
+ *   permanent storage is off: nothing uploads it, so it says nothing.
+ * - The error message and retry count never leave the backend.
+ *
+ * The stored row is unchanged.
  */
-export function readableArweaveStatus(
-  status: string | undefined
-): string | undefined {
-  if (status === 'pending' && !permanentStorageEnabled()) return undefined
-  return status
+export function storageForViewer(
+  article: StoredStorageFields,
+  isOwner: boolean,
+  enabled: boolean = permanentStorageEnabled()
+): {
+  arweaveStatus: string | undefined
+  arweaveTxId: string | undefined
+  arweaveUrl: string | undefined
+  arweaveTimestamp: number | undefined
+  arweaveErrorMessage: undefined
+  arweaveVerifyAttempts: undefined
+} {
+  const hidden = {
+    arweaveStatus: undefined,
+    arweaveTxId: undefined,
+    arweaveUrl: undefined,
+    arweaveTimestamp: undefined,
+    arweaveErrorMessage: undefined,
+    arweaveVerifyAttempts: undefined,
+  }
+  const status = article.arweaveStatus
+  const shown =
+    status === 'verified' ||
+    (isOwner && status !== undefined && !(status === 'pending' && !enabled))
+  if (!shown) return hidden
+  return {
+    ...hidden,
+    arweaveStatus: status,
+    arweaveTxId: article.arweaveTxId,
+    arweaveUrl: article.arweaveUrl,
+    arweaveTimestamp: article.arweaveTimestamp,
+  }
 }
 
 /** Lets the publish dialog say whether the article will be stored permanently. */

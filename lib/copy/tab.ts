@@ -243,11 +243,16 @@ export const TAB_TIP_DIALOG = {
   walletHeading: 'From your wallet',
   noTab: 'Tip without a wallet prompt from a prepaid tab.',
   loading: 'Checking your tab…',
-  /** Under the amount field while a quick tip is on offer. */
-  maxHint: (max: string) => `Tab tips go up to ${max} at today’s XLM price.`,
-  aboveMax: (max: string) => ({
-    title: `Tab tips go up to ${max} right now`,
-    detail: `That is the most a tab tip can be at today’s XLM price. Choose ${max} or less, or send this amount from your wallet.`,
+  /**
+   * Under the amount field while a quick tip is on offer. The limit is set
+   * in XLM (`TAB_TIP_MAX`); the dollar figure is that limit at the cached
+   * price, a hint in the #670 form, never a real market price (#676).
+   */
+  maxHint: (xlm: string, usd: string) =>
+    `Tab tips go up to ${xlm}, worth about ${usd} if this were real XLM.`,
+  aboveMax: (xlm: string, usd: string) => ({
+    title: `Tab tips go up to ${xlm}`,
+    detail: `That is about ${usd} if this were real XLM. Choose ${usd} or less, or send this amount from your wallet.`,
   }),
   dailyLimit: (left: string) => ({
     title: 'This is over today’s tab limit',

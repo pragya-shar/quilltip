@@ -16,8 +16,12 @@ import {
   pressWith,
 } from './helpers/press'
 import { expectFixtureReady } from './fixtures/tab-ui/ready'
-import { SEND_TIP, SEND_TIP_FROM_WALLET } from './helpers/sendButton'
-import { ESTIMATE } from '../lib/copy/payment-states'
+import {
+  SEND_FROM_TAB,
+  SEND_TIP,
+  SEND_TIP_FROM_WALLET,
+} from './helpers/sendButton'
+import { ESTIMATE, quoteCopy } from '../lib/copy/payment-states'
 
 /**
  * The tab tip section of the article and passage tip dialogs (issue #546),
@@ -144,9 +148,7 @@ type StateCase = {
 }
 
 const sendFromTab = async (dialog: Locator) => {
-  await tabSection(dialog)
-    .getByRole('button', { name: /^Send \$\d+\.\d\d from your tab$/ })
-    .click()
+  await tabSection(dialog).getByRole('button', { name: SEND_FROM_TAB }).click()
 }
 
 const STATES: Record<string, StateCase> = {
@@ -204,16 +206,22 @@ const STATES: Record<string, StateCase> = {
     state: 'tip-ready',
     expect: async (dialog) => {
       await expect(tabSection(dialog).getByText('20 XLM free')).toBeVisible()
+      // The free amount carries the network beside it (#676).
+      await expect(
+        tabSection(dialog).locator('.tip-tab-free').getByText('Stellar testnet')
+      ).toBeVisible()
       await expect(
         tabSection(dialog).getByRole('button', {
           name: 'Send $0.10 from your tab',
         })
       ).toBeVisible()
       await expect(
-        dialog.getByText('Tab tips go up to $0.50 at today’s XLM price.', {
-          exact: false,
-        })
+        dialog.getByText(
+          'Tab tips go up to 5 XLM, worth about $0.50 if this were real XLM.',
+          { exact: false }
+        )
       ).toBeVisible()
+      await expect(dialog.getByText(/today’s XLM price/)).toHaveCount(0)
       // A tab tip has no wallet prompt: the estimate does not promise one.
       const caption = dialog.locator('.pay-amount-caption')
       await expect(caption).toContainText(ESTIMATE.tabCaption)
@@ -225,7 +233,7 @@ const STATES: Record<string, StateCase> = {
     act: (dialog) => chooseAmount(dialog, '0.75'),
     expect: async (dialog) => {
       await expect(
-        tabSection(dialog).getByText('Tab tips go up to $0.50 right now', {
+        tabSection(dialog).getByText('Tab tips go up to 5 XLM', {
           exact: true,
         })
       ).toBeVisible()
@@ -380,6 +388,57 @@ test.describe('one amount for the dialog', () => {
     await expect
       .poll(() => presets(dialog))
       .toEqual(['$0.05', '$0.10', '$0.25'])
+    // A limit that is not a whole number of XLM, in the app's number form.
+    await expect(
+      dialog.getByText(
+        'Tab tips go up to 2.5 XLM, worth about $0.25 if this were real XLM.',
+        { exact: false }
+      )
+    ).toBeVisible()
+    await chooseAmount(dialog, '0.3')
+    await expect(
+      tabSection(dialog).getByText('Tab tips go up to 2.5 XLM', { exact: true })
+    ).toBeVisible()
+    await expect(
+      tabSection(dialog).getByText(
+        'That is about $0.25 if this were real XLM. Choose $0.25 or less, or send this amount from your wallet.',
+        { exact: true }
+      )
+    ).toBeVisible()
+    // The notice states the XLM limit, so it carries the network (#676).
+    await expect(
+      tabSection(dialog).locator('.pay-panel').getByText('Stellar testnet')
+    ).toBeVisible()
+  })
+
+  test('a whole-dollar maximum is written without cents (#676)', async ({
+    page,
+  }) => {
+    await open(page, 'dialog-whole-max')
+    const dialog = await openDialog(page, 'article')
+    await expect(tabSection(dialog)).toBeVisible()
+    await expect(
+      dialog.getByText(
+        'Tab tips go up to 40 XLM, worth about $4 if this were real XLM.',
+        { exact: false }
+      )
+    ).toBeVisible()
+    await chooseAmount(dialog, '5')
+    await expect(
+      tabSection(dialog).getByText(
+        'That is about $4 if this were real XLM. Choose $4 or less, or send this amount from your wallet.',
+        { exact: true }
+      )
+    ).toBeVisible()
+    await expect(dialog.getByText(/\$4\.00/)).toHaveCount(0)
+    // The quote and the tab button write the amount the same way.
+    await expect(
+      tabSection(dialog).getByRole('button', { name: 'Send $5 from your tab' })
+    ).toBeVisible()
+    await expect(dialog.locator('.pay-amount-caption')).toContainText(
+      quoteCopy('$5')
+    )
+    await expect(dialog.getByText(/\$5\.00/)).toHaveCount(0)
   })
 
   test('without a tab, the presets stay as they are', async ({ page }) => {
@@ -413,7 +472,7 @@ test.describe('one amount for the dialog', () => {
     await expect(send).toHaveAttribute('aria-disabled', 'true')
     // The reason is the button's description, for screen readers too.
     await expect(send).toHaveAccessibleDescription(
-      'Tab tips go up to $0.50 right now. That is the most a tab tip can be at today’s XLM price. Choose $0.50 or less, or send this amount from your wallet.'
+      'Tab tips go up to 5 XLM. That is about $0.50 if this were real XLM. Choose $0.50 or less, or send this amount from your wallet.'
     )
     await send.click({ force: true })
     await page.waitForTimeout(400)
@@ -423,6 +482,34 @@ test.describe('one amount for the dialog', () => {
       dialog.getByRole('button', { name: 'Connect wallet' })
     ).toBeVisible()
     expect(errors).toEqual([])
+  })
+
+  test('the tab and wallet buttons write one dollar amount the same way (#676)', async ({
+    page,
+  }) => {
+    await open(page, 'tip-ready')
+    const dialog = await openDialog(page, 'article')
+    await dialog.getByRole('button', { name: 'Connect wallet' }).click()
+    await page
+      .getByRole('dialog', { name: 'Choose a wallet' })
+      .getByRole('button', { name: /^Varial/ })
+      .click()
+    await expect(
+      dialog.getByRole('button', { name: SEND_TIP_FROM_WALLET })
+    ).toBeVisible()
+    // Whole dollars: no cents on either button.
+    await chooseAmount(dialog, '1')
+    const tab = tabSection(dialog).getByRole('button', { name: SEND_FROM_TAB })
+    await expect(tab).toHaveAccessibleName('Send $1 from your tab')
+    await expect(
+      dialog.getByRole('button', { name: SEND_TIP })
+    ).toHaveAccessibleName('Send $1 tip')
+    // Cents: two digits on both.
+    await chooseAmount(dialog, '0.25')
+    await expect(tab).toHaveAccessibleName('Send $0.25 from your tab')
+    await expect(
+      dialog.getByRole('button', { name: SEND_TIP_FROM_WALLET })
+    ).toHaveAccessibleName('Send $0.25 tip from your wallet')
   })
 
   test('limits other than the maximum are explained before sending', async ({
@@ -440,6 +527,10 @@ test.describe('one amount for the dialog', () => {
         .locator('.pay-panel')
         .getByText(/You can tip 0\.5 XLM more from your tab today/)
     ).toBeVisible()
+    // The notice states an XLM amount, so it carries the network (#676).
+    await expect(
+      tabSection(dialog).locator('.pay-panel').getByText('Stellar testnet')
+    ).toBeVisible()
 
     await open(page, 'dialog-key-limit')
     dialog = await openDialog(page, 'article')
@@ -449,12 +540,18 @@ test.describe('one amount for the dialog', () => {
         { exact: true }
       )
     ).toBeVisible()
+    await expect(
+      tabSection(dialog).locator('.pay-panel').getByText('Stellar testnet')
+    ).toBeVisible()
 
     await open(page, 'dialog-no-price')
     dialog = await openDialog(page, 'article')
     await expect(
       tabSection(dialog).getByText('No XLM price right now', { exact: true })
     ).toBeVisible()
+    // No price, no dollar figure for the maximum: the hint says nothing
+    // rather than a figure it cannot know (#676).
+    await expect(dialog.getByText(/Tab tips go up to/)).toHaveCount(0)
     expect((await backend(page)).calls).not.toContain('prepareTip')
   })
 
@@ -816,7 +913,7 @@ test.describe('keyboard and screen readers', () => {
       await open(page, 'tip-daily-limit')
       const dialog = await openDialog(page, 'article')
       const send = tabSection(dialog).getByRole('button', {
-        name: /^Send \$\d+\.\d\d from your tab$/,
+        name: SEND_FROM_TAB,
       })
       await expect(send).toBeVisible()
       if (how === 'click') await send.click()
@@ -1042,7 +1139,7 @@ test.describe('the clock with the dialog open', () => {
     const dialog = await openDialog(page, 'article')
     // The label follows the chosen amount, which the presets reset below.
     const send = tabSection(dialog).getByRole('button', {
-      name: /^Send \$\d+\.\d\d from your tab$/,
+      name: SEND_FROM_TAB,
     })
     await expect(send).not.toHaveAttribute('aria-disabled', 'true')
     await expect
@@ -1070,7 +1167,7 @@ test.describe('the clock with the dialog open', () => {
     await patchTipLimits(page, { priceFetchedAt: start })
     const dialog = await openDialog(page, 'article')
     const send = tabSection(dialog).getByRole('button', {
-      name: /^Send \$\d+\.\d\d from your tab$/,
+      name: SEND_FROM_TAB,
     })
     await expect(send).not.toHaveAttribute('aria-disabled', 'true')
     // The clock passes the price's age without running timers, as in a
@@ -1143,7 +1240,7 @@ test.describe('presets, headings and refusals', () => {
     ).toBeVisible()
     await chooseAmount(dialog, '0.75')
     await expect(
-      tabSection(dialog).getByText('Tab tips go up to $0.50 right now', {
+      tabSection(dialog).getByText('Tab tips go up to 5 XLM', {
         exact: true,
       })
     ).toBeVisible()

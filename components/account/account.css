@@ -203,6 +203,14 @@
   font-variant-numeric: tabular-nums;
   overflow-wrap: break-word;
 }
+/* A long figure breaks only where it has a <wbr>, after a thousands comma. */
+.account-stat-figure {
+  overflow-wrap: normal;
+}
+.account-stat-unit {
+  font-size: 0.5em;
+  white-space: nowrap;
+}
 .account-stat-note {
   display: block;
   margin-top: 6px;

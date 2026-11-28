@@ -719,7 +719,7 @@ test.describe('details', () => {
       'About 7.91 XLM',
       'About 0.2 XLM',
     ])
-    await expect(caption).toContainText(quoteCopy('$1.00'))
+    await expect(caption).toContainText(quoteCopy('$1'))
     // Without a price there is no estimate: dashes, never "About 0 XLM".
     await open(page, 'amount-estimate-none')
     await expect(page.locator('.pay-amount-total strong')).toHaveText('–')

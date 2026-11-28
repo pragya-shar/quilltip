@@ -39,10 +39,7 @@ import { syncArticleUploadReferences } from './lib/uploadReferences'
 import { storedArticleContent } from './lib/articleContent'
 import { assertPublishableImages, withShownCover } from './lib/articleImages'
 import { verifiedStellarAddress } from './lib/walletVerification'
-import {
-  permanentStorageEnabled,
-  readableArweaveStatus,
-} from './permanentStorage'
+import { permanentStorageEnabled, storageForViewer } from './permanentStorage'
 import {
   ARTICLE_SCHEMA,
   CanonicalArticleError,
@@ -175,6 +172,8 @@ async function loadReadingRoomArticle(
   }
   return {
     ...withShownCover(stripWriterNotes(article)),
+    // Cards are public: only a finished upload (#679).
+    ...storageForViewer(article, false),
     readTime: estimateArticleReadingMinutes(article.content),
     author: authors.get(article.authorId) ?? null,
   }
@@ -379,6 +378,8 @@ export const listArticles = query({
     const enrichedArticles = await Promise.all(
       slice.map(async (article) => ({
         ...withShownCover(stripWriterNotes(article)),
+        // Cards are public: only a finished upload (#679).
+        ...storageForViewer(article, false),
         readTime: estimateArticleReadingMinutes(article.content),
         author: writers.has(article.authorId)
           ? (writers.get(article.authorId) ?? null)
@@ -702,6 +703,10 @@ export const getArticleBySlug = query({
 
     if (!article) return null
 
+    // The writer sees their own upload state; a reader only a finished one.
+    const viewerId = await getAuthUserId(ctx)
+    const isOwner = viewerId === article.authorId
+
     // Note: View count increment would need to be in a mutation
     // For now, we'll skip it in this query
 
@@ -719,7 +724,7 @@ export const getArticleBySlug = query({
 
     return {
       ...withShownCover(stripWriterNotes(article)),
-      arweaveStatus: readableArweaveStatus(article.arweaveStatus),
+      ...storageForViewer(article, isOwner),
       author: {
         id: author._id,
         name: author.name,
@@ -803,6 +808,7 @@ export const getArticleById = query({
       ...(isAuthor
         ? stripWriterNotes(article)
         : withShownCover(stripWriterNotes(article))),
+      ...storageForViewer(article, isAuthor),
       ...(isAuthor ? { writerNotes: article.writerNotes } : {}),
       author: author
         ? {
