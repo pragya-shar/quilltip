@@ -4,7 +4,7 @@ export default defineConfig({
   resolve: { tsconfigPaths: true },
   test: {
     environment: 'edge-runtime',
-    include: ['scripts/articles/*.test.ts'],
+    include: ['scripts/articles/*.test.ts', 'scripts/passages/*.test.ts'],
     setupFiles: ['scripts/lib/edge-runtime-uint8array.ts'],
     server: { deps: { inline: ['convex-test'] } },
   },
