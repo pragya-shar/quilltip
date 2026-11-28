@@ -22,7 +22,8 @@ describe('the amounts offered', () => {
     const offer = amountOffer(base)
     expect(offer).toMatchObject({
       kind: 'amounts',
-      minCents: 100,
+      // The floor is 10 XLM = $1.00; a quarter above it, in whole dollars.
+      minCents: 200,
       maxCents: 10_000,
       segments: [1000, 2000, 5000],
       other: true,
@@ -73,6 +74,13 @@ describe('the amounts offered', () => {
     })
   })
 
+  it('says the balance is full when it cannot take the smallest whole-dollar amount', () => {
+    // 15 XLM of room is $1.50, below the $2 smallest amount.
+    expect(amountOffer({ ...base, balance: xlm(985) })).toMatchObject({
+      kind: 'full',
+    })
+  })
+
   it('says the balance is full at its limit', () => {
     expect(amountOffer({ ...base, balance: xlm(995) })).toEqual({
       kind: 'full',
@@ -89,11 +97,15 @@ describe('the amounts offered', () => {
     })
   })
 
-  it('rounds the smallest amount up, so it never falls below the minimum', () => {
-    // 10 XLM at $0.1273 is $1.273: the smallest is $1.28.
+  it('makes the smallest amount a whole dollar a quarter above the floor', () => {
+    // 10 XLM at $0.1273 is $1.273; a quarter above is $1.59: the smallest is $2.
     const offer = amountOffer({ ...base, priceUsd: 0.1273 })
     if (offer.kind !== 'amounts') throw new Error()
-    expect(offer.minCents).toBe(128)
+    expect(offer.minCents).toBe(200)
+    // At $0.50 the floor is $5.00; a quarter above is $6.25: $7.
+    const high = amountOffer({ ...base, priceUsd: 0.5 })
+    if (high.kind !== 'amounts') throw new Error()
+    expect(high.minCents).toBe(700)
     expect(
       BigInt(depositStroops(offer.minCents, 0.1273))
     ).toBeGreaterThanOrEqual(BigInt(xlm(10)))
@@ -114,7 +126,7 @@ describe('a typed amount', () => {
     const offer = amountOffer(base)
     if (offer.kind !== 'amounts') throw new Error()
     expect(checkOther(null, offer)).toBe('empty')
-    expect(checkOther(99, offer)).toBe('below')
+    expect(checkOther(199, offer)).toBe('below')
     expect(checkOther(10_001, offer)).toBe('above')
     expect(checkOther(2500, offer)).toBeNull()
   })

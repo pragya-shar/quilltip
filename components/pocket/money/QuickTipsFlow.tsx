@@ -274,6 +274,8 @@ export function QuickTipsFlow({
             { label: 'Up to', value: consent.cap },
             {
               label: 'Network fee',
+              // Only a wallet reader pays it, and only a wallet's prompt shows it.
+              show: step.prepared.fee.paidBy === 'wallet',
               value: feeRow(
                 step.prepared.fee.stroops,
                 feeCents,

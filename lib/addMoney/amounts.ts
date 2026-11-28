@@ -6,6 +6,15 @@
  */
 import { baseUnitsToCents, centsToBaseUnits } from '@/lib/payments/money'
 
+/**
+ * The product's smallest deposit is a whole dollar: the smallest whole
+ * dollar at least this much above the contract's floor at today's price,
+ * so a price move between the amount and the prepare does not fall under
+ * the floor. The contract refuses anything under its floor again at
+ * prepare (simulation).
+ */
+export const FLOOR_MARGIN = 1.25
+
 /** The amounts offered first, in cents. */
 export const SEGMENTS = [1000, 2000, 5000] as const
 
@@ -82,8 +91,14 @@ export function amountOffer(input: AmountInput): AmountOffer {
     }
   }
   const top = walletRoom !== null && walletRoom < room ? walletRoom : room
-  const minCents = ceilCents(min, price)
+  const minCents = Math.ceil((ceilCents(min, price) * FLOOR_MARGIN) / 100) * 100
   const maxCents = baseUnitsToCents(top, price)
+  // The balance has no room for the smallest whole-dollar amount: full.
+  if (baseUnitsToCents(room, price) < minCents)
+    return {
+      kind: 'full',
+      maxBalanceCents: baseUnitsToCents(maxBalance, price),
+    }
   if (maxCents < minCents)
     return {
       kind: 'wallet-short',

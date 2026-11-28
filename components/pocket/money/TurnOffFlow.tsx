@@ -202,6 +202,8 @@ export function TurnOffFlow({
     },
     {
       label: 'Network fee',
+      // Only a wallet reader pays it, and only a wallet's prompt shows it.
+      show: prepared.fee.paidBy === 'wallet',
       value: feeRow(
         prepared.fee.stroops,
         price ? (Number(prepared.fee.stroops) / 1e7) * price * 100 : null,

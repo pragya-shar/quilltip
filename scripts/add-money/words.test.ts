@@ -70,17 +70,17 @@ describe('the consent, from the prepared request', () => {
 })
 
 describe('the fee and the signing line', () => {
-  it('shows the fee in exact Lumens and dollars to six decimals at most', () => {
-    expect(feeRow('4213', 0.0054)).toBe(
-      '0.0004213 XLM, ≈ $0.000054, paid by your wallet'
+  it('shows the fee in exact Lumens, to match the wallet, and dollars to the cent', () => {
+    expect(feeRow('953987', 1.21)).toBe(
+      '0.0953987 XLM (≈ $0.01), paid by your wallet'
     )
-    expect(feeRow('4213', 0.00001)).toBe(
-      '0.0004213 XLM, ≈ $0.00, paid by your wallet'
+    expect(feeRow('4213', 0.0054)).toBe(
+      '0.0004213 XLM (≈ $0.00), paid by your wallet'
     )
     expect(feeRow('4213', null)).toBe('0.0004213 XLM, paid by your wallet')
     // A passkey account's fee is paid by Quilltip's sponsor.
     expect(feeRow('1364691', 1.7, 'quilltip')).toBe(
-      '0.1364691 XLM, ≈ $0.017, paid by Quilltip'
+      '0.1364691 XLM (≈ $0.02), paid by Quilltip'
     )
   })
 

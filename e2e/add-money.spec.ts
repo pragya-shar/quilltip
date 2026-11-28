@@ -65,7 +65,9 @@ test.describe('from a tip, a first deposit (A)', () => {
     await expect(s).toContainText(
       'Quick tips: tip from your balance on this device without opening your wallet each time.'
     )
-    await expect(s).toContainText('0.0004213 XLM')
+    await expect(s).toContainText(
+      '0.0953987 XLM (≈ $0.01), paid by your wallet'
+    )
     await expect(s).not.toContainText(/7 days|a week/)
     await expect(s).toContainText(
       'You can turn quick tips off for this device later'
@@ -487,5 +489,5 @@ test('nothing moves under the pointer: leaving the amount field with a wrong amo
   expect(after).toEqual(before)
   // The press lands: the error is said after it, never during it.
   await press(review)
-  await expect(s).toContainText('The smallest you can add is $1.28.')
+  await expect(s).toContainText('The smallest you can add is $2.')
 })

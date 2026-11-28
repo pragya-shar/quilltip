@@ -665,6 +665,8 @@ export function AddMoneyFlow({
           },
           {
             label: 'Network fee',
+            // Only a wallet reader pays it, and only a wallet's prompt shows it.
+            show: prepared.fee.paidBy === 'wallet',
             value: feeRow(prepared.fee.stroops, feeCents, prepared.fee.paidBy),
             spoken: feeSpoken(prepared.fee.stroops, prepared.fee.paidBy),
           },
@@ -678,6 +680,7 @@ export function AddMoneyFlow({
         withQuickTips={request.withQuickTips}
         consent={consent}
         replaces={replaces}
+        timeNote={services.signer === 'wallet'}
         cancelsWithdrawal={reading.status === 'closing'}
         primary={primaryLabel(
           formatMoney(request.cents, { short: true }),

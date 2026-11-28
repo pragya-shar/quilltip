@@ -109,10 +109,9 @@ export function replacesLine(input: {
     : `${lead} ${cap}.`
 }
 
-/** "≈ $0.000054": a fee in dollars, six decimals at most. */
+/** "≈ $0.01": a fee in dollars, to the cent. */
 export function feeDollars(feeCents: number): string {
-  if (feeCents < 0.0001) return '≈ $0.00'
-  return `≈ ${formatMoney(feeCents)}`
+  return formatMoney(Math.round(feeCents), { converted: true })
 }
 
 /** Who pays the network fee, in the reader's words. */
@@ -120,7 +119,8 @@ export function paidByWords(paidBy: 'wallet' | 'quilltip'): string {
   return paidBy === 'quilltip' ? 'paid by Quilltip' : 'paid by your wallet'
 }
 
-/** "0.0004213 XLM, ≈ $0.000054, paid by your wallet" */
+/** "0.0953987 XLM (≈ $0.01), paid by your wallet": the XLM exact, to
+ * match the wallet's prompt, and dollars to the cent. */
 export function feeRow(
   feeStroops: string,
   feeCents: number | null,
@@ -130,7 +130,7 @@ export function feeRow(
   const who = paidByWords(paidBy)
   return feeCents === null
     ? `${xlm}, ${who}`
-    : `${xlm}, ${feeDollars(feeCents)}, ${who}`
+    : `${xlm} (${feeDollars(feeCents)}), ${who}`
 }
 
 /** The fee as a screen reader says it, in Lumens. */

@@ -53,7 +53,7 @@ export function AmountStep({
     problem === 'empty'
       ? 'Enter an amount in dollars.'
       : problem === 'below'
-        ? `The smallest you can add is ${formatMoney(offer.minCents)}.`
+        ? `The smallest you can add is ${short(offer.minCents)}.`
         : problem === 'above'
           ? `Your balance can take ${formatMoney(offer.maxCents)} more.`
           : null
@@ -123,7 +123,7 @@ export function AmountStep({
         />
       ) : null}
       <p className="qt-add__fine">
-        You can add between {formatMoney(offer.minCents)} and{' '}
+        You can add between {short(offer.minCents)} and{' '}
         {formatMoney(offer.maxCents)} right now.
       </p>
       {walletLine ? <p className="qt-add__fine">{walletLine}</p> : null}

@@ -96,7 +96,7 @@ read or to write.
   **Read more**. A chosen sentence is a **line**. Use **tip**, not
   "micro-tip". The reader sees **Balance**, never "Pocket" or "Tab". These
   words never appear to a reader: tab, voucher, settle, deposit, contract,
-  ledger, gas, mint, NFT, token. "Fee" appears only in the 97.5% line.
+  ledger, gas, mint, NFT, token. "Fee" appears in the 97.5% line, and as "Network fee" where a reader's own wallet pays Stellar's charge.
 
 ## Brand Commitments
 

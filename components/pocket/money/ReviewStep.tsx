@@ -26,6 +26,7 @@ export function ReviewStep({
   withQuickTips,
   consent,
   replaces = null,
+  timeNote = true,
   cancelsWithdrawal,
   primary,
   againLabel,
@@ -37,7 +38,9 @@ export function ReviewStep({
   title: string
   /** "Step 2 of 2" after linking in this sheet. */
   stepLabel: string | null
-  rows: { label: string; value: string; spoken?: string }[]
+  rows: { label: string; value: string; spoken?: string; show?: boolean }[]
+  /** The note that the end time can move: only where a time is shown. */
+  timeNote?: boolean
   choice: QuickTipsChoice
   withQuickTips: boolean
   /** The until and cap of the approval, when the request carries one. */
@@ -61,7 +64,7 @@ export function ReviewStep({
           {consentLine(consent.until, consent.cap)}
         </p>
         {replaces ? <p className="qt-add__fine">{replaces}</p> : null}
-        <p className="qt-add__fine">{LEDGER_FINE_PRINT}</p>
+        {timeNote ? <p className="qt-add__fine">{LEDGER_FINE_PRINT}</p> : null}
         <p className="qt-add__fine">{TURN_OFF_LATER}</p>
       </>
     ) : null

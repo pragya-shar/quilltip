@@ -5,16 +5,18 @@
 export function Rows({
   rows,
 }: {
-  rows: { label: string; value: string; spoken?: string }[]
+  rows: { label: string; value: string; spoken?: string; show?: boolean }[]
 }) {
   return (
     <dl className="qt-add__facts">
-      {rows.map((row) => (
-        <div key={row.label} className="qt-add__fact">
-          <dt>{row.label}</dt>
-          <dd aria-label={row.spoken}>{row.value}</dd>
-        </div>
-      ))}
+      {rows
+        .filter((row) => row.show !== false)
+        .map((row) => (
+          <div key={row.label} className="qt-add__fact">
+            <dt>{row.label}</dt>
+            <dd aria-label={row.spoken}>{row.value}</dd>
+          </div>
+        ))}
     </dl>
   )
 }
