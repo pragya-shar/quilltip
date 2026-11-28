@@ -437,6 +437,13 @@ test('another amount: typed, checked, chosen without sending', async ({
   await expect(
     tray.getByRole('radio', { name: '$1', exact: true })
   ).toBeFocused()
+  // Set by a press: Safari moves focus off a pressed button before its
+  // click, and the tray still takes the amount.
+  await group
+    .getByRole('textbox', { name: 'Other amount in dollars' })
+    .fill('3')
+  await press(page, group.getByRole('button', { name: 'Set' }))
+  await expect(group.locator('.qt-tip__button')).toHaveText('Tip Tomás $3')
 })
 
 test('a line changing state keeps every line break', async ({ page }) => {
@@ -907,4 +914,40 @@ test('an empty place can be a section heading', async ({ page }) => {
       .locator('[data-specimen="Empty state as a section heading"]')
       .getByRole('heading', { level: 2, name: 'Nothing on your shelf yet.' })
   ).toBeVisible()
+})
+
+test('sign-out says what it would strand, once, and a broken check never blocks', async ({
+  page,
+}) => {
+  await open(page)
+  const stranded = page.locator(
+    '[data-specimen="Sign out, with something it would strand"]'
+  )
+  await press(page, stranded.getByRole('button', { name: 'Sign out' }))
+  const ask = page.getByRole('alertdialog', { name: 'Sign out?' })
+  await expect(ask).toBeVisible()
+  await expect(ask).toContainText('2 drafts are only on this device.')
+  await press(page, ask.getByRole('button', { name: 'Stay' }))
+  await expect(ask).toBeHidden()
+  await expect(page.getByText('Signed out (gallery)')).toHaveCount(0)
+  await page.waitForTimeout(450) // the press hold after a modal closes
+  await press(page, stranded.getByRole('button', { name: 'Sign out' }))
+  await press(page, ask.getByRole('button', { name: 'Sign out anyway' }))
+  await expect(
+    page
+      .locator('.qt-toasts')
+      .getByText('Signed out (gallery)', { exact: true })
+  ).toBeVisible()
+
+  const broken = page.locator(
+    '[data-specimen="Sign out, when a check fails or runs late"]'
+  )
+  await page.waitForTimeout(450)
+  await press(page, broken.getByRole('button', { name: 'Sign out' }))
+  await expect(ask).toBeHidden()
+  await expect(
+    page
+      .locator('.qt-toasts')
+      .getByText('Signed out (gallery), no checks answered')
+  ).toBeVisible({ timeout: 3000 })
 })

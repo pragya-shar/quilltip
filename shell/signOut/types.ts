@@ -11,3 +11,18 @@ export type SignOutCleanup = {
   name: string
   run: () => void | Promise<void>
 }
+
+/**
+ * Something sign-out would strand, said before it happens (Write: words
+ * saved on this device and not yet in the account). `check` answers one
+ * plain sentence ("2 drafts are only on this device."), or null when there
+ * is nothing to say. A check that throws, or takes longer than a short
+ * limit, never stops a sign-out. Import the package's code lazily:
+ *
+ *   { name: 'device drafts',
+ *     check: () => import('@/hooks/write/deviceDrafts').then((m) => m.signOutWarning()) }
+ */
+export type SignOutWarning = {
+  name: string
+  check: () => Promise<string | null>
+}

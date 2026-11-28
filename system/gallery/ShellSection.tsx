@@ -3,6 +3,7 @@
 import { BalanceItem } from '@/shell/BalanceItem'
 import { BalanceSourceContext, type BalanceReading } from '@/shell/balance'
 import { GallerySection } from './GallerySection'
+import { SignOutDemo } from './SignOutDemo'
 import { Specimen } from './Specimen'
 
 const STATES: [string, BalanceReading][] = [
@@ -47,6 +48,12 @@ export function ShellSection() {
           </BalanceSourceContext.Provider>
         </Specimen>
       ))}
+      <Specimen name="Sign out, with something it would strand">
+        <SignOutDemo />
+      </Specimen>
+      <Specimen name="Sign out, when a check fails or runs late">
+        <SignOutDemo broken />
+      </Specimen>
     </GallerySection>
   )
 }
