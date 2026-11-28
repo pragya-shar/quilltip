@@ -27,7 +27,11 @@ import {
   FIXTURE_WRITER,
 } from './convex-fixture'
 import { startFixtureBackend } from './fixture-backend'
-import { startProductionApp } from './production-app'
+import {
+  fixtureBackendPort,
+  perfPort,
+  startProductionApp,
+} from './production-app'
 
 type Role = Parameters<Page['getByRole']>[0]
 /** A locator by role and accessible name, inside an optional landmark. */
@@ -80,8 +84,8 @@ export const READING = {
   signedIn: { path: '/dashboard', signInPath: '/login' },
 }
 
-const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
-const APP_PORT = Number(process.env.PERF_APP_PORT ?? 3199)
+const CONVEX_PORT = fixtureBackendPort()
+const APP_PORT = await perfPort('PERF_APP_PORT')
 const BASE_URL = `http://127.0.0.1:${APP_PORT}`
 const ENGINES = (process.env.PERF_READING_ENGINES ?? 'chromium,webkit').split(
   ','
@@ -157,7 +161,7 @@ async function check(page: Page, failures: string[], label: string) {
 
 async function main() {
   const backend = startFixtureBackend(CONVEX_PORT)
-  const app = await startProductionApp(APP_PORT, BASE_URL)
+  const app = await startProductionApp(APP_PORT, BASE_URL, { backend })
   const failures: string[] = []
   try {
     // Guards: no article text on a draft or unknown path, and a 404.
