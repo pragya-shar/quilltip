@@ -121,49 +121,60 @@ test('createArticle refuses to publish an image from another host, and saves it 
   )
 })
 
-test('countImageHosts counts image and cover hosts by published and draft, with nothing else (#615)', async () => {
+test('countImageHosts counts allowed and refused addresses per host, by published and draft, with nothing else (#615)', async () => {
   const { t, draft, writer } = await setup()
   const published = await draft(body(own, own, unsplash), own)
   await writer.mutation(api.articles.publishArticle, { id: published })
-  await draft(body(otherConvex, 'data:image/png;base64,AAAA', '/relative.png'))
+  // One host can hold allowed and refused addresses: judged one by one.
+  await draft(
+    body(
+      otherConvex,
+      'https://img.youtube.com/vi/dQw4w9WgXcQ/0.jpg',
+      'https://img.youtube.com/other.jpg',
+      'http://images.unsplash.com/photo-2',
+      unsplash,
+      'data:image/png;base64,AAAA',
+      '/relative.png'
+    )
+  )
   const report = await t.action(internal.articleImageHosts.countImageHosts, {})
+  const row = (
+    host: string,
+    publishedAllowed: number,
+    publishedRefused: number,
+    draftAllowed: number,
+    draftRefused: number
+  ) => ({
+    host,
+    publishedAllowed,
+    publishedRefused,
+    draftAllowed,
+    draftRefused,
+  })
   expect(report).toEqual({
     storageOrigin: OWN,
     articles: { published: 1, draft: 1 },
     images: [
-      {
-        host: 'own-deployment-123.convex.cloud',
-        allowed: true,
-        published: 2,
-        draft: 0,
-      },
-      { host: 'images.unsplash.com', allowed: true, published: 1, draft: 0 },
-      {
-        host: 'someone-else-456.convex.cloud',
-        allowed: false,
-        published: 0,
-        draft: 1,
-      },
-      { host: '(data address)', allowed: false, published: 0, draft: 1 },
-      {
-        host: '(relative or invalid address)',
-        allowed: false,
-        published: 0,
-        draft: 1,
-      },
+      row('images.unsplash.com', 1, 0, 1, 1),
+      row('own-deployment-123.convex.cloud', 2, 0, 0, 0),
+      row('img.youtube.com', 0, 0, 1, 1),
+      row('someone-else-456.convex.cloud', 0, 0, 0, 1),
+      row('(data address)', 0, 0, 0, 1),
+      row('(relative or invalid address)', 0, 0, 0, 1),
     ],
-    covers: [
-      {
-        host: 'own-deployment-123.convex.cloud',
-        allowed: true,
-        published: 1,
-        draft: 0,
-      },
-    ],
+    covers: [row('own-deployment-123.convex.cloud', 1, 0, 0, 0)],
   })
-  // No title, text, author or id in the answer.
+  // No address, title, text, author or id in the answer.
   const text = JSON.stringify(report)
-  for (const leak of ['Pictures', 'Words to read', 'image-writer', published]) {
+  for (const leak of [
+    'Pictures',
+    'Words to read',
+    'image-writer',
+    published,
+    '/api/storage/',
+    '/vi/',
+    'photo-',
+  ]) {
     expect(text).not.toContain(leak)
   }
 })

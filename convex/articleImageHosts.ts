@@ -10,8 +10,10 @@ import {
 /**
  * Read-only report of where article images come from on this deployment
  * (#615), for the cutover: image and cover addresses counted by host, split
- * into published articles and drafts, with whether each host is allowed
- * (`lib/security/imageSources.ts`). No article text, title, author or id.
+ * into published articles and drafts, and into allowed and refused
+ * addresses (`lib/security/imageSources.ts`). Each address is judged on its
+ * own, so one host can have both (`img.youtube.com` outside `/vi/`, `http`
+ * against `https`). No address, article text, title, author or id.
  *
  *   npx convex run articleImageHosts:countImageHosts
  *
@@ -24,11 +26,28 @@ const PAGE_SIZE = 10
 const counts = v.array(
   v.object({
     host: v.string(),
-    allowed: v.boolean(),
-    published: v.number(),
-    draft: v.number(),
+    publishedAllowed: v.number(),
+    publishedRefused: v.number(),
+    draftAllowed: v.number(),
+    draftRefused: v.number(),
   })
 )
+
+type Count = {
+  publishedAllowed: number
+  publishedRefused: number
+  draftAllowed: number
+  draftRefused: number
+}
+type Row = Count & { host: string }
+type Tally = Map<string, Count>
+
+const ZERO: Count = {
+  publishedAllowed: 0,
+  publishedRefused: 0,
+  draftAllowed: 0,
+  draftRefused: 0,
+}
 
 /** A host label for an address: its host, or the kind of address it is. */
 function hostOf(src: unknown): string {
@@ -43,24 +62,27 @@ function hostOf(src: unknown): string {
   }
 }
 
-type Tally = Map<string, { allowed: boolean; published: number; draft: number }>
-
 function add(tally: Tally, src: unknown, published: boolean) {
   const host = hostOf(src)
-  const row = tally.get(host) ?? {
-    allowed: isAllowedImageSource(src, process.env.CONVEX_CLOUD_URL),
-    published: 0,
-    draft: 0,
-  }
-  if (published) row.published += 1
-  else row.draft += 1
+  const row = { ...(tally.get(host) ?? ZERO) }
+  const allowed = isAllowedImageSource(src, process.env.CONVEX_CLOUD_URL)
+  if (published && allowed) row.publishedAllowed += 1
+  else if (published) row.publishedRefused += 1
+  else if (allowed) row.draftAllowed += 1
+  else row.draftRefused += 1
   tally.set(host, row)
 }
 
-function rows(tally: Tally) {
+const total = (row: Count) =>
+  row.publishedAllowed +
+  row.publishedRefused +
+  row.draftAllowed +
+  row.draftRefused
+
+function rows(tally: Tally): Row[] {
   return [...tally.entries()]
     .map(([host, row]) => ({ host, ...row }))
-    .sort((a, b) => b.published + b.draft - (a.published + a.draft))
+    .sort((a, b) => total(b) - total(a))
 }
 
 /** One page of articles, counted. Called by `countImageHosts`. */
@@ -101,19 +123,15 @@ export const imageHostPage = internalQuery({
   },
 })
 
-function merge(
-  into: Tally,
-  page: { host: string; allowed: boolean; published: number; draft: number }[]
-) {
-  for (const row of page) {
-    const total = into.get(row.host) ?? {
-      allowed: row.allowed,
-      published: 0,
-      draft: 0,
-    }
-    total.published += row.published
-    total.draft += row.draft
-    into.set(row.host, total)
+function merge(into: Tally, page: Row[]) {
+  for (const { host, ...row } of page) {
+    const sum = into.get(host) ?? ZERO
+    into.set(host, {
+      publishedAllowed: sum.publishedAllowed + row.publishedAllowed,
+      publishedRefused: sum.publishedRefused + row.publishedRefused,
+      draftAllowed: sum.draftAllowed + row.draftAllowed,
+      draftRefused: sum.draftRefused + row.draftRefused,
+    })
   }
 }
 
@@ -134,18 +152,8 @@ export const countImageHosts = internalAction({
     let cursor: string | null = null
     for (;;) {
       const page: {
-        images: {
-          host: string
-          allowed: boolean
-          published: number
-          draft: number
-        }[]
-        covers: {
-          host: string
-          allowed: boolean
-          published: number
-          draft: number
-        }[]
+        images: Row[]
+        covers: Row[]
         published: number
         draft: number
         continueCursor: string
