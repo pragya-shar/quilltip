@@ -29,9 +29,9 @@ import {
 import { startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
 
-type Role = Parameters<Page['getByRole']>[0]
-/** A locator by role and accessible name, inside an optional landmark. */
-export type WayHome = { within?: Role; role: Role; name: string }
+import type { WayHome } from './routes/types'
+
+export type { WayHome }
 
 /** The way-home locator of READING on a page. */
 export function wayHomeOn(page: Page, wayHome: WayHome) {

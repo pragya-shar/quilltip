@@ -36,4 +36,12 @@ export const routes: PerfRoutes = {
     },
   ],
   fontFallback: [{ name: 'today', path: '/', gateMovement: true }],
+  // Today is in the application shell: its way home is the Today link in
+  // the navigation, not the legacy header's wordmark.
+  wayHome: [
+    {
+      path: '/',
+      wayHome: { within: 'navigation', role: 'link', name: 'Today' },
+    },
+  ],
 }

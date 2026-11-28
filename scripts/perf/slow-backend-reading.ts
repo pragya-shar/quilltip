@@ -13,9 +13,10 @@
 // - the page answers 200 (an existing article must not answer 404 because
 //   the backend was slow), with `noindex` and `no-store`;
 // - with JavaScript off, in Chromium and WebKit, at 375 px, the page shows a
-//   heading that it could not be loaded, a "Try again" link and the way home
-//   (READING.wayHome: today the header's wordmark link; the header's other
-//   links sit in its menu at this width).
+//   heading that it could not be loaded, a "Try again" link and the way home:
+//   the one a package declares for that path (`wayHome` in
+//   scripts/perf/routes), else READING.wayHome (the legacy header's wordmark
+//   link; that header's other links sit in its menu at this width).
 // Then, with the backend answering again, each page shows its content: a
 // timed-out read was not cached.
 
@@ -27,32 +28,25 @@ import { fixtureArticlePath } from './convex-fixture'
 import { fixtureBackendBehaviour, startFixtureBackend } from './fixture-backend'
 import { startProductionApp } from './production-app'
 import { READING, wayHomeOn, type WayHome } from './no-script-reading'
+import { SURFACE_WAY_HOME } from './routes'
 
 /** Rendering and CI noise on top of the read limits. */
 const MARGIN_MS = 1000
 
 /** Each page, the reads it waits for in sequence, and what it shows. */
-const PAGES: {
-  path: string
-  readsInSequence: number
-  content: string
-  /** Where this page's way home is, when not READING.wayHome. */
-  wayHome?: WayHome
-}[] = [
-  // Today (`/`) is the list: one read. It is in the application shell,
-  // whose way home is the Today link in the navigation.
-  {
-    path: READING.list,
-    readsInSequence: 1,
-    content: READING.articleTitle,
-    wayHome: { within: 'navigation', role: 'link', name: 'Today' },
-  },
+const PAGES = [
+  { path: READING.list, readsInSequence: 1, content: READING.articleTitle },
   // The proxy's route check, then the writer and their articles together.
   { path: READING.writer, readsInSequence: 2, content: READING.writerName },
   // The proxy's route check, then the article.
   { path: READING.article, readsInSequence: 2, content: READING.prose },
 ]
 const FALLBACK_TEXT = 'could not be loaded right now'
+
+/** The way home a package declares for a page, else the legacy header's. */
+const wayHomeFor = (path: string): WayHome =>
+  SURFACE_WAY_HOME.find((entry) => entry.path === path)?.wayHome ??
+  READING.wayHome
 const RETRY_LINK = 'Try again'
 
 const CONVEX_PORT = Number(process.env.PERF_CONVEX_PORT ?? 3299)
@@ -102,10 +96,7 @@ async function timedFetch(path: string, limitMs: number) {
   return { response, body, firstByte, whole: performance.now() - started }
 }
 
-async function readableWithoutScripts(
-  page: Page,
-  wayHome: WayHome = READING.wayHome
-) {
+async function readableWithoutScripts(page: Page, wayHome: WayHome) {
   const visible = (locator: ReturnType<Page['locator']>) =>
     locator
       .first()
@@ -172,7 +163,7 @@ async function main() {
         const run = browserRun++
         const browser = await (name === 'webkit' ? webkit : chromium).launch()
         try {
-          for (const { path, wayHome } of PAGES) {
+          for (const { path } of PAGES) {
             const context = await browser.newContext({
               viewport: { width: 375, height: 812 },
               javaScriptEnabled: false,
@@ -191,7 +182,7 @@ async function main() {
                 () => false
               )
             const missing = loaded
-              ? await readableWithoutScripts(page, wayHome)
+              ? await readableWithoutScripts(page, wayHomeFor(path))
               : ['the page did not load']
             console.log(
               `${label.padEnd(56)} ${missing.length ? 'FAILS' : 'reads'}`
