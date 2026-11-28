@@ -1023,6 +1023,49 @@ describe('totals at any history length and across collects', () => {
     expect(twice.session.pendingCents).toBe(once.session.pendingCents)
   }, 120_000)
 
+  it('leaves no reserve behind when a settlement lands between the reader and writer passes, in one run', async () => {
+    const t = convexTest(schema, modules)
+    const s = await seed(t)
+    // Five unmarked receipts on one pair and the anchor: one page each side.
+    const h = await longHistory(t, s, { keys: 2, perPair: 5 })
+    expect((h.keys - 1) * h.perPair + 1).toBeLessThan(RECOUNT_PAGE)
+    const rows = await receipts(t)
+    const pair = rows.filter((r) => r.keyId === 1)
+    const cumulative = BigInt(pair[pair.length - 1]!.cumulativeAfter)
+
+    await t.mutation(internal.balanceBackfill.start, {})
+    // The reader's one-page recount, alone.
+    vi.runOnlyPendingTimers()
+    await t.finishInProgressScheduledFunctions()
+    const afterReader = await t.run(
+      async (ctx) => (await ctx.db.query('tabAccounts').first())!.reservedCents
+    )
+    expect(afterReader).toBe(h.reservedCents)
+    // A settlement of the five lands before the writer pass.
+    await ingest(
+      t,
+      ev.tabSettled({
+        keyId: 1,
+        cumulative,
+        paidAfter: cumulative,
+        gross: cumulative,
+      })
+    )
+    await t.finishAllScheduledFunctions(vi.runAllTimers)
+
+    // One run is enough: only the anchor tip is still reserved, as a
+    // recount from the receipts says.
+    const once = await views(t, s)
+    expect(once.session.pendingCents).toBe(1)
+    const fromReceipts = (await receipts(t))
+      .filter((r) => r.status === 'ACCEPTED' || r.status === 'SHORTFALL')
+      .reduce((sum, r) => sum + r.amountCents!, 0)
+    expect(once.session.pendingCents).toBe(fromReceipts)
+    expect(
+      (await receipts(t)).every((r) => r.moneyReservedCents !== undefined)
+    ).toBe(true)
+  })
+
   async function settleTwo(t: T, s: Seeded) {
     await tip(t, s, { cents: 100 }) // 10 M base units, 97.5 cents to the writer
     await tip(t, s, { cents: 300 }) // 30 M, 292.5 cents
