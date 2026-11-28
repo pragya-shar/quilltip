@@ -1003,3 +1003,23 @@ test('a list of choices opens on the first one the reader can use', async ({
   ).toHaveAttribute('aria-disabled', 'true')
   await page.keyboard.press('Escape')
 })
+
+test("a task screen's Close stores first, and never waits long", async ({
+  page,
+}) => {
+  await open(page)
+  const close = page.getByRole('link', { name: 'Close the editor' })
+  await expect(close).toHaveAttribute('href', '/shelf')
+  await press(page, close)
+  await expect(page).toHaveURL(/\/shelf$/)
+  expect(
+    await page.evaluate(() => sessionStorage.getItem('gallery-close'))
+  ).toBe('stored')
+
+  await open(page)
+  const started = Date.now()
+  await press(page, page.getByRole('link', { name: 'Close (slow to store)' }))
+  await expect(page).toHaveURL(/\/shelf$/, { timeout: 3000 })
+  // The bound (800 ms), not the five seconds the store asked for.
+  expect(Date.now() - started).toBeLessThan(3000)
+})
