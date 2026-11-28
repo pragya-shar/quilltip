@@ -1,5 +1,16 @@
 import { expect, test } from '@playwright/test'
 
+import {
+  POINTERS,
+  animationsSettled,
+  cancelledPress,
+  expectClicked,
+  expectNotClicked,
+  markClick,
+  penUnsupported,
+  pressWith,
+} from './helpers/press'
+
 // Runs without an account or email delivery. With no AUTH_RESEND_KEY on the
 // backend, the request step must say that no code was sent. Set
 // PLAYWRIGHT_RESET_EMAIL_CONFIGURED=1 when the backend can send email.
@@ -63,6 +74,78 @@ for (const viewport of [
           () => document.documentElement.scrollWidth <= window.innerWidth
         )
       ).toBe(true)
+    })
+
+    // The email field checks itself as it loses focus, which a press on
+    // Send reset code causes. Room is kept for its error, so the button
+    // stays where the press started for every pointer (#658).
+    for (const pointer of POINTERS) {
+      test.describe(`${pointer} press`, () => {
+        if (pointer === 'touch') test.use({ hasTouch: true })
+
+        test(`with an invalid email, a ${pointer} press on Send reset code reaches it`, async ({
+          page,
+          browserName,
+        }) => {
+          test.skip(
+            penUnsupported(pointer, browserName),
+            'Pen input needs the Chromium DevTools protocol.'
+          )
+          await page.goto('/forgot-password')
+          const email = page.getByLabel('Email', { exact: true })
+          await email.fill('reader@example')
+          const button = page.getByRole('button', { name: 'Send reset code' })
+          await markClick(button, 'Send reset code')
+          await pressWith(page, button, pointer)
+          await expectClicked(page, 'Send reset code')
+          await expect(
+            page
+              .getByText('Enter a valid email address.', { exact: true })
+              .filter({ visible: true })
+          ).toBeVisible()
+          await expect(email).toBeFocused()
+        })
+      })
+    }
+
+    test('the email error does not move Send reset code', async ({ page }) => {
+      await page.goto('/forgot-password')
+      const email = page.getByLabel('Email', { exact: true })
+      const button = page.getByRole('button', { name: 'Send reset code' })
+      await email.fill('reader@example')
+      await animationsSettled(page.locator('body'))
+      const before = (await button.boundingBox())!.y
+      await email.blur()
+      await expect(email).toHaveAttribute('aria-invalid', 'true')
+      expect((await button.boundingBox())!.y).toBe(before)
+    })
+
+    test('a press on Send reset code that leaves the button does not send', async ({
+      page,
+    }) => {
+      await page.goto('/forgot-password')
+      const email = page.getByLabel('Email', { exact: true })
+      await email.fill('reader@example')
+      const button = page.getByRole('button', { name: 'Send reset code' })
+      await markClick(button, 'Send reset code')
+      await cancelledPress(page, button)
+      await expectNotClicked(page)
+      await expect(email).not.toBeFocused()
+    })
+
+    test('Tab away from an invalid email shows its error at once', async ({
+      page,
+    }) => {
+      await page.goto('/forgot-password')
+      const email = page.getByLabel('Email', { exact: true })
+      await email.fill('reader@example')
+      await page.keyboard.press('Tab')
+      await expect(email).toHaveAttribute('aria-invalid', 'true', {
+        timeout: 500,
+      })
+      await expect(email).toHaveAccessibleDescription(
+        'Enter a valid email address.'
+      )
     })
 
     test('reset step reads the code from the link and hides it from history', async ({

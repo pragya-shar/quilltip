@@ -16,6 +16,10 @@ import { AccountSubmitLabel } from './AccountSubmitLabel'
 import { useEarlySubmit } from './useEarlySubmit'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const EMAIL_ERRORS = {
+  empty: 'Enter your email address.',
+  invalid: 'Enter a valid email address.',
+} as const
 const RESEND_AFTER_S = 60
 
 export function ForgotPasswordForm() {
@@ -54,10 +58,10 @@ export function ForgotPasswordForm() {
 
   const validate = (value: string) =>
     !value.trim()
-      ? 'Enter your email address.'
+      ? EMAIL_ERRORS.empty
       : EMAIL_PATTERN.test(value.trim())
         ? null
-        : 'Enter a valid email address.'
+        : EMAIL_ERRORS.invalid
 
   async function request(event?: FormEvent<HTMLFormElement>) {
     event?.preventDefault()
@@ -156,7 +160,14 @@ export function ForgotPasswordForm() {
           )}
         </div>
       )}
-      <AccountField id="email" label="Email" error={emailError ?? undefined}>
+      <AccountField
+        id="email"
+        label="Email"
+        error={emailError ?? undefined}
+        // The field checks itself as it loses focus, which a press on Send
+        // reset code causes: room kept for the error keeps the button still.
+        reserveError={EMAIL_ERRORS.invalid}
+      >
         <input
           ref={emailInput}
           id="email"
