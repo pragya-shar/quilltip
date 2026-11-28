@@ -56,6 +56,8 @@ import {
   computeContext,
   decide,
   outputs,
+  shardCheck,
+  withShardCheck,
   type Plan,
 } from './plan'
 import { SHARDS } from './shards'
@@ -461,7 +463,13 @@ async function main(argv: string[]): Promise<number> {
   if (!base)
     throw new Error('No merge base with origin/overhaul/v3; pass --base')
   const changes = changedFiles(base)
-  const plan = decide(changes, await computeContext(base))
+  const check = shardCheck()
+  const plan = withShardCheck(
+    decide(changes, await computeContext(base)),
+    check.problems,
+    check.unsharded
+  )
+  for (const note of plan.notes ?? []) console.log(note)
   console.log(`${changes.length} files changed since ${base.slice(0, 8)}.`)
   return runAll(workflow, instancesOf(plan, workflow), argv)
 }

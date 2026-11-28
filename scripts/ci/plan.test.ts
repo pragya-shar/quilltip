@@ -17,11 +17,17 @@ import {
   outputs,
   serverLiterals,
   withStringInputs,
+  checkInputs,
+  table,
+  withShardCheck,
+  type Deps,
+  type RawInputs,
   type Change,
   type Context,
   type Inputs,
 } from './plan'
 import { SHARDS, type Shard } from './shards'
+import type { StringInput } from './string-inputs'
 
 const suite = (name: string): Fixture => ({
   name,
@@ -450,5 +456,138 @@ describe('inputs named as strings', () => {
       true
     )
     expect(shards(p)).toEqual(['ab:a,b', 'c:c'])
+  })
+})
+
+describe('checking inputs, on a tree of its own', () => {
+  const entries: StringInput[] = [
+    { from: 't/a.test.ts', constructs: 1, to: ['b/**'], why: 'test' },
+    { from: 'b/y.ts', constructs: 1, to: ['c/**'], why: 'test' },
+    { from: 's/*.mjs', constructs: 1, why: 'test' },
+  ]
+  const tree: Record<string, string> = {
+    't/a.test.ts': "import.meta.glob('../b/**/*.ts')",
+    'b/y.ts': "readdirSync('c')",
+    'c/z.ts': 'export const z = 1',
+    'u/bad.ts': "readFileSync('docs/x')",
+    's/one.mjs': 'readFile(p)',
+    's/two.mjs': 'readFile(p); readFile(q)',
+    's/none.mjs': 'export {}',
+  }
+  const deps = (more: Partial<Deps> = {}): Deps => ({
+    source: (file) => tree[file],
+    closure: async () => new Set<string>(),
+    tracked: Object.keys(tree),
+    entries,
+    ...more,
+  })
+  const raw = (more: Partial<RawInputs> = {}): RawInputs => ({
+    suites: new Map(),
+    integration: inputs(['lib/x.ts']),
+    shared: inputs([]),
+    ...more,
+  })
+
+  it('scans the fixture suites, not only the local-network and shared sets', async () => {
+    const problems = new Map()
+    const checked = await checkInputs(
+      raw({ suites: new Map([['s', inputs(['u/bad.ts'])]]) }),
+      deps(),
+      problems
+    )
+    expect(checked.suiteInputs.get('s')).toBeUndefined()
+    expect(problems.get('s')?.join()).toContain('u/bad.ts (1 reads, no entry)')
+  })
+
+  it('scans the files the fixed point adds, and turns the job on', async () => {
+    // t/a.test.ts reaches b/**, b/y.ts reaches c/**: two rounds.
+    const grown = await checkInputs(
+      raw({ integration: inputs(['t/a.test.ts']) }),
+      deps()
+    )
+    expect([...grown.integration!.files].sort()).toEqual([
+      'b/y.ts',
+      'c/z.ts',
+      't/a.test.ts',
+    ])
+
+    const problems = new Map()
+    const bad = await checkInputs(
+      raw({ integration: { ...inputs(['t/a.test.ts']), patterns: ['u/**'] } }),
+      deps(),
+      problems
+    )
+    expect(bad.integration).toBeUndefined()
+    expect(problems.get('contracts-integration')?.join()).toContain('u/bad.ts')
+    const p = decide(
+      changed('docs/a.md'),
+      context({ integration: bad.integration })
+    )
+    expect(p.contractsIntegration).toEqual({
+      run: true,
+      reason: 'inputs unknown',
+    })
+  })
+
+  it('reports a set whose inputs could not be computed', async () => {
+    const problems = new Map()
+    await checkInputs(
+      raw({
+        shared: undefined,
+        reasons: new Map([['shared', 'build failed']]),
+      }),
+      deps(),
+      problems
+    )
+    expect(problems.get('shared')).toEqual(['inputs unknown: build failed'])
+  })
+
+  it("holds every file a glob entry matches to the glob's count", () => {
+    const result = withStringInputs(
+      inputs(['s/one.mjs', 's/two.mjs', 's/none.mjs']),
+      (file) => tree[file],
+      ['s/one.mjs', 's/two.mjs', 's/none.mjs'],
+      entries
+    )
+    expect(result.uncovered).toEqual([
+      's/none.mjs (0 reads, its entry says 1)',
+      's/two.mjs (2 reads, its entry says 1)',
+    ])
+  })
+
+  it('counts a path-keyed input of the local-network job', () => {
+    const named = { ...inputs([]), paths: ['lib/specs/**'] }
+    const p = decide(
+      [{ path: 'lib/specs/new.json', deleted: false, added: true }],
+      context({ integration: { ...named, patterns: [] } })
+    )
+    expect(p.contractsIntegration.run).toBe(true)
+    const edit = decide(
+      changed('lib/specs/new.json'),
+      context({ integration: { ...named, patterns: [] } })
+    )
+    expect(edit.contractsIntegration.run).toBe(false)
+  })
+})
+
+describe('a shard list with problems', () => {
+  it('plans everything, runs the suites in no shard, and says what to fix', () => {
+    const p = withShardCheck(
+      plan(changed('docs/a.md')),
+      ['Suite "x" is in no shard: add it to a shard in scripts/ci/shards.ts.'],
+      ['x']
+    )
+    expect(p.app.run && p.contracts.run && p.contractsIntegration.run).toBe(
+      true
+    )
+    const extra = p.shards.find((s) => s.shard.shard === 'unsharded')!
+    expect(extra.suites).toEqual(['x'])
+    expect(extra.decision.run).toBe(true)
+    expect(table(p)).toContain('Suite "x" is in no shard')
+  })
+
+  it('leaves a clean plan alone', () => {
+    const clean = plan(changed('docs/a.md'))
+    expect(withShardCheck(clean, [], [])).toBe(clean)
   })
 })
