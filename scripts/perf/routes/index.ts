@@ -26,7 +26,12 @@ import { routes as write } from './write'
 import { routes as writer } from './writer'
 import { routes as you } from './you'
 
-export type { PageLoadBudget, PageLoadRoute, PerfRoutes } from './types'
+export type {
+  PageLoadBudget,
+  PageLoadRoute,
+  PerfRoutes,
+  WayHome,
+} from './types'
 
 export const PERF_ROUTE_PACKAGES = {
   foundation,
@@ -48,6 +53,7 @@ const all = Object.values(PERF_ROUTE_PACKAGES) as PerfRoutes[]
 export const SURFACE_FIRST_LOAD = all.flatMap((p) => p.firstLoad ?? [])
 export const SURFACE_PAGE_LOAD = all.flatMap((p) => p.pageLoad ?? [])
 export const SURFACE_FONT_FALLBACK = all.flatMap((p) => p.fontFallback ?? [])
+export const SURFACE_WAY_HOME = all.flatMap((p) => p.wayHome ?? [])
 
 const deleted = deletedPaths().map((entry) => entry.path.replace(/\/$/, ''))
 

@@ -32,4 +32,12 @@ export const routes: PerfRoutes = {
   fontFallback: [
     { name: 'article', path: FIXTURE_ARTICLE_PATH, gateMovement: true },
   ],
+  // The article is a pushed screen: the shell's back link (a plain link to
+  // Today) is its way home, also on the unreachable state.
+  wayHome: [
+    {
+      path: FIXTURE_ARTICLE_PATH,
+      wayHome: { within: 'main', role: 'link', name: 'Back to Today' },
+    },
+  ],
 }
