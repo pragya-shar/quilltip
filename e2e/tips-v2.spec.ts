@@ -1419,6 +1419,16 @@ test.describe('send button name', () => {
     await expect(send).toHaveAccessibleName('Send $2.25 in 2 tips')
     await expect(send).toHaveText('Send $2.25 in 2 tips')
   })
+
+  test('the basket button says "1 tip" for one tip', async ({ page }) => {
+    await open(page, 'basket=1')
+    await page.getByRole('button', { name: /Tip basket/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'Tip basket' })
+    await connect(sheet)
+    const send = sheet.getByRole('button', { name: sendBasket(1) })
+    await expect(send).toHaveAccessibleName('Send $1 in 1 tip')
+    await expect(send).toHaveText('Send $1 in 1 tip')
+  })
 })
 
 const RATE_TITLE = 'Too many tips in a short time'
