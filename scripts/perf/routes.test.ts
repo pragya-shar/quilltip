@@ -12,6 +12,7 @@ import {
   SURFACE_FIRST_LOAD,
   SURFACE_FONT_FALLBACK,
   SURFACE_PAGE_LOAD,
+  mergePackageRoutes,
 } from './routes'
 import {
   FIRST_LOAD_BUDGET_KB,
@@ -87,6 +88,29 @@ describe('measured routes from scripts/perf/routes', () => {
     for (const entry of SURFACE_PAGE_LOAD)
       for (const kb of Object.values(entry.budget))
         expect(kb).toBeGreaterThan(0)
+  })
+
+  it('drops a foundation placeholder when a package names its route', () => {
+    const merged = mergePackageRoutes({
+      foundation: {
+        firstLoad: [
+          { route: '/system/reading', budgetKb: 186, access: 'public' },
+          { route: '/shelf', budgetKb: 183, access: 'public' },
+        ],
+        fontFallback: [{ name: 'shelf', path: '/shelf', gateMovement: true }],
+      },
+      shelf: {
+        firstLoad: [{ route: '/shelf', budgetKb: 179, access: 'public' }],
+        fontFallback: [
+          { name: 'shelf page', path: '/shelf', gateMovement: true },
+        ],
+      },
+    })
+    expect(merged.firstLoad).toEqual([
+      { route: '/system/reading', budgetKb: 186, access: 'public' },
+      { route: '/shelf', budgetKb: 179, access: 'public' },
+    ])
+    expect(merged.fontFallback.map((e) => e.name)).toEqual(['shelf page'])
   })
 
   it('keeps the shell reading page measured, at the public limits', () => {

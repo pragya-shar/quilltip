@@ -3,13 +3,14 @@ import { readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 import {
-  SHELL_SEGMENTS,
   linkPrefetch,
   prefetchFor,
   servedByLegacy,
+  shellSegments,
   type LegacyRouteTree,
 } from '@/lib/routing/legacyRoutes'
 import { legacyRouteTree } from '@/lib/routing/legacyRouteTree'
+import { RESERVED_SEGMENTS } from '@/lib/routing/segments'
 
 const root = path.resolve(__dirname, '../..')
 
@@ -90,7 +91,33 @@ describe('links from the shell to legacy pages never prefetch', () => {
         return /^[[_@]/.test(name) ? [] : [name]
       })
     const shell = walk(path.join(root, 'app/(app)'))
-    expect(shell.filter((segment) => !SHELL_SEGMENTS.has(segment))).toEqual([])
+    const tree = legacyRouteTree(path.join(root, 'app/(legacy)'))
+    const own = shellSegments(tree)
+    expect(shell.filter((segment) => !own.has(segment))).toEqual([])
+    // Never read as a writer's page or as legacy, in any case.
+    for (const segment of shell) {
+      expect(servedByLegacy(`/${segment}`, tree), segment).toBe(false)
+      expect(servedByLegacy(`/${segment.toUpperCase()}`, tree), segment).toBe(
+        false
+      )
+    }
+  })
+
+  it('derives the shell segments from the registry', () => {
+    const tree: LegacyRouteTree = {
+      home: true,
+      segments: ['write', 'Settings'],
+      writer: true,
+    }
+    const own = shellSegments(tree)
+    for (const segment of RESERVED_SEGMENTS) {
+      const legacy = segment === 'write' || segment === 'settings'
+      expect(own.has(segment), segment).toBe(!legacy)
+      expect(servedByLegacy(`/${segment}`, tree), segment).toBe(legacy)
+    }
+    expect(servedByLegacy('/Shelf', tree)).toBe(false)
+    expect(servedByLegacy('/SETTINGS/x', tree)).toBe(true)
+    expect(servedByLegacy('/tomas', tree)).toBe(true)
   })
 
   it('sends every link of the shell and its surfaces through AppLink', () => {

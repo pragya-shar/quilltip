@@ -8,7 +8,7 @@
  * legacy.
  */
 
-import { publicContentPath } from './publicContentPath'
+import { APP_ROUTE_SEGMENTS, publicContentPath } from './publicContentPath'
 
 export type LegacyRouteTree = {
   /** app/(legacy)/page.tsx serves `/`. */
@@ -25,28 +25,24 @@ const EMPTY: LegacyRouteTree = { home: false, segments: [], writer: false }
 export function servedByLegacy(href: string, tree: LegacyRouteTree): boolean {
   if (!href.startsWith('/') || href.startsWith('//')) return false
   const pathname = href.split(/[?#]/)[0] ?? '/'
-  const first = pathname.split('/').filter(Boolean)[0]
+  const first = pathname.split('/').filter(Boolean)[0]?.toLowerCase()
   if (!first) return tree.home
-  if (tree.segments.includes(first)) return true
-  // Anything else at the top level is a writer's page, or the shell's.
-  return tree.writer && !first.includes('.') && !SHELL_SEGMENTS.has(first)
+  if (tree.segments.some((segment) => segment.toLowerCase() === first))
+    return true
+  // Anything else at the top level is a writer's page, or the shell's: a
+  // segment the registry reserves (lib/routing/segments) is never a writer.
+  return tree.writer && !first.includes('.') && !APP_ROUTE_SEGMENTS.has(first)
 }
 
 /**
- * The shell's own first segments: never a writer, never legacy. Kept here
- * so this module stays free of the segment registry's imports; checked
- * against it by scripts/system/legacy-routes.test.ts.
+ * The shell's own first segments for a tree: every reserved segment the
+ * tree does not serve. Derived, so a package that adds a route reserves
+ * its segment in its own file and nothing here changes.
  */
-export const SHELL_SEGMENTS = new Set([
-  'lines',
-  'pocket',
-  'search',
-  'shelf',
-  'signin',
-  'system',
-  'today',
-  'you',
-])
+export function shellSegments(tree: LegacyRouteTree): ReadonlySet<string> {
+  const legacy = new Set(tree.segments.map((segment) => segment.toLowerCase()))
+  return new Set([...APP_ROUTE_SEGMENTS].filter((s) => !legacy.has(s)))
+}
 
 function treeFromEnv(): LegacyRouteTree {
   const raw = process.env.NEXT_PUBLIC_LEGACY_ROUTES

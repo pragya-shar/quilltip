@@ -15,7 +15,8 @@ export const routes: PerfRoutes = {
     { route: '/system/reading', budgetKb: 186, access: 'public' },
     // The placeholder until the Shelf package's page replaces it: the same
     // shell as the reading sample, so the same budget until its first
-    // measurement (then that plus 2).
+    // measurement (then that plus 2). It drops out when
+    // scripts/perf/routes/shelf.ts names /shelf; nothing here changes.
     { route: '/shelf', budgetKb: 183, access: 'public' },
   ],
   // e2e/reading-no-script.spec.ts, in the "reading without scripts" check.
