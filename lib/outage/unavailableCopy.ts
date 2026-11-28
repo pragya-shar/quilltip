@@ -16,6 +16,6 @@ export function unavailableHeading(what: string): string {
 }
 
 export const UNAVAILABLE_DETAIL =
-  'Quilltip did not answer in time. Nothing was lost; please try again in a moment.'
+  'Quilltip did not answer in time. Nothing was lost. Please try again in a moment.'
 
 export const UNAVAILABLE_RETRY = 'Try again'

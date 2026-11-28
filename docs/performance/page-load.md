@@ -711,6 +711,13 @@ so a reader sees one message.
 
 - A single slow query against a healthy backend is absorbed by the retry, and
   the reader gets the page.
+- Only a timeout, a network failure or a 5xx counts toward an outage. A
+  backend that answers wrongly (a function that threw, or a 4xx such as a
+  function a backend does not have yet) declares nothing: the request goes
+  on unchecked and the page reads for itself. The `/articles` check uses an
+  existing query (`publicRoutes.publicRouteExists` with a handle no writer
+  can have), so a frontend deployed ahead of its backend never reads a
+  missing function as an outage.
 - An outage is remembered for 5 s per server instance: every public reading
   request then answers 503 at once, with no backend read. Only a check that
   failed twice sets it, a 503 from the memory never renews it, and the first

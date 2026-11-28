@@ -12,7 +12,7 @@ import {
   formatArticleRoute,
   formatWriterRoute,
 } from '@/lib/seo/articleRoute'
-import { publicQuery } from '@/lib/seo/publicQuery'
+import { countsAsOutage, publicQuery } from '@/lib/seo/publicQuery'
 import { readingListState } from '@/lib/seo/readingListState'
 import {
   READ_DEADLINE_HEADER,
@@ -69,14 +69,22 @@ type RouteCheck =
 const OUTAGE_MEMORY_MS = 5000
 let outageUntil = 0
 
+/** The backend is down: a timeout, a network failure or a 5xx. */
 const FAILED = Symbol('failed')
+/**
+ * The backend answered, but wrongly: a function that threw or a 4xx (for
+ * example a frontend deployed ahead of its backend). Never an outage: the
+ * request goes on unchecked and the page reads for itself.
+ */
+const WRONG = Symbol('wrong')
 
-/** One read, or FAILED when it errors or runs out of time (and is aborted). */
-async function attempt<T>(read: () => Promise<T>): Promise<T | typeof FAILED> {
+async function attempt<T>(
+  read: () => Promise<T>
+): Promise<T | typeof FAILED | typeof WRONG> {
   try {
     return await read()
-  } catch {
-    return FAILED
+  } catch (error) {
+    return countsAsOutage(error) ? FAILED : WRONG
   }
 }
 
@@ -87,7 +95,7 @@ async function attempt<T>(read: () => Promise<T>): Promise<T | typeof FAILED> {
  */
 async function checkWithRetry<T>(
   read: () => Promise<T>
-): Promise<T | typeof FAILED> {
+): Promise<T | typeof FAILED | typeof WRONG> {
   const first = await attempt(read)
   if (first !== FAILED) return first
   const second = await attempt(read)
@@ -155,6 +163,7 @@ async function checkPublicContent(
     const state = await checkWithRetry(() =>
       readingListState(ROUTE_CHECK_TIMEOUT_MS)
     )
+    if (state === WRONG) return null
     return state === FAILED ? { kind: 'outage' } : { kind: 'list' }
   }
 
@@ -170,6 +179,7 @@ async function checkPublicContent(
       target
     )
   )
+  if (check === WRONG) return null
   if (check === FAILED) return { kind: 'outage' }
   if (key && check.kind === 'found') rememberFound(key)
   return check

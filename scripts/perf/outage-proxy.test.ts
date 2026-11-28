@@ -14,7 +14,13 @@ import { PUBLIC_READ_TIMEOUT_MS } from '../../lib/seo/publicReadTimeout'
  * the read limit runs on real timers, so an outage costs two real limits.
  */
 
-type Mode = 'answering' | 'silent' | 'failing' | 'slow-once'
+type Mode =
+  | 'answering'
+  | 'silent'
+  | 'failing'
+  | 'slow-once'
+  | 'function-error'
+  | 'client-error'
 const backend = { mode: 'answering' as Mode, reads: 0, slowOnceUsed: false }
 
 function answer(path: string, args: { username?: string; slug?: string }) {
@@ -40,6 +46,17 @@ function stubBackend(input: RequestInfo | URL, init?: RequestInit) {
   }
   if (backend.mode === 'failing')
     return Promise.resolve(new Response('backend error', { status: 500 }))
+  // Reachable but wrong: a function that threw (Convex answers 560 with an
+  // error body), or a 4xx such as a function this backend does not have.
+  if (backend.mode === 'function-error')
+    return Promise.resolve(
+      Response.json(
+        { status: 'error', errorMessage: 'Could not find public function' },
+        { status: 560 }
+      )
+    )
+  if (backend.mode === 'client-error')
+    return Promise.resolve(new Response('bad request', { status: 400 }))
   const body = JSON.parse(String(init?.body)) as {
     path: string
     args: [{ username?: string; slug?: string }]
@@ -136,6 +153,24 @@ describe('one slow query against a healthy backend', () => {
     expect(backend.reads).toBe(2)
     expect(ms).toBeLessThan(PUBLIC_READ_TIMEOUT_MS + 500)
   })
+})
+
+describe('a backend that answers wrongly', () => {
+  it.each(['function-error', 'client-error'] as const)(
+    '%s: no outage, no retry; the page renders and reads for itself',
+    async (mode) => {
+      backend.mode = mode
+      const list = await request('/articles')
+      expect(list.status).toBe(200)
+      const article = await request('/fixture-writer/the-lamp')
+      expect(article.status).toBe(200)
+      expect(forwarded(article, ARTICLE_ROUTE_HEADER)).toBe('unknown')
+      // One read each, no retry, and no outage declared.
+      expect(backend.reads).toBe(2)
+      backend.mode = 'answering'
+      expect((await request('/articles')).status).toBe(200)
+    }
+  )
 })
 
 describe('an outage', () => {
